@@ -267,10 +267,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         soumaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z, type) => bursts?.spawn(x, y, z, type));
 
         // Zoom-to-ship: smoothly chase Soumaya from just behind/above.
-        if (followShipRef.current && controls && soumaya.object.visible) {
+        if (followShipRef.current && controls) {
           const sp = soumaya.object.position;
-          controls.target.lerp(sp, 0.12);
-          camera.position.lerp(sp.clone().add(new THREE.Vector3(0, 16, 52)), 0.06);
+          controls.target.lerp(sp, 0.2);
+          camera.position.lerp(sp.clone().add(new THREE.Vector3(0, 12, 34)), 0.1);
           controls.update();
         }
       }

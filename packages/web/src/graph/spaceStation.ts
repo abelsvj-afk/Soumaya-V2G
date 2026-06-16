@@ -21,47 +21,32 @@ export function makeSpaceStation(): THREE.Object3D {
   fallback.rotation.x = Math.PI / 2;
   group.add(fallback);
 
+  let mixer: THREE.AnimationMixer | null = null;
+  let lastTime = 0;
+  let selfSpin = 0;
+
   new GLTFLoader().load(
     "/space_station_3.glb",
     (gltf) => {
       const model = gltf.scene;
-      
-      // Add some emissive glow to the station's materials if they don't have it
-      model.traverse((o: any) => {
-        if (o.isMesh && o.material) {
-          if (Array.isArray(o.material)) {
-            o.material.forEach((m: any) => {
-              m.metalness = 0.8;
-              m.roughness = 0.2;
-              if (m.emissive) {
-                m.emissive.set("#3a4a8a");
-                m.emissiveIntensity = 0.4;
-              }
-            });
-          } else {
-            o.material.metalness = 0.8;
-            o.material.roughness = 0.2;
-            if (o.material.emissive) {
-              o.material.emissive.set("#3a4a8a");
-              o.material.emissiveIntensity = 0.4;
-            }
-          }
-        }
-      });
 
+      // Keep the model's ORIGINAL materials/colors/textures (do NOT override them).
       const box = new THREE.Box3().setFromObject(model);
       const dim = new THREE.Vector3();
       box.getSize(dim);
       const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
-      
-      // Make the station significantly larger than a ship.
-      const k = 55 / maxDim;
+      const k = 50 / maxDim;
       model.scale.setScalar(k);
-      
       const center = new THREE.Vector3();
       box.getCenter(center);
       model.position.copy(center.multiplyScalar(-k)); // recenter
-      
+
+      // Play any animation clips baked into the model (rotating rings, lights…).
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(model);
+        for (const clip of gltf.animations) mixer.clipAction(clip).play();
+      }
+
       fallback.visible = false;
       group.add(model);
     },
@@ -69,25 +54,29 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit close enough to the central cluster to actually be seen.
+  // Orbit close enough to the central cluster to be seen, and slowly.
   const orbitRadius = 320;
-  const orbitSpeed = 0.03;
+  const orbitSpeed = 0.012;
   const orbitPhase = Math.random() * Math.PI * 2;
 
   group.userData.update = (time: number) => {
+    const dt = lastTime ? Math.min(0.05, time - lastTime) : 0;
+    lastTime = time;
+    mixer?.update(dt); // drive the model's built-in animations
+
     const angle = time * orbitSpeed + orbitPhase;
     group.position.set(
       Math.cos(angle) * orbitRadius,
       Math.sin(angle * 0.7) * 60, // gentle vertical drift
-      Math.sin(angle) * orbitRadius
+      Math.sin(angle) * orbitRadius,
     );
-    // Orient it towards the direction of travel + some slow self-rotation
     group.lookAt(
       Math.cos(angle + 0.01) * orbitRadius,
-      Math.sin((angle + 0.01) * 0.7) * 150,
-      Math.sin(angle + 0.01) * orbitRadius
+      Math.sin((angle + 0.01) * 0.7) * 60,
+      Math.sin(angle + 0.01) * orbitRadius,
     );
-    group.rotateX(time * 0.05);
+    selfSpin += dt * 0.08; // slow, smooth barrel roll (was an erratic fast spin)
+    group.rotateZ(selfSpin);
   };
 
   return group;
