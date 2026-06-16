@@ -6,20 +6,24 @@ import { upsertEmbedding, deleteEmbedding } from "../db/vec.js";
 
 export interface NewNode {
   label: string;
+  celestialTitle?: string;
   type: NodeType;
   content: string;
   emotionalWeight?: number;
   importance?: number;
+  color?: string;
 }
 
 function toGraphNode(row: NodeRow): GraphNode {
   return {
     id: row.id,
     label: row.label,
+    celestialTitle: row.celestialTitle ?? undefined,
     type: row.type as NodeType,
     content: row.content,
     emotionalWeight: row.emotionalWeight ?? undefined,
     importance: row.importance ?? undefined,
+    color: row.color ?? undefined,
     createdAt: row.createdAt,
   };
 }
@@ -38,10 +42,12 @@ export class NodesRepo {
         .insert(nodes)
         .values({
           label: input.label,
+          celestialTitle: input.celestialTitle ?? null,
           type: input.type,
           content: input.content,
           emotionalWeight: input.emotionalWeight ?? null,
           importance: input.importance ?? null,
+          color: input.color ?? null,
         })
         .returning()
         .get();

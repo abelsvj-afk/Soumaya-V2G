@@ -6,10 +6,16 @@ import {
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
   ANSWER_SYSTEM,
+  RESEARCH_SYSTEM,
+  SECTOR_SYSTEM,
+  LOG_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
   buildAnswerPrompt,
+  buildResearchPrompt,
+  buildSectorPrompt,
+  buildLogPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -24,10 +30,12 @@ const extractionSchema = {
         type: Type.OBJECT,
         properties: {
           label: { type: Type.STRING },
+          celestialTitle: { type: Type.STRING },
           type: { type: Type.STRING, enum: [...NODE_TYPES] },
           content: { type: Type.STRING },
           emotionalWeight: { type: Type.NUMBER },
           importance: { type: Type.NUMBER },
+          color: { type: Type.STRING },
         },
         required: ["label", "type", "content"],
       },
@@ -83,6 +91,22 @@ const researchSchema = {
     content: { type: Type.STRING },
   },
   required: ["label", "content"],
+};
+
+const sectorSchema = {
+  type: Type.OBJECT,
+  properties: {
+    vibe: { type: Type.STRING },
+  },
+  required: ["vibe"],
+};
+
+const logSchema = {
+  type: Type.OBJECT,
+  properties: {
+    log: { type: Type.STRING },
+  },
+  required: ["log"],
 };
 
 export class GeminiProvider implements LlmProvider {
@@ -177,5 +201,23 @@ export class GeminiProvider implements LlmProvider {
       buildResearchPrompt(node),
       researchSchema,
     );
+  }
+
+  async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
+    const raw = await this.json<{ vibe: string }>(
+      SECTOR_SYSTEM,
+      buildSectorPrompt(nodes),
+      sectorSchema,
+    );
+    return raw.vibe;
+  }
+
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+    const raw = await this.json<{ log: string }>(
+      LOG_SYSTEM,
+      buildLogPrompt(newNodes, actions),
+      logSchema,
+    );
+    return raw.log;
   }
 }

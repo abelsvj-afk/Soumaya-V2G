@@ -46,10 +46,13 @@ export const RELATIONSHIP_TYPES: readonly RelationshipType[] = [
 export interface GraphNode {
   id: number;
   label: string;
+  celestialTitle?: string;
   type: NodeType;
   content: string;
   /** -1 (negative) .. 1 (positive); optional, set by the LLM in Phase II. */
   emotionalWeight?: number;
+  /** Hex or CSS color suggestion based on emotional resonance. */
+  color?: string;
   /** 0..1 significance/seriousness/life-impact, rated at ingestion. */
   importance?: number;
   /** Connection count — enriched by the graph service on read. */
@@ -102,4 +105,11 @@ export interface ChatResponse {
   citations: NodeRef[];
   /** Ids of the subgraph used as context (for camera/highlight). */
   contextIds: number[];
+}
+
+export interface DailyLog {
+  id: number;
+  content: string;
+  date: string;
+  createdAt: string;
 }

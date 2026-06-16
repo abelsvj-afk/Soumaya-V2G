@@ -53,6 +53,10 @@ export interface LlmProvider {
   ): Promise<{ answer: string; citations: number[] }>;
   /** Perform autonomous research on a single node to expand the knowledge base. */
   research(node: LinkCandidate): Promise<{ label: string; content: string }>;
+  /** Generate a vibe description for a cluster of nodes. */
+  summarizeSector(nodes: LinkCandidate[]): Promise<string>;
+  /** Generate a daily log of the brain's evolution. */
+  generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string>;
 }
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";

@@ -4,12 +4,12 @@ import type { AppContext } from "../../context.js";
 import { findCandidates } from "../../synthesis/engine.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EdgesRepo } from "../../repositories/edges.repo.js";
-import { insights, agentLogs, settings, nodes, edges } from "../../db/schema.js";
+import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../../db/schema.js";
 import { upsertEmbedding, getEmbedding, knn } from "../../db/vec.js";
 import { eq, desc } from "drizzle-orm";
 
 const CompleteJobSchema = z.object({
-  type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging"]),
+  type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
   targets: z.array(z.number()),
 });
 
@@ -21,6 +21,27 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    * Returns the next "meaningful" task for the Soumaya agent.
    */
   r.get("/next-job", async (req, res) => {
+    // Check if it's time for a Daily Log (once per day)
+    const today = new Date().toISOString().split("T")[0];
+    const logExists = await ctx.handle.db
+      .select()
+      .from(dailyLogs)
+      .where(eq(dailyLogs.date, today))
+      .get();
+    
+    if (!logExists) {
+      const nodeCount = new NodesRepo(ctx.handle).count();
+      // Wait until we have at least some nodes to summarize
+      if (nodeCount > 5) {
+        res.json({
+          type: "daily_log",
+          targets: [],
+          description: "Captain's Log: Summarizing today's brain evolution.",
+        });
+        return;
+      }
+    }
+
     // 0. Merging: Find high-redundancy nodes (similarity > 0.95)
     // We use a strict threshold to avoid merging distinct but related thoughts.
     const nodesRepo = new NodesRepo(ctx.handle);
@@ -133,7 +154,31 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       return;
     }
 
-    // 5. Calibration: Hub mass check
+    // 5. Sector Vibe: Generate a description for a cluster
+    const cluster = ctx.handle.sqlite.prepare(`
+      SELECT n.id
+      FROM nodes n
+      JOIN (
+        SELECT node_id, COUNT(*) as deg 
+        FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
+        GROUP BY node_id
+      ) d ON d.node_id = n.id
+      WHERE n.content NOT LIKE '%--- Sector Vibe ---%'
+      AND d.deg >= 3
+      ORDER BY RANDOM()
+      LIMIT 1
+    `).get() as { id: number } | undefined;
+
+    if (cluster) {
+      res.json({
+        type: "sector_vibe",
+        targets: [cluster.id],
+        description: "Atmospheric scan: Charting the vibe of a local memory sector.",
+      });
+      return;
+    }
+
+    // 6. Calibration: Hub mass check
     const hub = ctx.handle.sqlite.prepare(`
       SELECT n.id
       FROM nodes n
@@ -304,6 +349,49 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           description = `Fused redundant memory "${b.label}" into "${a.label}". Connections re-routed.`;
           res.json({ ok: true, detail: "Memory fusion complete." });
         }
+      } else if (type === "sector_vibe" && targets.length === 1) {
+        const nodesRepo = new NodesRepo(ctx.handle);
+        const center = nodesRepo.getById(targets[0]);
+        if (center) {
+          // Get immediate neighbors
+          const neighbors = ctx.handle.sqlite.prepare(`
+            SELECT n.id, n.label, n.content 
+            FROM nodes n
+            JOIN edges e ON (e.source = n.id OR e.target = n.id)
+            WHERE (e.source = ? OR e.target = ?) AND n.id != ?
+            LIMIT 5
+          `).all(center.id, center.id, center.id) as { id: number, label: string, content: string }[];
+          
+          const clusterNodes = [center, ...neighbors].map(n => ({ label: n.label, content: n.content }));
+          const vibe = await ctx.llm.summarizeSector(clusterNodes);
+
+          // Append vibe to the center node
+          const expandedContent = `${center.content}\n\n--- Sector Vibe ---\n${vibe}`;
+          await ctx.handle.db.update(nodes)
+            .set({ content: expandedContent })
+            .where(eq(nodes.id, center.id))
+            .run();
+          
+          description = `Charted sector vibe around "${center.label}": ${vibe}`;
+          res.json({ ok: true, detail: "Sector vibe charted." });
+        }
+      } else if (type === "daily_log") {
+        const nodesRepo = new NodesRepo(ctx.handle);
+        const recentNodes = nodesRepo.recent(10);
+        const recentLogs = ctx.handle.sqlite.prepare(`SELECT action, description FROM agent_logs ORDER BY id DESC LIMIT 10`).all() as { action: string, description: string }[];
+        
+        const logText = await ctx.llm.generateDailyLog(
+          recentNodes.map(n => ({ label: n.label, content: n.content })),
+          recentLogs.map(l => l.description)
+        );
+
+        ctx.handle.db.insert(dailyLogs).values({
+          content: logText,
+          date: new Date().toISOString().split("T")[0]
+        }).run();
+
+        description = `Captain's Log recorded: ${logText.slice(0, 50)}...`;
+        res.json({ ok: true, detail: "Daily log created." });
       } else if (type === "patrol") {
         description = `Performed routine patrol on node ${targets[0]}.`;
         res.json({ ok: true, detail: "Patrol logged." });
@@ -333,6 +421,25 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       .limit(50)
       .all();
     res.json(logs);
+  });
+
+  /**
+   * GET /api/maintenance/daily-log
+   * Returns the most recent Captain's log.
+   */
+  r.get("/daily-log", async (req, res) => {
+    const log = await ctx.handle.db
+      .select()
+      .from(dailyLogs)
+      .orderBy(desc(dailyLogs.id))
+      .limit(1)
+      .get();
+    
+    if (log) {
+      res.json(log);
+    } else {
+      res.status(404).json({ error: "No daily log found" });
+    }
   });
 
   /**

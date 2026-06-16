@@ -104,4 +104,12 @@ export class HeuristicProvider implements LlmProvider {
       content: `Preliminary observations on ${node.label}: ${node.content.slice(0, 100)}... (Research mode requires an active LLM key for full deep-dives.)`,
     };
   }
+
+  async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
+    return `This sector contains ${nodes.length} closely related memories, humming with un-synthesized potential.`;
+  }
+
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+    return `Stardate: ${new Date().toLocaleDateString()}. Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
+  }
 }

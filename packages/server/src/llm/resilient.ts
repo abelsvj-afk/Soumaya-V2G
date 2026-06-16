@@ -134,4 +134,24 @@ export class ResilientLlmProvider implements LlmProvider {
       return this.fallback.research(node);
     }
   }
+
+  async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
+    if (this.tripped) return this.fallback.summarizeSector(nodes);
+    try {
+      return await withTimeout(this.primary.summarizeSector(nodes), this.timeoutMs, "summarizeSector");
+    } catch (err) {
+      this.note(err, "summarizeSector");
+      return this.fallback.summarizeSector(nodes);
+    }
+  }
+
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+    if (this.tripped) return this.fallback.generateDailyLog(newNodes, actions);
+    try {
+      return await withTimeout(this.primary.generateDailyLog(newNodes, actions), this.timeoutMs, "generateDailyLog");
+    } catch (err) {
+      this.note(err, "generateDailyLog");
+      return this.fallback.generateDailyLog(newNodes, actions);
+    }
+  }
 }

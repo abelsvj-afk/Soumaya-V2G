@@ -61,6 +61,12 @@ export function bootstrapSchema(sqlite: RawDb): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS daily_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      content TEXT NOT NULL,
+      date TEXT NOT NULL DEFAULT CURRENT_DATE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -73,6 +79,12 @@ function migrateSchema(sqlite: RawDb): void {
   const cols = sqlite.prepare(`PRAGMA table_info(nodes)`).all() as { name: string }[];
   if (!cols.some((c) => c.name === "importance")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN importance REAL`);
+  }
+  if (!cols.some((c) => c.name === "celestial_title")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN celestial_title TEXT`);
+  }
+  if (!cols.some((c) => c.name === "color")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN color TEXT`);
   }
 }
 

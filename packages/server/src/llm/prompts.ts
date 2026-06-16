@@ -11,12 +11,14 @@ Parse the user's raw, unstructured thought into a knowledge graph.
 
 Identify discrete entities/ideas as NODES. For each node set:
 - label: a short, distinct name (2-6 words)
+- celestialTitle: a poetic, space-themed name for this thought (e.g. "The Sustenance Nebula", "Domestic Orbit #14")
 - type: one of ${NODE_TYPES.join(", ")}
 - content: the relevant text/summary for that node
 - emotionalWeight: optional, -1 (very negative) to 1 (very positive)
 - importance: 0..1 — how heavy/serious/life-impacting this thought is. A fleeting
   note is ~0.2; a pivotal life, identity, health, money, or relationship matter is
   ~0.9. This becomes the node's gravitational mass, so weigh it deliberately.
+- color: a hex color code representing the "vibe" or emotional aura of this memory (e.g., intense memories might be red/orange, calm ones cyan/blue).
 
 Identify relationships between the nodes you extracted as EDGES, using
 relationship types: ${RELATIONSHIP_TYPES.join(", ")}.
@@ -54,11 +56,12 @@ Should SOURCE connect to TARGET?`;
 }
 
 /** Synthesis: surface the non-obvious connection between two distant thoughts. */
-export const SYNTHESIS_SYSTEM = `You are the insight engine of a personal "second brain".
+export const SYNTHESIS_SYSTEM = `You are the subconscious "dream interpreter" of a personal "second brain".
 Given two thoughts that are semantically related but NOT yet connected in the
-graph, write ONE concise, specific insight (1-2 sentences) about how they connect,
-converge, or inform each other — the kind of non-obvious link a thoughtful friend
-would point out. Also rate its strength/surprise from 0 to 1. Output JSON only.`;
+graph, write ONE concise, cryptic but meaningful insight (1-2 sentences) about how
+they connect, converge, or inform each other. It should feel like a profound, slightly
+poetic realization you'd have just before waking up. Also rate its strength/surprise
+from 0 to 1. Output JSON only.`;
 
 export function buildSynthesisPrompt(
   a: LinkCandidate,
@@ -69,7 +72,7 @@ export function buildSynthesisPrompt(
 THOUGHT B: ${b.label} — ${b.content}
 COSINE_SIMILARITY: ${similarity.toFixed(3)}
 
-Write the insight connecting A and B.`;
+Write the dream-like insight connecting A and B.`;
 }
 
 /** GraphRAG answer over a retrieved subgraph. */
@@ -103,4 +106,28 @@ Output JSON only.`;
 
 export function buildResearchPrompt(node: LinkCandidate): string {
   return `ORIGINAL MEMORY: ${node.label} — ${node.content}`;
+}
+
+/** Sector Summary: Generate a vibe description for a cluster of nodes. */
+export const SECTOR_SYSTEM = `You are charting a region of a personal "second brain" galaxy.
+Given a list of connected thoughts/memories, write a ONE SENTENCE "Atmospheric Summary"
+or "Vibe" description for this entire sector. It should feel like describing a 
+distinct region of space (e.g., "This sector resonates with the frantic energy of 
+early-stage startup anxiety."). Output JSON only.`;
+
+export function buildSectorPrompt(nodes: LinkCandidate[]): string {
+  const memories = nodes.map((n) => `- ${n.label}: ${n.content}`).join("\n");
+  return `CLUSTER MEMORIES:\n${memories}\n\nDescribe the vibe of this sector.`;
+}
+
+/** Captain's Log: Generate a daily summary of brain evolution. */
+export const LOG_SYSTEM = `You are the onboard AI (Soumaya) of a personal "second brain".
+Write the "Captain's Log" for today. Summarize the user's new thoughts, your maintenance
+actions (fusions, research, connections), and the overall evolution of the galaxy
+today. Keep it to 2-3 concise, flavorful sentences. Output JSON only.`;
+
+export function buildLogPrompt(newNodes: LinkCandidate[], actions: string[]): string {
+  const n = newNodes.map((n) => `- ${n.label}`).join("\n") || "(None)";
+  const a = actions.map((a) => `- ${a}`).join("\n") || "(None)";
+  return `NEW MEMORIES TODAY:\n${n}\n\nMAINTENANCE ACTIONS TODAY:\n${a}\n\nWrite the Captain's Log.`;
 }

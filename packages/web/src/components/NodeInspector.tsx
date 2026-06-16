@@ -66,6 +66,11 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
         </span>
       )}
       <h2>{node.label}</h2>
+      {node.celestialTitle && (
+        <p className="celestial-title" style={{ fontStyle: "italic", opacity: 0.8, marginTop: "-0.5rem", marginBottom: "1rem" }}>
+          "{node.celestialTitle}"
+        </p>
+      )}
       <p className="content">{node.content}</p>
 
       <div className="weight">

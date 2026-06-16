@@ -9,10 +9,12 @@ import { sqliteTable, integer, text, real, index } from "drizzle-orm/sqlite-core
 export const nodes = sqliteTable("nodes", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   label: text("label").notNull(),
+  celestialTitle: text("celestial_title"),
   type: text("type").notNull(),
   content: text("content").notNull(),
   emotionalWeight: real("emotional_weight"),
   importance: real("importance"),
+  color: text("color"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -57,10 +59,10 @@ export const insights = sqliteTable("insights", {
 export const agentLogs = sqliteTable("agent_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   agent: text("agent").notNull().default("soumaya"),
-  action: text("action").notNull(), // synthesis, calibration, research, etc.
+  action: text("action").notNull(),
   description: text("description").notNull(),
-  targets: text("targets").notNull(), // JSON array of node IDs
-  result: text("result"), // Optional JSON details
+  targets: text("targets").notNull(),
+  result: text("result"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -72,7 +74,18 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
+/** Summarized daily reflections on the brain's evolution. */
+export const dailyLogs = sqliteTable("daily_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  content: text("content").notNull(),
+  date: text("date").notNull().default(sql`CURRENT_DATE`),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export type NodeRow = typeof nodes.$inferSelect;
 export type EdgeRow = typeof edges.$inferSelect;
 export type InsightRow = typeof insights.$inferSelect;
 export type AgentLogRow = typeof agentLogs.$inferSelect;
+export type DailyLogRow = typeof dailyLogs.$inferSelect;

@@ -5,10 +5,16 @@ import {
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
   ANSWER_SYSTEM,
+  RESEARCH_SYSTEM,
+  SECTOR_SYSTEM,
+  LOG_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
   buildAnswerPrompt,
+  buildResearchPrompt,
+  buildSectorPrompt,
+  buildLogPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -24,6 +30,8 @@ export function normalizeExtraction(raw: unknown): unknown {
     for (const n of (raw as { nodes: Record<string, unknown>[] }).nodes) {
       if (n.emotionalWeight == null) delete n.emotionalWeight;
       if (n.importance == null) delete n.importance;
+      if (n.celestialTitle == null) delete n.celestialTitle;
+      if (n.color == null) delete n.color;
     }
   }
   return raw;
@@ -75,12 +83,14 @@ export class OpenAiProvider implements LlmProvider {
             additionalProperties: false,
             properties: {
               label: { type: "string" },
+              celestialTitle: { type: ["string", "null"] },
               type: { type: "string", enum: [...NODE_TYPES] },
               content: { type: "string" },
               emotionalWeight: { type: ["number", "null"] },
               importance: { type: ["number", "null"] },
+              color: { type: ["string", "null"] },
             },
-            required: ["label", "type", "content", "emotionalWeight", "importance"],
+            required: ["label", "celestialTitle", "type", "content", "emotionalWeight", "importance", "color"],
           },
         },
         edges: {
@@ -179,5 +189,52 @@ export class OpenAiProvider implements LlmProvider {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
     };
+  }
+
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    return await this.json<{ label: string; content: string }>(
+      RESEARCH_SYSTEM,
+      buildResearchPrompt(node),
+      "research",
+      {
+        type: "object",
+        properties: {
+          label: { type: "string" },
+          content: { type: "string" },
+        },
+        required: ["label", "content"],
+        additionalProperties: false,
+      },
+    );
+  }
+
+  async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
+    const raw = await this.json<{ vibe: string }>(
+      SECTOR_SYSTEM,
+      buildSectorPrompt(nodes),
+      "sector",
+      {
+        type: "object",
+        properties: { vibe: { type: "string" } },
+        required: ["vibe"],
+        additionalProperties: false,
+      },
+    );
+    return raw.vibe;
+  }
+
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+    const raw = await this.json<{ log: string }>(
+      LOG_SYSTEM,
+      buildLogPrompt(newNodes, actions),
+      "log",
+      {
+        type: "object",
+        properties: { log: { type: "string" } },
+        required: ["log"],
+        additionalProperties: false,
+      },
+    );
+    return raw.log;
   }
 }

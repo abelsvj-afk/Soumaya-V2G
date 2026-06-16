@@ -23,11 +23,13 @@ export const RelationshipTypeSchema = z.enum([
   "relates_to",
   "contradicts",
   "caused_by",
+  "documentation",
 ]);
 
 /** A single node the LLM extracts from a raw thought. */
 export const ExtractedNodeSchema = z.object({
   label: z.string().min(1).describe("Short human-readable name for this entity/idea"),
+  celestialTitle: z.string().optional().describe("A poetic, space-themed name for this thought"),
   type: NodeTypeSchema,
   content: z.string().describe("The relevant text/summary for this node"),
   // Optional. OpenAI structured output emits `null` for these (Gemini omits
@@ -46,6 +48,7 @@ export const ExtractedNodeSchema = z.object({
     .describe(
       "Significance 0..1: how heavy, serious, or life-impacting this is. Fleeting notes ~0.2; pivotal life/identity/relationship matters ~0.9.",
     ),
+  color: z.string().optional().describe("Hex color code representing the vibe"),
 });
 
 /** An edge the LLM proposes between two extracted nodes (referenced by label). */

@@ -24,8 +24,9 @@ export const CELESTIAL_COLORS: Record<CelestialClass, string[]> = {
   supergiant: ["#cfe3ff", "#9fc4ff", "#ffd9c0", "#ff9e8a", "#e6ecff"],
 };
 
-/** Pick a stable body color for a node from its class palette. */
+/** Pick a stable body color for a node from its class palette, preferring the LLM's color if present. */
 export function bodyColor(node: GraphNode): string {
+  if (node.color) return node.color;
   const cls = node.celestial ?? "moon";
   const palette = CELESTIAL_COLORS[cls];
   return palette[Math.abs(node.id) % palette.length]!;
