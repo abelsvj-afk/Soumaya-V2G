@@ -1,0 +1,206 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+export interface SamayaHandle {
+  object: THREE.Object3D;
+  /** Advance the agent; reads live node/link positions, sparks on arrival. */
+  update: (
+    dt: number,
+    nodes: any[],
+    links: any[],
+    onArrive: (x: number, y: number, z: number) => void,
+  ) => void;
+}
+
+const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
+
+/** Approximate a body's visual radius (mirrors nodeObject sizing) for standoff. */
+const bodyRadius = (n: any): number => {
+  const m = n.mass ?? 0.3;
+  switch (n.celestial) {
+    case "supergiant":
+      return 9 + m * 7;
+    case "star":
+      return 6 + m * 6;
+    case "giant":
+      return 6.5 + m * 5;
+    case "planet":
+      return 4 + m * 4;
+    case "moon":
+      return 3 + m * 2.5;
+    default:
+      return 2.2 + m * 2;
+  }
+};
+
+/**
+ * Samaya — the autonomous maintenance agent. A small low-poly craft (built in
+ * code, no external asset) that continuously hops between connected memories,
+ * flying along a curved quadratic Bézier (never straight), banking into the
+ * direction of travel, and firing a maintenance spark when it reaches a node.
+ */
+export function makeSamaya(): SamayaHandle {
+  const group = new THREE.Group();
+
+  const hull = new THREE.Mesh(
+    new THREE.ConeGeometry(1.1, 4, 10),
+    new THREE.MeshStandardMaterial({
+      color: "#e6edff",
+      emissive: new THREE.Color("#7af9ff"),
+      emissiveIntensity: 0.7,
+      metalness: 0.7,
+      roughness: 0.25,
+    }),
+  );
+  hull.rotation.x = Math.PI / 2; // nose points +Z (direction of travel)
+  group.add(hull);
+
+  // Swap in the real glTF ship once it loads; the procedural hull is the fallback
+  // (and what shows while it streams / if the load fails).
+  new GLTFLoader().load(
+    "/samaya-ship.glb",
+    (gltf) => {
+      const model = gltf.scene;
+      const box = new THREE.Box3().setFromObject(model);
+      const dim = new THREE.Vector3();
+      box.getSize(dim);
+      const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
+      const k = 9 / maxDim;
+      model.scale.setScalar(k);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      model.position.copy(center.multiplyScalar(-k)); // recenter on origin
+      hull.visible = false;
+      group.add(model);
+    },
+    undefined,
+    (err) => console.warn("[samaya] ship model failed to load; using procedural hull", err),
+  );
+
+  // Engine glow trailing behind the nose.
+  const glowCanvas = document.createElement("canvas");
+  glowCanvas.width = glowCanvas.height = 64;
+  const gctx = glowCanvas.getContext("2d")!;
+  const grad = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(180,220,255,0.95)");
+  grad.addColorStop(1, "rgba(122,249,255,0)");
+  gctx.fillStyle = grad;
+  gctx.fillRect(0, 0, 64, 64);
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(glowCanvas),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
+  glow.scale.set(9, 9, 1);
+  glow.position.set(0, 0, -2.5);
+  group.add(glow);
+  group.scale.setScalar(1.5);
+  group.visible = false;
+
+  let mode: "travel" | "orbit" = "travel";
+  let curve: THREE.QuadraticBezierCurve3 | null = null;
+  let t = 0;
+  let speed = 0.25;
+  let target: any = null;
+  // Orbit-phase state.
+  let orbitAngle = 0;
+  let orbitRadius = 20;
+  let orbitTime = 0;
+  let jobTimer = 0;
+  let ou = new THREE.Vector3(1, 0, 0);
+  let ov = new THREE.Vector3(0, 0, 1);
+
+  // Fly to a STANDOFF point near a body (never its center) on a curved path.
+  const planRoute = (nodes: any[]): boolean => {
+    const candidates = nodes.filter((n) => n.x != null);
+    if (candidates.length === 0) return false;
+    target = candidates[Math.floor(Math.random() * candidates.length)];
+    const to = vecOf(target);
+    const standoff = bodyRadius(target) + 12;
+    const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5)
+      .normalize()
+      .multiplyScalar(standoff);
+    const endpoint = to.clone().add(off);
+    const from = group.visible
+      ? group.position.clone()
+      : endpoint.clone().add(new THREE.Vector3(80, 50, 80));
+    const mid = from
+      .clone()
+      .add(endpoint)
+      .multiplyScalar(0.5)
+      .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
+    curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
+    t = 0;
+    speed = Math.min(0.4, 50 / (from.distanceTo(endpoint) || 1));
+    mode = "travel";
+    group.visible = true;
+    return true;
+  };
+
+  const update: SamayaHandle["update"] = (dt, nodes, _links, onArrive) => {
+    try {
+      // ORBIT: circle the body at a standoff radius and do the "job" (periodic
+      // maintenance sparks), then head to the next memory.
+      if (mode === "orbit") {
+        if (!target || target.x == null) {
+          if (!planRoute(nodes)) group.visible = false;
+          return;
+        }
+        orbitTime -= dt;
+        orbitAngle += dt * (5 / (orbitRadius + 8));
+        const tp = vecOf(target);
+        const pos = tp
+          .clone()
+          .addScaledVector(ou, Math.cos(orbitAngle) * orbitRadius)
+          .addScaledVector(ov, Math.sin(orbitAngle) * orbitRadius);
+        const tangent = ou
+          .clone()
+          .multiplyScalar(-Math.sin(orbitAngle))
+          .addScaledVector(ov, Math.cos(orbitAngle));
+        group.position.copy(pos);
+        group.lookAt(pos.clone().add(tangent));
+        jobTimer -= dt;
+        if (jobTimer <= 0) {
+          onArrive(tp.x, tp.y, tp.z); // tending the memory
+          jobTimer = 1.3;
+        }
+        if (orbitTime <= 0) planRoute(nodes);
+        return;
+      }
+
+      // TRAVEL: cruise the Bézier to the standoff point.
+      if (!curve && !planRoute(nodes)) {
+        group.visible = false;
+        return;
+      }
+      if (!curve) return;
+      t += speed * dt;
+      if (t >= 1) {
+        // Arrived near the body — enter orbit around it (don't ram the center).
+        mode = "orbit";
+        orbitRadius = bodyRadius(target) + 12;
+        orbitTime = 4 + Math.random() * 4;
+        jobTimer = 0.2;
+        orbitAngle = Math.random() * Math.PI * 2;
+        const normal = new THREE.Vector3(Math.random() - 0.5, Math.random() + 0.3, Math.random() - 0.5).normalize();
+        const ref = Math.abs(normal.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+        ou = new THREE.Vector3().crossVectors(normal, ref).normalize();
+        ov = new THREE.Vector3().crossVectors(normal, ou).normalize();
+        curve = null;
+        return;
+      }
+      const p = curve.getPointAt(t);
+      group.position.copy(p);
+      const tangent = curve.getTangentAt(Math.min(0.999, t));
+      group.lookAt(p.clone().add(tangent));
+    } catch {
+      /* skip this frame */
+    }
+  };
+
+  return { object: group, update };
+}
