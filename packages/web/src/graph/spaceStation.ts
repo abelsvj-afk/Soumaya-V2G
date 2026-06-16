@@ -21,6 +21,30 @@ export function makeSpaceStation(): THREE.Object3D {
   fallback.rotation.x = Math.PI / 2;
   group.add(fallback);
 
+  // Subtle glow accent (keeps the model's original textures untouched): a soft
+  // additive aura + a gentle light so the station reads against deep space.
+  const glowCanvas = document.createElement("canvas");
+  glowCanvas.width = glowCanvas.height = 128;
+  const gctx = glowCanvas.getContext("2d")!;
+  const gg = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gg.addColorStop(0, "rgba(150,190,255,0.5)");
+  gg.addColorStop(0.4, "rgba(110,150,255,0.18)");
+  gg.addColorStop(1, "rgba(90,120,255,0)");
+  gctx.fillStyle = gg;
+  gctx.fillRect(0, 0, 128, 128);
+  const aura = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(glowCanvas),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0.5,
+    }),
+  );
+  aura.scale.set(150, 150, 1);
+  group.add(aura);
+  group.add(new THREE.PointLight(new THREE.Color("#9fc0ff"), 0.7, 360, 2));
+
   let mixer: THREE.AnimationMixer | null = null;
   let lastTime = 0;
   let selfSpin = 0;
