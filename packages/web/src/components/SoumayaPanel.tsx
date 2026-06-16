@@ -80,7 +80,13 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
         {logs.length === 0 && <p className="empty">No recent logs recorded.</p>}
         <ul className="agent-logs" style={{ listStyle: 'none', padding: 0 }}>
           {logs.map((log) => {
-            const targets = JSON.parse(log.targets) as number[];
+            let targets: number[] = [];
+            try {
+              const parsed = JSON.parse(log.targets);
+              if (Array.isArray(parsed)) targets = parsed;
+            } catch {
+              /* ignore malformed targets */
+            }
             return (
               <li key={log.id} style={{ 
                 marginBottom: '0.8rem', 

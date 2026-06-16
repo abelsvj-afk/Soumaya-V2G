@@ -43,8 +43,16 @@ export interface Health {
 }
 
 export async function getGraph(limit = 300): Promise<GraphData> {
-  const res = await fetch(`${API}/graph?limit=${limit}`);
-  return res.json() as Promise<GraphData>;
+  try {
+    const res = await fetch(`${API}/graph?limit=${limit}`);
+    const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
+    return {
+      nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
+      links: Array.isArray(d?.links) ? d!.links! : [],
+    };
+  } catch {
+    return { nodes: [], links: [] };
+  }
 }
 
 export async function ingestText(text: string): Promise<IngestResult> {
@@ -65,8 +73,13 @@ export async function ingestText(text: string): Promise<IngestResult> {
 }
 
 export async function search(q: string): Promise<SearchHit[]> {
-  const res = await fetch(`${API}/search?q=${encodeURIComponent(q)}`);
-  return res.json() as Promise<SearchHit[]>;
+  try {
+    const res = await fetch(`${API}/search?q=${encodeURIComponent(q)}`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
 }
 
 /** Manually set a memory's weight (0..1), or null to reset to the auto rating. */
@@ -93,8 +106,16 @@ export async function deleteNode(id: number): Promise<void> {
 }
 
 export async function getNeighbors(id: number, depth = 2): Promise<GraphData> {
-  const res = await fetch(`${API}/nodes/${id}/neighbors?depth=${depth}`);
-  return res.json() as Promise<GraphData>;
+  try {
+    const res = await fetch(`${API}/nodes/${id}/neighbors?depth=${depth}`);
+    const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
+    return {
+      nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
+      links: Array.isArray(d?.links) ? d!.links! : [],
+    };
+  } catch {
+    return { nodes: [], links: [] };
+  }
 }
 
 export async function getHealth(): Promise<Health> {
@@ -103,15 +124,25 @@ export async function getHealth(): Promise<Health> {
 }
 
 export async function getDigest(): Promise<Insight[]> {
-  const res = await fetch(`${API}/digest`);
-  return res.json() as Promise<Insight[]>;
+  try {
+    const res = await fetch(`${API}/digest`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function runDigest(): Promise<Insight[]> {
   return tracked(
     (async () => {
-      const res = await fetch(`${API}/digest/run`, { method: "POST" });
-      return res.json() as Promise<Insight[]>;
+      try {
+        const res = await fetch(`${API}/digest/run`, { method: "POST" });
+        const d = await res.json().catch(() => []);
+        return Array.isArray(d) ? d : [];
+      } catch {
+        return [];
+      }
     })(),
   );
 }
@@ -160,13 +191,23 @@ export interface AgentLog {
 }
 
 export async function getAgentLogs(): Promise<AgentLog[]> {
-  const res = await fetch(`${API}/maintenance/logs`);
-  return res.json() as Promise<AgentLog[]>;
+  try {
+    const res = await fetch(`${API}/maintenance/logs`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getSettings(): Promise<Record<string, string>> {
-  const res = await fetch(`${API}/maintenance/settings`);
-  return res.json() as Promise<Record<string, string>>;
+  try {
+    const res = await fetch(`${API}/maintenance/settings`);
+    const d = await res.json().catch(() => ({}));
+    return d && typeof d === "object" && !Array.isArray(d) ? d : {};
+  } catch {
+    return {};
+  }
 }
 
 export async function updateSetting(key: string, value: string): Promise<{ ok: boolean }> {
