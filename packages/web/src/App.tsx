@@ -115,6 +115,10 @@ export default function App() {
         ref={graphRef}
         data={view}
         onSelect={select}
+        onSoumayaClick={() => {
+          setTab("soumaya");
+          setPanel("dock");
+        }}
         selectedId={selected?.id ?? null}
         bottomInset={panel === "dock"}
       />
@@ -128,7 +132,7 @@ export default function App() {
 
       {aiBusy > 0 && (
         <div className="ai-busy">
-          <span className="ai-dot" /> Samaya is thinking…
+          <span className="ai-dot" /> Soumaya is thinking…
         </div>
       )}
 
@@ -183,8 +187,8 @@ export default function App() {
       <button
         className={`fab fab-ship ${followShip ? "on" : ""}`}
         onClick={() => setFollowShip(graphRef.current?.toggleFollowShip() ?? false)}
-        aria-label="Follow Samaya"
-        title="Follow Samaya's ship"
+        aria-label="Follow Soumaya"
+        title="Follow Soumaya's ship"
       >
         🛸
       </button>

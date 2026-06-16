@@ -53,6 +53,26 @@ export const insights = sqliteTable("insights", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+/** Logs of all autonomous agent activity. */
+export const agentLogs = sqliteTable("agent_logs", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  agent: text("agent").notNull().default("soumaya"),
+  action: text("action").notNull(), // synthesis, calibration, research, etc.
+  description: text("description").notNull(),
+  targets: text("targets").notNull(), // JSON array of node IDs
+  result: text("result"), // Optional JSON details
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+/** Global configuration for the system. */
+export const settings = sqliteTable("settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});
+
 export type NodeRow = typeof nodes.$inferSelect;
 export type EdgeRow = typeof edges.$inferSelect;
 export type InsightRow = typeof insights.$inferSelect;
+export type AgentLogRow = typeof agentLogs.$inferSelect;

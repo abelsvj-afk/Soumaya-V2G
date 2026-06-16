@@ -51,6 +51,8 @@ export interface LlmProvider {
     question: string,
     context: ContextNode[],
   ): Promise<{ answer: string; citations: number[] }>;
+  /** Perform autonomous research on a single node to expand the knowledge base. */
+  research(node: LinkCandidate): Promise<{ label: string; content: string }>;
 }
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";

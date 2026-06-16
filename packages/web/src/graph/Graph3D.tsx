@@ -14,7 +14,7 @@ import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfiel
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
-import { makeSamaya, type SamayaHandle } from "./samaya.js";
+import { makeSoumaya, type SoumayaHandle } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { BG } from "./theme.js";
@@ -23,13 +23,14 @@ export interface Graph3DHandle {
   focusNode: (id: number) => void;
   /** Frame the whole galaxy back in view (fixes drift / "stuck on one side"). */
   recenter: () => void;
-  /** Toggle the camera chasing Samaya's ship; returns the new state. */
+  /** Toggle the camera chasing Soumaya's ship; returns the new state. */
   toggleFollowShip: () => boolean;
 }
 
 interface Props {
   data: GraphData;
   onSelect: (node: GraphNode) => void;
+  onSoumayaClick?: () => void;
   /** Currently-selected node — when set, only it + its links stay lit (tap-to-isolate). */
   selectedId?: number | null;
   /** True when the bottom sheet is open — shifts the followed body up so it clears it. */
@@ -40,7 +41,7 @@ interface Props {
 const linkEnd = (v: any): number => (typeof v === "object" && v !== null ? v.id : v);
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, selectedId, bottomInset },
+  { data, onSelect, onSoumayaClick, selectedId, bottomInset },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -52,7 +53,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     insetRef.current = !!bottomInset;
   }, [bottomInset]);
 
-  // Live graph data for the Samaya agent (react-force-graph mutates x/y/z on
+  // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
   const dataRef = useRef(data);
   const orbitsRef = useRef(makeOrbitSystem());
@@ -64,7 +65,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // When set, the camera locks onto this node and rides along as it orbits, so a
   // body you jumped to doesn't drift out of frame.
   const followRef = useRef<number | null>(null);
-  // When true, the camera chases Samaya's ship instead.
+  // When true, the camera chases Soumaya's ship instead.
   const followShipRef = useRef(false);
 
   // Undirected adjacency for neighbor highlighting.
@@ -106,7 +107,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Scene embellishments + physics are best-effort: if any imperative call
     // fails we still render the graph rather than blanking the whole screen.
     let bursts: ReturnType<typeof makeCollisionBursts> | null = null;
-    let samaya: SamayaHandle | null = null;
+    let soumaya: SoumayaHandle | null = null;
     try {
       scene.background = makeSpaceBackground();
       loadNebulaSkybox(scene);
@@ -117,10 +118,28 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(makeComets());
       bursts = makeCollisionBursts();
       scene.add(bursts.group);
-      samaya = makeSamaya();
-      scene.add(samaya.object);
+      soumaya = makeSoumaya();
+      scene.add(soumaya.object);
       scene.add(makeSpaceStation());
       addBloom(fg, {});
+
+      // Click detection for Soumaya's ship
+      const canvas = fg.renderer().domElement;
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+      const handleClick = (e: MouseEvent) => {
+        if (!onSoumayaClick) return;
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, fg.camera());
+        const intersects = raycaster.intersectObject(soumaya!.object, true);
+        if (intersects.length > 0) {
+          onSoumayaClick();
+        }
+      };
+      canvas.addEventListener("click", handleClick);
+      fg.__brainCleanupClick = () => canvas.removeEventListener("click", handleClick);
 
       // Motion is handled by the kinematic orbit system (orbits.ts), which pins
       // node positions each frame — so disable the force-engine layout entirely
@@ -167,7 +186,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const dt = Math.min(0.05, now - last);
       last = now;
 
-      // Advance every body along its orbit first, so the camera + Samaya read
+      // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
 
@@ -242,14 +261,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
       });
 
-      // Drive Samaya along the live graph; spark a maintenance burst on arrival.
-      if (samaya) {
+      // Drive Soumaya along the live graph; spark a maintenance burst on arrival.
+      if (soumaya) {
         const d = dataRef.current;
-        samaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z) => bursts?.spawn(x, y, z));
+        soumaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z, type) => bursts?.spawn(x, y, z, type));
 
-        // Zoom-to-ship: smoothly chase Samaya from just behind/above.
-        if (followShipRef.current && controls && samaya.object.visible) {
-          const sp = samaya.object.position;
+        // Zoom-to-ship: smoothly chase Soumaya from just behind/above.
+        if (followShipRef.current && controls && soumaya.object.visible) {
+          const sp = soumaya.object.position;
           controls.target.lerp(sp, 0.12);
           camera.position.lerp(sp.clone().add(new THREE.Vector3(0, 16, 52)), 0.06);
           controls.update();
@@ -259,7 +278,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       raf = requestAnimationFrame(tick);
     };
     tick();
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (fg.__brainCleanupClick) fg.__brainCleanupClick();
+    };
   }, []);
 
   // Hover highlighting: dim node groups that aren't the focus or its neighbors.

@@ -48,6 +48,19 @@ export function bootstrapSchema(sqlite: RawDb): void {
       score REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS agent_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent TEXT NOT NULL DEFAULT 'soumaya',
+      action TEXT NOT NULL,
+      description TEXT NOT NULL,
+      targets TEXT NOT NULL,
+      result TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 }
 

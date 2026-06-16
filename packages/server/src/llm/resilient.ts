@@ -124,4 +124,14 @@ export class ResilientLlmProvider implements LlmProvider {
       return this.fallback.answer(question, context);
     }
   }
+
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    if (this.tripped) return this.fallback.research(node);
+    try {
+      return await withTimeout(this.primary.research(node), this.timeoutMs, "research");
+    } catch (err) {
+      this.note(err, "research");
+      return this.fallback.research(node);
+    }
+  }
 }

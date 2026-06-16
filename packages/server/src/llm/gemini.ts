@@ -76,6 +76,15 @@ const answerSchema = {
   required: ["answer", "citations"],
 };
 
+const researchSchema = {
+  type: Type.OBJECT,
+  properties: {
+    label: { type: Type.STRING },
+    content: { type: Type.STRING },
+  },
+  required: ["label", "content"],
+};
+
 export class GeminiProvider implements LlmProvider {
   readonly available = true;
   readonly model = MODEL;
@@ -160,5 +169,13 @@ export class GeminiProvider implements LlmProvider {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
     };
+  }
+
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    return await this.json<{ label: string; content: string }>(
+      RESEARCH_SYSTEM,
+      buildResearchPrompt(node),
+      researchSchema,
+    );
   }
 }

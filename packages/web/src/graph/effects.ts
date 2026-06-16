@@ -1,14 +1,14 @@
 import * as THREE from "three";
 
 /** Build one reusable additive "poof" sprite that expands and fades when fired. */
-function makeBurst(): THREE.Sprite {
+function makeBurst(color = "rgba(150,180,255,0.45)", size = 70): THREE.Sprite {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const ctx = c.getContext("2d")!;
   const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, "rgba(230,240,255,0.95)");
-  g.addColorStop(0.4, "rgba(150,180,255,0.45)");
-  g.addColorStop(1, "rgba(120,140,255,0)");
+  g.addColorStop(0, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.4, color);
+  g.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
 
@@ -31,7 +31,7 @@ function makeBurst(): THREE.Sprite {
     }
     life--;
     const f = 1 - life / max; // 0 -> 1 over lifetime
-    const k = 8 + f * 70;
+    const k = 8 + f * size;
     sprite.scale.set(k, k, 1);
     mat.opacity = (1 - f) * 0.85;
   };
@@ -45,26 +45,57 @@ function makeBurst(): THREE.Sprite {
 
 export interface CollisionBursts {
   group: THREE.Group;
-  spawn: (x: number, y: number, z: number) => void;
+  spawn: (x: number, y: number, z: number, type?: string) => void;
 }
 
-/**
- * A small round-robin pool of collision sparks. `spawn` fires the next free
- * burst at a point; the sprites self-animate via their userData.update hook
- * (run from the Graph3D tick), so dust blooms wherever bodies graze.
- */
-export function makeCollisionBursts(count = 14): CollisionBursts {
+export function makeCollisionBursts(count = 20): CollisionBursts {
   const group = new THREE.Group();
-  const pool: THREE.Sprite[] = [];
+  
+  // Create pools for different colors
+  const poolDefault: THREE.Sprite[] = [];
+  const poolSynthesis: THREE.Sprite[] = []; // Cyan/Blue
+  const poolPruning: THREE.Sprite[] = [];    // Red/Orange
+  const poolHarmonization: THREE.Sprite[] = []; // Gold/Yellow
+  const poolCalibration: THREE.Sprite[] = [];  // White/Indigo
+  const poolMerging: THREE.Sprite[] = [];      // Dark Purple Vortex
+
   for (let i = 0; i < count; i++) {
-    const b = makeBurst();
-    pool.push(b);
+    const b = makeBurst("rgba(150,180,255,0.45)");
+    poolDefault.push(b);
     group.add(b);
+    
+    const s = makeBurst("rgba(100,200,255,0.6)", 120);
+    poolSynthesis.push(s);
+    group.add(s);
+
+    const p = makeBurst("rgba(255,100,80,0.6)", 90);
+    poolPruning.push(p);
+    group.add(p);
+
+    const h = makeBurst("rgba(255,220,100,0.6)", 150);
+    poolHarmonization.push(h);
+    group.add(h);
+
+    const c = makeBurst("rgba(200,200,255,0.7)", 180);
+    poolCalibration.push(c);
+    group.add(c);
+
+    const m = makeBurst("rgba(150,50,255,0.5)", 220);
+    poolMerging.push(m);
+    group.add(m);
   }
+
   let next = 0;
   return {
     group,
-    spawn: (x, y, z) => {
+    spawn: (x, y, z, type = "patrol") => {
+      let pool = poolDefault;
+      if (type === "synthesis") pool = poolSynthesis;
+      else if (type === "pruning") pool = poolPruning;
+      else if (type === "harmonization") pool = poolHarmonization;
+      else if (type === "calibration") pool = poolCalibration;
+      else if (type === "merging") pool = poolMerging;
+
       const b = pool[next % pool.length]!;
       next++;
       (b.userData.fire as (x: number, y: number, z: number) => void)(x, y, z);

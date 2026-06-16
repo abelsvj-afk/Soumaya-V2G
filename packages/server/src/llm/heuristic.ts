@@ -97,4 +97,11 @@ export class HeuristicProvider implements LlmProvider {
       `\n\n(Offline mode — connect an OpenAI or Gemini key for synthesized answers.)`;
     return { answer, citations: top.map((c) => c.id) };
   }
+
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    return {
+      label: `Draft Research: ${node.label}`,
+      content: `Preliminary observations on ${node.label}: ${node.content.slice(0, 100)}... (Research mode requires an active LLM key for full deep-dives.)`,
+    };
+  }
 }

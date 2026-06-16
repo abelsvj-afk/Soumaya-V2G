@@ -3,8 +3,9 @@ import { NodeInspector } from "./NodeInspector.js";
 import { NodeList } from "./NodeList.js";
 import { DigestPanel } from "./DigestPanel.js";
 import { ChatPanel } from "./ChatPanel.js";
+import { SoumayaPanel } from "./SoumayaPanel.js";
 
-export type DockTab = "details" | "list" | "insights" | "chat";
+export type DockTab = "details" | "list" | "insights" | "chat" | "soumaya";
 
 interface Props {
   tab: DockTab;
@@ -24,6 +25,7 @@ const TABS: { id: DockTab; label: string }[] = [
   { id: "list", label: "📋 List" },
   { id: "insights", label: "✨" },
   { id: "chat", label: "💬" },
+  { id: "soumaya", label: "🛰️" },
 ];
 
 export function RightDock({
@@ -70,6 +72,7 @@ export function RightDock({
         {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
+        {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}
       </div>
     </div>
   );

@@ -1,15 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
 
-export interface SamayaHandle {
+export interface SoumayaHandle {
   object: THREE.Object3D;
   /** Advance the agent; reads live node/link positions, sparks on arrival. */
   update: (
     dt: number,
     nodes: any[],
     links: any[],
-    onArrive: (x: number, y: number, z: number) => void,
+    onArrive: (x: number, y: number, z: number, type: string) => void,
   ) => void;
 }
 
@@ -35,12 +36,11 @@ const bodyRadius = (n: any): number => {
 };
 
 /**
- * Samaya — the autonomous maintenance agent. A small low-poly craft (built in
- * code, no external asset) that continuously hops between connected memories,
- * flying along a curved quadratic Bézier (never straight), banking into the
- * direction of travel, and firing a maintenance spark when it reaches a node.
+ * Soumaya — the autonomous maintenance agent. A small low-poly craft that
+ * continuously hops between connected memories, performing maintenance tasks
+ * (synthesis, calibration, patrol) fetched from the backend.
  */
-export function makeSamaya(): SamayaHandle {
+export function makeSoumaya(): SoumayaHandle {
   const group = new THREE.Group();
 
   const hull = new THREE.Mesh(
@@ -56,10 +56,9 @@ export function makeSamaya(): SamayaHandle {
   hull.rotation.x = Math.PI / 2; // nose points +Z (direction of travel)
   group.add(hull);
 
-  // Swap in the real glTF ship once it loads; the procedural hull is the fallback
-  // (and what shows while it streams / if the load fails).
+  // Swap in the real glTF ship once it loads; the procedural hull is the fallback.
   new GLTFLoader().load(
-    "/samaya-ship.glb",
+    "/soumaya-ship.glb",
     (gltf) => {
       const model = gltf.scene;
       const box = new THREE.Box3().setFromObject(model);
@@ -75,7 +74,7 @@ export function makeSamaya(): SamayaHandle {
       group.add(model);
     },
     undefined,
-    (err) => console.warn("[samaya] ship model failed to load; using procedural hull", err),
+    (err) => console.warn("[soumaya] ship model failed to load; using procedural hull", err),
   );
 
   // Engine glow trailing behind the nose.
@@ -101,11 +100,14 @@ export function makeSamaya(): SamayaHandle {
   group.scale.setScalar(1.5);
   group.visible = false;
 
-  let mode: "travel" | "orbit" = "travel";
+  let mode: "travel" | "orbit" | "idle" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
   let target: any = null;
+  let currentJob: MaintenanceJob | null = null;
+  let isFetching = false;
+
   // Orbit-phase state.
   let orbitAngle = 0;
   let orbitRadius = 20;
@@ -114,11 +116,37 @@ export function makeSamaya(): SamayaHandle {
   let ou = new THREE.Vector3(1, 0, 0);
   let ov = new THREE.Vector3(0, 0, 1);
 
+  /** Fetch a real job from the backend or fall back to a random patrol if offline. */
+  const acquireJob = async (nodes: any[]) => {
+    if (isFetching || nodes.length === 0) return;
+    isFetching = true;
+    try {
+      currentJob = await getNextMaintenanceJob();
+    } catch (err) {
+      // Fallback: local random patrol
+      const candidates = nodes.filter((n) => n.x != null);
+      if (candidates.length > 0) {
+        const r = candidates[Math.floor(Math.random() * candidates.length)];
+        currentJob = { type: "patrol", targets: [r.id], description: "Routine patrol (offline fallback)" };
+      }
+    } finally {
+      isFetching = false;
+      if (currentJob) planRoute(nodes);
+    }
+  };
+
   // Fly to a STANDOFF point near a body (never its center) on a curved path.
   const planRoute = (nodes: any[]): boolean => {
-    const candidates = nodes.filter((n) => n.x != null);
-    if (candidates.length === 0) return false;
-    target = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!currentJob) return false;
+    
+    // For now, always target the first node in the job targets
+    target = nodes.find((n) => n.id === currentJob?.targets[0]);
+    if (!target || target.x == null) {
+      currentJob = null;
+      mode = "idle";
+      return false;
+    }
+
     const to = vecOf(target);
     const standoff = bodyRadius(target) + 12;
     const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5)
@@ -141,15 +169,20 @@ export function makeSamaya(): SamayaHandle {
     return true;
   };
 
-  const update: SamayaHandle["update"] = (dt, nodes, _links, onArrive) => {
+  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive) => {
     try {
+      if (mode === "idle") {
+        acquireJob(nodes);
+        return;
+      }
+
       let currentVel = 0;
 
       // ORBIT: circle the body at a standoff radius and do the "job" (periodic
       // maintenance sparks), then head to the next memory.
       if (mode === "orbit") {
         if (!target || target.x == null) {
-          if (!planRoute(nodes)) group.visible = false;
+          mode = "idle";
           return;
         }
         orbitTime -= dt;
@@ -171,17 +204,23 @@ export function makeSamaya(): SamayaHandle {
         group.lookAt(pos.clone().add(tangent));
         jobTimer -= dt;
         if (jobTimer <= 0) {
-          onArrive(tp.x, tp.y, tp.z); // tending the memory
+          onArrive(tp.x, tp.y, tp.z, currentJob?.type || "patrol"); // tending the memory
           jobTimer = 1.3;
         }
-        if (orbitTime <= 0) planRoute(nodes);
+
+        if (orbitTime <= 0) {
+          if (currentJob) {
+            completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+            currentJob = null;
+          }
+          mode = "idle";
+        }
       } else {
         // TRAVEL: cruise the Bézier to the standoff point.
-        if (!curve && !planRoute(nodes)) {
-          group.visible = false;
+        if (!curve) {
+          mode = "idle";
           return;
         }
-        if (!curve) return;
         
         const prevT = t;
         t += speed * dt;

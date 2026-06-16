@@ -85,3 +85,22 @@ export function buildAnswerPrompt(question: string, context: ContextNode[]): str
       : "(no relevant memories found)";
   return `MEMORIES:\n${memories}\n\nQUESTION: ${question}`;
 }
+
+/** Research: Expand on a single node to create supporting documentation. */
+export const RESEARCH_SYSTEM = `You are the lead analyst for a personal "second brain".
+You are researching a "Memory Hub"—a core concept that has many connections.
+Your goal is to perform a sophisticated deep-dive that goes beyond simple
+summarization. You must:
+1. Synthesize advanced context, historical facts, or technical details related to the thought.
+2. Identify non-obvious implications or actionable "next steps" for the user.
+3. Write in a tone that is intellectual yet personal, as if advising the user
+   on how to deepen their understanding of this specific memory center.
+
+Format the result as a focused analytical report.
+- label: a short, distinct name (e.g. "Analytical Expansion: [Original Label]")
+- content: the research findings (2-4 paragraphs of high-density information)
+Output JSON only.`;
+
+export function buildResearchPrompt(node: LinkCandidate): string {
+  return `ORIGINAL MEMORY: ${node.label} — ${node.content}`;
+}

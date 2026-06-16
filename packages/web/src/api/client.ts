@@ -128,3 +128,52 @@ export async function askChat(question: string): Promise<ChatResponse> {
     })(),
   );
 }
+
+export interface MaintenanceJob {
+  type: "synthesis" | "calibration" | "patrol";
+  targets: number[];
+  description: string;
+}
+
+export async function getNextMaintenanceJob(): Promise<MaintenanceJob> {
+  const res = await fetch(`${API}/maintenance/next-job`);
+  if (!res.ok) throw new Error("No maintenance jobs available");
+  return res.json() as Promise<MaintenanceJob>;
+}
+
+export async function completeMaintenanceJob(type: string, targets: number[]): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API}/maintenance/complete-job`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type, targets }),
+  });
+  return res.json() as Promise<{ ok: boolean }>;
+}
+
+export interface AgentLog {
+  id: number;
+  agent: string;
+  action: string;
+  description: string;
+  targets: string;
+  createdAt: string;
+}
+
+export async function getAgentLogs(): Promise<AgentLog[]> {
+  const res = await fetch(`${API}/maintenance/logs`);
+  return res.json() as Promise<AgentLog[]>;
+}
+
+export async function getSettings(): Promise<Record<string, string>> {
+  const res = await fetch(`${API}/maintenance/settings`);
+  return res.json() as Promise<Record<string, string>>;
+}
+
+export async function updateSetting(key: string, value: string): Promise<{ ok: boolean }> {
+  const res = await fetch(`${API}/maintenance/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key, value }),
+  });
+  return res.json() as Promise<{ ok: boolean }>;
+}

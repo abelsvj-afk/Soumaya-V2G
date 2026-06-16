@@ -19,7 +19,8 @@ export type RelationshipType =
   | "builds_on"
   | "relates_to"
   | "contradicts"
-  | "caused_by";
+  | "caused_by"
+  | "documentation";
 
 /** Convenience runtime lists (also exercised by the seed script). */
 export const NODE_TYPES: readonly NodeType[] = [
@@ -39,6 +40,7 @@ export const RELATIONSHIP_TYPES: readonly RelationshipType[] = [
   "relates_to",
   "contradicts",
   "caused_by",
+  "documentation",
 ];
 
 export interface GraphNode {
