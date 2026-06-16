@@ -518,6 +518,11 @@ body,
   left: 14px;
   font-size: 18px;
 }
+.fab-station {
+  bottom: 242px;
+  left: 14px;
+  font-size: 18px;
+}
 
 /* Back arrow + memory list */
 .tab-back {

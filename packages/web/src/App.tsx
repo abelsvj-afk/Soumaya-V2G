@@ -22,6 +22,7 @@ export default function App() {
   const [aiBusy, setAiBusy] = useState(0);
   const [music, setMusic] = useState(false);
   const [followShip, setFollowShip] = useState(false);
+  const [followStation, setFollowStation] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
 
@@ -178,6 +179,7 @@ export default function App() {
         onClick={() => {
           graphRef.current?.recenter();
           setFollowShip(false);
+          setFollowStation(false);
         }}
         aria-label="Recenter galaxy"
         title="Recenter the galaxy"
@@ -186,11 +188,25 @@ export default function App() {
       </button>
       <button
         className={`fab fab-ship ${followShip ? "on" : ""}`}
-        onClick={() => setFollowShip(graphRef.current?.toggleFollowShip() ?? false)}
-        aria-label="Follow Soumaya"
-        title="Follow Soumaya's ship"
+        onClick={() => {
+          setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
+          setFollowStation(false);
+        }}
+        aria-label="Focus Soumaya"
+        title="Focus Soumaya's ship"
       >
         🛸
+      </button>
+      <button
+        className={`fab fab-station ${followStation ? "on" : ""}`}
+        onClick={() => {
+          setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
+          setFollowShip(false);
+        }}
+        aria-label="Focus space station"
+        title="Focus the space station"
+      >
+        🛰️
       </button>
       <button
         className={`fab fab-music ${music ? "on" : ""}`}

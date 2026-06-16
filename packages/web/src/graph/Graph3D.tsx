@@ -23,8 +23,10 @@ export interface Graph3DHandle {
   focusNode: (id: number) => void;
   /** Frame the whole galaxy back in view (fixes drift / "stuck on one side"). */
   recenter: () => void;
-  /** Toggle the camera chasing Soumaya's ship; returns the new state. */
+  /** Toggle the camera focusing Soumaya's ship; returns the new state. */
   toggleFollowShip: () => boolean;
+  /** Toggle the camera focusing the space station; returns the new state. */
+  toggleFollowStation: () => boolean;
 }
 
 interface Props {
@@ -65,8 +67,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // When set, the camera locks onto this node and rides along as it orbits, so a
   // body you jumped to doesn't drift out of frame.
   const followRef = useRef<number | null>(null);
-  // When true, the camera chases Soumaya's ship instead.
-  const followShipRef = useRef(false);
+  // Generic "focus on a non-memory object" (ship / station). On enable we snap to
+  // the front of it once, then just track it so the user can orbit freely.
+  const soumayaObjRef = useRef<THREE.Object3D | null>(null);
+  const stationObjRef = useRef<THREE.Object3D | null>(null);
+  const followObjRef = useRef<THREE.Object3D | null>(null);
+  const followDistRef = useRef(30);
+  const followSnapRef = useRef(false);
+  const followKindRef = useRef<"ship" | "station" | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -120,7 +128,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(bursts.group);
       soumaya = makeSoumaya();
       scene.add(soumaya.object);
-      scene.add(makeSpaceStation());
+      soumayaObjRef.current = soumaya.object;
+      const station = makeSpaceStation();
+      scene.add(station);
+      stationObjRef.current = station;
       addBloom(fg, {});
 
       // Click detection for Soumaya's ship
@@ -266,13 +277,27 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const d = dataRef.current;
         soumaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z, type) => bursts?.spawn(x, y, z, type));
 
-        // Zoom-to-ship: smoothly chase Soumaya from just behind/above.
-        if (followShipRef.current && controls) {
-          const sp = soumaya.object.position;
-          controls.target.lerp(sp, 0.2);
-          camera.position.lerp(sp.clone().add(new THREE.Vector3(0, 12, 34)), 0.1);
-          controls.update();
+      }
+
+      // Focus on a non-memory object (ship/station): snap to its FRONT once, then
+      // just track it so the body stays centered while you orbit the camera freely.
+      const fo = followObjRef.current;
+      if (fo && controls) {
+        const sp = new THREE.Vector3();
+        fo.getWorldPosition(sp);
+        if (followSnapRef.current) {
+          const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
+          const d = followDistRef.current;
+          camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
+          followSnapRef.current = false;
         }
+        const target = sp.clone();
+        if (insetRef.current && window.innerWidth <= 720) {
+          const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+          target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+        }
+        controls.target.lerp(target, 0.25); // track; user keeps free orbit control
+        controls.update();
       }
 
       raf = requestAnimationFrame(tick);
@@ -330,7 +355,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     // Don't fight the fly tween; lock the follow-cam on once it lands.
     followRef.current = null;
-    followShipRef.current = false; // jumping to a node releases ship-follow
+    followObjRef.current = null; // jumping to a node releases object-follow
+    followKindRef.current = null;
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 1000);
     window.setTimeout(() => {
       followRef.current = n.id;
@@ -342,14 +368,28 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     () => ({
       focusNode: (id: number) => flyTo((data.nodes as any[]).find((x) => x.id === id)),
       recenter: () => {
-        followRef.current = null; // release the follow-locks so we can frame everything
-        followShipRef.current = false;
+        followRef.current = null; // release every follow-lock so we can frame all
+        followObjRef.current = null;
+        followKindRef.current = null;
         fgRef.current?.zoomToFit(800, 70);
       },
       toggleFollowShip: () => {
-        followShipRef.current = !followShipRef.current;
-        if (followShipRef.current) followRef.current = null;
-        return followShipRef.current;
+        const on = followKindRef.current !== "ship";
+        followKindRef.current = on ? "ship" : null;
+        followObjRef.current = on ? soumayaObjRef.current : null;
+        followDistRef.current = 26;
+        followSnapRef.current = on;
+        if (on) followRef.current = null;
+        return on;
+      },
+      toggleFollowStation: () => {
+        const on = followKindRef.current !== "station";
+        followKindRef.current = on ? "station" : null;
+        followObjRef.current = on ? stationObjRef.current : null;
+        followDistRef.current = 420; // station is huge — stand well back
+        followSnapRef.current = on;
+        if (on) followRef.current = null;
+        return on;
       },
     }),
     [data],
