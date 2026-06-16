@@ -195,7 +195,6 @@ export class OpenAiProvider implements LlmProvider {
     return await this.json<{ label: string; content: string }>(
       RESEARCH_SYSTEM,
       buildResearchPrompt(node),
-      "research",
       {
         type: "object",
         properties: {
@@ -205,6 +204,7 @@ export class OpenAiProvider implements LlmProvider {
         required: ["label", "content"],
         additionalProperties: false,
       },
+      "research",
     );
   }
 
@@ -212,13 +212,13 @@ export class OpenAiProvider implements LlmProvider {
     const raw = await this.json<{ vibe: string }>(
       SECTOR_SYSTEM,
       buildSectorPrompt(nodes),
-      "sector",
       {
         type: "object",
         properties: { vibe: { type: "string" } },
         required: ["vibe"],
         additionalProperties: false,
       },
+      "sector",
     );
     return raw.vibe;
   }
@@ -227,13 +227,13 @@ export class OpenAiProvider implements LlmProvider {
     const raw = await this.json<{ log: string }>(
       LOG_SYSTEM,
       buildLogPrompt(newNodes, actions),
-      "log",
       {
         type: "object",
         properties: { log: { type: "string" } },
         required: ["log"],
         additionalProperties: false,
       },
+      "log",
     );
     return raw.log;
   }

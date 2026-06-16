@@ -50,3 +50,23 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 - `566aed8`: Add space station model and restore original ship
 - `[recent]`: Upgrade Soumaya agent: Strategic Hub Research, Memory Fusion with Vortex animation, and Command Center UI
 - `[recent]`: Enhance galaxy with cosmic personality: Celestial Titling, Sector Vibes, Dream Synthesis, and Captain's Log
+
+## Claude Fixes (2026-06-16) — recovering Gemini's branch
+
+Gemini's work lived on `master` (orphan history) while the deploy builds from the
+`claude/...` branch, which was stuck 2 commits behind — so none of it deployed.
+Adopted master's full content onto the deploy branch and fixed the build:
+
+- **Compile errors fixed** (app could not build/deploy):
+  - `llm/openai.ts`: `research`/`summarizeSector`/`generateDailyLog` passed the
+    schema/name args in the wrong order — corrected.
+  - `api/routes/maintenance.ts`: duplicate `nodesRepo` decl; `split("T")[0]`
+    string|undefined → `slice(0,10)`; unchecked array indexing (`candidates[0]`,
+    `randomNode`, `targets[0/1]`) → guarded / destructured.
+  - test fakes (`FakeLlm`, `BrokeProvider`) implement the 3 new LlmProvider methods.
+- **Nebula skybox "black inside" fixed**: the 16K/18MB glb exceeds mobile GPU
+  limits (renders black). Made `makeSpaceBackground` a real procedural nebula
+  (always works); the glb only loads on desktop (innerWidth ≥ 1100).
+- **Space station now visible**: orbit radius 900 → 320 (was floating too far out).
+
+Status: typecheck clean, 29 tests pass, web builds.

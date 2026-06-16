@@ -22,7 +22,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    */
   r.get("/next-job", async (req, res) => {
     // Check if it's time for a Daily Log (once per day)
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().slice(0, 10);
     const logExists = await ctx.handle.db
       .select()
       .from(dailyLogs)
@@ -106,10 +106,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       maxCandidates: 1,
     });
 
-    if (candidates.length > 0) {
+    const c0 = candidates[0];
+    if (c0) {
       res.json({
         type: "synthesis",
-        targets: [candidates[0].a, candidates[0].b],
+        targets: [c0.a, c0.b],
         description: "Synthesizing latent connection between semantically related memories.",
       });
       return;
@@ -201,12 +202,10 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       return;
     }
 
-    // 6. Fallback: Patrol a random node
-    const nodesRepo = new NodesRepo(ctx.handle);
-    const count = nodesRepo.count();
-    if (count > 0) {
-      const all = nodesRepo.all();
-      const randomNode = all[Math.floor(Math.random() * all.length)];
+    // 6. Fallback: Patrol a random node (reuse nodesRepo from above)
+    const all = nodesRepo.all();
+    const randomNode = all[Math.floor(Math.random() * all.length)];
+    if (randomNode) {
       res.json({
         type: "patrol",
         targets: [randomNode.id],
@@ -230,13 +229,14 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     }
 
     const { type, targets } = parsed.data;
+    const [t0, t1] = targets as [number, number]; // length is validated per-branch below
     let description = "";
 
     try {
       if (type === "synthesis" && targets.length === 2) {
         const nodesRepo = new NodesRepo(ctx.handle);
-        const a = nodesRepo.getById(targets[0]);
-        const b = nodesRepo.getById(targets[1]);
+        const a = nodesRepo.getById(t0);
+        const b = nodesRepo.getById(t1);
         if (a && b) {
           const { text, score } = await ctx.llm.synthesize(
             { label: a.label, content: a.content },
@@ -244,8 +244,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             0.9,
           );
           ctx.handle.db.insert(insights).values({
-            nodeA: targets[0],
-            nodeB: targets[1],
+            nodeA: t0,
+            nodeB: t1,
             text,
             score,
           }).run();
@@ -253,17 +253,17 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           res.json({ ok: true, detail: "Synthesized new insight." });
         }
       } else if (type === "calibration" && targets.length === 1) {
-        ctx.graph.setImportance(targets[0], null);
-        const node = ctx.graph.getNode(targets[0]);
-        description = `Recalibrated importance for "${node?.label || targets[0]}".`;
+        ctx.graph.setImportance(t0, null);
+        const node = ctx.graph.getNode(t0);
+        description = `Recalibrated importance for "${node?.label || t0}".`;
         res.json({ ok: true, detail: "Recalibrated importance." });
       } else if (type === "pruning" && targets.length === 2) {
         ctx.handle.sqlite.prepare(`
           DELETE FROM edges 
           WHERE (source = ? AND target = ?) OR (source = ? AND target = ?)
           AND weight < 0.25
-        `).run(targets[0], targets[1], targets[1], targets[0]);
-        description = `Pruned weak connection between node ${targets[0]} and ${targets[1]}.`;
+        `).run(t0, t1, t1, t0);
+        description = `Pruned weak connection between node ${t0} and ${t1}.`;
         res.json({ ok: true, detail: "Pruned weak connection." });
       } else if (type === "harmonization" && targets.length === 1) {
         ctx.handle.sqlite.prepare(`
@@ -275,13 +275,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             WHERE (e.source = ? OR e.target = ?)
           )
           WHERE id = ?
-        `).run(targets[0], targets[0], targets[0]);
-        const node = ctx.graph.getNode(targets[0]);
-        description = `Harmonized emotional resonance for "${node?.label || targets[0]}".`;
+        `).run(t0, t0, t0);
+        const node = ctx.graph.getNode(t0);
+        description = `Harmonized emotional resonance for "${node?.label || t0}".`;
         res.json({ ok: true, detail: "Harmonized emotional weight." });
       } else if (type === "research" && targets.length === 1) {
         const nodesRepo = new NodesRepo(ctx.handle);
-        const original = nodesRepo.getById(targets[0]);
+        const original = nodesRepo.getById(t0);
         if (original) {
           const research = await ctx.llm.research({ label: original.label, content: original.content });
           
@@ -309,8 +309,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
         }
       } else if (type === "merging" && targets.length === 2) {
         const nodesRepo = new NodesRepo(ctx.handle);
-        const a = nodesRepo.getById(targets[0]);
-        const b = nodesRepo.getById(targets[1]);
+        const a = nodesRepo.getById(t0);
+        const b = nodesRepo.getById(t1);
         if (a && b) {
           // Use LLM to consolidate the two redundant thoughts into one superior node
           const { text } = await ctx.llm.synthesize(
@@ -351,7 +351,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
         }
       } else if (type === "sector_vibe" && targets.length === 1) {
         const nodesRepo = new NodesRepo(ctx.handle);
-        const center = nodesRepo.getById(targets[0]);
+        const center = nodesRepo.getById(t0);
         if (center) {
           // Get immediate neighbors
           const neighbors = ctx.handle.sqlite.prepare(`
@@ -393,7 +393,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
         description = `Captain's Log recorded: ${logText.slice(0, 50)}...`;
         res.json({ ok: true, detail: "Daily log created." });
       } else if (type === "patrol") {
-        description = `Performed routine patrol on node ${targets[0]}.`;
+        description = `Performed routine patrol on node ${t0}.`;
         res.json({ ok: true, detail: "Patrol logged." });
       }
 

@@ -42,6 +42,15 @@ class FakeLlm implements LlmProvider {
   ): Promise<{ answer: string; citations: number[] }> {
     return { answer: "ok", citations: context.map((c) => c.id) };
   }
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    return { label: node.label, content: node.content };
+  }
+  async summarizeSector(_nodes: LinkCandidate[]): Promise<string> {
+    return "calm";
+  }
+  async generateDailyLog(_n: LinkCandidate[], _a: string[]): Promise<string> {
+    return "log";
+  }
 }
 
 let handle: DbHandle;

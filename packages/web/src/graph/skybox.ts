@@ -8,6 +8,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
  * and constellations live INSIDE this sphere so they stay visible against it.
  */
 export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000): void {
+  // The 16K texture (18MB) exceeds most mobile GPU limits (renders black) and can
+  // OOM the decoder — so only attempt it on larger screens. Phones keep the rich
+  // procedural nebula background, which always works.
+  if (typeof window !== "undefined" && window.innerWidth < 1100) return;
   new GLTFLoader().load(
     "/nebula-skybox.glb",
     (gltf) => {
@@ -43,17 +47,48 @@ export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000): void {
  * draws behind everything with no depth/occlusion concerns.
  */
 export function makeSpaceBackground(): THREE.Texture {
+  const W = 2048;
+  const H = 1024;
   const c = document.createElement("canvas");
-  c.width = 16;
-  c.height = 512;
+  c.width = W;
+  c.height = H;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createLinearGradient(0, 0, 0, 512);
-  g.addColorStop(0, "#0a0418"); // top — deep indigo
-  g.addColorStop(0.45, "#06030f");
-  g.addColorStop(0.75, "#070416");
-  g.addColorStop(1, "#0e0622"); // bottom — faint violet (twilight scatter)
+
+  // Deep base gradient.
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#0a0620");
+  g.addColorStop(0.5, "#070313");
+  g.addColorStop(1, "#0c0524");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 16, 512);
+  ctx.fillRect(0, 0, W, H);
+
+  // Colorful nebula clouds (soft additive blobs) — reliable on every device,
+  // so the sky is always a nebula, never black, even without the heavy glb.
+  const tints = ["#5a2db0", "#1f5fff", "#b0327f", "#1f9e8f", "#7a3cff", "#23407a"];
+  ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 90; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = 80 + Math.random() * 360;
+    const t = tints[Math.floor(Math.random() * tints.length)]!;
+    const col = new THREE.Color(t);
+    const rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0, `rgba(${rgb},${0.05 + Math.random() * 0.06})`);
+    rg.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Star dust.
+  ctx.globalCompositeOperation = "source-over";
+  for (let i = 0; i < 1400; i++) {
+    const a = 0.3 + Math.random() * 0.7;
+    ctx.fillStyle = `rgba(255,255,255,${a})`;
+    const s = Math.random() < 0.92 ? 1 : 2;
+    ctx.fillRect(Math.random() * W, Math.random() * H, s, s);
+  }
+
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;

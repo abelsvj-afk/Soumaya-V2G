@@ -69,16 +69,16 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit parameters: pulled in slightly for better visibility from the main cluster
-  const orbitRadius = 900;
-  const orbitSpeed = 0.035;
+  // Orbit close enough to the central cluster to actually be seen.
+  const orbitRadius = 320;
+  const orbitSpeed = 0.03;
   const orbitPhase = Math.random() * Math.PI * 2;
 
   group.userData.update = (time: number) => {
     const angle = time * orbitSpeed + orbitPhase;
     group.position.set(
       Math.cos(angle) * orbitRadius,
-      Math.sin(angle * 0.7) * 150, // slow vertical oscillation
+      Math.sin(angle * 0.7) * 60, // gentle vertical drift
       Math.sin(angle) * orbitRadius
     );
     // Orient it towards the direction of travel + some slow self-rotation
