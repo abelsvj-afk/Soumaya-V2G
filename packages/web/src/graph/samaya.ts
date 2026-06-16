@@ -143,6 +143,8 @@ export function makeSamaya(): SamayaHandle {
 
   const update: SamayaHandle["update"] = (dt, nodes, _links, onArrive) => {
     try {
+      let currentVel = 0;
+
       // ORBIT: circle the body at a standoff radius and do the "job" (periodic
       // maintenance sparks), then head to the next memory.
       if (mode === "orbit") {
@@ -151,7 +153,8 @@ export function makeSamaya(): SamayaHandle {
           return;
         }
         orbitTime -= dt;
-        orbitAngle += dt * (5 / (orbitRadius + 8));
+        const speedMultiplier = 5 / (orbitRadius + 8);
+        orbitAngle += dt * speedMultiplier;
         const tp = vecOf(target);
         const pos = tp
           .clone()
@@ -161,6 +164,9 @@ export function makeSamaya(): SamayaHandle {
           .clone()
           .multiplyScalar(-Math.sin(orbitAngle))
           .addScaledVector(ov, Math.cos(orbitAngle));
+        
+        currentVel = speedMultiplier * orbitRadius; // tangential velocity
+        
         group.position.copy(pos);
         group.lookAt(pos.clone().add(tangent));
         jobTimer -= dt;
@@ -169,34 +175,50 @@ export function makeSamaya(): SamayaHandle {
           jobTimer = 1.3;
         }
         if (orbitTime <= 0) planRoute(nodes);
-        return;
+      } else {
+        // TRAVEL: cruise the Bézier to the standoff point.
+        if (!curve && !planRoute(nodes)) {
+          group.visible = false;
+          return;
+        }
+        if (!curve) return;
+        
+        const prevT = t;
+        t += speed * dt;
+        
+        if (t >= 1) {
+          // Arrived near the body — enter orbit around it (don't ram the center).
+          mode = "orbit";
+          orbitRadius = bodyRadius(target) + 12;
+          orbitTime = 4 + Math.random() * 4;
+          jobTimer = 0.2;
+          orbitAngle = Math.random() * Math.PI * 2;
+          const normal = new THREE.Vector3(Math.random() - 0.5, Math.random() + 0.3, Math.random() - 0.5).normalize();
+          const ref = Math.abs(normal.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
+          ou = new THREE.Vector3().crossVectors(normal, ref).normalize();
+          ov = new THREE.Vector3().crossVectors(normal, ou).normalize();
+          curve = null;
+          currentVel = 0;
+        } else {
+          const p = curve.getPointAt(t);
+          const pPrev = curve.getPointAt(prevT);
+          currentVel = p.distanceTo(pPrev) / dt;
+          
+          group.position.copy(p);
+          const tangent = curve.getTangentAt(Math.min(0.999, t));
+          group.lookAt(p.clone().add(tangent));
+        }
       }
 
-      // TRAVEL: cruise the Bézier to the standoff point.
-      if (!curve && !planRoute(nodes)) {
-        group.visible = false;
-        return;
+      // Dynamic Propulsion Beam: scale based on velocity
+      if (group.visible) {
+        // Normalize velocity for scaling (Travel speed is roughly 20-50 units/sec, Orbit is ~5-10)
+        const vRatio = Math.min(1, currentVel / 40);
+        const s = 2 + 10 * vRatio; // scale from 2 (idle/orbit) to 12 (max burn)
+        glow.scale.set(s, s, 1);
+        glow.position.z = -2.5 - (s * 0.1); // push back slightly so it doesn't clip hull
+        (glow.material as THREE.SpriteMaterial).opacity = 0.3 + 0.7 * vRatio;
       }
-      if (!curve) return;
-      t += speed * dt;
-      if (t >= 1) {
-        // Arrived near the body — enter orbit around it (don't ram the center).
-        mode = "orbit";
-        orbitRadius = bodyRadius(target) + 12;
-        orbitTime = 4 + Math.random() * 4;
-        jobTimer = 0.2;
-        orbitAngle = Math.random() * Math.PI * 2;
-        const normal = new THREE.Vector3(Math.random() - 0.5, Math.random() + 0.3, Math.random() - 0.5).normalize();
-        const ref = Math.abs(normal.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0);
-        ou = new THREE.Vector3().crossVectors(normal, ref).normalize();
-        ov = new THREE.Vector3().crossVectors(normal, ou).normalize();
-        curve = null;
-        return;
-      }
-      const p = curve.getPointAt(t);
-      group.position.copy(p);
-      const tangent = curve.getTangentAt(Math.min(0.999, t));
-      group.lookAt(p.clone().add(tangent));
     } catch {
       /* skip this frame */
     }

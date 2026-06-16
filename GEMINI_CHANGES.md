@@ -11,6 +11,7 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
     - Added `space_station_3.glb` as a new orbiting entity in the 3D scene.
     - Created `packages/web/src/graph/spaceStation.ts` for station logic.
     - Updated `packages/web/src/graph/Graph3D.tsx` to include the station.
+    - **Propulsion Physics**: Implemented dynamic engine glow scaling in `packages/web/src/graph/samaya.ts` based on velocity (Travel vs. Orbit modes).
 - **Repository Management**:
     - Initialized a local git repository.
     - Created first commit: "Add space station model and restore original ship".
