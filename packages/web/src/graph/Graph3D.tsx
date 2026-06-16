@@ -275,7 +275,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Drive Soumaya along the live graph; spark a maintenance burst on arrival.
       if (soumaya) {
         const d = dataRef.current;
-        soumaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z, type) => bursts?.spawn(x, y, z, type));
+        const stationP = stationObjRef.current
+          ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+          : null;
+        soumaya.update(
+          dt,
+          d.nodes as any[],
+          d.links as any[],
+          (x, y, z, type) => bursts?.spawn(x, y, z, type),
+          stationP,
+        );
 
       }
 

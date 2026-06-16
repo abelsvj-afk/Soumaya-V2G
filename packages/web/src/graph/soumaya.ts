@@ -11,6 +11,7 @@ export interface SoumayaHandle {
     nodes: any[],
     links: any[],
     onArrive: (x: number, y: number, z: number, type: string) => void,
+    stationPos?: THREE.Vector3 | null,
   ) => void;
 }
 
@@ -100,13 +101,20 @@ export function makeSoumaya(): SoumayaHandle {
   group.scale.setScalar(1.5);
   group.visible = false;
 
-  let mode: "travel" | "orbit" | "idle" = "idle";
+  let mode: "travel" | "orbit" | "idle" | "dockTravel" | "docking" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
+
+  // Station docking: after a few jobs, fly to the station to "recharge".
+  const DOCK_EVERY = 4;
+  let jobsSinceDock = 0;
+  let dockTime = 0;
+  const stationLoc = new THREE.Vector3();
+  let haveStation = false;
 
   // Orbit-phase state.
   let orbitAngle = 0;
@@ -169,10 +177,61 @@ export function makeSoumaya(): SoumayaHandle {
     return true;
   };
 
-  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive) => {
+  // Fly to a standoff point near the space station for a recharge dock.
+  const planDock = (): void => {
+    const standoff = 180;
+    const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.2, Math.random() - 0.5)
+      .normalize()
+      .multiplyScalar(standoff);
+    const endpoint = stationLoc.clone().add(off);
+    const from = group.visible
+      ? group.position.clone()
+      : endpoint.clone().add(new THREE.Vector3(120, 70, 120));
+    const mid = from
+      .clone()
+      .add(endpoint)
+      .multiplyScalar(0.5)
+      .add(new THREE.Vector3((Math.random() - 0.5) * 60, 50 + Math.random() * 50, (Math.random() - 0.5) * 60));
+    curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
+    t = 0;
+    speed = Math.min(0.32, 70 / (from.distanceTo(endpoint) || 1));
+    mode = "dockTravel";
+    group.visible = true;
+  };
+
+  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos) => {
     try {
+      if (stationPos) {
+        stationLoc.copy(stationPos);
+        haveStation = true;
+      }
+
       if (mode === "idle") {
         acquireJob(nodes);
+        return;
+      }
+
+      // DOCKING: park by the station, pulse recharge beams, then resume patrol.
+      if (mode === "docking") {
+        dockTime -= dt;
+        // Hover just off the station, gently bobbing and facing it.
+        orbitAngle += dt * 0.4;
+        const pos = stationLoc
+          .clone()
+          .add(new THREE.Vector3(Math.cos(orbitAngle) * 150, Math.sin(orbitAngle * 0.6) * 40, Math.sin(orbitAngle) * 150));
+        group.position.copy(pos);
+        group.lookAt(stationLoc);
+        jobTimer -= dt;
+        if (jobTimer <= 0) {
+          onArrive(stationLoc.x, stationLoc.y, stationLoc.z, "synthesis"); // recharge beam
+          jobTimer = 0.5;
+        }
+        const s = 3 + Math.sin(performance.now() * 0.004) * 2;
+        glow.scale.set(s, s, 1);
+        if (dockTime <= 0) {
+          jobsSinceDock = 0;
+          mode = "idle";
+        }
         return;
       }
 
@@ -213,19 +272,32 @@ export function makeSoumaya(): SoumayaHandle {
             completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
             currentJob = null;
           }
-          mode = "idle";
+          jobsSinceDock++;
+          if (jobsSinceDock >= DOCK_EVERY && haveStation) {
+            planDock(); // time to refuel at the station
+          } else {
+            mode = "idle";
+          }
         }
       } else {
-        // TRAVEL: cruise the Bézier to the standoff point.
+        // TRAVEL (to a memory) / DOCKTRAVEL (to the station): cruise the Bézier.
         if (!curve) {
           mode = "idle";
           return;
         }
-        
+
         const prevT = t;
         t += speed * dt;
-        
-        if (t >= 1) {
+
+        if (t >= 1 && mode === "dockTravel") {
+          // Reached the station — begin the recharge dock.
+          mode = "docking";
+          dockTime = 6;
+          jobTimer = 0.2;
+          orbitAngle = Math.random() * Math.PI * 2;
+          curve = null;
+          currentVel = 0;
+        } else if (t >= 1) {
           // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
           orbitRadius = bodyRadius(target) + 12;
