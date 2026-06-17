@@ -93,6 +93,13 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "merged_into")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN merged_into INTEGER`);
   }
+  // Action items: transient day-to-day to-dos that expire.
+  if (!cols.some((c) => c.name === "kind")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN kind TEXT`);
+  }
+  if (!cols.some((c) => c.name === "expires_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN expires_at TEXT`);
+  }
 }
 
 /**

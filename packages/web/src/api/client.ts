@@ -55,13 +55,16 @@ export async function getGraph(limit = 300): Promise<GraphData> {
   }
 }
 
-export async function ingestText(text: string): Promise<IngestResult> {
+export async function ingestText(
+  text: string,
+  opts?: { kind?: "memory" | "action"; ttlHours?: number },
+): Promise<IngestResult> {
   return tracked(
     (async () => {
       const res = await fetch(`${API}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, ...opts }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };

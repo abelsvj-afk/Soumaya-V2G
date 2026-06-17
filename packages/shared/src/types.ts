@@ -63,6 +63,10 @@ export interface GraphNode {
   celestial?: import("./celestial.js").CelestialClass;
   /** react-force-graph node size hint (mirrors mass). */
   val?: number;
+  /** "action" = a day-to-day to-do that expires; otherwise a normal memory. */
+  kind?: "memory" | "action";
+  /** ISO timestamp when an action item times out (only for kind === "action"). */
+  expiresAt?: string;
   createdAt: string;
 }
 

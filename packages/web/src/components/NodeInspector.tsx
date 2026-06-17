@@ -92,7 +92,30 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </p>
       )}
       <p className="content">{node.content}</p>
-      <p className="lore">✦ {loreFor(node)}</p>
+      {node.kind === "action" ? (
+        <div className="action-due">
+          <span>
+            ⏰{" "}
+            {node.expiresAt && Date.parse(node.expiresAt) > Date.now()
+              ? `due in ~${Math.max(1, Math.round((Date.parse(node.expiresAt) - Date.now()) / 3.6e6))}h`
+              : "overdue — will clear soon"}
+          </span>
+          {onDeleted && (
+            <button
+              className="mini"
+              onClick={() => {
+                deleteNode(node.id)
+                  .then(() => onDeleted())
+                  .catch(() => {});
+              }}
+            >
+              ✓ Done
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="lore">✦ {loreFor(node)}</p>
+      )}
 
       <div className="weight">
         <div className="weight-head">

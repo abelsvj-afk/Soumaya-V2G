@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
 import type { GraphNode, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { nodes, type NodeRow } from "../db/schema.js";
@@ -12,6 +12,8 @@ export interface NewNode {
   emotionalWeight?: number;
   importance?: number;
   color?: string;
+  kind?: "memory" | "action";
+  expiresAt?: string;
 }
 
 function toGraphNode(row: NodeRow): GraphNode {
@@ -24,6 +26,8 @@ function toGraphNode(row: NodeRow): GraphNode {
     emotionalWeight: row.emotionalWeight ?? undefined,
     importance: row.importance ?? undefined,
     color: row.color ?? undefined,
+    kind: (row.kind as "memory" | "action" | null) ?? undefined,
+    expiresAt: row.expiresAt ?? undefined,
     createdAt: row.createdAt,
   };
 }
@@ -48,6 +52,8 @@ export class NodesRepo {
           emotionalWeight: input.emotionalWeight ?? null,
           importance: input.importance ?? null,
           color: input.color ?? null,
+          kind: input.kind ?? null,
+          expiresAt: input.expiresAt ?? null,
         })
         .returning()
         .get();
@@ -96,6 +102,16 @@ export class NodesRepo {
       return info.changes > 0;
     });
     return tx();
+  }
+
+  /** Active action items whose timeout has passed (for the expiry sweep). */
+  dueActionItems(nowIso: string): GraphNode[] {
+    return this.h.db
+      .select()
+      .from(nodes)
+      .where(and(eq(nodes.kind, "action"), isNull(nodes.deletedAt), lte(nodes.expiresAt, nowIso)))
+      .all()
+      .map(toGraphNode);
   }
 
   findByLabel(label: string): GraphNode | undefined {

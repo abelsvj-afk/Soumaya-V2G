@@ -20,6 +20,8 @@ export function IngestPanel({
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [listening, setListening] = useState(false);
+  const [action, setAction] = useState(false);
+  const [ttl, setTtl] = useState(24); // hours
   const recRef = useRef<any>(null);
 
   async function submit() {
@@ -29,10 +31,10 @@ export function IngestPanel({
     setBusy(true);
     setMsg("");
     try {
-      const r = await ingestText(body);
+      const r = await ingestText(body, action ? { kind: "action", ttlHours: ttl } : undefined);
       const n = r.nodes.length;
       const e = r.extractedEdges.length + r.associativeEdges.length;
-      setMsg(`+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}`);
+      setMsg(action ? `Action item added (expires in ${ttl}h)` : `+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}`);
       setText("");
       setDetails("");
       setShowDetails(false);
@@ -103,9 +105,21 @@ export function IngestPanel({
         </button>
       )}
 
+      <label className="action-toggle">
+        <input type="checkbox" checked={action} onChange={(e) => setAction(e.target.checked)} />
+        📌 Action item (a to-do that times out)
+        {action && (
+          <select value={ttl} onChange={(e) => setTtl(Number(e.target.value))}>
+            <option value={24}>today (24h)</option>
+            <option value={72}>3 days</option>
+            <option value={168}>1 week</option>
+          </select>
+        )}
+      </label>
+
       <div className="row">
         <button onClick={submit} disabled={busy}>
-          {busy ? "Thinking…" : "Add to brain"}
+          {busy ? "Thinking…" : action ? "Add action item" : "Add to brain"}
         </button>
         {SpeechRec && (
           <button

@@ -161,6 +161,42 @@ function makeMoonSurface(): THREE.CanvasTexture {
  * close so labels stay readable and surface detail shows).
  */
 export function makeNodeObject(node: GraphNode): THREE.Object3D {
+  // Action items are urgent little satellites (amber/red), not celestial bodies:
+  // small jagged core, a fast-pulsing alert glow, and a warning ring.
+  if (node.kind === "action") {
+    const g = new THREE.Group();
+    const col = "#ffb340";
+    const core = new THREE.Mesh(
+      new THREE.OctahedronGeometry(2.4, 0),
+      new THREE.MeshStandardMaterial({
+        color: col,
+        emissive: new THREE.Color(col),
+        emissiveIntensity: 1.1,
+        roughness: 0.4,
+        metalness: 0.3,
+      }),
+    );
+    core.userData.spin = true;
+    core.userData.pulse = { base: 1.0, amp: 0.8, speed: 3.2, phase: (node.id % 7) * 0.6 }; // fast, urgent
+    g.add(core);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3.4, 4.1, 28),
+      new THREE.MeshBasicMaterial({
+        color: "#ff7a3c",
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+      }),
+    );
+    ring.rotation.x = Math.PI / 2.3;
+    g.add(ring);
+    g.add(makeGlow(col, 12));
+    g.add(makeLabel(`⏰ ${node.label}`));
+    g.userData.nodeId = node.id;
+    return g;
+  }
+
   const mass =
     node.mass ??
     deriveMass({

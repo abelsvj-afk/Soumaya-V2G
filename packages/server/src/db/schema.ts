@@ -17,6 +17,8 @@ export const nodes = sqliteTable("nodes", {
   color: text("color"),
   deletedAt: text("deleted_at"),
   mergedInto: integer("merged_into"),
+  kind: text("kind"),
+  expiresAt: text("expires_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
