@@ -336,6 +336,24 @@ export async function getAgentLogs(): Promise<AgentLog[]> {
   }
 }
 
+export interface DailyLog {
+  id: number;
+  content: string;
+  date: string;
+}
+
+/** Most recent Captain's Log for this brain (space-scoped). null if none yet. */
+export async function getDailyLog(): Promise<DailyLog | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/daily-log`);
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && typeof d === "object" && typeof d.content === "string" ? (d as DailyLog) : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface Usage {
   inputTokens: number;
   outputTokens: number;

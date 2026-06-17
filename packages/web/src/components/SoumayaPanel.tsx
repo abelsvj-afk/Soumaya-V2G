@@ -1,20 +1,16 @@
 import { useEffect, useState } from "react";
 import {
   getAgentLogs,
+  getDailyLog,
   getSettings,
   updateSetting,
   getUsage,
   setBudget as apiSetBudget,
   resetUsage,
   type AgentLog,
+  type DailyLog,
   type Usage,
 } from "../api/client.js";
-
-interface DailyLog {
-  id: number;
-  content: string;
-  date: string;
-}
 
 export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [logs, setLogs] = useState<AgentLog[]>([]);
@@ -26,20 +22,16 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
 
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData] = await Promise.all([
+      const [logsData, settings, usageData, dl] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
+        getDailyLog(), // space-scoped via the client (sends x-space-id)
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
       if (usageData) setUsage(usageData);
-      // Fetch daily log (just a simple fetch inline for now)
-      const res = await fetch("/api/maintenance/daily-log");
-      if (res.ok) {
-        const dl = await res.json();
-        setDailyLog(dl);
-      }
+      if (dl) setDailyLog(dl);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
     } finally {

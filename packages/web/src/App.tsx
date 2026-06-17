@@ -8,6 +8,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
+import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import {
   currentSpace,
   getGraph,
@@ -246,6 +247,24 @@ export default function App() {
       </header>
 
       {help && <HelpPanel onClose={() => setHelp(false)} />}
+
+      {/* Evolving lore for the focused object (station / ship). */}
+      {(followStation || followShip) && (
+        <ObjectLoreCard
+          kind={followShip ? "ship" : "station"}
+          graph={view}
+          onClose={() => {
+            if (followShip) {
+              graphRef.current?.toggleFollowShip();
+              setFollowShip(false);
+            }
+            if (followStation) {
+              graphRef.current?.toggleFollowStation();
+              setFollowStation(false);
+            }
+          }}
+        />
+      )}
 
       {clustered && (
         <button
