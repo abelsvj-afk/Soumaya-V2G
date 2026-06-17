@@ -6,6 +6,7 @@ import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
 import { IngestPanel } from "./components/IngestPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
+import { HelpPanel } from "./components/HelpPanel.js";
 import { getGraph, getHealth, onAiActivity, type Health } from "./api/client.js";
 
 type Panel = "search" | "ingest" | "dock" | null;
@@ -23,6 +24,7 @@ export default function App() {
   const [music, setMusic] = useState(false);
   const [followShip, setFollowShip] = useState(false);
   const [followStation, setFollowStation] = useState(false);
+  const [help, setHelp] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
 
@@ -167,6 +169,11 @@ export default function App() {
       >
         🔍
       </button>
+      <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
+        ?
+      </button>
+
+      {help && <HelpPanel onClose={() => setHelp(false)} />}
       <button
         className={`fab fab-dock ${panel === "dock" ? "on" : ""}`}
         onClick={() => toggle("dock")}

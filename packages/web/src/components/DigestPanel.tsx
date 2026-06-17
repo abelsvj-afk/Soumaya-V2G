@@ -28,7 +28,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
       <div className="dock-head">
         <h3>Latent connections</h3>
         <button className="mini" onClick={run} disabled={busy}>
-          {busy ? "Synthesizing…" : "✨ Synthesize"}
+          {busy ? "Scanning…" : "🔍 Find new links"}
         </button>
       </div>
       {items.length === 0 && (

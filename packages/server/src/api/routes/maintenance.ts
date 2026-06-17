@@ -21,6 +21,19 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    * Returns the next "meaningful" task for the Soumaya agent.
    */
   r.get("/next-job", async (req, res) => {
+    // Token guard: only hand out LLM-backed jobs (daily_log, merging, research,
+    // synthesis, sector_vibe) when "Research Mode" is ON. Otherwise the agent
+    // sticks to FREE jobs (pruning, harmonization, calibration, patrol) so the
+    // autonomous loop can't silently drain the OpenAI key.
+    const llmOn =
+      (
+        await ctx.handle.db
+          .select()
+          .from(settings)
+          .where(eq(settings.key, "research_enabled"))
+          .get()
+      )?.value === "true";
+
     // Check if it's time for a Daily Log (once per day)
     const today = new Date().toISOString().slice(0, 10);
     const logExists = await ctx.handle.db
@@ -28,8 +41,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       .from(dailyLogs)
       .where(eq(dailyLogs.date, today))
       .get();
-    
-    if (!logExists) {
+
+    if (llmOn && !logExists) {
       const nodeCount = new NodesRepo(ctx.handle).count();
       // Wait until we have at least some nodes to summarize
       if (nodeCount > 5) {
@@ -45,10 +58,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     // 0. Merging: Find high-redundancy nodes (similarity > 0.95)
     // We use a strict threshold to avoid merging distinct but related thoughts.
     const nodesRepo = new NodesRepo(ctx.handle);
-    const allNodes = nodesRepo.all();
-    
-    // Check for redundancy
-    for (const node of allNodes) {
+
+    // Check for redundancy (LLM job — only when enabled)
+    if (llmOn) {
+      const allNodes = nodesRepo.all();
+      for (const node of allNodes) {
       const emb = getEmbedding(ctx.handle.sqlite, node.id);
       if (!emb) continue;
       const hits = knn(ctx.handle.sqlite, emb, 2);
@@ -62,22 +76,17 @@ export function maintenanceRoutes(ctx: AppContext): Router {
         });
         return;
       }
+      }
     }
 
-    // 1. Research: If enabled, find a node WITH connections that hasn't been researched yet
-    const researchEnabled = await ctx.handle.db
-      .select()
-      .from(settings)
-      .where(eq(settings.key, "research_enabled"))
-      .get();
-
-    if (researchEnabled?.value === "true") {
+    // 1. Research: only when Research Mode is on (already gated by llmOn).
+    if (llmOn) {
       // Strategic Hub Research: Only target nodes with multiple satellites (deg > 1)
       // and significant existing mass (importance > 0.4).
       const target = ctx.handle.sqlite.prepare(`
         SELECT n.id FROM nodes n
         JOIN (
-          SELECT node_id, COUNT(*) as deg 
+          SELECT node_id, COUNT(*) as deg
           FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
           GROUP BY node_id
         ) d ON d.node_id = n.id
@@ -107,7 +116,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     });
 
     const c0 = candidates[0];
-    if (c0) {
+    if (llmOn && c0) {
       res.json({
         type: "synthesis",
         targets: [c0.a, c0.b],
@@ -133,16 +142,22 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       return;
     }
 
-    // 4. Harmonization: Find clusters with high emotional variance
+    // 4. Harmonization: a node whose emotional weight deviates from its neighbors'.
     const erraticNode = ctx.handle.sqlite.prepare(`
       SELECT n.id
       FROM nodes n
       JOIN (
-        SELECT node_id, AVG(emotional_weight) as cluster_avg
-        FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
-        GROUP BY node_id
+        SELECT e.node_id, AVG(nb.emotional_weight) AS cluster_avg
+        FROM (
+          SELECT source AS node_id, target AS other FROM edges
+          UNION ALL
+          SELECT target AS node_id, source AS other FROM edges
+        ) e
+        JOIN nodes nb ON nb.id = e.other AND nb.emotional_weight IS NOT NULL
+        GROUP BY e.node_id
       ) c ON c.node_id = n.id
-      WHERE ABS(n.emotional_weight - c.cluster_avg) > 0.4
+      WHERE n.emotional_weight IS NOT NULL
+        AND ABS(n.emotional_weight - c.cluster_avg) > 0.4
       LIMIT 1
     `).get() as { id: number } | undefined;
 
@@ -170,7 +185,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       LIMIT 1
     `).get() as { id: number } | undefined;
 
-    if (cluster) {
+    if (llmOn && cluster) {
       res.json({
         type: "sector_vibe",
         targets: [cluster.id],

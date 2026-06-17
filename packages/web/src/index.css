@@ -494,6 +494,68 @@ body,
   top: 12px;
   right: 14px;
 }
+.fab-help {
+  top: 68px;
+  right: 14px;
+  font-weight: 700;
+}
+
+/* Help / guide overlay */
+.help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow-y: auto;
+  padding: 20px;
+  background: rgba(8, 5, 20, 0.96);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+}
+.help-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.help-head h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.help-intro {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.help-overlay h3 {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+.help-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.help-list li {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #d7d4ee;
+}
+.help-list b {
+  color: var(--text);
+}
+.help-ic {
+  flex: none;
+  width: 26px;
+  text-align: center;
+  font-size: 18px;
+}
 .fab-ingest {
   bottom: 18px;
   right: 14px;

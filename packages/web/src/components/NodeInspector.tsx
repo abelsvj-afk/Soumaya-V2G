@@ -132,7 +132,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
       )}
 
       <button className="synth-btn" onClick={runSynthesis} disabled={synthBusy}>
-        {synthBusy ? "Synthesizing…" : "✨ Synthesize connections"}
+        {synthBusy ? "Connecting…" : "✨ Connect the dots"}
       </button>
       {insight && <p className="insight-text">{insight}</p>}
 
