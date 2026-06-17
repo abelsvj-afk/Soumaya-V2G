@@ -248,7 +248,11 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   const fresh = Math.max(0, 1 - ageH / 48);
   const connected = (node.degree ?? 0) >= 1;
   const fade = connected ? 0 : Math.min(0.6, Math.max(0, ageH - 48) / 240); // ~10d -> -60%
-  const vitality = (1 + 0.5 * fresh) * (1 - fade);
+  // Entropy (server-computed: days since last tended, resisted by connections).
+  // A neglected memory cools — it dims here and shifts cold below. Tending it
+  // resets entropy server-side, so it warms back up on the next graph refresh.
+  const entropy = Math.max(0, Math.min(1, node.entropy ?? 0));
+  const vitality = (1 + 0.5 * fresh) * (1 - fade) * (1 - 0.55 * entropy);
 
   // Age-based Evolution Logic (Green Lane Gamification)
   const isHot = ageH < 24; // Created in the last 24h
@@ -260,6 +264,11 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     evolvedColor.lerp(new THREE.Color("#ffffff"), 0.15); // Hot white glow
   } else if (isAncient) {
     evolvedColor.lerp(new THREE.Color("#ff6b6b"), 0.15).multiplyScalar(0.85); // Redshift + Weathered dim
+  }
+  // Cooling tint: as entropy climbs, drift toward cold slate-blue and darken —
+  // a memory visibly going cold. Layers on top of the age tint above.
+  if (entropy > 0.05) {
+    evolvedColor.lerp(new THREE.Color("#4a5a7a"), 0.45 * entropy).multiplyScalar(1 - 0.2 * entropy);
   }
   const color = `#${evolvedColor.getHexString()}`;
 

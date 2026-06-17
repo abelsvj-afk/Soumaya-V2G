@@ -100,8 +100,8 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
           </div>
           <p className="budget-note">
             {fuel.fuel < fuel.jobCost
-              ? "Out of fuel — Soumaya idles on free upkeep. Add memories, link, or clear action items to refuel."
-              : "Add memories, forge links, and clear action items to refuel. Soumaya spends it on autonomous work."}
+              ? "Out of fuel — her core duties (connections, tidying, daily log) still run; only deep-dive expansion pauses. Add memories, forge links, or clear action items to refuel."
+              : "Powers Soumaya's ambitious deep-dive research + sector charting. Earn it by adding memories, forging links, and clearing action items."}
           </p>
         </div>
       )}

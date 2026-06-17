@@ -1,4 +1,4 @@
-import type { ChatResponse, NodeRef } from "@brain/shared";
+import { type ChatResponse, type NodeRef, toneFrom } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn } from "../db/vec.js";
@@ -54,5 +54,18 @@ export async function chat(
     .map((id) => refById.get(id))
     .filter((x): x is NodeRef => x !== undefined);
 
-  return { answer, citations: validCitations, contextIds: [...ids] };
+  // Dramatization: the cited memories anchor *what this is about* (their averaged
+  // emotional weight), her answer's wording captures *how she's phrasing it* —
+  // blended into a delivery tone the client uses to keep her voice from going flat.
+  const cited = ctxNodes.filter((n) => citations.includes(n.id));
+  const weighted = (cited.length > 0 ? cited : ctxNodes).filter(
+    (n) => typeof n.emotionalWeight === "number",
+  );
+  const avgEw =
+    weighted.length > 0
+      ? weighted.reduce((s, n) => s + (n.emotionalWeight ?? 0), 0) / weighted.length
+      : undefined;
+  const tone = toneFrom(answer, avgEw);
+
+  return { answer, citations: validCitations, contextIds: [...ids], tone };
 }

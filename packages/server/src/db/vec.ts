@@ -47,10 +47,16 @@ export function upsertEmbedding(db: RawDb, nodeId: number, vec: Float32Array): v
     );
   }
   // vec0 requires the INTEGER PRIMARY KEY bound as a BigInt via better-sqlite3.
-  db.prepare(`INSERT OR REPLACE INTO vec_nodes(node_id, embedding) VALUES (?, ?)`).run(
-    BigInt(nodeId),
-    vecToBlob(vec),
-  );
+  // NOTE: sqlite-vec's vec0 does NOT honour `INSERT OR REPLACE` (it raises a
+  // UNIQUE constraint on re-insert), so re-embedding an existing node — which the
+  // autonomous research/merging jobs do when they grow a memory — must delete the
+  // old row first, then insert. Wrapped so the pair is atomic.
+  const id = BigInt(nodeId);
+  const blob = vecToBlob(vec);
+  db.transaction(() => {
+    db.prepare(`DELETE FROM vec_nodes WHERE node_id = ?`).run(id);
+    db.prepare(`INSERT INTO vec_nodes(node_id, embedding) VALUES (?, ?)`).run(id, blob);
+  })();
 }
 
 /** Remove a node's stored embedding (used when deleting a memory). */

@@ -138,6 +138,8 @@ export interface ChatResponse {
   citations: NodeRef[];
   /** Ids of the subgraph used as context (for camera/highlight). */
   contextIds: number[];
+  /** Emotional delivery tone (drives her voice's prosody when speaking aloud). */
+  tone?: import("./dramatize.js").EmotionalTone;
 }
 
 export interface DailyLog {

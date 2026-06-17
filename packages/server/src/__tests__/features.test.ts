@@ -11,6 +11,7 @@ import { chat } from "../chat/graphrag.js";
 import { EconomyRepo, FUEL_START, FUEL_JOB_COST } from "../economy.js";
 import { GraphService } from "../graph/service.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
+import { analyzeSentiment, moodFromTone, prosodyFor, toneFrom } from "@brain/shared";
 
 let handle: DbHandle;
 const embeddings = new HashEmbeddingProvider(EMBED_DIM);
@@ -81,6 +82,16 @@ describe("chat (GraphRAG)", () => {
     const res = await chat(handle, { embeddings, llm }, "anything?");
     expect(res.contextIds).toHaveLength(0);
     expect(res.citations).toHaveLength(0);
+  });
+
+  it("attaches an emotional tone to the answer", async () => {
+    await add("a thought to anchor the chat");
+    const res = await chat(handle, { embeddings, llm }, "what do I think?");
+    expect(res.tone).toBeDefined();
+    expect(res.tone!.valence).toBeGreaterThanOrEqual(-1);
+    expect(res.tone!.valence).toBeLessThanOrEqual(1);
+    expect(res.tone!.intensity).toBeGreaterThanOrEqual(0);
+    expect(typeof res.tone!.mood).toBe("string");
   });
 });
 
@@ -165,6 +176,18 @@ describe("celestial economy — fuel", () => {
   });
 });
 
+describe("vec re-embedding (research/merging growth)", () => {
+  it("upsertEmbedding overwrites an existing node's vector without crashing", async () => {
+    const { upsertEmbedding, getEmbedding } = await import("../db/vec.js");
+    const v1 = new Float32Array(EMBED_DIM).fill(0.1);
+    const v2 = new Float32Array(EMBED_DIM).fill(0.2);
+    upsertEmbedding(handle.sqlite, 4242, v1);
+    // Re-embedding the SAME id used to throw "UNIQUE constraint failed".
+    expect(() => upsertEmbedding(handle.sqlite, 4242, v2)).not.toThrow();
+    expect(getEmbedding(handle.sqlite, 4242)?.[0]).toBeCloseTo(0.2, 5);
+  });
+});
+
 describe("celestial economy — entropy", () => {
   it("cools a neglected memory and resets to 0 when tended", async () => {
     const res = await ingest(
@@ -184,6 +207,37 @@ describe("celestial economy — entropy", () => {
     new NodesRepo(handle).tend(id);
     const warm = new GraphService(handle).getNode(id);
     expect(warm?.entropy ?? 1).toBeLessThan(0.05);
+  });
+});
+
+describe("dramatization filter (voice tone)", () => {
+  it("reads positive vs negative wording", () => {
+    expect(analyzeSentiment("I am so grateful and happy, this is wonderful").valence).toBeGreaterThan(0);
+    expect(analyzeSentiment("I feel lost, grief and pain, so alone").valence).toBeLessThan(0);
+  });
+
+  it("maps tone to a mood and to sane prosody", () => {
+    const bright = toneFrom("what a joyful, beautiful win!", 0.8);
+    expect(bright.valence).toBeGreaterThan(0);
+    expect(["joyful", "calm", "playful", "tender"]).toContain(bright.mood);
+
+    const heavy = toneFrom("a somber loss, heavy grief", -0.8);
+    expect(heavy.valence).toBeLessThan(0);
+
+    // Heavier feelings should slow her delivery relative to brighter ones.
+    expect(prosodyFor(heavy).rate).toBeLessThan(prosodyFor(bright).rate);
+    // Prosody stays within speech-synthesis-safe ranges.
+    for (const t of [bright, heavy]) {
+      const p = prosodyFor(t);
+      expect(p.rate).toBeGreaterThanOrEqual(0.7);
+      expect(p.rate).toBeLessThanOrEqual(1.25);
+      expect(p.pitch).toBeGreaterThanOrEqual(0.7);
+      expect(p.pitch).toBeLessThanOrEqual(1.4);
+    }
+  });
+
+  it("treats flat text as neutral", () => {
+    expect(moodFromTone(0, 0.1)).toBe("neutral");
   });
 });
 

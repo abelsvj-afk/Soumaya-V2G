@@ -10,6 +10,7 @@ const ROWS: { icon: string; title: string; body: string }[] = [
   { icon: "⊙", title: "Recenter", body: "Re-frame the whole galaxy and release any focus lock." },
   { icon: "🛸", title: "Focus Soumaya", body: "Lock the camera onto her ship (snaps to the front); orbit freely while she works." },
   { icon: "🔈", title: "Music", body: "Toggle the ambient space drone." },
+  { icon: "🗣️", title: "Soumaya's voice", body: "(in Chat) Toggle her speaking voice on/off. When on, she reads her answers aloud, shaping her tone to the emotional weather of what you're discussing — never a flat robot. The choice is remembered on this device." },
 ];
 
 const CONCEPTS: { title: string; body: string }[] = [
@@ -20,8 +21,10 @@ const CONCEPTS: { title: string; body: string }[] = [
   { title: "Flashback Comet ☄️", body: "Tap the comet icon to randomly fly to a high-importance memory from the past. Serendipity in action." },
   { title: "Weight slider", body: "Sets a memory's importance → its size/class (asteroid → moon → planet → giant → star → supergiant). 'auto' re-rates it." },
   { title: "✨ Connect the dots", body: "(in Details) The AI ties THIS memory together with the ones it's linked to, into a fresh insight." },
-  { title: "💬 Chat", body: "Ask your brain a question; it answers from your memories, with citations you can fly to." },
-  { title: "Soumaya (tap her ship)", body: "Opens the Command Center: her live activity + Research Mode." },
+  { title: "💬 Chat", body: "Ask your brain a question; it answers from your memories, with citations you can fly to. Turn on 🗣️ to hear her answer aloud." },
+  { title: "Soumaya (tap her ship)", body: "Opens the Command Center: her live activity, Research Mode, and her ⛽ Fuel gauge." },
+  { title: "⛽ Fuel (the Celestial Economy)", body: "A free energy you EARN by tending your galaxy — logging memories, forging links, clearing action items. Soumaya SPENDS it on her ambitious deep-dive research + sector charting. Her core duties (surfacing connections, tidying the graph, her daily log) always run regardless — fuel just fuels the extra. The real API budget stays the hard cap." },
+  { title: "❄️ Cooling memories (Entropy)", body: "Untended memories slowly go cold — they dim and drift toward a cold blue in the galaxy, and surface in the daily digest as 'going cold'. Well-connected ones cool far slower. Nothing is ever deleted: just visit (focus) a memory to warm it right back up." },
 ];
 
 /** A simple in-app guide explaining every control + concept. */

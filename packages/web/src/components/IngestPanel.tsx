@@ -11,7 +11,7 @@ export function IngestPanel({
   onIngested,
   onClose,
 }: {
-  onIngested: (newIds?: number[]) => void;
+  onIngested: (newIds?: number[], fuelEarned?: number) => void;
   onClose?: () => void;
 }) {
   const [text, setText] = useState("");
@@ -34,11 +34,16 @@ export function IngestPanel({
       const r = await ingestText(body, action ? { kind: "action", ttlHours: ttl } : undefined);
       const n = r.nodes.length;
       const e = r.extractedEdges.length + r.associativeEdges.length;
-      setMsg(action ? `Action item added (expires in ${ttl}h)` : `+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}`);
+      const fuelBit = r.fuelEarned ? ` · +${r.fuelEarned.toFixed(1)} ⛽` : "";
+      setMsg(
+        action
+          ? `Action item added (expires in ${ttl}h)${fuelBit}`
+          : `+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}${fuelBit}`,
+      );
       setText("");
       setDetails("");
       setShowDetails(false);
-      onIngested(r.nodes.map((x: any) => x.id));
+      onIngested(r.nodes.map((x: any) => x.id), r.fuelEarned);
     } catch (err) {
       setMsg((err as Error).message);
     } finally {

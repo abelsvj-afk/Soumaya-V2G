@@ -476,6 +476,23 @@ body,
   font-size: 12px;
   opacity: 0.85;
 }
+.head-tools {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.link-btn.active {
+  filter: drop-shadow(0 0 6px rgba(255, 200, 80, 0.9));
+}
+.speaking-dot {
+  margin-left: 6px;
+  color: #8be9a0;
+  animation: speakpulse 0.9s ease-in-out infinite;
+}
+@keyframes speakpulse {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 1; }
+}
 .digest-closing {
   font-size: 12px;
   line-height: 1.5;

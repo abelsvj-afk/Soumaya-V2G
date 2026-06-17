@@ -110,6 +110,10 @@ export interface IngestResult {
   nodes: GraphNode[];
   extractedEdges: unknown[];
   associativeEdges: unknown[];
+  /** Fuel earned by this ingest (memory + links). */
+  fuelEarned?: number;
+  /** The brain's fuel after earning. */
+  fuel?: Fuel;
 }
 
 export interface SearchHit extends GraphNode {

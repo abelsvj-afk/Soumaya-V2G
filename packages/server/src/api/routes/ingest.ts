@@ -53,10 +53,10 @@ export function ingestRoutes(ctx: AppContext): Router {
       spaceId,
     );
     // Earn fuel for tending the galaxy: a memory + each association it forged.
-    new EconomyRepo(ctx.handle, spaceId).add(
-      EARN_MEMORY + EARN_LINK * result.associativeEdges.length,
-    );
-    res.json(result);
+    const fuelEarned = EARN_MEMORY + EARN_LINK * result.associativeEdges.length;
+    const econ = new EconomyRepo(ctx.handle, spaceId);
+    econ.add(fuelEarned);
+    res.json({ ...result, fuelEarned, fuel: econ.toFuel() });
   });
   return r;
 }

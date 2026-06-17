@@ -52,7 +52,7 @@ export default function App() {
   const demoData = useMemo(() => makeDemoGalaxy(), []);
   const view = demo ? demoData : data;
 
-  const refresh = useCallback(async (newIds?: number[]) => {
+  const refresh = useCallback(async (newIds?: number[], fuelEarned?: number) => {
     try {
       const g = await getGraph();
       setData(g);
@@ -60,6 +60,9 @@ export default function App() {
         // Give the graph a moment to render the new nodes before rippling them.
         setTimeout(() => {
           for (const id of newIds) graphRef.current?.spawnBurst(id, "user");
+          // A warm amber sparkle on the new memory celebrates the fuel it earned.
+          if (fuelEarned && fuelEarned > 0)
+            for (const id of newIds) graphRef.current?.spawnBurst(id, "fuel");
         }, 150);
       }
     } finally {

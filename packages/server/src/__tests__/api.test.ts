@@ -124,4 +124,37 @@ describe("REST API", () => {
     const { status } = await get("/api/nodes/999999");
     expect(status).toBe(404);
   });
+
+  it("earns fuel on ingest and exposes it", async () => {
+    const before = (await get("/api/maintenance/fuel")).body.fuel as number;
+    const r = await post("/api/ingest", { text: "a brand new reflection worth keeping" });
+    expect(r.body.fuelEarned).toBeGreaterThan(0);
+    const after = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(after).toBeGreaterThan(before);
+  });
+
+  it("a tend call resets a memory's entropy clock", async () => {
+    const graph = (await get("/api/graph")).body as GraphData;
+    const id = graph.nodes[0]!.id;
+    const { status, body } = await post(`/api/nodes/${id}/tend`, {});
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+  });
+
+  it("only discretionary expansion jobs burn fuel; core duties are free", async () => {
+    const a = (await post("/api/ingest", { text: "fuel split memory alpha" })).body.nodes[0].id;
+    const b = (await post("/api/ingest", { text: "fuel split memory beta" })).body.nodes[0].id;
+
+    // A CORE job (synthesis) must not spend fuel.
+    const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    await post("/api/maintenance/complete-job", { type: "synthesis", targets: [a, b] });
+    const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f1).toBe(f0);
+
+    // An EXPANSION job (research) spends one job's worth of fuel.
+    const rr = await post("/api/maintenance/complete-job", { type: "research", targets: [a] });
+    expect(rr.status).toBe(200);
+    const f2 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f2).toBeLessThan(f1);
+  });
 });

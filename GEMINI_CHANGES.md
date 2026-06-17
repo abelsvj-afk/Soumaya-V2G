@@ -4,6 +4,28 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Celestial Economy v2 — voice, visual entropy, fuel polish + a real bugfix
+- **Soumaya's voice (dramatization filter).** New `shared/dramatize.ts` (pure,
+  offline): `analyzeSentiment` + `toneFrom` blend the cited memories' emotional
+  weight with her answer's wording into an `EmotionalTone`; `prosodyFor` maps it
+  to speech prosody. Chat now returns `tone`. `web/src/voice.ts` speaks via the
+  browser SpeechSynthesis, picking a natural (non-robot) voice and bending
+  rate/pitch + per-sentence jitter to the tone. Toggle 🗣️ in Chat (localStorage,
+  per-device). No API, no new deps.
+- **Visual entropy.** `nodeObject.ts` now dims + cold-shifts neglected memories
+  using the server's `entropy`; tending warms them back on the next refresh.
+- **Fuel flourish.** Ingest returns `fuelEarned`; the new memory gets an amber
+  spark (`effects.ts` "fuel" pool) and the panel shows `+N ⛽`.
+- **Don't starve her purpose.** Fuel now gates ONLY discretionary expansion
+  (research + sector_vibe). Her core duties (synthesis/merging/daily_log) run on
+  Research Mode + USD budget alone, regardless of fuel.
+- **Bugfix (it surfaced while testing the above):** `db/vec.ts` `upsertEmbedding`
+  used `INSERT OR REPLACE`, which vec0 rejects with a UNIQUE-constraint error — so
+  the autonomous **research & merging** jobs (which re-embed a grown node) had been
+  silently 500ing. Switched to an atomic delete-then-insert. Regression-tested.
+- Help menu updated (Fuel, Cooling/Entropy, Voice). Gate: 51 tests green,
+  typecheck clean, web build clean.
+
 ### 2026-06-17 (Claude): Verified green-lane work + recovered the lost red-zone plans
 - **Verified ✓** — green-lane web features build and pass the gate.
 - **Red-zone audit fixes:** `SoumayaPanel` was calling `fetch('/api/maintenance/

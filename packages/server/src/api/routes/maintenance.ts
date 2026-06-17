@@ -36,10 +36,17 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           .where(eq(settings.key, "research_enabled"))
           .get()
       )?.value === "true";
-    // Also stop spending when the estimated budget is used up OR the brain is out
-    // of fuel (the in-app energy you earn by tending the galaxy).
+    // Also stop spending when the estimated budget is used up. The USD budget is
+    // the HARD cap and gates everything below.
+    //
+    // Fuel is a SOFTER throttle layered on top: it governs only Soumaya's
+    // discretionary *expansion* ambition (deep-dive research + sector charting).
+    // Her core purpose — surfacing connections (synthesis), keeping the graph
+    // clean (merging), and keeping you informed (the daily log) — must run
+    // regardless of fuel, so `llmOn` deliberately does NOT require fuel.
     const economy = new EconomyRepo(ctx.handle, spaceId);
-    const llmOn = researchOn && !ctx.usage.overBudget() && economy.canRunJob();
+    const llmOn = researchOn && !ctx.usage.overBudget();
+    const expansionOn = llmOn && economy.canRunJob();
 
     // Check if it's time for a Daily Log (once per day, per brain)
     const today = new Date().toISOString().slice(0, 10);
@@ -86,8 +93,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       }
     }
 
-    // 1. Research: only when Research Mode is on (already gated by llmOn).
-    if (llmOn) {
+    // 1. Research: discretionary deep-dive expansion — costs fuel.
+    if (expansionOn) {
       // Strategic Hub Research: Only target nodes with multiple satellites (deg > 1)
       // and significant existing mass (importance > 0.4).
       const target = ctx.handle.sqlite.prepare(`
@@ -194,7 +201,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       LIMIT 1
     `).get(spaceId) as { id: number } | undefined;
 
-    if (llmOn && cluster) {
+    if (expansionOn && cluster) {
       res.json({
         type: "sector_vibe",
         targets: [cluster.id],
@@ -426,10 +433,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       }
 
       if (description) {
-        // Autonomous LLM jobs burn fuel; free upkeep (pruning/calibration/
-        // harmonization/patrol) does not.
-        const LLM_JOBS = new Set(["synthesis", "research", "merging", "sector_vibe", "daily_log"]);
-        if (LLM_JOBS.has(type)) new EconomyRepo(ctx.handle, spaceId).spend(FUEL_JOB_COST);
+        // Only discretionary *expansion* jobs burn fuel. Her core duties
+        // (synthesis/merging/daily_log) and free upkeep (pruning/calibration/
+        // harmonization/patrol) are always free so her purpose never stalls.
+        const FUEL_JOBS = new Set(["research", "sector_vibe"]);
+        if (FUEL_JOBS.has(type)) new EconomyRepo(ctx.handle, spaceId).spend(FUEL_JOB_COST);
         ctx.handle.db.insert(agentLogs).values({
           spaceId,
           action: type,
