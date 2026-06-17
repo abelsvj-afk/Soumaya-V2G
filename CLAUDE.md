@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications and [SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md) for system gaps and planned evolution to ensure continuity between agents.
+**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications and [SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md) for system gaps and planned evolution.
+
+**CRITICAL**: Claude (Lead Engineer) must rigorously review all Gemini-implemented code for potential pitfalls, architectural inconsistencies, or sub-optimal patterns. Gemini's contributions are intended as rapid prototyping/assistance and require senior-level validation before being considered final.
 
 Guidance for working in this repo. Read this before making changes.
 
