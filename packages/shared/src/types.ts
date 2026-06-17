@@ -117,3 +117,39 @@ export interface DailyLog {
   date: string;
   createdAt: string;
 }
+
+/** A short, link-carrying entry in Soumaya's daily digest. */
+export interface DigestEntry {
+  node: NodeRef;
+  /** One-line snippet of the memory. */
+  snippet: string;
+  /** Soumaya's short, in-character take on why it matters. */
+  take: string;
+}
+
+/** An action item that timed out (cleared from the galaxy). */
+export interface ExpiredAction {
+  label: string;
+  /** ISO timestamp it cleared. */
+  clearedAt: string;
+}
+
+/**
+ * Soumaya's daily digest — what she (the starpilot) thinks you should be caught
+ * up on: fresh memories with her take + links, latent connections she surfaced,
+ * and the day-to-day action items that timed out. Assembled server-side from
+ * existing data with NO LLM call, so it's free and always available.
+ */
+export interface DailyDigest {
+  date: string;
+  /** In-character opening line. */
+  greeting: string;
+  /** Memories logged today (newest first), each with a link + her take. */
+  fresh: DigestEntry[];
+  /** Latent connections she surfaced (reuses the insight engine). */
+  connections: Insight[];
+  /** Action items that timed out, summarized. */
+  expiredActions: ExpiredAction[];
+  /** Closing reflection in her voice. */
+  closing: string;
+}

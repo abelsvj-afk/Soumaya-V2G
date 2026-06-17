@@ -5,6 +5,7 @@ import { HeuristicProvider } from "../llm/heuristic.js";
 import { EMBED_DIM } from "../db/vec.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { findCandidates, runSynthesis } from "../synthesis/engine.js";
+import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { chat } from "../chat/graphrag.js";
 
 let handle: DbHandle;
@@ -76,6 +77,31 @@ describe("chat (GraphRAG)", () => {
     const res = await chat(handle, { embeddings, llm }, "anything?");
     expect(res.contextIds).toHaveLength(0);
     expect(res.citations).toHaveLength(0);
+  });
+});
+
+describe("daily digest (free, no LLM)", () => {
+  it("summarizes memories logged today with a link + Soumaya's take", async () => {
+    await add("Launching my coffee subscription startup");
+    await add("Budget runway for the startup is tight and stressful");
+
+    const d = buildDailyDigest(handle);
+    expect(d.fresh.length).toBeGreaterThanOrEqual(2);
+    expect(d.greeting.length).toBeGreaterThan(0);
+    expect(d.closing.length).toBeGreaterThan(0);
+    // Each entry carries a focusable node ref, a snippet, and an in-character take.
+    for (const e of d.fresh) {
+      expect(typeof e.node.id).toBe("number");
+      expect(e.snippet.length).toBeGreaterThan(0);
+      expect(e.take.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("is empty-but-valid for a fresh brain", () => {
+    const d = buildDailyDigest(handle);
+    expect(d.fresh).toHaveLength(0);
+    expect(d.expiredActions).toHaveLength(0);
+    expect(d.greeting.length).toBeGreaterThan(0);
   });
 });
 

@@ -394,6 +394,87 @@ body,
 .pill:hover {
   background: rgba(122, 249, 255, 0.12);
 }
+
+/* Soumaya's daily digest */
+.daily-digest {
+  margin: 4px 0 14px;
+  padding: 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(122, 249, 255, 0.04);
+}
+.daily-digest h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+.digest-greeting {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+  opacity: 0.95;
+}
+.digest-entries {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.digest-entries li {
+  padding: 8px 0;
+  border-top: 1px solid var(--glass-border);
+}
+.digest-link {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-left-width: 3px;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.digest-link:hover {
+  background: rgba(122, 249, 255, 0.12);
+}
+.digest-snippet {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 6px 0 4px;
+  opacity: 0.85;
+}
+.digest-take {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 0;
+  font-style: italic;
+  opacity: 0.75;
+}
+.digest-actions {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+}
+.digest-actions h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.digest-actions ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+.digest-closing {
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+  font-style: italic;
+  opacity: 0.85;
+}
 .chat-form {
   display: flex;
   gap: 8px;

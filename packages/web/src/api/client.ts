@@ -1,4 +1,4 @@
-import type { ChatResponse, GraphData, GraphNode, Insight } from "@brain/shared";
+import type { ChatResponse, DailyDigest, GraphData, GraphNode, Insight } from "@brain/shared";
 
 const API = "/api";
 
@@ -147,6 +147,33 @@ export async function getDigest(): Promise<Insight[]> {
     return Array.isArray(d) ? d : [];
   } catch {
     return [];
+  }
+}
+
+/** Soumaya's daily digest (free, no LLM). Returns a safe empty shape on error. */
+export async function getDailyDigest(): Promise<DailyDigest> {
+  const empty: DailyDigest = {
+    date: new Date().toISOString().slice(0, 10),
+    greeting: "",
+    fresh: [],
+    connections: [],
+    expiredActions: [],
+    closing: "",
+  };
+  try {
+    const res = await fetch(`${API}/digest/daily`);
+    const d = await res.json().catch(() => null);
+    if (!d || typeof d !== "object") return empty;
+    return {
+      date: typeof d.date === "string" ? d.date : empty.date,
+      greeting: typeof d.greeting === "string" ? d.greeting : "",
+      fresh: Array.isArray(d.fresh) ? d.fresh : [],
+      connections: Array.isArray(d.connections) ? d.connections : [],
+      expiredActions: Array.isArray(d.expiredActions) ? d.expiredActions : [],
+      closing: typeof d.closing === "string" ? d.closing : "",
+    };
+  } catch {
+    return empty;
   }
 }
 

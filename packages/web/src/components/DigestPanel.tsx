@@ -1,15 +1,19 @@
 import { useEffect, useState } from "react";
-import type { Insight } from "@brain/shared";
-import { getDigest, runDigest } from "../api/client.js";
+import type { DailyDigest, Insight } from "@brain/shared";
+import { getDailyDigest, getDigest, runDigest } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 
 export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [items, setItems] = useState<Insight[]>([]);
+  const [daily, setDaily] = useState<DailyDigest | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     getDigest()
       .then(setItems)
+      .catch(() => {});
+    getDailyDigest()
+      .then(setDaily)
       .catch(() => {});
   }, []);
 
@@ -18,6 +22,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
     try {
       await runDigest();
       setItems(await getDigest());
+      setDaily(await getDailyDigest());
     } finally {
       setBusy(false);
     }
@@ -25,6 +30,45 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
 
   return (
     <div className="dock-body">
+      {/* Soumaya's daily digest — her read on the day, with links + her take. */}
+      {daily && (daily.fresh.length > 0 || daily.expiredActions.length > 0 || daily.greeting) && (
+        <section className="daily-digest">
+          <h3>🛰️ Soumaya&apos;s daily digest</h3>
+          {daily.greeting && <p className="digest-greeting">{daily.greeting}</p>}
+
+          {daily.fresh.length > 0 && (
+            <ul className="digest-entries">
+              {daily.fresh.map((e) => (
+                <li key={e.node.id}>
+                  <button
+                    className="digest-link"
+                    style={{ borderColor: TYPE_COLORS[e.node.type] }}
+                    onClick={() => onFocus(e.node.id)}
+                  >
+                    {e.node.label}
+                  </button>
+                  <p className="digest-snippet">{e.snippet}</p>
+                  <p className="digest-take">— {e.take}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {daily.expiredActions.length > 0 && (
+            <div className="digest-actions">
+              <h4>⏰ Action items that cleared</h4>
+              <ul>
+                {daily.expiredActions.map((a, i) => (
+                  <li key={`${a.label}-${i}`}>{a.label}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {daily.closing && <p className="digest-closing">{daily.closing}</p>}
+        </section>
+      )}
+
       <div className="dock-head">
         <h3>Latent connections</h3>
         <button className="mini" onClick={run} disabled={busy}>

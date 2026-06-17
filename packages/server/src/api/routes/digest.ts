@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { AppContext } from "../../context.js";
 import { InsightsRepo } from "../../repositories/insights.repo.js";
 import { runSynthesis } from "../../synthesis/engine.js";
+import { buildDailyDigest } from "../../synthesis/dailyDigest.js";
 
 export function digestRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -9,6 +10,11 @@ export function digestRoutes(ctx: AppContext): Router {
   // GET /api/digest -> recent synthesized insights
   r.get("/", (_req, res) => {
     res.json(new InsightsRepo(ctx.handle).recent());
+  });
+
+  // GET /api/digest/daily -> Soumaya's daily digest (free, no LLM call)
+  r.get("/daily", (_req, res) => {
+    res.json(buildDailyDigest(ctx.handle));
   });
 
   // POST /api/digest/run -> scan for latent connections and synthesize new insights
