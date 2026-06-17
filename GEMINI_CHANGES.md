@@ -4,8 +4,21 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Verified green-lane work + recovered the lost red-zone plans
+- **Verified ✓** — green-lane web features build and pass the gate.
+- **Red-zone audit fixes:** `SoumayaPanel` was calling `fetch('/api/maintenance/
+  daily-log')` directly, bypassing the `x-space-id` wrapper (would 401 under
+  multi-tenancy) → moved to a space-scoped `getDailyLog()` client helper. Removed
+  a stray committed `.wget-hsts` artifact (+ gitignored).
+- **Recovered the staged plans:** `plans/phase-1-density-core.md` and
+  `plans/phase-3-gamification.md` were referenced below but never committed (lost
+  with Gemini's container). Claude reconstructed both as committed specs. Phase 1
+  (InstancedMesh) is spec'd + **deferred** until profiling needs it. Phase 3
+  (Fuel/Entropy economy) needs schema → **awaiting user direction** before
+  implementing (see the plan doc's open questions).
+
 ### 2026-06-17: Green Lane Gamification & Architecture Staging
-- `[ ] Verified by Claude`
+- `[x] Verified by Claude`
 - **Features Implemented (Green Zone):**
   - **Star Age Tints**: Memories now redshift as they age and remain unconnected.
   - **Sector Labels**: Hub titles are now visible in the Macro density view.
