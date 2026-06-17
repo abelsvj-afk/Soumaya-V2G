@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import type { DailyDigest, Insight } from "@brain/shared";
-import { getDailyDigest, getDigest, runDigest } from "../api/client.js";
+import type { Constellation, DailyDigest, Insight } from "@brain/shared";
+import { getConstellations, getDailyDigest, getDigest, runDigest } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 
 export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [items, setItems] = useState<Insight[]>([]);
   const [daily, setDaily] = useState<DailyDigest | null>(null);
+  const [constellations, setConstellations] = useState<Constellation[]>([]);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -15,6 +16,9 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
     getDailyDigest()
       .then(setDaily)
       .catch(() => {});
+    getConstellations()
+      .then(setConstellations)
+      .catch(() => {});
   }, []);
 
   async function run() {
@@ -23,6 +27,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
       await runDigest();
       setItems(await getDigest());
       setDaily(await getDailyDigest());
+      setConstellations(await getConstellations());
     } finally {
       setBusy(false);
     }
@@ -66,6 +71,41 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
           )}
 
           {daily.closing && <p className="digest-closing">{daily.closing}</p>}
+        </section>
+      )}
+
+      {/* ML constellations — unsupervised k-means groupings of the memories. */}
+      {constellations.length > 0 && (
+        <section className="constellations">
+          <h3>🌌 Constellations</h3>
+          <p className="constellations-sub">
+            Memories the model grouped by meaning — your galaxy&apos;s natural regions.
+          </p>
+          <ul className="constellation-list">
+            {constellations.map((c) => (
+              <li key={c.id}>
+                <div className="constellation-head">
+                  <strong>{c.name}</strong>
+                  <span className="constellation-meta">
+                    {c.nodes.length} · {Math.round(c.cohesion * 100)}% tight
+                  </span>
+                </div>
+                <div className="pills">
+                  {c.nodes.slice(0, 8).map((n) => (
+                    <button
+                      key={n.id}
+                      className="pill"
+                      style={{ borderColor: TYPE_COLORS[n.type] }}
+                      onClick={() => onFocus(n.id)}
+                    >
+                      {n.label}
+                    </button>
+                  ))}
+                  {c.nodes.length > 8 && <span className="pill-more">+{c.nodes.length - 8}</span>}
+                </div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

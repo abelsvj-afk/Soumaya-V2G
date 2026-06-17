@@ -93,6 +93,21 @@ export interface NodeRef {
   type: NodeType;
 }
 
+/**
+ * A "constellation" — a group of memories that an unsupervised model (k-means
+ * over the embedding vectors) found to be naturally close in meaning. This is
+ * the machine-learning organization layer: no labels, no API — the structure is
+ * learned from the vectors themselves.
+ */
+export interface Constellation {
+  id: number;
+  /** Auto-derived name from the cluster's most distinctive vocabulary. */
+  name: string;
+  nodes: NodeRef[];
+  /** Cohesion 0..1 (avg cosine of members to their centroid). */
+  cohesion: number;
+}
+
 /** A synthesized cross-cluster insight (the "compounding memory" feature). */
 export interface Insight {
   id: number;

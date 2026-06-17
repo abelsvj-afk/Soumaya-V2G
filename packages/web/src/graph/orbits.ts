@@ -23,6 +23,8 @@ interface OrbitParams {
   angle: number;
   u: THREE.Vector3; // orbit-plane basis
   v: THREE.Vector3;
+  /** How far this body's own children may orbit before leaving its lane. */
+  childMax: number;
 }
 
 export interface OrbitSystem {
@@ -33,6 +35,16 @@ export interface OrbitSystem {
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
+/** Approximate visual radius of a body (matches the render sizing by mass). */
+const bodySize = (n: any): number => 24 + massOf(n) * 60;
+
+// Geometry constants that guarantee bodies never collide:
+//  - distinct shells around the SAME parent can't intersect (different distance
+//    from the parent → different points), and
+//  - a child is clamped to HALF the gap between its parent's sibling shells minus
+//    both bodies' radii, so a moon can never swing into a neighbouring system.
+const MARGIN = 26; // breathing room between any two bodies
+const TOP_STEP = 360; // radial spacing between top-level systems (children of the center)
 
 export function makeOrbitSystem(): OrbitSystem {
   const params = new Map<number, OrbitParams>();
@@ -100,18 +112,36 @@ export function makeOrbitSystem(): OrbitSystem {
           angle: 0,
           u: new THREE.Vector3(),
           v: new THREE.Vector3(),
+          // The center's children are spaced by TOP_STEP; their moons may use up
+          // to half that gap.
+          childMax: TOP_STEP / 2 - MARGIN,
         });
         return;
       }
       const sibs = childrenOf.get(p.id) ?? [n];
+      const k = sibs.length;
       const i = Math.max(0, sibs.indexOf(n));
-      // Wide, well-separated shells so bodies never overlap ("no colliding in
-      // space"): start clear of the parent's own bulk, then give every sibling
-      // its own generous ring. The deterministic per-id angle below keeps even
-      // same-shell neighbors from lining up.
-      const parentSize = 40 + massOf(p) * 90; // approx visual radius of the parent body
-      const selfSize = 24 + massOf(n) * 60; // approx visual radius of this body
-      const radius = parentSize + selfSize + 60 + i * (72 + selfSize * 0.5);
+      const pp = params.get(p.id); // parent already assigned (BFS order)
+      const pSize = bodySize(p);
+      const nSize = bodySize(n);
+      const minR = pSize + nSize + MARGIN; // first shell clears the parent's bulk
+
+      // Distribute siblings into evenly-spaced shells. Top-level systems get a
+      // wide fixed step; deeper bodies must fit inside the parent's lane so they
+      // can never reach a neighbouring system.
+      let step: number;
+      if (p === center) {
+        step = TOP_STEP;
+      } else {
+        const band = Math.max(nSize + 12, (pp?.childMax ?? minR + 120) - minR);
+        step = k > 1 ? Math.max(nSize + 12, band / (k - 1)) : band;
+      }
+      const radius = minR + i * step;
+
+      // This body's own children stay within half the gap to its siblings (minus
+      // both radii) — the kinematic "Hill sphere" that prevents cross-collisions.
+      const childMax = Math.max(nSize + 30, step / 2 - nSize - MARGIN);
+
       const dir = n.id % 2 === 0 ? 1 : -1;
       const speed = (dir * 0.5) / Math.sqrt(radius + 14); // slow + Kepler-ish (outer slower)
       // Tilted orbit plane, deterministic from id for stable variety.
@@ -126,7 +156,7 @@ export function makeOrbitSystem(): OrbitSystem {
       const u = new THREE.Vector3().crossVectors(normal, ref).normalize();
       const v = new THREE.Vector3().crossVectors(normal, u).normalize();
       const angle = (i / sibs.length) * Math.PI * 2 + ((n.id * 13) % 100) / 100;
-      params.set(n.id, { parent: p, radius, speed, angle, u, v });
+      params.set(n.id, { parent: p, radius, speed, angle, u, v, childMax });
     };
 
     // BFS from the center so parents are ordered before children.

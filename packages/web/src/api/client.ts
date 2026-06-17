@@ -1,4 +1,4 @@
-import type { ChatResponse, DailyDigest, GraphData, GraphNode, Insight } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, GraphData, GraphNode, Insight } from "@brain/shared";
 
 const API = "/api";
 
@@ -174,6 +174,17 @@ export async function getDailyDigest(): Promise<DailyDigest> {
     };
   } catch {
     return empty;
+  }
+}
+
+/** ML constellations (k-means over embeddings). Safe array on error. */
+export async function getConstellations(): Promise<Constellation[]> {
+  try {
+    const res = await fetch(`${API}/constellations`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
   }
 }
 

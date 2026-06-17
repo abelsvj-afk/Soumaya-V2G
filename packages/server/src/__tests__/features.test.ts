@@ -6,6 +6,7 @@ import { EMBED_DIM } from "../db/vec.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { findCandidates, runSynthesis } from "../synthesis/engine.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
+import { findConstellations } from "../ml/cluster.js";
 import { chat } from "../chat/graphrag.js";
 
 let handle: DbHandle;
@@ -102,6 +103,36 @@ describe("daily digest (free, no LLM)", () => {
     expect(d.fresh).toHaveLength(0);
     expect(d.expiredActions).toHaveLength(0);
     expect(d.greeting.length).toBeGreaterThan(0);
+  });
+});
+
+describe("constellations (ML / k-means, no LLM)", () => {
+  it("groups every embedded memory into a named constellation", async () => {
+    const texts = [
+      "Launching my coffee subscription startup",
+      "Partnering with local coffee roasters",
+      "Pricing the coffee subscription tiers",
+      "My mother's birthday is in October",
+      "A hard conversation with my father",
+      "Calling an old friend I miss",
+    ];
+    for (const t of texts) await add(t);
+
+    const cs = findConstellations(handle);
+    expect(cs.length).toBeGreaterThanOrEqual(2);
+    // Every memory lands in exactly one constellation; names + cohesion are valid.
+    const total = cs.reduce((n, c) => n + c.nodes.length, 0);
+    expect(total).toBe(texts.length);
+    for (const c of cs) {
+      expect(c.name.length).toBeGreaterThan(0);
+      expect(c.cohesion).toBeGreaterThanOrEqual(0);
+      expect(c.cohesion).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("returns nothing for a brain too small to cluster", async () => {
+    await add("only one thought");
+    expect(findConstellations(handle)).toHaveLength(0);
   });
 });
 
