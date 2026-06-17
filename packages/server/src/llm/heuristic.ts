@@ -87,14 +87,21 @@ export class HeuristicProvider implements LlmProvider {
     question: string,
     context: ContextNode[],
   ): Promise<{ answer: string; citations: number[] }> {
+    // In-character (Soumaya) even offline — never impersonate the user.
+    const chitchat = /\b(how are you|how's it going|what'?s up|you doing|hi|hello|hey)\b/i.test(
+      question,
+    );
     if (context.length === 0) {
-      return { answer: "I don't have any memories related to that yet.", citations: [] };
+      const line = chitchat
+        ? "Cruising the quiet outer reaches of your galaxy — calm out here, just starlight and a little drift. Ask me about a memory and I'll plot a course to it."
+        : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
+      return { answer: line, citations: [] };
     }
     const top = context.slice(0, 5);
     const answer =
-      `Related memories for "${question}":\n` +
+      `From up here I can see a cluster on that heading:\n` +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
-      `\n\n(Offline mode — connect an OpenAI or Gemini key for synthesized answers.)`;
+      `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.)`;
     return { answer, citations: top.map((c) => c.id) };
   }
 

@@ -105,7 +105,13 @@ export function makeOrbitSystem(): OrbitSystem {
       }
       const sibs = childrenOf.get(p.id) ?? [n];
       const i = Math.max(0, sibs.indexOf(n));
-      const radius = 70 + massOf(p) * 120 + i * 38;
+      // Wide, well-separated shells so bodies never overlap ("no colliding in
+      // space"): start clear of the parent's own bulk, then give every sibling
+      // its own generous ring. The deterministic per-id angle below keeps even
+      // same-shell neighbors from lining up.
+      const parentSize = 40 + massOf(p) * 90; // approx visual radius of the parent body
+      const selfSize = 24 + massOf(n) * 60; // approx visual radius of this body
+      const radius = parentSize + selfSize + 60 + i * (72 + selfSize * 0.5);
       const dir = n.id % 2 === 0 ? 1 : -1;
       const speed = (dir * 0.5) / Math.sqrt(radius + 14); // slow + Kepler-ish (outer slower)
       // Tilted orbit plane, deterministic from id for stable variety.

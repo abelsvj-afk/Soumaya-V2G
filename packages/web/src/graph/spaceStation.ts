@@ -78,10 +78,13 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit out beyond the cluster (it's colossal now) but clearly in view, slowly.
-  const orbitRadius = 780;
+  // Orbit FAR out beyond the memory cluster so planets can never pass through it
+  // (the cluster lives well inside ~1000 units; the station holds a wide lane and
+  // rides above the galactic plane for extra clearance), and slowly.
+  const orbitRadius = 1700;
   const orbitSpeed = 0.012;
   const orbitPhase = Math.random() * Math.PI * 2;
+  const planeLift = 420; // keep the station above the plane the bodies orbit in
 
   group.userData.update = (time: number) => {
     const dt = lastTime ? Math.min(0.05, time - lastTime) : 0;
@@ -91,12 +94,12 @@ export function makeSpaceStation(): THREE.Object3D {
     const angle = time * orbitSpeed + orbitPhase;
     group.position.set(
       Math.cos(angle) * orbitRadius,
-      Math.sin(angle * 0.7) * 60, // gentle vertical drift
+      planeLift + Math.sin(angle * 0.7) * 90, // ride high, gentle vertical drift
       Math.sin(angle) * orbitRadius,
     );
     group.lookAt(
       Math.cos(angle + 0.01) * orbitRadius,
-      Math.sin((angle + 0.01) * 0.7) * 60,
+      planeLift + Math.sin((angle + 0.01) * 0.7) * 90,
       Math.sin(angle + 0.01) * orbitRadius,
     );
     selfSpin += dt * 0.08; // slow, smooth barrel roll (was an erratic fast spin)
