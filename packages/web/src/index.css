@@ -385,6 +385,15 @@ body,
   white-space: pre-wrap;
   color: #e6e4ff;
 }
+.type-caret {
+  color: var(--accent);
+  animation: caret-blink 0.8s steps(1) infinite;
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
 .neighbors,
 .results {
   list-style: none;

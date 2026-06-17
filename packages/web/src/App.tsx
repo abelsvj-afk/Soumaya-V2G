@@ -120,7 +120,7 @@ export default function App() {
         data={view}
         onSelect={select}
         onSoumayaClick={() => {
-          setTab("soumaya");
+          setTab("chat"); // tapping her ship = talk to Soumaya
           setPanel("dock");
         }}
         selectedId={selected?.id ?? null}
