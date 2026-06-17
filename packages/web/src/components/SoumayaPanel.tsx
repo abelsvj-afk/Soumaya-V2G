@@ -198,6 +198,10 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
             } catch {
               /* ignore malformed targets */
             }
+            
+            const rawDate = log.createdAt;
+            const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+            
             return (
               <li key={log.id} style={{ 
                 marginBottom: '0.8rem', 
@@ -208,7 +212,7 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', opacity: 0.6, fontSize: '0.7rem' }}>
                   <span style={{ textTransform: 'uppercase' }}>{log.action}</span>
-                  <span>{new Date(log.createdAt).toLocaleTimeString()}</span>
+                  <span>{new Date(isoDate).toLocaleTimeString()}</span>
                 </div>
                 <p style={{ margin: '0.3rem 0' }}>{log.description}</p>
                 <div className="pills">

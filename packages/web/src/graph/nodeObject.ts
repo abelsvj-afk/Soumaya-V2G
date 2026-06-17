@@ -241,7 +241,9 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   //  - a just-added/edited memory is "active" and glows brighter for ~48h, then
   //  - if it stays UNCONNECTED it slowly fades/cools (a forgotten thought), while
   //    connected/significant memories never fade (they're held alive by the web).
-  const created = Date.parse((node.createdAt ?? "").replace(" ", "T"));
+  const rawDate = node.createdAt ?? "";
+  const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+  const created = Date.parse(isoDate);
   const ageH = Number.isFinite(created) ? (Date.now() - created) / 3.6e6 : 9999;
   const fresh = Math.max(0, 1 - ageH / 48);
   const connected = (node.degree ?? 0) >= 1;

@@ -96,9 +96,15 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <div className="action-due">
           <span>
             ⏰{" "}
-            {node.expiresAt && Date.parse(node.expiresAt) > Date.now()
-              ? `due in ~${Math.max(1, Math.round((Date.parse(node.expiresAt) - Date.now()) / 3.6e6))}h`
-              : "overdue — will clear soon"}
+            {(() => {
+              const rawDate = node.expiresAt ?? "";
+              const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+              const exp = Date.parse(isoDate);
+              const now = Date.now();
+              return exp > now
+                ? `due in ~${Math.max(1, Math.round((exp - now) / 3.6e6))}h`
+                : "overdue — will clear soon";
+            })()}
           </span>
           {onDeleted && (
             <button

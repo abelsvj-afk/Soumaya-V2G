@@ -101,7 +101,9 @@ export default function App() {
     // Find an old, high-mass memory (Serendipity hook)
     const candidates = view.nodes.filter(n => {
       if (!n.createdAt || !n.mass) return false;
-      const ageDays = (Date.now() - Date.parse(n.createdAt)) / (1000 * 60 * 60 * 24);
+      const rawDate = n.createdAt;
+      const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+      const ageDays = (Date.now() - Date.parse(isoDate)) / (1000 * 60 * 60 * 24);
       return ageDays > 7 && n.mass > 0.3; 
     });
     

@@ -4,6 +4,21 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17: Green Lane Gamification & Architecture Staging
+- `[ ] Verified by Claude`
+- **Features Implemented (Green Zone):**
+  - **Star Age Tints**: Memories now redshift as they age and remain unconnected.
+  - **Sector Labels**: Hub titles are now visible in the Macro density view.
+  - **Flashback Comet**: Added a serendipity button (`☄️`) to randomly visit old, high-mass nodes.
+  - **Consistency Constellation**: Added a 14-day activity grid to the Soumaya Panel.
+  - **Visitor Color Sync**: Alien ships now adopt the emotional color of the planet they orbit.
+  - **LOD Optimization**: Fixed visual popping in `Graph3D` and improved tick-loop performance by isolating the `force-graph` group.
+  - **Timezone Sync**: Fixed a bug where SQLite UTC timestamps were interpreted as local time on the client, breaking 'Star Age', 'Flashback Comet', and 'Action Expiry' calculations.
+- **Red Zone Proposals Staged:**
+  - `plans/phase-1-density-core.md`: Technical spec for transitioning to `InstancedMesh`.
+  - `plans/phase-3-gamification.md`: Technical spec for the "Celestial Economy" (Fuel and Entropy).
+- **Files Modified**: `packages/web/src/App.tsx`, `packages/web/src/components/*`, `packages/web/src/graph/*`, `packages/web/src/index.css`.
+
 ### 2026-06-16: Infrastructure & Assets
 - **Git Installation**: Installed `git` via `apk`.
 - **Spacecraft Implementation**:
