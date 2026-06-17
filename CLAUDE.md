@@ -101,8 +101,13 @@ never crosses brains. Pre-existing data lives under `legacy` and is claimed by t
 
 Single container (Fly.io): `Dockerfile` builds the web app, bakes the MiniLM
 embedding model into the image, and the Express server serves both the API and the
-static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. CI in
-`.github/workflows/fly-deploy.yml` tests then deploys (needs `FLY_API_TOKEN`).
+static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. **Deploys are
+push-triggered by Fly's GitHub integration** (Fly builds the Dockerfile on push —
+no GitHub Actions involved). See `DEPLOYMENT.md`. There is intentionally no CI
+workflow: this account's Actions runners don't provision, so a workflow only added
+red noise; `DEPLOYMENT.md` carries a ready-to-restore `ci.yml` for when Actions
+works. Migrations must be additive + idempotent so a push can never crash boot on
+the existing volume (`migrateSchema`; covered by `migration.test.ts`).
 
 LLM is optional — without a key the app runs in heuristic mode. To use a key:
 `fly secrets set LLM_PROVIDER=gemini GEMINI_API_KEY=...` or
