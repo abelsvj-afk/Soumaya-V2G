@@ -78,3 +78,33 @@ describe("chat (GraphRAG)", () => {
     expect(res.citations).toHaveLength(0);
   });
 });
+
+describe("heuristic link validation (offline, no LLM)", () => {
+  it("links thoughts that share real topical vocabulary", async () => {
+    const r = await llm.validateLink(
+      { label: "Coffee startup", content: "launching a coffee subscription company" },
+      { label: "Coffee budget", content: "the coffee startup budget is tight" },
+      0.7,
+    );
+    expect(r.linked).toBe(true);
+    expect(r.weight ?? 0).toBeGreaterThan(0);
+  });
+
+  it("refuses to link unrelated thoughts at moderate similarity", async () => {
+    const r = await llm.validateLink(
+      { label: "Quantum lattice", content: "quantum chromodynamics gauge theory" },
+      { label: "Apple pie", content: "grandmother's apple pie recipe" },
+      0.7,
+    );
+    expect(r.linked).toBe(false);
+  });
+
+  it("still links on an unambiguous (very high) cosine match", async () => {
+    const r = await llm.validateLink(
+      { label: "Totally distinct A", content: "alpha bravo charlie" },
+      { label: "Totally distinct B", content: "delta echo foxtrot" },
+      0.95,
+    );
+    expect(r.linked).toBe(true);
+  });
+});

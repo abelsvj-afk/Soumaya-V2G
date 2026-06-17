@@ -10,9 +10,11 @@ export interface AssociativeLinkOptions {
   threshold: number;
   /** Max nearest neighbours to inspect (caps LLM fan-out). */
   k: number;
+  /** Max edges to actually create for one new node (avoids hub over-linking). */
+  maxLinks?: number;
 }
 
-export const DEFAULT_LINK_OPTIONS: AssociativeLinkOptions = { threshold: 0.85, k: 10 };
+export const DEFAULT_LINK_OPTIONS: AssociativeLinkOptions = { threshold: 0.85, k: 10, maxLinks: 4 };
 
 /**
  * The autonomous "dot-connecting" step: for a freshly stored node, find its
@@ -26,13 +28,16 @@ export async function associativeLink(
   embedding: Float32Array,
   options: AssociativeLinkOptions = DEFAULT_LINK_OPTIONS,
 ): Promise<GraphEdge[]> {
-  // k+1 because the node itself is its own nearest neighbour.
-  const hits = knn(h.sqlite, embedding, options.k + 1).filter(
-    (hit) => hit.nodeId !== newNode.id && hit.similarity >= options.threshold,
-  );
+  // k+1 because the node itself is its own nearest neighbour. Strongest matches
+  // first so that, when capped, we keep the most meaningful connections.
+  const hits = knn(h.sqlite, embedding, options.k + 1)
+    .filter((hit) => hit.nodeId !== newNode.id && hit.similarity >= options.threshold)
+    .sort((a, b) => b.similarity - a.similarity);
 
+  const cap = options.maxLinks ?? DEFAULT_LINK_OPTIONS.maxLinks ?? Infinity;
   const created: GraphEdge[] = [];
   for (const hit of hits) {
+    if (created.length >= cap) break;
     if (deps.edges.exists(newNode.id, hit.nodeId)) continue;
     const target = deps.nodes.getById(hit.nodeId);
     if (!target) continue;
