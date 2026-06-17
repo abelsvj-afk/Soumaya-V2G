@@ -69,6 +69,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     dataRef.current = data;
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
+    // Keep the zoom ceiling just beyond the galaxy (but always far enough to see
+    // the space station's wide orbit), and never far enough to exit the stars.
+    const r = orbitsRef.current.getRadius();
+    maxDistRef.current = Math.min(5200, Math.max(2400, r * 1.6));
   }, [data]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
@@ -82,6 +86,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
   const followKindRef = useRef<"ship" | "station" | null>(null);
+  // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
+  const followObjAnchor = useRef(new THREE.Vector3());
+  const followObjAnchored = useRef(false);
+  // Camera zoom-out ceiling, kept just beyond the galaxy so you can never zoom so
+  // far that the bodies leave the star field / you see its edge.
+  const maxDistRef = useRef(5200);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -170,10 +180,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       fg.d3Force("center", null);
       fg.d3Force("link")?.strength(0);
 
-      // Generous zoom-out (to admire it all) but stay well inside the nebula
-      // skybox shell so you never exit it.
+      // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
+      // so you can admire it all but never zoom past the star field.
       if (controls) {
-        controls.maxDistance = 7000;
+        controls.maxDistance = maxDistRef.current;
         controls.minDistance = 12;
       }
     } catch (err) {
@@ -211,6 +221,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
       visitors?.update(dt, dataRef.current.nodes as any[]);
+
+      // Keep the zoom ceiling matched to the current galaxy size.
+      if (controls) controls.maxDistance = maxDistRef.current;
 
       // Follow-lock: keep the jumped-to body centered as it orbits/drifts.
       const fid = followRef.current;
@@ -306,17 +319,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const sp = new THREE.Vector3();
         fo.getWorldPosition(sp);
         if (followSnapRef.current) {
+          // Snap once to the front of the object, then anchor.
           const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
           const d = followDistRef.current;
           camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
+          followObjAnchor.current.copy(sp);
+          followObjAnchored.current = true;
           followSnapRef.current = false;
+        } else if (followObjAnchored.current) {
+          // Ride along with the moving body: translate the camera by the body's
+          // delta so the view stays locked instead of swinging to chase it.
+          camera.position.add(sp.clone().sub(followObjAnchor.current));
+          followObjAnchor.current.copy(sp);
         }
         const target = sp.clone();
         if (insetRef.current && window.innerWidth <= 720) {
           const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
           target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
         }
-        controls.target.lerp(target, 0.25); // track; user keeps free orbit control
+        controls.target.copy(target); // locked; user can still orbit around it
         controls.update();
       }
 
@@ -400,6 +421,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjRef.current = on ? soumayaObjRef.current : null;
         followDistRef.current = 26;
         followSnapRef.current = on;
+        followObjAnchored.current = false;
         if (on) followRef.current = null;
         return on;
       },
@@ -409,12 +431,26 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjRef.current = on ? stationObjRef.current : null;
         followDistRef.current = 700; // station is colossal — stand well back
         followSnapRef.current = on;
+        followObjAnchored.current = false;
         if (on) followRef.current = null;
         return on;
       },
       isolateSystem: (id: number) => {
-        setCluster(orbitsRef.current.getDescendants(id));
-        flyTo((data.nodes as any[]).find((x) => x.id === id));
+        // Show only this memory + everything orbiting it, then frame the WHOLE
+        // system in view (not a close-up of the central star).
+        const sys = orbitsRef.current.getDescendants(id);
+        setCluster(sys);
+        followRef.current = null;
+        followObjRef.current = null;
+        followKindRef.current = null;
+        // Let the visibility filter apply, then fit the camera to the system, and
+        // once framed, gently track its centre so it doesn't drift out of view.
+        window.setTimeout(() => {
+          fgRef.current?.zoomToFit(900, 90, (n: any) => sys.has(n.id));
+        }, 80);
+        window.setTimeout(() => {
+          followRef.current = id;
+        }, 1050);
       },
       exitCluster: () => {
         setCluster(null);

@@ -32,6 +32,9 @@ export interface OrbitSystem {
   update: (dt: number, nodes: any[]) => void;
   /** Node id + every body that (transitively) orbits it — its "system". */
   getDescendants: (id: number) => Set<number>;
+  /** Current extent of the galaxy from the origin (so the camera + starfield can
+   *  always enclose it — bodies never spill outside the star field). */
+  getRadius: () => number;
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
@@ -44,12 +47,18 @@ const bodySize = (n: any): number => 24 + massOf(n) * 60;
 //  - a child is clamped to HALF the gap between its parent's sibling shells minus
 //    both bodies' radii, so a moon can never swing into a neighbouring system.
 const MARGIN = 26; // breathing room between any two bodies
-const TOP_STEP = 360; // radial spacing between top-level systems (children of the center)
+const TOP_STEP = 320; // max radial spacing between top-level systems
+const TOP_MIN_STEP = 240; // min spacing — keeps systems apart when the galaxy is busy
+// Target radius the top-level systems try to fit inside, so the galaxy stays a
+// compact, good-looking cluster (and never sprawls past the star field) — it only
+// grows past this once there are too many systems to fit at the minimum spacing.
+const TOP_TARGET = 2200;
 
 export function makeOrbitSystem(): OrbitSystem {
   const params = new Map<number, OrbitParams>();
   let order: any[] = []; // parents before children
   const childIds = new Map<number, number[]>(); // parent id -> child ids (for systems)
+  let galaxyRadius = 0; // furthest body extent from the origin
 
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
@@ -126,21 +135,25 @@ export function makeOrbitSystem(): OrbitSystem {
       const nSize = bodySize(n);
       const minR = pSize + nSize + MARGIN; // first shell clears the parent's bulk
 
-      // Distribute siblings into evenly-spaced shells. Top-level systems get a
-      // wide fixed step; deeper bodies must fit inside the parent's lane so they
-      // can never reach a neighbouring system.
+      // Distribute siblings into evenly-spaced shells. Top-level systems fit
+      // inside a target radius so the galaxy stays compact (spacing shrinks as
+      // more systems appear, down to a floor that keeps them apart); deeper
+      // bodies must fit inside the parent's lane so they can never reach a
+      // neighbouring system.
       let step: number;
       if (p === center) {
-        step = TOP_STEP;
+        const fit = k > 1 ? (TOP_TARGET - minR) / (k - 1) : TOP_STEP;
+        step = Math.min(TOP_STEP, Math.max(TOP_MIN_STEP, fit));
       } else {
         const band = Math.max(nSize + 12, (pp?.childMax ?? minR + 120) - minR);
         step = k > 1 ? Math.max(nSize + 12, band / (k - 1)) : band;
       }
       const radius = minR + i * step;
 
-      // This body's own children stay within half the gap to its siblings (minus
-      // both radii) — the kinematic "Hill sphere" that prevents cross-collisions.
-      const childMax = Math.max(nSize + 30, step / 2 - nSize - MARGIN);
+      // This body's own children stay within HALF the gap to its siblings minus
+      // both radii — the kinematic "Hill sphere" that prevents cross-collisions.
+      // Must never exceed step/2, or a moon could swing into a neighbouring lane.
+      const childMax = Math.max(8, step / 2 - nSize - MARGIN);
 
       const dir = n.id % 2 === 0 ? 1 : -1;
       const speed = (dir * 0.5) / Math.sqrt(radius + 14); // slow + Kepler-ish (outer slower)
@@ -184,6 +197,19 @@ export function makeOrbitSystem(): OrbitSystem {
         visited.add(n.id);
       }
     }
+
+    // Measure the galaxy's extent so the camera + star field can always enclose
+    // it. Walking parent-before-child (BFS order), each body's distance from the
+    // origin is its parent's distance plus its own orbit radius.
+    const extent = new Map<number, number>();
+    galaxyRadius = 0;
+    for (const n of order) {
+      const p = params.get(n.id);
+      const parentExtent = p?.parent ? (extent.get(p.parent.id) ?? 0) : 0;
+      const dist = parentExtent + (p?.radius ?? 0);
+      extent.set(n.id, dist);
+      galaxyRadius = Math.max(galaxyRadius, dist + bodySize(n));
+    }
   };
 
   const update = (dt: number, _nodes: any[]) => {
@@ -226,5 +252,7 @@ export function makeOrbitSystem(): OrbitSystem {
     return set;
   };
 
-  return { rebuild, update, getDescendants };
+  const getRadius = (): number => galaxyRadius;
+
+  return { rebuild, update, getDescendants, getRadius };
 }
