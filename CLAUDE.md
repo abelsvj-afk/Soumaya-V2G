@@ -2,7 +2,7 @@
 
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications and [SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md) for system gaps and planned evolution.
 
-**CRITICAL**: Claude (Lead Engineer) must rigorously review all Gemini-implemented code for potential pitfalls, architectural inconsistencies, or sub-optimal patterns. Gemini's contributions are intended as rapid prototyping/assistance and require senior-level validation before being considered final.
+**CRITICAL**: Claude (Lead Engineer) must rigorously review all **new and unverified** Gemini-implemented code (listed in [GEMINI_CHANGES.md](./GEMINI_CHANGES.md)) for pitfalls or sub-optimal patterns. Once a feature is audited and approved/fixed by Claude, it should be marked with a checkmark `[x] Verified by Claude` in the changelog to avoid redundant reviews.
 
 Guidance for working in this repo. Read this before making changes.
 

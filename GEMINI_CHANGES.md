@@ -5,6 +5,7 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 ## Completed Tasks
 
 ### 2026-06-16: Infrastructure & Assets
+- [ ] **Verified by Claude**
 - **Git Installation**: Installed `git` via `apk`.
 - **Spacecraft Implementation**:
     - Restored the original `soumaya-ship.glb` for the maintenance agent.
@@ -14,6 +15,7 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
     - **Propulsion Physics**: Implemented dynamic engine glow scaling in `packages/web/src/graph/soumaya.ts` based on velocity.
 
 ### 2026-06-16: Soumaya Agent & Command Center
+- [ ] **Verified by Claude**
 - **Agent Renaming**: Completely renamed the maintenance agent from "Samaya" to "Soumaya" across the entire codebase.
 - **Background Evolution**: 
     - Refactored maintenance logic into a standalone `MaintenanceService`.
@@ -45,6 +47,7 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
     - Synthesis (Cyan/Blue beam), Harmonization (Gold pulses), Pruning (Red fractures), Calibration (Indigo ripples), and Merging (Dark Purple Vortex implosion).
 
 ### 2026-06-16: Cosmic Personality Upgrades
+- [ ] **Verified by Claude**
 - **Celestial Titling (Star-Namer)**: LLM autonomously generates poetic names for new memories (stored in `celestialTitle`).
 - **Emotional Gravity Ripples**: LLM assigns a hex `color` based on the memory's vibe, directly influencing the 3D body's render color.
 - **Dream Synthesis**: Rewrote the Synthesis prompt to act as a "Dream Interpreter," creating cryptic, profound connections.
