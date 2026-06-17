@@ -38,4 +38,4 @@ This document tracks identified architectural gaps, technical debt, and proposed
 *Track major architectural shifts and commit SHAs here.*
 
 - **2026-06-16:** Initial roadmap established by Gemini. Identified 8 major gaps.
-- **2026-06-16:** **Gemini implemented:** Soft-Delete Safety, Background Heartbeat, and Multi-Stop Navigation.
+- **2026-06-16:** **Gemini implemented:** Soft-Delete Safety, Background Heartbeat, and Multi-Stop Navigation (`52f0cd0`).
