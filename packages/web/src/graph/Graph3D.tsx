@@ -229,7 +229,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // Self-animating background objects (comets, nebulae).
         if (typeof o.userData?.update === "function") o.userData.update(now);
         if (o.userData?.spin) {
-          o.rotation.y += 0.008; // bodies turn on their axis, calmly
+          o.rotation.y += 0.005; // bodies turn on their axis, slow + calm
         }
         // Pulsing emissive light, scaled DOWN as the camera nears (so close-ups
         // are readable instead of blinding) and UP when far (bright galaxy).
@@ -395,7 +395,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const on = followKindRef.current !== "station";
         followKindRef.current = on ? "station" : null;
         followObjRef.current = on ? stationObjRef.current : null;
-        followDistRef.current = 420; // station is huge — stand well back
+        followDistRef.current = 700; // station is colossal — stand well back
         followSnapRef.current = on;
         if (on) followRef.current = null;
         return on;

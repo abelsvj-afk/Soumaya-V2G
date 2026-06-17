@@ -179,7 +179,7 @@ export function makeSoumaya(): SoumayaHandle {
 
   // Fly to a standoff point near the space station for a recharge dock.
   const planDock = (): void => {
-    const standoff = 180;
+    const standoff = 360; // clear the colossal station's radius
     const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.2, Math.random() - 0.5)
       .normalize()
       .multiplyScalar(standoff);
@@ -218,7 +218,7 @@ export function makeSoumaya(): SoumayaHandle {
         orbitAngle += dt * 0.4;
         const pos = stationLoc
           .clone()
-          .add(new THREE.Vector3(Math.cos(orbitAngle) * 150, Math.sin(orbitAngle * 0.6) * 40, Math.sin(orbitAngle) * 150));
+          .add(new THREE.Vector3(Math.cos(orbitAngle) * 320, Math.sin(orbitAngle * 0.6) * 70, Math.sin(orbitAngle) * 320));
         group.position.copy(pos);
         group.lookAt(stationLoc);
         jobTimer -= dt;

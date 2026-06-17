@@ -41,9 +41,9 @@ export function makeSpaceStation(): THREE.Object3D {
       opacity: 0.5,
     }),
   );
-  aura.scale.set(380, 380, 1);
+  aura.scale.set(700, 700, 1);
   group.add(aura);
-  group.add(new THREE.PointLight(new THREE.Color("#9fc0ff"), 0.9, 800, 2));
+  group.add(new THREE.PointLight(new THREE.Color("#9fc0ff"), 1.0, 1400, 2));
 
   let mixer: THREE.AnimationMixer | null = null;
   let lastTime = 0;
@@ -59,7 +59,7 @@ export function makeSpaceStation(): THREE.Object3D {
       const dim = new THREE.Vector3();
       box.getSize(dim);
       const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
-      const k = 230 / maxDim; // huge — a looming celestial structure
+      const k = 460 / maxDim; // colossal — a looming celestial megastructure
       model.scale.setScalar(k);
       const center = new THREE.Vector3();
       box.getCenter(center);
@@ -78,8 +78,8 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit out beyond the cluster (it's big now) but clearly in view, and slowly.
-  const orbitRadius = 620;
+  // Orbit out beyond the cluster (it's colossal now) but clearly in view, slowly.
+  const orbitRadius = 780;
   const orbitSpeed = 0.012;
   const orbitPhase = Math.random() * Math.PI * 2;
 

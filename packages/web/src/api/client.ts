@@ -82,6 +82,20 @@ export async function search(q: string): Promise<SearchHit[]> {
   }
 }
 
+/** Ask the AI to piece a memory + its connections into a fresh insight. */
+export async function synthesizeNode(id: number): Promise<{ text: string; connected: number }> {
+  return tracked(
+    (async () => {
+      const res = await fetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Synthesis failed (${res.status})`);
+      }
+      return res.json() as Promise<{ text: string; connected: number }>;
+    })(),
+  );
+}
+
 /** Manually set a memory's weight (0..1), or null to reset to the auto rating. */
 export async function setImportance(id: number, importance: number | null): Promise<GraphNode> {
   const res = await fetch(`${API}/nodes/${id}`, {

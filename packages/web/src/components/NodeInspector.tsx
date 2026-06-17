@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
-import { deleteNode, setImportance } from "../api/client.js";
+import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 
 interface Props {
@@ -17,7 +17,24 @@ const end = (v: number | { id: number }): number => (typeof v === "object" ? v.i
 
 export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
+  const [insight, setInsight] = useState<string>("");
+  const [synthBusy, setSynthBusy] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any shown insight when switching memories.
+  useEffect(() => {
+    setInsight("");
+  }, [node?.id]);
+
+  const runSynthesis = () => {
+    if (!node) return;
+    setSynthBusy(true);
+    setInsight("");
+    synthesizeNode(node.id)
+      .then((r) => setInsight(r.text))
+      .catch((e) => setInsight(`(couldn't synthesize: ${(e as Error).message})`))
+      .finally(() => setSynthBusy(false));
+  };
 
   // Keep the slider in sync when a different node is selected.
   useEffect(() => {
@@ -113,6 +130,11 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
           🗑 Delete memory
         </button>
       )}
+
+      <button className="synth-btn" onClick={runSynthesis} disabled={synthBusy}>
+        {synthBusy ? "Synthesizing…" : "✨ Synthesize connections"}
+      </button>
+      {insight && <p className="insight-text">{insight}</p>}
 
       <h3>Connected ({neighbors.length})</h3>
       <ul className="neighbors">
