@@ -9,6 +9,7 @@ import { searchRoutes } from "./routes/search.js";
 import { digestRoutes } from "./routes/digest.js";
 import { chatRoutes } from "./routes/chat.js";
 import { maintenanceRoutes } from "./routes/maintenance.js";
+import { usageRoutes } from "./routes/usage.js";
 import { securityHeaders, rateLimit } from "./middleware.js";
 
 /** Assemble the Express app over an AppContext. */
@@ -40,6 +41,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/digest", digestRoutes(ctx));
   app.use("/api/chat", chatRoutes(ctx));
   app.use("/api/maintenance", maintenanceRoutes(ctx));
+  app.use("/api/usage", usageRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

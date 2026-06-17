@@ -61,11 +61,20 @@ export interface LlmProvider {
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";
 
+export interface LlmProviderOptions {
+  kind?: LlmProviderKind;
+  /** Called with token usage after each successful cloud call (for the budget meter). */
+  recordUsage?: (model: string, inputTokens: number, outputTokens: number) => void;
+  /** When it returns true, calls skip the cloud and use the heuristic (budget hit). */
+  isOverBudget?: () => boolean;
+}
+
 /**
  * Construct the configured LLM provider, falling back to the heuristic provider
  * when the relevant API key is missing.
  */
-export async function createLlmProvider(kind?: LlmProviderKind): Promise<LlmProvider> {
+export async function createLlmProvider(opts: LlmProviderOptions = {}): Promise<LlmProvider> {
+  const kind = opts.kind;
   // Accept any reasonable env-var name for the key (OPENAI_API_KEY, OPENAI_API,
   // and any case variant a Fly secret might use, e.g. openai_api).
   const findKey = (re: RegExp): string | undefined => {
@@ -90,12 +99,17 @@ export async function createLlmProvider(kind?: LlmProviderKind): Promise<LlmProv
   if (resolved === "gemini" && geminiKey) {
     const { GeminiProvider } = await import("./gemini.js");
     const { ResilientLlmProvider } = await import("./resilient.js");
-    return new ResilientLlmProvider(new GeminiProvider(geminiKey));
+    return new ResilientLlmProvider(new GeminiProvider(geminiKey), undefined, undefined, opts.isOverBudget);
   }
   if (resolved === "openai" && openaiKey) {
     const { OpenAiProvider } = await import("./openai.js");
     const { ResilientLlmProvider } = await import("./resilient.js");
-    return new ResilientLlmProvider(new OpenAiProvider(openaiKey));
+    return new ResilientLlmProvider(
+      new OpenAiProvider(openaiKey, opts.recordUsage),
+      undefined,
+      undefined,
+      opts.isOverBudget,
+    );
   }
   const { HeuristicProvider } = await import("./heuristic.js");
   return new HeuristicProvider();

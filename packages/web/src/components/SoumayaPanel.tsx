@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { getAgentLogs, getSettings, updateSetting, type AgentLog } from "../api/client.js";
+import {
+  getAgentLogs,
+  getSettings,
+  updateSetting,
+  getUsage,
+  setBudget as apiSetBudget,
+  resetUsage,
+  type AgentLog,
+  type Usage,
+} from "../api/client.js";
 
 interface DailyLog {
   id: number;
@@ -11,13 +20,20 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [researchEnabled, setResearchEnabled] = useState(false);
+  const [usage, setUsage] = useState<Usage | null>(null);
+  const [budgetInput, setBudgetInput] = useState("");
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     try {
-      const [logsData, settings] = await Promise.all([getAgentLogs(), getSettings()]);
+      const [logsData, settings, usageData] = await Promise.all([
+        getAgentLogs(),
+        getSettings(),
+        getUsage(),
+      ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
+      if (usageData) setUsage(usageData);
       // Fetch daily log (just a simple fetch inline for now)
       const res = await fetch("/api/maintenance/daily-log");
       if (res.ok) {
@@ -67,6 +83,70 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
       <p className="description" style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '1rem' }}>
         Autonomous agent for graph maintenance and knowledge expansion. Research consumes tokens.
       </p>
+
+      {usage && (
+        <div className="budget-box">
+          <div className="budget-head">
+            <span>API budget (estimated)</span>
+            <span className={usage.overBudget ? "budget-over" : usage.low ? "budget-low" : ""}>
+              ${usage.estCostUsd.toFixed(3)} / ${usage.budgetUsd.toFixed(2)}
+            </span>
+          </div>
+          <div className="budget-bar">
+            <div
+              className="budget-fill"
+              style={{
+                width: `${Math.round(usage.fractionUsed * 100)}%`,
+                background: usage.overBudget ? "#ff6b6b" : usage.low ? "#ffd166" : "var(--accent)",
+              }}
+            />
+          </div>
+          {usage.overBudget ? (
+            <p className="budget-note budget-over">
+              Budget reached — AI is paused (offline mode). Recharge at platform.openai.com, then
+              raise the budget or reset below.
+            </p>
+          ) : usage.low ? (
+            <p className="budget-note budget-low">Running low — ~${usage.remainingUsd.toFixed(2)} left.</p>
+          ) : (
+            <p className="budget-note">
+              ~${usage.remainingUsd.toFixed(2)} of estimated spend left. (Real balance can't be read
+              from an API key — this is a token-based estimate.)
+            </p>
+          )}
+          <div className="budget-actions">
+            <input
+              type="number"
+              min={0}
+              step={1}
+              placeholder={`$${usage.budgetUsd}`}
+              value={budgetInput}
+              onChange={(e) => setBudgetInput(e.target.value)}
+            />
+            <button
+              className="mini"
+              onClick={async () => {
+                const v = Number(budgetInput);
+                if (!Number.isFinite(v) || v < 0) return;
+                const u = await apiSetBudget(v);
+                if (u) setUsage(u);
+                setBudgetInput("");
+              }}
+            >
+              Set budget
+            </button>
+            <button
+              className="mini"
+              onClick={async () => {
+                const u = await resetUsage();
+                if (u) setUsage(u);
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
 
       {dailyLog && (
         <div className="daily-log" style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(100, 200, 255, 0.05)', borderLeft: '3px solid rgba(100, 200, 255, 0.5)', borderRadius: '0 4px 4px 0' }}>

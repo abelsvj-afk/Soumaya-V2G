@@ -214,6 +214,48 @@ export async function getAgentLogs(): Promise<AgentLog[]> {
   }
 }
 
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  estCostUsd: number;
+  budgetUsd: number;
+  remainingUsd: number;
+  fractionUsed: number;
+  overBudget: boolean;
+  low: boolean;
+}
+
+export async function getUsage(): Promise<Usage | null> {
+  try {
+    const res = await fetch(`${API}/usage`);
+    return res.ok ? ((await res.json()) as Usage) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function setBudget(budget: number): Promise<Usage | null> {
+  try {
+    const res = await fetch(`${API}/usage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ budget }),
+    });
+    return res.ok ? ((await res.json()) as Usage) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resetUsage(): Promise<Usage | null> {
+  try {
+    const res = await fetch(`${API}/usage/reset`, { method: "POST" });
+    return res.ok ? ((await res.json()) as Usage) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSettings(): Promise<Record<string, string>> {
   try {
     const res = await fetch(`${API}/maintenance/settings`);

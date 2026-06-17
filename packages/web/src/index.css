@@ -649,6 +649,62 @@ body,
   padding: 0 12px !important;
 }
 
+/* API budget meter (Command Center) */
+.budget-box {
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.budget-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.budget-over {
+  color: #ff8a8a;
+}
+.budget-low {
+  color: #ffd166;
+}
+.budget-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin: 8px 0;
+}
+.budget-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.budget-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin: 6px 0;
+}
+.budget-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 6px;
+}
+.budget-actions input {
+  width: 80px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
 /* Exit isolated-system view */
 .exit-cluster {
   position: absolute;

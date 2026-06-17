@@ -44,7 +44,10 @@ export function normalizeExtraction(raw: unknown): unknown {
 export class OpenAiProvider implements LlmProvider {
   readonly available = true;
   readonly model = MODEL;
-  constructor(private apiKey: string) {}
+  constructor(
+    private apiKey: string,
+    private recordUsage?: (model: string, inputTokens: number, outputTokens: number) => void,
+  ) {}
 
   private async json<T>(system: string, user: string, schema: object, name: string): Promise<T> {
     const res = await fetch(ENDPOINT, {
@@ -67,7 +70,13 @@ export class OpenAiProvider implements LlmProvider {
       }),
     });
     if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-    const body = (await res.json()) as { choices: { message: { content: string } }[] };
+    const body = (await res.json()) as {
+      choices: { message: { content: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    if (this.recordUsage && body.usage) {
+      this.recordUsage(MODEL, body.usage.prompt_tokens ?? 0, body.usage.completion_tokens ?? 0);
+    }
     return JSON.parse(body.choices[0]!.message.content) as T;
   }
 

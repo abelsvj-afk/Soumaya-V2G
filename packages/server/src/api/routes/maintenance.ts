@@ -25,7 +25,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     // synthesis, sector_vibe) when "Research Mode" is ON. Otherwise the agent
     // sticks to FREE jobs (pruning, harmonization, calibration, patrol) so the
     // autonomous loop can't silently drain the OpenAI key.
-    const llmOn =
+    const researchOn =
       (
         await ctx.handle.db
           .select()
@@ -33,6 +33,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           .where(eq(settings.key, "research_enabled"))
           .get()
       )?.value === "true";
+    // Also stop spending when the estimated budget is used up.
+    const llmOn = researchOn && !ctx.usage.overBudget();
 
     // Check if it's time for a Daily Log (once per day)
     const today = new Date().toISOString().slice(0, 10);

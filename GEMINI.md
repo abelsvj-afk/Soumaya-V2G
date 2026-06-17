@@ -49,3 +49,39 @@ For any task in the **Red Zone**, Gemini will:
 2. Draft a complete `Strategy` in the chat history.
 3. Provide the full code diffs in a `Plan`.
 4. **STOP** and wait for the user to either override (Directive) or transition to Claude for final execution.
+
+## 🌳 Branch & Git Mandate (CRITICAL — read before any commit)
+
+The app DEPLOYS FROM ONE BRANCH ONLY: **`claude/soumaya-second-brain-v1-m4z4hc`**.
+`master` is **NOT deployed** and has diverged. Committing app changes to `master`
+means **the user never sees them**, and re-syncing risks regressing Claude's work.
+
+### Hard rules
+1. **Work only on the deploy branch.** Never commit app/code changes to `master`.
+   ```
+   git fetch origin
+   git checkout claude/soumaya-second-brain-v1-m4z4hc
+   git rebase origin/claude/soumaya-second-brain-v1-m4z4hc
+   ```
+2. **Push back to the same branch:**
+   ```
+   git push origin HEAD:claude/soumaya-second-brain-v1-m4z4hc
+   ```
+3. **NEVER** `git push --force`, and **NEVER** re-initialize git / create a new
+   history (`git init` on an existing clone). Re-initing git is what orphaned
+   `master` and dropped every one of Claude's fixes. If `git` is missing, install
+   it but do **not** re-init the repo.
+4. **If a push is rejected** (non-fast-forward): `git fetch` → `git rebase
+   origin/claude/...` → resolve → push again. Never force.
+5. **Pre-commit gate (all must pass):**
+   ```
+   npm run typecheck && npm test && npm run build -w @brain/web
+   ```
+6. **Additive, not destructive.** Do not delete or wholesale-replace files Claude
+   authored. Make surgical edits and leave existing behavior intact.
+7. **Do NOT modify** (without Claude's explicit sign-off): the LLM token-gating /
+   budget guard, API-response hardening in `web/src/api/client.ts`, the kinematic
+   orbit system, or `db` migrations. These are load-bearing; changing them has
+   repeatedly broken the live app.
+8. **Claude is lead implementer.** For anything in the Red Zone above, stage a
+   plan + diff and hand the execution to Claude — do not push it yourself.
