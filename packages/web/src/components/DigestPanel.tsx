@@ -70,6 +70,25 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
             </div>
           )}
 
+          {daily.cooling.length > 0 && (
+            <div className="digest-cooling">
+              <h4>❄️ Going cold — drop by to warm them</h4>
+              <div className="pills">
+                {daily.cooling.map((c) => (
+                  <button
+                    key={c.node.id}
+                    className="pill"
+                    style={{ borderColor: TYPE_COLORS[c.node.type], opacity: 0.55 + 0.45 * (1 - c.entropy) }}
+                    onClick={() => onFocus(c.node.id)}
+                    title={`${Math.round(c.entropy * 100)}% cold`}
+                  >
+                    {c.node.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {daily.closing && <p className="digest-closing">{daily.closing}</p>}
         </section>
       )}

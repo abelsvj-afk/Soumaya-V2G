@@ -79,6 +79,11 @@ export function bootstrapSchema(sqlite: RawDb): void {
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE TABLE IF NOT EXISTS space_meta (
+      space_id TEXT PRIMARY KEY,
+      fuel REAL NOT NULL DEFAULT 25,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -112,6 +117,10 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "expires_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN expires_at TEXT`);
   }
+  // Celestial Economy: when a memory was last tended (drives entropy).
+  if (!cols.some((c) => c.name === "last_tended_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN last_tended_at TEXT`);
+  }
 
   // Multi-tenancy: add space_id to every per-user table on existing volumes.
   // Pre-existing rows keep the 'legacy' default and are claimed on first signup.
@@ -130,6 +139,11 @@ function migrateSchema(sqlite: RawDb): void {
       passcode_hash TEXT NOT NULL,
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS space_meta (
+      space_id TEXT PRIMARY KEY,
+      fuel REAL NOT NULL DEFAULT 25,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
 }

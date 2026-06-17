@@ -466,6 +466,16 @@ body,
   line-height: 1.5;
   opacity: 0.8;
 }
+.digest-cooling {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--glass-border);
+}
+.digest-cooling h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
 .digest-closing {
   font-size: 12px;
   line-height: 1.5;

@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, GraphData, GraphNode, Insight } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight } from "@brain/shared";
 
 const API = "/api";
 
@@ -239,6 +239,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
     fresh: [],
     connections: [],
     expiredActions: [],
+    cooling: [],
     closing: "",
   };
   try {
@@ -251,10 +252,32 @@ export async function getDailyDigest(): Promise<DailyDigest> {
       fresh: Array.isArray(d.fresh) ? d.fresh : [],
       connections: Array.isArray(d.connections) ? d.connections : [],
       expiredActions: Array.isArray(d.expiredActions) ? d.expiredActions : [],
+      cooling: Array.isArray(d.cooling) ? d.cooling : [],
       closing: typeof d.closing === "string" ? d.closing : "",
     };
   } catch {
     return empty;
+  }
+}
+
+/** This brain's Celestial Economy fuel (free, space-scoped). */
+export async function getFuel(): Promise<Fuel | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/fuel`);
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && typeof d.fuel === "number" ? (d as Fuel) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "Tend" a memory (reset its entropy) — called when you focus it. Fire-and-forget. */
+export async function tendNode(id: number): Promise<void> {
+  try {
+    await afetch(`${API}/nodes/${id}/tend`, { method: "POST" });
+  } catch {
+    /* best-effort */
   }
 }
 

@@ -1,4 +1,4 @@
-import { type GraphData, type GraphNode, deriveMass, classify } from "@brain/shared";
+import { type GraphData, type GraphNode, deriveMass, classify, entropyFrom } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { heuristicImportance } from "../llm/heuristic.js";
@@ -49,6 +49,7 @@ export class GraphService {
       .all(...ids) as { node_id: number; deg: number }[];
     const degreeById = new Map(rows.map((r) => [r.node_id, r.deg]));
 
+    const now = Date.now();
     return nodes.map((n) => {
       const degree = degreeById.get(n.id) ?? 0;
       const mass = deriveMass({
@@ -56,7 +57,12 @@ export class GraphService {
         degree,
         emotionalWeight: n.emotionalWeight,
       });
-      return { ...n, degree, mass, val: mass, celestial: classify(mass) };
+      // Entropy: days since last tended (fall back to creation), resisted by degree.
+      const tended = n.lastTendedAt ?? n.createdAt;
+      const ms = Date.parse(tended?.includes("T") ? tended : `${(tended ?? "").replace(" ", "T")}Z`);
+      const days = Number.isNaN(ms) ? 0 : Math.max(0, (now - ms) / 86_400_000);
+      const entropy = n.kind === "action" ? 0 : entropyFrom(days, degree);
+      return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy };
     });
   }
 

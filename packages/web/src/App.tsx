@@ -15,6 +15,7 @@ import {
   getHealth,
   logoutSpace,
   onAiActivity,
+  tendNode,
   type Health,
 } from "./api/client.js";
 
@@ -92,8 +93,9 @@ export default function App() {
       setPanel("dock");
       graphRef.current?.focusNode(id);
       if (ripple) graphRef.current?.spawnBurst(id, "user");
+      if (!demo) void tendNode(id); // revisiting a memory warms it back up (entropy)
     },
-    [view, selected],
+    [view, selected, demo],
   );
 
   const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);

@@ -28,6 +28,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     color: row.color ?? undefined,
     kind: (row.kind as "memory" | "action" | null) ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
+    lastTendedAt: row.lastTendedAt ?? undefined,
     createdAt: row.createdAt,
   };
 }
@@ -59,6 +60,7 @@ export class NodesRepo {
           color: input.color ?? null,
           kind: input.kind ?? null,
           expiresAt: input.expiresAt ?? null,
+          lastTendedAt: new Date().toISOString(), // freshly tended on creation
         })
         .returning()
         .get();
@@ -114,6 +116,14 @@ export class NodesRepo {
       return info.changes > 0;
     });
     return tx();
+  }
+
+  /** "Tend" a memory — reset its entropy clock (visiting/editing/linking). */
+  tend(id: number): boolean {
+    const info = this.h.sqlite
+      .prepare(`UPDATE nodes SET last_tended_at = ? WHERE id = ? AND space_id = ?`)
+      .run(new Date().toISOString(), id, this.spaceId);
+    return info.changes > 0;
   }
 
   /** Active action items whose timeout has passed (for the expiry sweep). */

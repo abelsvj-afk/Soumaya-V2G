@@ -8,6 +8,9 @@ import { findCandidates, runSynthesis } from "../synthesis/engine.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { findConstellations } from "../ml/cluster.js";
 import { chat } from "../chat/graphrag.js";
+import { EconomyRepo, FUEL_START, FUEL_JOB_COST } from "../economy.js";
+import { GraphService } from "../graph/service.js";
+import { NodesRepo } from "../repositories/nodes.repo.js";
 
 let handle: DbHandle;
 const embeddings = new HashEmbeddingProvider(EMBED_DIM);
@@ -133,6 +136,54 @@ describe("constellations (ML / k-means, no LLM)", () => {
   it("returns nothing for a brain too small to cluster", async () => {
     await add("only one thought");
     expect(findConstellations(handle)).toHaveLength(0);
+  });
+});
+
+describe("celestial economy — fuel", () => {
+  it("starts at the default and earns/spends, clamped and gated", () => {
+    const econ = new EconomyRepo(handle, "spaceA");
+    expect(econ.get()).toBe(FUEL_START);
+    econ.add(10);
+    expect(econ.get()).toBe(FUEL_START + 10);
+    expect(econ.canRunJob()).toBe(true);
+    expect(econ.spend(FUEL_JOB_COST)).toBe(true);
+    expect(econ.get()).toBe(FUEL_START + 10 - FUEL_JOB_COST);
+  });
+
+  it("can't spend more than it has, and idles at zero", () => {
+    const econ = new EconomyRepo(handle, "spaceB");
+    expect(econ.spend(FUEL_START + 999)).toBe(false);
+    expect(econ.get()).toBe(FUEL_START); // unchanged on a failed spend
+  });
+
+  it("keeps each brain's fuel separate", () => {
+    const a = new EconomyRepo(handle, "spaceA");
+    const b = new EconomyRepo(handle, "spaceB");
+    a.add(20);
+    expect(a.get()).toBe(FUEL_START + 20);
+    expect(b.get()).toBe(FUEL_START); // untouched
+  });
+});
+
+describe("celestial economy — entropy", () => {
+  it("cools a neglected memory and resets to 0 when tended", async () => {
+    const res = await ingest(
+      handle,
+      { embeddings, llm, linkOptions: { threshold: 1.01, k: 0 } },
+      "an old reflection left untended",
+    );
+    const id = res.nodes[0]!.id;
+    // Backdate the tend clock ~40 days to simulate long neglect.
+    const old = new Date(Date.now() - 40 * 86_400_000).toISOString();
+    handle.sqlite.prepare(`UPDATE nodes SET last_tended_at = ? WHERE id = ?`).run(old, id);
+
+    const cold = new GraphService(handle).getNode(id);
+    expect(cold?.entropy ?? 0).toBeGreaterThan(0.5);
+
+    // Revisiting tends it -> entropy resets.
+    new NodesRepo(handle).tend(id);
+    const warm = new GraphService(handle).getNode(id);
+    expect(warm?.entropy ?? 1).toBeLessThan(0.05);
   });
 });
 

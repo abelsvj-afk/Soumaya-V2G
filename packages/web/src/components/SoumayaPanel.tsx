@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import type { Fuel } from "@brain/shared";
 import {
   getAgentLogs,
   getDailyLog,
+  getFuel,
   getSettings,
   updateSetting,
   getUsage,
@@ -17,21 +19,24 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [fuel, setFuel] = useState<Fuel | null>(null);
   const [budgetInput, setBudgetInput] = useState("");
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData, dl] = await Promise.all([
+      const [logsData, settings, usageData, dl, fuelData] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
         getDailyLog(), // space-scoped via the client (sends x-space-id)
+        getFuel(),
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
       if (usageData) setUsage(usageData);
       if (dl) setDailyLog(dl);
+      if (fuelData) setFuel(fuelData);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
     } finally {
@@ -75,6 +80,31 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
       <p className="description" style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '1rem' }}>
         Autonomous agent for graph maintenance and knowledge expansion. Research consumes tokens.
       </p>
+
+      {fuel && (
+        <div className="budget-box">
+          <div className="budget-head">
+            <span>⛽ Fuel (earned by tending)</span>
+            <span className={fuel.fuel < fuel.jobCost ? "budget-over" : ""}>
+              {fuel.fuel.toFixed(1)} / {fuel.capacity}
+            </span>
+          </div>
+          <div className="budget-bar">
+            <div
+              className="budget-fill"
+              style={{
+                width: `${Math.round(Math.min(1, fuel.fuel / fuel.capacity) * 100)}%`,
+                background: fuel.fuel < fuel.jobCost ? "#ff6b6b" : "#8be9a0",
+              }}
+            />
+          </div>
+          <p className="budget-note">
+            {fuel.fuel < fuel.jobCost
+              ? "Out of fuel — Soumaya idles on free upkeep. Add memories, link, or clear action items to refuel."
+              : "Add memories, forge links, and clear action items to refuel. Soumaya spends it on autonomous work."}
+          </p>
+        </div>
+      )}
 
       {usage && (
         <div className="budget-box">

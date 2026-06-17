@@ -67,7 +67,21 @@ export interface GraphNode {
   kind?: "memory" | "action";
   /** ISO timestamp when an action item times out (only for kind === "action"). */
   expiresAt?: string;
+  /** ISO timestamp this memory was last "tended" (created/visited/edited/linked). */
+  lastTendedAt?: string;
+  /** 0..1 "coolness" from neglect — enriched on read (0 = freshly tended). */
+  entropy?: number;
   createdAt: string;
+}
+
+/** The brain's "fuel" — a free in-app energy that powers Soumaya's autonomy. */
+export interface Fuel {
+  /** Current fuel for this brain. */
+  fuel: number;
+  /** Soft ceiling fuel saturates at. */
+  capacity: number;
+  /** Cost the agent pays per autonomous LLM job. */
+  jobCost: number;
 }
 
 export interface GraphEdge {
@@ -165,6 +179,8 @@ export interface DailyDigest {
   connections: Insight[];
   /** Action items that timed out, summarized. */
   expiredActions: ExpiredAction[];
+  /** Memories cooling from neglect — revisit them to warm them back up. */
+  cooling: { node: NodeRef; entropy: number }[];
   /** Closing reflection in her voice. */
   closing: string;
 }

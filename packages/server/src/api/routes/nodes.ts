@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { insights } from "../../db/schema.js";
 import { GraphService } from "../../graph/service.js";
+import { NodesRepo } from "../../repositories/nodes.repo.js";
+import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
 import { spaceOf } from "../middleware.js";
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
@@ -12,6 +14,18 @@ export function nodesRoutes(ctx: AppContext): Router {
   const r = Router();
   const graphFor = (res: import("express").Response) =>
     new GraphService(ctx.handle, spaceOf(res));
+
+  // POST /api/nodes/:id/tend -> reset a memory's entropy clock (revisiting it).
+  // Free + space-scoped; the client calls this when you focus a memory.
+  r.post("/:id/tend", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const ok = new NodesRepo(ctx.handle, spaceOf(res)).tend(id);
+    res.json({ ok });
+  });
 
   // POST /api/nodes/:id/synthesize -> AI pieces this memory + its connections into
   // a fresh insight (the "connect the dots for me" action).
@@ -55,6 +69,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       .insert(insights)
       .values({ spaceId, nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
       .run();
+    new NodesRepo(ctx.handle, spaceId).tend(id); // synthesizing tends the memory
 
     res.json({ text, connected: neighbors.length });
   });
@@ -76,6 +91,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(404).json({ error: "Not found" });
       return;
     }
+    new NodesRepo(ctx.handle, spaceOf(res)).tend(id); // editing weight tends it
     res.json(node);
   });
 
@@ -86,11 +102,16 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const ok = graphFor(res).deleteNode(id);
+    const spaceId = spaceOf(res);
+    const graph = graphFor(res);
+    const existing = graph.getNode(id); // check kind before removing
+    const ok = graph.deleteNode(id);
     if (!ok) {
       res.status(404).json({ error: "Not found" });
       return;
     }
+    // Clearing a day-to-day action item earns a little fuel (tending the galaxy).
+    if (existing?.kind === "action") new EconomyRepo(ctx.handle, spaceId).add(EARN_ACTION_DONE);
     res.json({ ok: true, id });
   });
 

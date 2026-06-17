@@ -4,6 +4,7 @@ import type { AppContext } from "../../context.js";
 import { findCandidates } from "../../synthesis/engine.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { GraphService } from "../../graph/service.js";
+import { EconomyRepo, FUEL_JOB_COST } from "../../economy.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../../db/schema.js";
 import { upsertEmbedding, getEmbedding, knn } from "../../db/vec.js";
 import { spaceOf } from "../middleware.js";
@@ -35,8 +36,10 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           .where(eq(settings.key, "research_enabled"))
           .get()
       )?.value === "true";
-    // Also stop spending when the estimated budget is used up.
-    const llmOn = researchOn && !ctx.usage.overBudget();
+    // Also stop spending when the estimated budget is used up OR the brain is out
+    // of fuel (the in-app energy you earn by tending the galaxy).
+    const economy = new EconomyRepo(ctx.handle, spaceId);
+    const llmOn = researchOn && !ctx.usage.overBudget() && economy.canRunJob();
 
     // Check if it's time for a Daily Log (once per day, per brain)
     const today = new Date().toISOString().slice(0, 10);
@@ -423,6 +426,10 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       }
 
       if (description) {
+        // Autonomous LLM jobs burn fuel; free upkeep (pruning/calibration/
+        // harmonization/patrol) does not.
+        const LLM_JOBS = new Set(["synthesis", "research", "merging", "sector_vibe", "daily_log"]);
+        if (LLM_JOBS.has(type)) new EconomyRepo(ctx.handle, spaceId).spend(FUEL_JOB_COST);
         ctx.handle.db.insert(agentLogs).values({
           spaceId,
           action: type,
@@ -468,6 +475,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     } else {
       res.status(404).json({ error: "No daily log found" });
     }
+  });
+
+  /**
+   * GET /api/maintenance/fuel -> this brain's Celestial Economy fuel.
+   */
+  r.get("/fuel", (_req, res) => {
+    res.json(new EconomyRepo(ctx.handle, spaceOf(res)).toFuel());
   });
 
   /**

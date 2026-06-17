@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { ingest } from "../../ingestion/pipeline.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
+import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../../economy.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -50,6 +51,10 @@ export function ingestRoutes(ctx: AppContext): Router {
       { embeddings: ctx.embeddings, llm: ctx.llm },
       text,
       spaceId,
+    );
+    // Earn fuel for tending the galaxy: a memory + each association it forged.
+    new EconomyRepo(ctx.handle, spaceId).add(
+      EARN_MEMORY + EARN_LINK * result.associativeEdges.length,
     );
     res.json(result);
   });

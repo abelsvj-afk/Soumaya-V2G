@@ -27,6 +27,7 @@ export const nodes = sqliteTable("nodes", {
   mergedInto: integer("merged_into"),
   kind: text("kind"),
   expiresAt: text("expires_at"),
+  lastTendedAt: text("last_tended_at"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -100,6 +101,15 @@ export const dailyLogs = sqliteTable("daily_logs", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+/** Per-brain economy state (the "Celestial Economy" fuel). Space-scoped. */
+export const spaceMeta = sqliteTable("space_meta", {
+  spaceId: text("space_id").primaryKey(),
+  fuel: real("fuel").notNull().default(25),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 /** A private brain ("space"), opened by name + passcode (works across devices). */
 export const spaces = sqliteTable("spaces", {
   id: text("id").primaryKey(),
@@ -117,3 +127,4 @@ export type InsightRow = typeof insights.$inferSelect;
 export type AgentLogRow = typeof agentLogs.$inferSelect;
 export type DailyLogRow = typeof dailyLogs.$inferSelect;
 export type SpaceRow = typeof spaces.$inferSelect;
+export type SpaceMetaRow = typeof spaceMeta.$inferSelect;

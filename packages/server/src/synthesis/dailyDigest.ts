@@ -3,6 +3,7 @@ import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
+import { GraphService } from "../graph/service.js";
 
 /** YYYY-MM-DD prefix of a stored timestamp (CURRENT_TIMESTAMP or ISO). */
 const day = (ts: string | undefined): string => (ts ?? "").slice(0, 10);
@@ -88,6 +89,14 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
   const connections = new InsightsRepo(h, spaceId).recent(5);
   const expiredActions = expiredActionsToday(h, today, spaceId);
 
+  // Cooling memories (high entropy from neglect) — the "tend me" nudge.
+  const cooling = new GraphService(h, spaceId)
+    .full()
+    .nodes.filter((n) => n.kind !== "action" && (n.entropy ?? 0) >= 0.55)
+    .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0))
+    .slice(0, 5)
+    .map((n) => ({ node: refOf(n), entropy: n.entropy ?? 0 }));
+
   const newCount = fresh.length;
   const greeting =
     newCount > 0
@@ -99,10 +108,12 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
     bits.push(`I also traced ${connections.length} faint link${connections.length === 1 ? "" : "s"} between distant sectors`);
   if (expiredActions.length > 0)
     bits.push(`${expiredActions.length} action item${expiredActions.length === 1 ? "" : "s"} burned up on schedule`);
+  if (cooling.length > 0)
+    bits.push(`${cooling.length} memor${cooling.length === 1 ? "y is" : "ies are"} going cold — drop by to warm ${cooling.length === 1 ? "it" : "them"}`);
   const closing =
     bits.length > 0
-      ? `${bits.join(" and ")}. Course steady — I'll keep watch from up here.`
+      ? `${bits.join("; ")}. Course steady — I'll keep watch from up here.`
       : "All quiet on the charts. I'll keep drifting and let you know what I find.";
 
-  return { date: today, greeting, fresh, connections, expiredActions, closing };
+  return { date: today, greeting, fresh, connections, expiredActions, cooling, closing };
 }

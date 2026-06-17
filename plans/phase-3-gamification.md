@@ -1,12 +1,17 @@
 # Phase 3 — Celestial Economy (Fuel & Entropy)
 
-> **Status: RECONSTRUCTED SPEC (red zone — Claude's jurisdiction).**
-> Gemini's `GEMINI_CHANGES.md` referenced `plans/phase-3-gamification.md` (the
-> "Celestial Economy: Fuel and Entropy") but the file was never committed — the
-> original spec, including the schema it mentioned, is lost. This is Claude's
-> reconstruction. **It needs the schema, so it touches migrations + must respect
-> existing guardrails. Awaiting the user's direction on the two mechanics below
-> before implementation.**
+> **Status: IMPLEMENTED v1 (red zone — Claude's jurisdiction).**
+> Reconstructed from `GEMINI_CHANGES.md` (the original file was never committed),
+> then built per the user's direction: **Entropy = cosmetic aging + a "tend me"
+> rescue nudge**, **Fuel = earned currency that powers Soumaya** (on top of the
+> USD budget). Schema is additive + space-scoped; the economy runs free/offline.
+>
+> Shipped: `nodes.last_tended_at` + `space_meta(fuel)` (additive migrations);
+> `entropyFrom()` in shared; `economy.ts` (earn/spend/gate, space-scoped); fuel
+> earned on ingest/links/action-clear and spent+gated on autonomous LLM jobs;
+> `entropy` enriched on every read; tend-on-focus/edit/synthesize + `POST
+> /nodes/:id/tend`; digest "going cold" list; fuel gauge in the Command Center.
+> Tests cover fuel earn/spend/gate/isolation + entropy cool/reset.
 
 ## Intent (from the title + the existing app)
 A light "game layer" that makes tending your galaxy feel rewarding:
