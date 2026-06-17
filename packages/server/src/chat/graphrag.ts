@@ -1,5 +1,6 @@
 import type { ChatResponse, NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn } from "../db/vec.js";
 import { multiHopNeighbors } from "../graph/traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -24,9 +25,10 @@ export async function chat(
   deps: { embeddings: EmbeddingProvider; llm: LlmProvider },
   question: string,
   opts: ChatOptions = DEFAULT_CHAT,
+  spaceId: string = DEFAULT_SPACE,
 ): Promise<ChatResponse> {
   const vec = await deps.embeddings.embed(question);
-  const seeds = knn(h.sqlite, vec, opts.k);
+  const seeds = knn(h.sqlite, vec, opts.k, spaceId);
 
   const ids = new Set<number>();
   for (const s of seeds) {
@@ -34,7 +36,7 @@ export async function chat(
     for (const hop of multiHopNeighbors(h.sqlite, s.nodeId, opts.depth)) ids.add(hop.nodeId);
   }
 
-  const nodesRepo = new NodesRepo(h);
+  const nodesRepo = new NodesRepo(h, spaceId);
   const ctxNodes = nodesRepo.byIds([...ids]);
   const context = ctxNodes.map((n) => ({
     id: n.id,

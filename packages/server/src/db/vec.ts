@@ -84,11 +84,18 @@ export const cosineSimilarity = (distance: number): number => 1 - distance;
 /**
  * K-nearest-neighbour search over stored embeddings. Returns hits ordered by
  * ascending distance (most similar first).
+ *
+ * Multi-tenancy: vec0 KNN is global, so when a `spaceId` is given we over-fetch
+ * and filter to that space (and drop any soft-deleted nodes) using the relational
+ * `nodes` table — keeping every space's similarity search fully private.
  */
-export function knn(db: RawDb, queryVec: Float32Array, k: number): KnnHit[] {
+export function knn(db: RawDb, queryVec: Float32Array, k: number, spaceId?: string): KnnHit[] {
   if (queryVec.length !== EMBED_DIM) {
     throw new Error(`Query dim mismatch: got ${queryVec.length}, expected ${EMBED_DIM}.`);
   }
+  // When scoping to a space we can't know how many of the global nearest belong
+  // to it, so pull a generous surplus and trim after filtering.
+  const want = spaceId ? Math.min(500, Math.max(k * 6, k + 40)) : k;
   const rows = db
     .prepare(
       `SELECT node_id AS nodeId, distance
@@ -96,11 +103,24 @@ export function knn(db: RawDb, queryVec: Float32Array, k: number): KnnHit[] {
        WHERE embedding MATCH ? AND k = ?
        ORDER BY distance`,
     )
-    .all(vecToBlob(queryVec), k) as { nodeId: number; distance: number }[];
+    .all(vecToBlob(queryVec), want) as { nodeId: number; distance: number }[];
 
-  return rows.map((r) => ({
+  let hits = rows.map((r) => ({
     nodeId: r.nodeId,
     distance: r.distance,
     similarity: cosineSimilarity(r.distance),
   }));
+
+  if (spaceId) {
+    const lookup = db.prepare(
+      `SELECT space_id AS s, deleted_at AS d FROM nodes WHERE id = ?`,
+    );
+    hits = hits
+      .filter((h) => {
+        const row = lookup.get(h.nodeId) as { s: string; d: string | null } | undefined;
+        return row !== undefined && row.s === spaceId && row.d === null;
+      })
+      .slice(0, k);
+  }
+  return hits;
 }

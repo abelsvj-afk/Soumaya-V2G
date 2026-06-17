@@ -1,5 +1,6 @@
 import type { Constellation, GraphNode, NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { getEmbedding } from "../db/vec.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 
@@ -112,8 +113,12 @@ export interface ClusterOptions {
  * Cluster all embedded memories into constellations. Returns [] when there are
  * too few memories to meaningfully group.
  */
-export function findConstellations(h: DbHandle, opts: ClusterOptions = {}): Constellation[] {
-  const nodes = new NodesRepo(h).all().filter((n) => n.kind !== "action");
+export function findConstellations(
+  h: DbHandle,
+  opts: ClusterOptions = {},
+  spaceId: string = DEFAULT_SPACE,
+): Constellation[] {
+  const nodes = new NodesRepo(h, spaceId).all().filter((n) => n.kind !== "action");
   const samples: Sample[] = [];
   for (const node of nodes) {
     const vec = getEmbedding(h.sqlite, node.id);

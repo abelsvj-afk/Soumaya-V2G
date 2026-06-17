@@ -2,12 +2,16 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { insights } from "../../db/schema.js";
+import { GraphService } from "../../graph/service.js";
+import { spaceOf } from "../middleware.js";
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
 const PatchBody = z.object({ importance: z.number().min(0).max(1).nullable() });
 
 export function nodesRoutes(ctx: AppContext): Router {
   const r = Router();
+  const graphFor = (res: import("express").Response) =>
+    new GraphService(ctx.handle, spaceOf(res));
 
   // POST /api/nodes/:id/synthesize -> AI pieces this memory + its connections into
   // a fresh insight (the "connect the dots for me" action).
@@ -17,20 +21,22 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const node = ctx.graph.getNode(id);
+    const spaceId = spaceOf(res);
+    const graph = graphFor(res);
+    const node = graph.getNode(id);
     if (!node) {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    // Gather directly-connected memories.
+    // Gather directly-connected memories (scoped to this brain).
     const rows = ctx.handle.sqlite
       .prepare(
         `SELECT CASE WHEN source = ? THEN target ELSE source END AS nid
-         FROM edges WHERE source = ? OR target = ? LIMIT 8`,
+         FROM edges WHERE space_id = ? AND (source = ? OR target = ?) LIMIT 8`,
       )
-      .all(id, id, id) as { nid: number }[];
+      .all(id, spaceId, id, id) as { nid: number }[];
     const neighbors = rows
-      .map((x) => ctx.graph.getNode(x.nid))
+      .map((x) => graph.getNode(x.nid))
       .filter((n): n is NonNullable<typeof n> => !!n);
 
     const cluster = [node, ...neighbors].map((n) => ({ label: n.label, content: n.content }));
@@ -47,7 +53,7 @@ export function nodesRoutes(ctx: AppContext): Router {
 
     ctx.handle.db
       .insert(insights)
-      .values({ nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
+      .values({ spaceId, nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
       .run();
 
     res.json({ text, connected: neighbors.length });
@@ -65,7 +71,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Body must be { importance: number 0..1 | null }" });
       return;
     }
-    const node = ctx.graph.setImportance(id, parsed.data.importance);
+    const node = graphFor(res).setImportance(id, parsed.data.importance);
     if (!node) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -80,7 +86,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const ok = ctx.graph.deleteNode(id);
+    const ok = graphFor(res).deleteNode(id);
     if (!ok) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -95,7 +101,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Invalid id" });
       return;
     }
-    const node = ctx.graph.getNode(id);
+    const node = graphFor(res).getNode(id);
     if (!node) {
       res.status(404).json({ error: "Not found" });
       return;
@@ -111,7 +117,7 @@ export function nodesRoutes(ctx: AppContext): Router {
       return;
     }
     const depth = Math.min(Math.max(Number(req.query.depth ?? 2) || 2, 1), 5);
-    res.json(ctx.graph.neighborhood(id, depth));
+    res.json(graphFor(res).neighborhood(id, depth));
   });
 
   return r;

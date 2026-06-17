@@ -7,11 +7,21 @@ import { IngestPanel } from "./components/IngestPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
-import { getGraph, getHealth, onAiActivity, type Health } from "./api/client.js";
+import { LoginScreen } from "./components/LoginScreen.js";
+import {
+  currentSpace,
+  getGraph,
+  getHealth,
+  logoutSpace,
+  onAiActivity,
+  type Health,
+} from "./api/client.js";
 
 type Panel = "search" | "ingest" | "dock" | null;
 
 export default function App() {
+  const [space, setSpace] = useState<{ id: string; name: string } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
@@ -51,9 +61,17 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // Resolve the stored brain (if any) on first load.
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    currentSpace()
+      .then(setSpace)
+      .finally(() => setAuthChecked(true));
+  }, []);
+
+  // Load the galaxy once a brain is open.
+  useEffect(() => {
+    if (space) refresh();
+  }, [space, refresh]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -113,6 +131,19 @@ export default function App() {
         : "heuristic mode"
     : "";
 
+  // Gate: wait for the auth check, then require an open brain.
+  if (!authChecked) {
+    return (
+      <div className="loading">
+        <div className="loader-orb" />
+        <p>Aligning the stars…</p>
+      </div>
+    );
+  }
+  if (!space) {
+    return <LoginScreen onAuthed={setSpace} />;
+  }
+
   return (
     <div className="app">
       <Graph3D
@@ -161,6 +192,19 @@ export default function App() {
               {(demo ? demoData : data).nodes.length} memories · {llmStatus}
             </span>
           )}
+          <button
+            className="chip-btn"
+            title={`Signed in as "${space.name}" — switch brain`}
+            onClick={() => {
+              logoutSpace();
+              setSpace(null);
+              setData({ nodes: [], links: [] });
+              setSelected(null);
+              setPanel(null);
+            }}
+          >
+            {space.name} ⏏
+          </button>
         </div>
       </header>
 

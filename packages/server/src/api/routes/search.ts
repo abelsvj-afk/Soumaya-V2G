@@ -1,5 +1,7 @@
 import { Router } from "express";
 import type { AppContext } from "../../context.js";
+import { GraphService } from "../../graph/service.js";
+import { spaceOf } from "../middleware.js";
 
 export function searchRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -11,7 +13,8 @@ export function searchRoutes(ctx: AppContext): Router {
       return;
     }
     const k = Math.min(Math.max(Number(req.query.k ?? 10) || 10, 1), 50);
-    res.json(await ctx.graph.search(ctx.embeddings, q, k));
+    const graph = new GraphService(ctx.handle, spaceOf(res));
+    res.json(await graph.search(ctx.embeddings, q, k));
   });
   return r;
 }

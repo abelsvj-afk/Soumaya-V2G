@@ -11,7 +11,8 @@ import { chatRoutes } from "./routes/chat.js";
 import { maintenanceRoutes } from "./routes/maintenance.js";
 import { usageRoutes } from "./routes/usage.js";
 import { constellationRoutes } from "./routes/constellations.js";
-import { securityHeaders, rateLimit } from "./middleware.js";
+import { spaceRoutes } from "./routes/space.js";
+import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
 
 /** Assemble the Express app over an AppContext. */
 export function createApp(ctx: AppContext): Express {
@@ -23,6 +24,9 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api", rateLimit());
 
   app.get("/api/health", (_req, res) => {
+    const total = ctx.handle.sqlite
+      .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL`)
+      .get() as { c: number };
     res.json({
       ok: true,
       embeddings: { model: ctx.embeddings.model, dim: ctx.embeddings.dim },
@@ -31,19 +35,27 @@ export function createApp(ctx: AppContext): Express {
         available: ctx.llm.available,
         degraded: ctx.llm.degraded ?? false,
       },
-      nodes: ctx.graph.full().nodes.length,
+      nodes: total.c,
     });
   });
 
-  app.use("/api/ingest", ingestRoutes(ctx));
-  app.use("/api/graph", graphRoutes(ctx));
-  app.use("/api/nodes", nodesRoutes(ctx));
-  app.use("/api/search", searchRoutes(ctx));
-  app.use("/api/digest", digestRoutes(ctx));
-  app.use("/api/chat", chatRoutes(ctx));
-  app.use("/api/maintenance", maintenanceRoutes(ctx));
+  // Auth (open): log in to or create a private brain.
+  app.use("/api/space", spaceRoutes(ctx));
+
+  // Settings are deployment-wide (shared API key/budget), so they stay open to
+  // the authenticated app shell but aren't per-brain.
   app.use("/api/usage", usageRoutes(ctx));
-  app.use("/api/constellations", constellationRoutes(ctx));
+
+  // Every per-brain data route requires a valid x-space-id (set after login).
+  const guard = requireSpace(ctx.handle);
+  app.use("/api/ingest", guard, ingestRoutes(ctx));
+  app.use("/api/graph", guard, graphRoutes(ctx));
+  app.use("/api/nodes", guard, nodesRoutes(ctx));
+  app.use("/api/search", guard, searchRoutes(ctx));
+  app.use("/api/digest", guard, digestRoutes(ctx));
+  app.use("/api/chat", guard, chatRoutes(ctx));
+  app.use("/api/maintenance", guard, maintenanceRoutes(ctx));
+  app.use("/api/constellations", guard, constellationRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

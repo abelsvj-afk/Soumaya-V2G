@@ -1,17 +1,24 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Insight, NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
-import { insights, type InsightRow } from "../db/schema.js";
+import { insights, DEFAULT_SPACE, type InsightRow } from "../db/schema.js";
 import { NodesRepo } from "./nodes.repo.js";
 
 export class InsightsRepo {
   private readonly nodes: NodesRepo;
-  constructor(private readonly h: DbHandle) {
-    this.nodes = new NodesRepo(h);
+  constructor(
+    private readonly h: DbHandle,
+    private readonly spaceId: string = DEFAULT_SPACE,
+  ) {
+    this.nodes = new NodesRepo(h, spaceId);
   }
 
   create(nodeA: number, nodeB: number, text: string, score: number): InsightRow {
-    return this.h.db.insert(insights).values({ nodeA, nodeB, text, score }).returning().get();
+    return this.h.db
+      .insert(insights)
+      .values({ spaceId: this.spaceId, nodeA, nodeB, text, score })
+      .returning()
+      .get();
   }
 
   /** True if an insight already exists for this unordered pair (dedupe). */
@@ -19,9 +26,9 @@ export class InsightsRepo {
     const row = this.h.sqlite
       .prepare(
         `SELECT 1 FROM insights
-         WHERE (node_a = ? AND node_b = ?) OR (node_a = ? AND node_b = ?) LIMIT 1`,
+         WHERE space_id = ? AND ((node_a = ? AND node_b = ?) OR (node_a = ? AND node_b = ?)) LIMIT 1`,
       )
-      .get(a, b, b, a);
+      .get(this.spaceId, a, b, b, a);
     return row !== undefined;
   }
 
@@ -30,6 +37,7 @@ export class InsightsRepo {
     const rows = this.h.db
       .select()
       .from(insights)
+      .where(eq(insights.spaceId, this.spaceId))
       .orderBy(desc(insights.id))
       .limit(limit)
       .all();

@@ -1,4 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
+import type { DbHandle } from "../db/client.js";
+import { SpacesRepo } from "../auth/spaces.js";
 
 /**
  * Conservative security headers. We don't serve third-party content, so deny
@@ -11,6 +13,31 @@ export function securityHeaders(_req: Request, res: Response, next: NextFunction
   res.setHeader("Referrer-Policy", "no-referrer");
   res.setHeader("X-DNS-Prefetch-Control", "off");
   next();
+}
+
+/**
+ * Multi-tenancy gate: resolve the caller's private brain from the `x-space-id`
+ * header (set by the client after name+passcode login) and stash the validated
+ * id on res.locals. Data routes mount this so one brain can never read another.
+ */
+export function requireSpace(
+  handle: DbHandle,
+): (req: Request, res: Response, next: NextFunction) => void {
+  const repo = new SpacesRepo(handle);
+  return (req, res, next) => {
+    const id = req.header("x-space-id");
+    if (!id || !repo.getById(id)) {
+      res.status(401).json({ error: "Unauthorized — open a brain with a name + passcode first." });
+      return;
+    }
+    (res.locals as { spaceId?: string }).spaceId = id;
+    next();
+  };
+}
+
+/** Read the validated space id attached by requireSpace. */
+export function spaceOf(res: Response): string {
+  return (res.locals as { spaceId?: string }).spaceId as string;
 }
 
 interface Bucket {

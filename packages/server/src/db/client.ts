@@ -23,6 +23,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS nodes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
       label TEXT NOT NULL,
       type TEXT NOT NULL,
       content TEXT NOT NULL,
@@ -30,8 +31,10 @@ export function bootstrapSchema(sqlite: RawDb): void {
       importance REAL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id);
     CREATE TABLE IF NOT EXISTS edges (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
       source INTEGER NOT NULL REFERENCES nodes(id),
       target INTEGER NOT NULL REFERENCES nodes(id),
       relationship TEXT NOT NULL,
@@ -42,6 +45,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
     CREATE INDEX IF NOT EXISTS edges_target_idx ON edges(target);
     CREATE TABLE IF NOT EXISTS insights (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
       node_a INTEGER NOT NULL REFERENCES nodes(id),
       node_b INTEGER NOT NULL REFERENCES nodes(id),
       text TEXT NOT NULL,
@@ -50,6 +54,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE TABLE IF NOT EXISTS agent_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
       agent TEXT NOT NULL DEFAULT 'soumaya',
       action TEXT NOT NULL,
       description TEXT NOT NULL,
@@ -63,8 +68,16 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE TABLE IF NOT EXISTS daily_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
       content TEXT NOT NULL,
       date TEXT NOT NULL DEFAULT CURRENT_DATE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS spaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      passcode_hash TEXT NOT NULL,
+      passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -100,6 +113,26 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "expires_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN expires_at TEXT`);
   }
+
+  // Multi-tenancy: add space_id to every per-user table on existing volumes.
+  // Pre-existing rows keep the 'legacy' default and are claimed on first signup.
+  const addSpaceId = (table: string) => {
+    const tcols = sqlite.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+    if (tcols.length > 0 && !tcols.some((c) => c.name === "space_id")) {
+      sqlite.exec(`ALTER TABLE ${table} ADD COLUMN space_id TEXT NOT NULL DEFAULT 'legacy'`);
+    }
+  };
+  for (const t of ["nodes", "edges", "insights", "agent_logs", "daily_logs"]) addSpaceId(t);
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id)`);
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS spaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      passcode_hash TEXT NOT NULL,
+      passcode_salt TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 }
 
 /**

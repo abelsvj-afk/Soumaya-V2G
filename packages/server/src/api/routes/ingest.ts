@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { ingest } from "../../ingestion/pipeline.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
+import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
   text: z.string().min(1).max(20000),
@@ -21,6 +22,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       return;
     }
     const { text, kind, ttlHours } = parsed.data;
+    const spaceId = spaceOf(res);
 
     // Action items are quick to-dos: a small body, no LLM extraction or linking,
     // and an expiry. (Keeps them cheap + transient, distinct from real memories.)
@@ -28,7 +30,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       const expiresAt = new Date(Date.now() + (ttlHours ?? 24) * 3_600_000).toISOString();
       const label = text.trim().split(/\s+/).slice(0, 6).join(" ") || "Action item";
       const vec = await ctx.embeddings.embed(text.trim());
-      const node = new NodesRepo(ctx.handle).create(
+      const node = new NodesRepo(ctx.handle, spaceId).create(
         {
           label,
           type: "random_thought",
@@ -43,7 +45,12 @@ export function ingestRoutes(ctx: AppContext): Router {
       return;
     }
 
-    const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, text);
+    const result = await ingest(
+      ctx.handle,
+      { embeddings: ctx.embeddings, llm: ctx.llm },
+      text,
+      spaceId,
+    );
     res.json(result);
   });
   return r;

@@ -1,5 +1,6 @@
 import type { Insight, NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn, getEmbedding } from "../db/vec.js";
 import { multiHopNeighbors } from "../graph/traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -36,8 +37,12 @@ const pairKey = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
  * Find pairs that are semantically near but graph-distant — latent connections
  * the user hasn't drawn. This is the heart of the "compounding memory" magic.
  */
-export function findCandidates(h: DbHandle, opts: SynthesisOptions = DEFAULT_SYNTHESIS): Candidate[] {
-  const nodes = new NodesRepo(h).all();
+export function findCandidates(
+  h: DbHandle,
+  opts: SynthesisOptions = DEFAULT_SYNTHESIS,
+  spaceId: string = DEFAULT_SPACE,
+): Candidate[] {
+  const nodes = new NodesRepo(h, spaceId).all();
   const seen = new Set<string>();
   const out: Candidate[] = [];
 
@@ -47,7 +52,7 @@ export function findCandidates(h: DbHandle, opts: SynthesisOptions = DEFAULT_SYN
     const reachable = new Set(
       multiHopNeighbors(h.sqlite, node.id, opts.minHops).map((x) => x.nodeId),
     );
-    const hits = knn(h.sqlite, emb, opts.k + 1).filter(
+    const hits = knn(h.sqlite, emb, opts.k + 1, spaceId).filter(
       (hit) =>
         hit.nodeId !== node.id && hit.similarity >= opts.threshold && !reachable.has(hit.nodeId),
     );
@@ -76,12 +81,13 @@ export async function runSynthesis(
   h: DbHandle,
   llm: LlmProvider,
   opts: SynthesisOptions = DEFAULT_SYNTHESIS,
+  spaceId: string = DEFAULT_SPACE,
 ): Promise<Insight[]> {
-  const nodesRepo = new NodesRepo(h);
-  const insightsRepo = new InsightsRepo(h);
+  const nodesRepo = new NodesRepo(h, spaceId);
+  const insightsRepo = new InsightsRepo(h, spaceId);
   const created: Insight[] = [];
 
-  for (const c of findCandidates(h, opts)) {
+  for (const c of findCandidates(h, opts, spaceId)) {
     if (insightsRepo.existsPair(c.a, c.b)) continue;
     const a = nodesRepo.getById(c.a);
     const b = nodesRepo.getById(c.b);

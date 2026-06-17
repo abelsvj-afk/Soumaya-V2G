@@ -3,10 +3,11 @@ import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { findCandidates } from "../../synthesis/engine.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
-import { EdgesRepo } from "../../repositories/edges.repo.js";
+import { GraphService } from "../../graph/service.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../../db/schema.js";
 import { upsertEmbedding, getEmbedding, knn } from "../../db/vec.js";
-import { eq, desc } from "drizzle-orm";
+import { spaceOf } from "../middleware.js";
+import { and, eq, desc } from "drizzle-orm";
 
 const CompleteJobSchema = z.object({
   type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
@@ -21,6 +22,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    * Returns the next "meaningful" task for the Soumaya agent.
    */
   r.get("/next-job", async (req, res) => {
+    const spaceId = spaceOf(res);
     // Token guard: only hand out LLM-backed jobs (daily_log, merging, research,
     // synthesis, sector_vibe) when "Research Mode" is ON. Otherwise the agent
     // sticks to FREE jobs (pruning, harmonization, calibration, patrol) so the
@@ -36,16 +38,16 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     // Also stop spending when the estimated budget is used up.
     const llmOn = researchOn && !ctx.usage.overBudget();
 
-    // Check if it's time for a Daily Log (once per day)
+    // Check if it's time for a Daily Log (once per day, per brain)
     const today = new Date().toISOString().slice(0, 10);
     const logExists = await ctx.handle.db
       .select()
       .from(dailyLogs)
-      .where(eq(dailyLogs.date, today))
+      .where(and(eq(dailyLogs.spaceId, spaceId), eq(dailyLogs.date, today)))
       .get();
 
     if (llmOn && !logExists) {
-      const nodeCount = new NodesRepo(ctx.handle).count();
+      const nodeCount = new NodesRepo(ctx.handle, spaceId).count();
       // Wait until we have at least some nodes to summarize
       if (nodeCount > 5) {
         res.json({
@@ -59,7 +61,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
     // 0. Merging: Find high-redundancy nodes (similarity > 0.95)
     // We use a strict threshold to avoid merging distinct but related thoughts.
-    const nodesRepo = new NodesRepo(ctx.handle);
+    const nodesRepo = new NodesRepo(ctx.handle, spaceId);
 
     // Check for redundancy (LLM job — only when enabled)
     if (llmOn) {
@@ -67,7 +69,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       for (const node of allNodes) {
       const emb = getEmbedding(ctx.handle.sqlite, node.id);
       if (!emb) continue;
-      const hits = knn(ctx.handle.sqlite, emb, 2);
+      const hits = knn(ctx.handle.sqlite, emb, 2, spaceId);
       const redundant = hits.find(h => h.nodeId !== node.id && h.similarity > 0.96);
       
       if (redundant) {
@@ -92,12 +94,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
           GROUP BY node_id
         ) d ON d.node_id = n.id
-        WHERE n.content NOT LIKE '%--- Research Deep Dive ---%'
+        WHERE n.space_id = ? AND n.deleted_at IS NULL
+        AND n.content NOT LIKE '%--- Research Deep Dive ---%'
         AND d.deg > 1
         AND n.importance >= 0.4
         ORDER BY d.deg DESC, n.importance DESC
         LIMIT 1
-      `).get() as { id: number } | undefined;
+      `).get(spaceId) as { id: number } | undefined;
 
       if (target) {
         res.json({
@@ -110,12 +113,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     }
 
     // 2. Synthesis: Find latent connections
-    const candidates = findCandidates(ctx.handle, {
-      threshold: 0.85,
-      k: 5,
-      minHops: 3,
-      maxCandidates: 1,
-    });
+    const candidates = findCandidates(
+      ctx.handle,
+      { threshold: 0.85, k: 5, minHops: 3, maxCandidates: 1 },
+      spaceId,
+    );
 
     const c0 = candidates[0];
     if (llmOn && c0) {
@@ -129,11 +131,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
     // 3. Pruning: Find weak or redundant connections (low weight edges)
     const weakEdge = ctx.handle.sqlite.prepare(`
-      SELECT id, source, target FROM edges 
-      WHERE weight < 0.25 
-      ORDER BY weight ASC 
+      SELECT id, source, target FROM edges
+      WHERE space_id = ? AND weight < 0.25
+      ORDER BY weight ASC
       LIMIT 1
-    `).get() as { id: number; source: number; target: number } | undefined;
+    `).get(spaceId) as { id: number; source: number; target: number } | undefined;
 
     if (weakEdge) {
       res.json({
@@ -158,10 +160,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
         JOIN nodes nb ON nb.id = e.other AND nb.emotional_weight IS NOT NULL
         GROUP BY e.node_id
       ) c ON c.node_id = n.id
-      WHERE n.emotional_weight IS NOT NULL
+      WHERE n.space_id = ? AND n.deleted_at IS NULL
+        AND n.emotional_weight IS NOT NULL
         AND ABS(n.emotional_weight - c.cluster_avg) > 0.4
       LIMIT 1
-    `).get() as { id: number } | undefined;
+    `).get(spaceId) as { id: number } | undefined;
 
     if (erraticNode) {
       res.json({
@@ -177,15 +180,16 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       SELECT n.id
       FROM nodes n
       JOIN (
-        SELECT node_id, COUNT(*) as deg 
+        SELECT node_id, COUNT(*) as deg
         FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
         GROUP BY node_id
       ) d ON d.node_id = n.id
-      WHERE n.content NOT LIKE '%--- Sector Vibe ---%'
+      WHERE n.space_id = ? AND n.deleted_at IS NULL
+      AND n.content NOT LIKE '%--- Sector Vibe ---%'
       AND d.deg >= 3
       ORDER BY RANDOM()
       LIMIT 1
-    `).get() as { id: number } | undefined;
+    `).get(spaceId) as { id: number } | undefined;
 
     if (llmOn && cluster) {
       res.json({
@@ -201,14 +205,14 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       SELECT n.id
       FROM nodes n
       JOIN (
-        SELECT node_id, COUNT(*) as deg 
+        SELECT node_id, COUNT(*) as deg
         FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
         GROUP BY node_id
       ) d ON d.node_id = n.id
-      WHERE n.importance < 0.5 AND d.deg > 5
+      WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.importance < 0.5 AND d.deg > 5
       ORDER BY d.deg DESC
       LIMIT 1
-    `).get() as { id: number } | undefined;
+    `).get(spaceId) as { id: number } | undefined;
 
     if (hub) {
       res.json({
@@ -247,11 +251,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
     const { type, targets } = parsed.data;
     const [t0, t1] = targets as [number, number]; // length is validated per-branch below
+    const spaceId = spaceOf(res);
+    const graph = new GraphService(ctx.handle, spaceId);
     let description = "";
 
     try {
       if (type === "synthesis" && targets.length === 2) {
-        const nodesRepo = new NodesRepo(ctx.handle);
+        const nodesRepo = new NodesRepo(ctx.handle, spaceId);
         const a = nodesRepo.getById(t0);
         const b = nodesRepo.getById(t1);
         if (a && b) {
@@ -261,6 +267,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             0.9,
           );
           ctx.handle.db.insert(insights).values({
+            spaceId,
             nodeA: t0,
             nodeB: t1,
             text,
@@ -270,34 +277,34 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           res.json({ ok: true, detail: "Synthesized new insight." });
         }
       } else if (type === "calibration" && targets.length === 1) {
-        ctx.graph.setImportance(t0, null);
-        const node = ctx.graph.getNode(t0);
+        graph.setImportance(t0, null);
+        const node = graph.getNode(t0);
         description = `Recalibrated importance for "${node?.label || t0}".`;
         res.json({ ok: true, detail: "Recalibrated importance." });
       } else if (type === "pruning" && targets.length === 2) {
         ctx.handle.sqlite.prepare(`
-          DELETE FROM edges 
-          WHERE (source = ? AND target = ?) OR (source = ? AND target = ?)
+          DELETE FROM edges
+          WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?))
           AND weight < 0.25
-        `).run(t0, t1, t1, t0);
+        `).run(spaceId, t0, t1, t1, t0);
         description = `Pruned weak connection between node ${t0} and ${t1}.`;
         res.json({ ok: true, detail: "Pruned weak connection." });
       } else if (type === "harmonization" && targets.length === 1) {
         ctx.handle.sqlite.prepare(`
-          UPDATE nodes 
+          UPDATE nodes
           SET emotional_weight = (
             SELECT AVG(n2.emotional_weight)
             FROM nodes n2
             JOIN edges e ON (e.source = n2.id OR e.target = n2.id)
             WHERE (e.source = ? OR e.target = ?)
           )
-          WHERE id = ?
-        `).run(t0, t0, t0);
-        const node = ctx.graph.getNode(t0);
+          WHERE id = ? AND space_id = ?
+        `).run(t0, t0, t0, spaceId);
+        const node = graph.getNode(t0);
         description = `Harmonized emotional resonance for "${node?.label || t0}".`;
         res.json({ ok: true, detail: "Harmonized emotional weight." });
       } else if (type === "research" && targets.length === 1) {
-        const nodesRepo = new NodesRepo(ctx.handle);
+        const nodesRepo = new NodesRepo(ctx.handle, spaceId);
         const original = nodesRepo.getById(t0);
         if (original) {
           const research = await ctx.llm.research({ label: original.label, content: original.content });
@@ -310,11 +317,11 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           const newImp = Math.min(1.0, currentImp + 0.2); // Trigger celestial growth
 
           await ctx.handle.db.update(nodes)
-            .set({ 
+            .set({
               content: expandedContent,
               importance: newImp
             })
-            .where(eq(nodes.id, original.id))
+            .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
             .run();
 
           // Update embedding to reflect new knowledge
@@ -325,7 +332,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           res.json({ ok: true, detail: "Research integrated into memory." });
         }
       } else if (type === "merging" && targets.length === 2) {
-        const nodesRepo = new NodesRepo(ctx.handle);
+        const nodesRepo = new NodesRepo(ctx.handle, spaceId);
         const a = nodesRepo.getById(t0);
         const b = nodesRepo.getById(t1);
         if (a && b) {
@@ -339,25 +346,25 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           // Update node A with combined content and importance
           const newImp = Math.max(a.importance ?? 0, b.importance ?? 0) + 0.05;
           await ctx.handle.db.update(nodes)
-            .set({ 
+            .set({
               content: text,
               importance: Math.min(1.0, newImp)
             })
-            .where(eq(nodes.id, a.id))
+            .where(and(eq(nodes.id, a.id), eq(nodes.spaceId, spaceId)))
             .run();
-          
+
           // Re-calculate embedding for the combined node
           const newEmbedding = await ctx.embeddings.embed(text);
           upsertEmbedding(ctx.handle.sqlite, a.id, newEmbedding);
 
-          // Move all edges from B to A
+          // Move all edges from B to A (within this brain only)
           await ctx.handle.db.update(edges)
             .set({ source: a.id })
-            .where(eq(edges.source, b.id))
+            .where(and(eq(edges.source, b.id), eq(edges.spaceId, spaceId)))
             .run();
           await ctx.handle.db.update(edges)
             .set({ target: a.id })
-            .where(eq(edges.target, b.id))
+            .where(and(eq(edges.target, b.id), eq(edges.spaceId, spaceId)))
             .run();
 
           // Soft-delete the now-redundant node B (recoverable — flagged, not erased)
@@ -367,18 +374,18 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           res.json({ ok: true, detail: "Memory fusion complete." });
         }
       } else if (type === "sector_vibe" && targets.length === 1) {
-        const nodesRepo = new NodesRepo(ctx.handle);
+        const nodesRepo = new NodesRepo(ctx.handle, spaceId);
         const center = nodesRepo.getById(t0);
         if (center) {
-          // Get immediate neighbors
+          // Get immediate neighbors (this brain only)
           const neighbors = ctx.handle.sqlite.prepare(`
-            SELECT n.id, n.label, n.content 
+            SELECT n.id, n.label, n.content
             FROM nodes n
             JOIN edges e ON (e.source = n.id OR e.target = n.id)
-            WHERE (e.source = ? OR e.target = ?) AND n.id != ?
+            WHERE n.space_id = ? AND (e.source = ? OR e.target = ?) AND n.id != ?
             LIMIT 5
-          `).all(center.id, center.id, center.id) as { id: number, label: string, content: string }[];
-          
+          `).all(spaceId, center.id, center.id, center.id) as { id: number, label: string, content: string }[];
+
           const clusterNodes = [center, ...neighbors].map(n => ({ label: n.label, content: n.content }));
           const vibe = await ctx.llm.summarizeSector(clusterNodes);
 
@@ -386,23 +393,24 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           const expandedContent = `${center.content}\n\n--- Sector Vibe ---\n${vibe}`;
           await ctx.handle.db.update(nodes)
             .set({ content: expandedContent })
-            .where(eq(nodes.id, center.id))
+            .where(and(eq(nodes.id, center.id), eq(nodes.spaceId, spaceId)))
             .run();
-          
+
           description = `Charted sector vibe around "${center.label}": ${vibe}`;
           res.json({ ok: true, detail: "Sector vibe charted." });
         }
       } else if (type === "daily_log") {
-        const nodesRepo = new NodesRepo(ctx.handle);
+        const nodesRepo = new NodesRepo(ctx.handle, spaceId);
         const recentNodes = nodesRepo.recent(10);
-        const recentLogs = ctx.handle.sqlite.prepare(`SELECT action, description FROM agent_logs ORDER BY id DESC LIMIT 10`).all() as { action: string, description: string }[];
-        
+        const recentLogs = ctx.handle.sqlite.prepare(`SELECT action, description FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 10`).all(spaceId) as { action: string, description: string }[];
+
         const logText = await ctx.llm.generateDailyLog(
           recentNodes.map(n => ({ label: n.label, content: n.content })),
           recentLogs.map(l => l.description)
         );
 
         ctx.handle.db.insert(dailyLogs).values({
+          spaceId,
           content: logText,
           date: new Date().toISOString().split("T")[0]
         }).run();
@@ -416,6 +424,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
       if (description) {
         ctx.handle.db.insert(agentLogs).values({
+          spaceId,
           action: type,
           description,
           targets: JSON.stringify(targets),
@@ -434,6 +443,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     const logs = await ctx.handle.db
       .select()
       .from(agentLogs)
+      .where(eq(agentLogs.spaceId, spaceOf(res)))
       .orderBy(desc(agentLogs.id))
       .limit(50)
       .all();
@@ -448,6 +458,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     const log = await ctx.handle.db
       .select()
       .from(dailyLogs)
+      .where(eq(dailyLogs.spaceId, spaceOf(res)))
       .orderBy(desc(dailyLogs.id))
       .limit(1)
       .get();

@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
 import type { GraphNode, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
-import { nodes, type NodeRow } from "../db/schema.js";
+import { nodes, DEFAULT_SPACE, type NodeRow } from "../db/schema.js";
 import { upsertEmbedding, deleteEmbedding } from "../db/vec.js";
 
 export interface NewNode {
@@ -37,7 +37,11 @@ function toGraphNode(row: NodeRow): GraphNode {
  * swap (native vectors) only touches the repo + db/vec.ts, not callers.
  */
 export class NodesRepo {
-  constructor(private readonly h: DbHandle) {}
+  /** Every query is scoped to one private space (defaults to the legacy space). */
+  constructor(
+    private readonly h: DbHandle,
+    private readonly spaceId: string = DEFAULT_SPACE,
+  ) {}
 
   /** Insert a node and (atomically) store its embedding. */
   create(input: NewNode, embedding: Float32Array): GraphNode {
@@ -45,6 +49,7 @@ export class NodesRepo {
       const row = this.h.db
         .insert(nodes)
         .values({
+          spaceId: this.spaceId,
           label: input.label,
           celestialTitle: input.celestialTitle ?? null,
           type: input.type,
@@ -67,7 +72,7 @@ export class NodesRepo {
     const row = this.h.db
       .select()
       .from(nodes)
-      .where(and(eq(nodes.id, id), isNull(nodes.deletedAt)))
+      .where(and(eq(nodes.id, id), eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
       .get();
     return row ? toGraphNode(row) : undefined;
   }
@@ -75,8 +80,10 @@ export class NodesRepo {
   /** Soft-delete: flag a redundant memory as merged into another (recoverable). */
   softDelete(id: number, mergedIntoId: number): boolean {
     const info = this.h.sqlite
-      .prepare(`UPDATE nodes SET deleted_at = CURRENT_TIMESTAMP, merged_into = ? WHERE id = ?`)
-      .run(mergedIntoId, id);
+      .prepare(
+        `UPDATE nodes SET deleted_at = CURRENT_TIMESTAMP, merged_into = ? WHERE id = ? AND space_id = ?`,
+      )
+      .run(mergedIntoId, id, this.spaceId);
     deleteEmbedding(this.h.sqlite, id); // drop from KNN/redundancy index
     return info.changes > 0;
   }
@@ -86,7 +93,7 @@ export class NodesRepo {
     const row = this.h.db
       .update(nodes)
       .set({ importance })
-      .where(eq(nodes.id, id))
+      .where(and(eq(nodes.id, id), eq(nodes.spaceId, this.spaceId)))
       .returning()
       .get();
     return row ? toGraphNode(row) : undefined;
@@ -95,6 +102,11 @@ export class NodesRepo {
   /** Delete a node, its embedding, and every edge touching it. Returns true if removed. */
   delete(id: number): boolean {
     const tx = this.h.sqlite.transaction(() => {
+      // Confirm the node belongs to this space before touching anything.
+      const owns = this.h.sqlite
+        .prepare(`SELECT 1 FROM nodes WHERE id = ? AND space_id = ?`)
+        .get(id, this.spaceId);
+      if (!owns) return false;
       this.h.sqlite.prepare(`DELETE FROM edges WHERE source = ? OR target = ?`).run(id, id);
       this.h.sqlite.prepare(`DELETE FROM insights WHERE node_a = ? OR node_b = ?`).run(id, id);
       deleteEmbedding(this.h.sqlite, id);
@@ -109,7 +121,14 @@ export class NodesRepo {
     return this.h.db
       .select()
       .from(nodes)
-      .where(and(eq(nodes.kind, "action"), isNull(nodes.deletedAt), lte(nodes.expiresAt, nowIso)))
+      .where(
+        and(
+          eq(nodes.spaceId, this.spaceId),
+          eq(nodes.kind, "action"),
+          isNull(nodes.deletedAt),
+          lte(nodes.expiresAt, nowIso),
+        ),
+      )
       .all()
       .map(toGraphNode);
   }
@@ -118,7 +137,7 @@ export class NodesRepo {
     const row = this.h.db
       .select()
       .from(nodes)
-      .where(and(eq(nodes.label, label), isNull(nodes.deletedAt)))
+      .where(and(eq(nodes.label, label), eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
       .get();
     return row ? toGraphNode(row) : undefined;
   }
@@ -128,7 +147,7 @@ export class NodesRepo {
     return this.h.db
       .select()
       .from(nodes)
-      .where(isNull(nodes.deletedAt))
+      .where(and(eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
       .orderBy(desc(nodes.id))
       .limit(limit)
       .all()
@@ -136,7 +155,12 @@ export class NodesRepo {
   }
 
   all(): GraphNode[] {
-    return this.h.db.select().from(nodes).where(isNull(nodes.deletedAt)).all().map(toGraphNode);
+    return this.h.db
+      .select()
+      .from(nodes)
+      .where(and(eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
+      .all()
+      .map(toGraphNode);
   }
 
   byIds(ids: number[]): GraphNode[] {
@@ -144,15 +168,15 @@ export class NodesRepo {
     return this.h.db
       .select()
       .from(nodes)
-      .where(and(inArray(nodes.id, ids), isNull(nodes.deletedAt)))
+      .where(and(inArray(nodes.id, ids), eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
       .all()
       .map(toGraphNode);
   }
 
   count(): number {
     const r = this.h.sqlite
-      .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL`)
-      .get() as { c: number };
+      .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL AND space_id = ?`)
+      .get(this.spaceId) as { c: number };
     return r.c;
   }
 }

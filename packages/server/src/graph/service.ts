@@ -1,5 +1,6 @@
 import { type GraphData, type GraphNode, deriveMass, classify } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { heuristicImportance } from "../llm/heuristic.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import { knn } from "../db/vec.js";
@@ -19,9 +20,12 @@ export interface SearchHit extends GraphNode {
 export class GraphService {
   private readonly nodes: NodesRepo;
   private readonly edges: EdgesRepo;
-  constructor(private readonly h: DbHandle) {
-    this.nodes = new NodesRepo(h);
-    this.edges = new EdgesRepo(h);
+  constructor(
+    private readonly h: DbHandle,
+    private readonly spaceId: string = DEFAULT_SPACE,
+  ) {
+    this.nodes = new NodesRepo(h, spaceId);
+    this.edges = new EdgesRepo(h, spaceId);
   }
 
   /**
@@ -78,16 +82,20 @@ export class GraphService {
              SELECT target AS node_id FROM edges
            ) GROUP BY node_id
          ) d ON d.node_id = n.id
+         WHERE n.space_id = ? AND n.deleted_at IS NULL
          ORDER BY COALESCE(d.deg, 0) DESC, n.id DESC
          LIMIT ?`,
       )
-      .all(limit) as { id: number }[];
+      .all(this.spaceId, limit) as { id: number }[];
     const ids = rows.map((r) => r.id);
     return { nodes: this.enrich(this.nodes.byIds(ids)), links: this.edges.within(ids) };
   }
 
   /** Multi-hop neighborhood subgraph around a node (lazy expansion). */
   neighborhood(startId: number, depth = 2): GraphData {
+    // Only traverse from a node this space actually owns (edges never cross
+    // spaces, but this guards a forged start id from peeking elsewhere).
+    if (!this.nodes.getById(startId)) return { nodes: [], links: [] };
     const hops = multiHopNeighbors(this.h.sqlite, startId, depth);
     const ids = Array.from(new Set([startId, ...hops.map((hp) => hp.nodeId)]));
     return { nodes: this.enrich(this.nodes.byIds(ids)), links: this.edges.within(ids) };
@@ -96,7 +104,7 @@ export class GraphService {
   /** Semantic search: embed query -> KNN -> nodes with similarity scores. */
   async search(embeddings: EmbeddingProvider, query: string, k = 10): Promise<SearchHit[]> {
     const vec = await embeddings.embed(query);
-    const hits = knn(this.h.sqlite, vec, k);
+    const hits = knn(this.h.sqlite, vec, k, this.spaceId);
     const byId = new Map(this.nodes.byIds(hits.map((hp) => hp.nodeId)).map((n) => [n.id, n]));
     return hits
       .map((hit) => {

@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import type { LlmProvider } from "../llm/adapter.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -31,9 +32,14 @@ export interface IngestResult {
  * Pure orchestration over the injected providers, so it is provider-agnostic and
  * testable with fakes.
  */
-export async function ingest(h: DbHandle, deps: IngestDeps, rawText: string): Promise<IngestResult> {
-  const nodesRepo = new NodesRepo(h);
-  const edgesRepo = new EdgesRepo(h);
+export async function ingest(
+  h: DbHandle,
+  deps: IngestDeps,
+  rawText: string,
+  spaceId: string = DEFAULT_SPACE,
+): Promise<IngestResult> {
+  const nodesRepo = new NodesRepo(h, spaceId);
+  const edgesRepo = new EdgesRepo(h, spaceId);
 
   // 1. Extract typed nodes + edges, grounded in recent context.
   const context = nodesRepo.recent(deps.contextSize ?? 20).map((n) => ({
@@ -75,6 +81,7 @@ export async function ingest(h: DbHandle, deps: IngestDeps, rawText: string): Pr
       createdNodes[i]!,
       vectors[i]!,
       deps.linkOptions ?? DEFAULT_LINK_OPTIONS,
+      spaceId,
     );
     associativeEdges.push(...links);
   }

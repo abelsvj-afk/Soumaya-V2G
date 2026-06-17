@@ -71,6 +71,22 @@ Always run `npm test` and `npm run typecheck` before committing. The web app mus
 When adding signals that should affect gravity, fold them into `deriveMass` so
 both rendering and physics stay consistent.
 
+## Multi-tenancy (private brains)
+
+One deployment hosts many private "spaces" (brains). Every per-user table
+(`nodes`, `edges`, `insights`, `agent_logs`, `daily_logs`) carries a `space_id`;
+`settings` stays global (the shared deployment API budget). Auth is a lightweight
+name + passcode (`auth/spaces.ts`, scrypt-hashed) — the returned random space id
+is the client's bearer key, stored in localStorage and sent as the `x-space-id`
+header. `requireSpace` (api/middleware.ts) validates it and stashes it on
+`res.locals`; routes read it via `spaceOf(res)` and pass it to **space-scoped
+repositories** (`new NodesRepo(handle, spaceId)`) and helpers — every repo/service
+takes a `spaceId` defaulting to `DEFAULT_SPACE` ("legacy") so internal/test callers
+still work. `knn(..., spaceId)` over-fetches then filters by space so vector search
+never crosses brains. Pre-existing data lives under `legacy` and is claimed by the
+**first** account to register. When adding a data table or query, scope it by
+`space_id` the same way.
+
 ## Guardrails / middleware (server)
 
 - `api/middleware.ts`: `securityHeaders` (nosniff / DENY framing / no-referrer)

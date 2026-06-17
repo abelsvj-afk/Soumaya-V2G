@@ -11,6 +11,7 @@ import type { GraphData } from "@brain/shared";
 let ctx: AppContext;
 let server: Server;
 let base: string;
+let spaceId: string;
 
 beforeAll(async () => {
   ctx = await buildContext({
@@ -23,6 +24,13 @@ beforeAll(async () => {
     server = app.listen(0, () => resolve());
   });
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  // Open a private brain; every data request carries its id.
+  const auth = await fetch(`${base}/api/space/auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "tester", passcode: "secret123" }),
+  });
+  spaceId = ((await auth.json()) as { id: string }).id;
 });
 
 afterAll(() => {
@@ -34,13 +42,13 @@ afterAll(() => {
 async function post(path: string, body: unknown): Promise<{ status: number; body: any }> {
   const res = await fetch(`${base}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-space-id": spaceId },
     body: JSON.stringify(body),
   });
   return { status: res.status, body: await res.json() };
 }
 async function get(path: string): Promise<{ status: number; body: any }> {
-  const res = await fetch(`${base}${path}`);
+  const res = await fetch(`${base}${path}`, { headers: { "x-space-id": spaceId } });
   return { status: res.status, body: await res.json() };
 }
 
@@ -51,6 +59,25 @@ describe("REST API", () => {
     expect(body.ok).toBe(true);
     expect(body.embeddings.dim).toBe(EMBED_DIM);
     expect(body.llm.available).toBe(false); // heuristic fallback
+  });
+
+  it("rejects data requests without a valid space", async () => {
+    const res = await fetch(`${base}/api/graph`);
+    expect(res.status).toBe(401);
+  });
+
+  it("creates separate brains and keeps their data isolated", async () => {
+    const other = await fetch(`${base}/api/space/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "relative", passcode: "different" }),
+    });
+    const otherId = ((await other.json()) as { id: string }).id;
+    expect(otherId).not.toBe(spaceId);
+    // The other brain starts empty even though `tester` has memories.
+    const g = await fetch(`${base}/api/graph`, { headers: { "x-space-id": otherId } });
+    const graph = (await g.json()) as GraphData;
+    expect(graph.nodes).toHaveLength(0);
   });
 
   it("ingests thoughts and returns them as graph data", async () => {

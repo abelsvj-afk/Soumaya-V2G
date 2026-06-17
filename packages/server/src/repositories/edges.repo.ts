@@ -1,7 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import type { GraphEdge, RelationshipType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
-import { edges, type EdgeRow } from "../db/schema.js";
+import { edges, DEFAULT_SPACE, type EdgeRow } from "../db/schema.js";
 
 export interface NewEdge {
   source: number;
@@ -22,12 +22,16 @@ function toGraphEdge(row: EdgeRow): GraphEdge {
 }
 
 export class EdgesRepo {
-  constructor(private readonly h: DbHandle) {}
+  constructor(
+    private readonly h: DbHandle,
+    private readonly spaceId: string = DEFAULT_SPACE,
+  ) {}
 
   create(input: NewEdge): GraphEdge {
     const row = this.h.db
       .insert(edges)
       .values({
+        spaceId: this.spaceId,
         source: input.source,
         target: input.target,
         relationship: input.relationship,
@@ -43,13 +47,18 @@ export class EdgesRepo {
     const row = this.h.db
       .select({ id: edges.id })
       .from(edges)
-      .where(and(eq(edges.source, source), eq(edges.target, target)))
+      .where(and(eq(edges.spaceId, this.spaceId), eq(edges.source, source), eq(edges.target, target)))
       .get();
     return row !== undefined;
   }
 
   all(): GraphEdge[] {
-    return this.h.db.select().from(edges).all().map(toGraphEdge);
+    return this.h.db
+      .select()
+      .from(edges)
+      .where(eq(edges.spaceId, this.spaceId))
+      .all()
+      .map(toGraphEdge);
   }
 
   /** Edges where BOTH endpoints are in the given id set (subgraph edges). */
@@ -58,7 +67,9 @@ export class EdgesRepo {
     return this.h.db
       .select()
       .from(edges)
-      .where(and(inArray(edges.source, ids), inArray(edges.target, ids)))
+      .where(
+        and(eq(edges.spaceId, this.spaceId), inArray(edges.source, ids), inArray(edges.target, ids)),
+      )
       .all()
       .map(toGraphEdge);
   }

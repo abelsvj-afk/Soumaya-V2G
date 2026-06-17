@@ -2,6 +2,87 @@ import type { ChatResponse, Constellation, DailyDigest, GraphData, GraphNode, In
 
 const API = "/api";
 
+// --- Per-brain identity (multi-tenancy) ---
+// The space id is the secret key to a private brain. We keep it in localStorage
+// so it persists on this device, and send it on every API call.
+const SPACE_KEY = "brain.spaceId";
+const SPACE_NAME_KEY = "brain.spaceName";
+
+export function getSpaceId(): string | null {
+  try {
+    return localStorage.getItem(SPACE_KEY);
+  } catch {
+    return null;
+  }
+}
+export function getSpaceName(): string | null {
+  try {
+    return localStorage.getItem(SPACE_NAME_KEY);
+  } catch {
+    return null;
+  }
+}
+function storeSpace(id: string | null, name?: string): void {
+  try {
+    if (id) {
+      localStorage.setItem(SPACE_KEY, id);
+      if (name) localStorage.setItem(SPACE_NAME_KEY, name);
+    } else {
+      localStorage.removeItem(SPACE_KEY);
+      localStorage.removeItem(SPACE_NAME_KEY);
+    }
+  } catch {
+    /* storage may be unavailable (private mode) — auth still works in-session */
+  }
+}
+
+/** fetch wrapper that attaches the current brain's id to every request. */
+function afetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const id = getSpaceId();
+  if (id) headers.set("x-space-id", id);
+  return fetch(path, { ...init, headers });
+}
+
+export interface AuthResult {
+  id: string;
+  name: string;
+  created: boolean;
+}
+
+/** Open a brain (log in) or create one. Persists the id on success. */
+export async function authSpace(name: string, passcode: string): Promise<AuthResult> {
+  const res = await afetch(`${API}/space/auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, passcode }),
+  });
+  const body = (await res.json().catch(() => ({}))) as Partial<AuthResult> & { error?: string };
+  if (!res.ok || !body.id) {
+    throw new Error(body.error ?? `Couldn't open that brain (${res.status})`);
+  }
+  storeSpace(body.id, body.name);
+  return { id: body.id, name: body.name ?? name, created: !!body.created };
+}
+
+/** Validate the stored id against the server; returns the brain or null. */
+export async function currentSpace(): Promise<{ id: string; name: string } | null> {
+  if (!getSpaceId()) return null;
+  try {
+    const res = await afetch(`${API}/space/me`);
+    if (!res.ok) return null;
+    const body = (await res.json()) as { id: string; name: string };
+    storeSpace(body.id, body.name);
+    return body;
+  } catch {
+    return null;
+  }
+}
+
+export function logoutSpace(): void {
+  storeSpace(null);
+}
+
 // --- Global "AI is working" signal (ingest / chat / synthesis) ---
 type ActivityListener = (active: number) => void;
 let activeCount = 0;
@@ -44,7 +125,7 @@ export interface Health {
 
 export async function getGraph(limit = 300): Promise<GraphData> {
   try {
-    const res = await fetch(`${API}/graph?limit=${limit}`);
+    const res = await afetch(`${API}/graph?limit=${limit}`);
     const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
     return {
       nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
@@ -61,7 +142,7 @@ export async function ingestText(
 ): Promise<IngestResult> {
   return tracked(
     (async () => {
-      const res = await fetch(`${API}/ingest`, {
+      const res = await afetch(`${API}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, ...opts }),
@@ -77,7 +158,7 @@ export async function ingestText(
 
 export async function search(q: string): Promise<SearchHit[]> {
   try {
-    const res = await fetch(`${API}/search?q=${encodeURIComponent(q)}`);
+    const res = await afetch(`${API}/search?q=${encodeURIComponent(q)}`);
     const d = await res.json().catch(() => []);
     return Array.isArray(d) ? d : [];
   } catch {
@@ -89,7 +170,7 @@ export async function search(q: string): Promise<SearchHit[]> {
 export async function synthesizeNode(id: number): Promise<{ text: string; connected: number }> {
   return tracked(
     (async () => {
-      const res = await fetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
+      const res = await afetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Synthesis failed (${res.status})`);
@@ -101,7 +182,7 @@ export async function synthesizeNode(id: number): Promise<{ text: string; connec
 
 /** Manually set a memory's weight (0..1), or null to reset to the auto rating. */
 export async function setImportance(id: number, importance: number | null): Promise<GraphNode> {
-  const res = await fetch(`${API}/nodes/${id}`, {
+  const res = await afetch(`${API}/nodes/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ importance }),
@@ -115,7 +196,7 @@ export async function setImportance(id: number, importance: number | null): Prom
 
 /** Permanently delete a memory. */
 export async function deleteNode(id: number): Promise<void> {
-  const res = await fetch(`${API}/nodes/${id}`, { method: "DELETE" });
+  const res = await afetch(`${API}/nodes/${id}`, { method: "DELETE" });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `Delete failed (${res.status})`);
@@ -124,7 +205,7 @@ export async function deleteNode(id: number): Promise<void> {
 
 export async function getNeighbors(id: number, depth = 2): Promise<GraphData> {
   try {
-    const res = await fetch(`${API}/nodes/${id}/neighbors?depth=${depth}`);
+    const res = await afetch(`${API}/nodes/${id}/neighbors?depth=${depth}`);
     const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
     return {
       nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
@@ -136,13 +217,13 @@ export async function getNeighbors(id: number, depth = 2): Promise<GraphData> {
 }
 
 export async function getHealth(): Promise<Health> {
-  const res = await fetch(`${API}/health`);
+  const res = await afetch(`${API}/health`);
   return res.json() as Promise<Health>;
 }
 
 export async function getDigest(): Promise<Insight[]> {
   try {
-    const res = await fetch(`${API}/digest`);
+    const res = await afetch(`${API}/digest`);
     const d = await res.json().catch(() => []);
     return Array.isArray(d) ? d : [];
   } catch {
@@ -161,7 +242,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
     closing: "",
   };
   try {
-    const res = await fetch(`${API}/digest/daily`);
+    const res = await afetch(`${API}/digest/daily`);
     const d = await res.json().catch(() => null);
     if (!d || typeof d !== "object") return empty;
     return {
@@ -180,7 +261,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
 /** ML constellations (k-means over embeddings). Safe array on error. */
 export async function getConstellations(): Promise<Constellation[]> {
   try {
-    const res = await fetch(`${API}/constellations`);
+    const res = await afetch(`${API}/constellations`);
     const d = await res.json().catch(() => []);
     return Array.isArray(d) ? d : [];
   } catch {
@@ -192,7 +273,7 @@ export async function runDigest(): Promise<Insight[]> {
   return tracked(
     (async () => {
       try {
-        const res = await fetch(`${API}/digest/run`, { method: "POST" });
+        const res = await afetch(`${API}/digest/run`, { method: "POST" });
         const d = await res.json().catch(() => []);
         return Array.isArray(d) ? d : [];
       } catch {
@@ -205,7 +286,7 @@ export async function runDigest(): Promise<Insight[]> {
 export async function askChat(question: string): Promise<ChatResponse> {
   return tracked(
     (async () => {
-      const res = await fetch(`${API}/chat`, {
+      const res = await afetch(`${API}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question }),
@@ -222,13 +303,13 @@ export interface MaintenanceJob {
 }
 
 export async function getNextMaintenanceJob(): Promise<MaintenanceJob> {
-  const res = await fetch(`${API}/maintenance/next-job`);
+  const res = await afetch(`${API}/maintenance/next-job`);
   if (!res.ok) throw new Error("No maintenance jobs available");
   return res.json() as Promise<MaintenanceJob>;
 }
 
 export async function completeMaintenanceJob(type: string, targets: number[]): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API}/maintenance/complete-job`, {
+  const res = await afetch(`${API}/maintenance/complete-job`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ type, targets }),
@@ -247,7 +328,7 @@ export interface AgentLog {
 
 export async function getAgentLogs(): Promise<AgentLog[]> {
   try {
-    const res = await fetch(`${API}/maintenance/logs`);
+    const res = await afetch(`${API}/maintenance/logs`);
     const d = await res.json().catch(() => []);
     return Array.isArray(d) ? d : [];
   } catch {
@@ -268,7 +349,7 @@ export interface Usage {
 
 export async function getUsage(): Promise<Usage | null> {
   try {
-    const res = await fetch(`${API}/usage`);
+    const res = await afetch(`${API}/usage`);
     return res.ok ? ((await res.json()) as Usage) : null;
   } catch {
     return null;
@@ -277,7 +358,7 @@ export async function getUsage(): Promise<Usage | null> {
 
 export async function setBudget(budget: number): Promise<Usage | null> {
   try {
-    const res = await fetch(`${API}/usage`, {
+    const res = await afetch(`${API}/usage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ budget }),
@@ -290,7 +371,7 @@ export async function setBudget(budget: number): Promise<Usage | null> {
 
 export async function resetUsage(): Promise<Usage | null> {
   try {
-    const res = await fetch(`${API}/usage/reset`, { method: "POST" });
+    const res = await afetch(`${API}/usage/reset`, { method: "POST" });
     return res.ok ? ((await res.json()) as Usage) : null;
   } catch {
     return null;
@@ -299,7 +380,7 @@ export async function resetUsage(): Promise<Usage | null> {
 
 export async function getSettings(): Promise<Record<string, string>> {
   try {
-    const res = await fetch(`${API}/maintenance/settings`);
+    const res = await afetch(`${API}/maintenance/settings`);
     const d = await res.json().catch(() => ({}));
     return d && typeof d === "object" && !Array.isArray(d) ? d : {};
   } catch {
@@ -308,7 +389,7 @@ export async function getSettings(): Promise<Record<string, string>> {
 }
 
 export async function updateSetting(key: string, value: string): Promise<{ ok: boolean }> {
-  const res = await fetch(`${API}/maintenance/settings`, {
+  const res = await afetch(`${API}/maintenance/settings`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ key, value }),

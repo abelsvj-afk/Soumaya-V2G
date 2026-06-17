@@ -1,5 +1,6 @@
 import type { DailyDigest, DigestEntry, ExpiredAction, GraphNode, NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
 
@@ -43,16 +44,16 @@ function takeFor(n: GraphNode): string {
  * themselves are gone). We logged them as `action_expired` with the labels in the
  * description: "Action items timed out: a; b; c".
  */
-function expiredActionsToday(h: DbHandle, today: string): ExpiredAction[] {
+function expiredActionsToday(h: DbHandle, today: string, spaceId: string): ExpiredAction[] {
   let rows: { description: string; created_at: string }[] = [];
   try {
     rows = h.sqlite
       .prepare(
         `SELECT description, created_at FROM agent_logs
-         WHERE action = 'action_expired' AND substr(created_at, 1, 10) = ?
+         WHERE space_id = ? AND action = 'action_expired' AND substr(created_at, 1, 10) = ?
          ORDER BY id DESC`,
       )
-      .all(today) as { description: string; created_at: string }[];
+      .all(spaceId, today) as { description: string; created_at: string }[];
   } catch {
     return [];
   }
@@ -73,9 +74,9 @@ function expiredActionsToday(h: DbHandle, today: string): ExpiredAction[] {
  * take + a link), the latent connections she's surfaced, and the day's expired
  * action items.
  */
-export function buildDailyDigest(h: DbHandle): DailyDigest {
+export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): DailyDigest {
   const today = new Date().toISOString().slice(0, 10);
-  const nodesRepo = new NodesRepo(h);
+  const nodesRepo = new NodesRepo(h, spaceId);
 
   // Fresh, real memories logged today (action items are summarized separately).
   const fresh: DigestEntry[] = nodesRepo
@@ -84,8 +85,8 @@ export function buildDailyDigest(h: DbHandle): DailyDigest {
     .slice(0, 8)
     .map((n) => ({ node: refOf(n), snippet: snippetOf(n.content), take: takeFor(n) }));
 
-  const connections = new InsightsRepo(h).recent(5);
-  const expiredActions = expiredActionsToday(h, today);
+  const connections = new InsightsRepo(h, spaceId).recent(5);
+  const expiredActions = expiredActionsToday(h, today, spaceId);
 
   const newCount = fresh.length;
   const greeting =

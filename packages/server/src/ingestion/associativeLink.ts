@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn } from "../db/vec.js";
 import type { LlmProvider } from "../llm/adapter.js";
 import type { EdgesRepo } from "../repositories/edges.repo.js";
@@ -27,10 +28,12 @@ export async function associativeLink(
   newNode: GraphNode,
   embedding: Float32Array,
   options: AssociativeLinkOptions = DEFAULT_LINK_OPTIONS,
+  spaceId: string = DEFAULT_SPACE,
 ): Promise<GraphEdge[]> {
   // k+1 because the node itself is its own nearest neighbour. Strongest matches
-  // first so that, when capped, we keep the most meaningful connections.
-  const hits = knn(h.sqlite, embedding, options.k + 1)
+  // first so that, when capped, we keep the most meaningful connections. KNN is
+  // scoped to this space so we never link across users' brains.
+  const hits = knn(h.sqlite, embedding, options.k + 1, spaceId)
     .filter((hit) => hit.nodeId !== newNode.id && hit.similarity >= options.threshold)
     .sort((a, b) => b.similarity - a.similarity);
 

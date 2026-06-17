@@ -1,7 +1,6 @@
 import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
-import { agentLogs } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -22,24 +21,42 @@ app.listen(PORT, () => {
 // gated). For now it prunes the single weakest associative link, if any.
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS ?? 1000 * 60 * 15);
 function expireActionItems() {
-  const repo = new NodesRepo(ctx.handle);
-  const due = repo.dueActionItems(new Date().toISOString());
+  // Sweep every brain: find due action items across all spaces, then expire each
+  // within its own space (so the log + deletion stay correctly scoped).
+  const due = ctx.handle.sqlite
+    .prepare(
+      `SELECT id, label, space_id AS spaceId FROM nodes
+       WHERE kind = 'action' AND deleted_at IS NULL AND expires_at <= ?`,
+    )
+    .all(new Date().toISOString()) as { id: number; label: string; spaceId: string }[];
   if (due.length === 0) return;
-  const summary = due.map((d) => d.label).join("; ");
-  try {
-    ctx.handle.db
-      .insert(agentLogs)
-      .values({
-        action: "action_expired",
-        description: `Action items timed out: ${summary}`,
-        targets: JSON.stringify(due.map((d) => d.id)),
-      })
-      .run();
-  } catch {
-    /* logging is best-effort */
+
+  const bySpace = new Map<string, { id: number; label: string }[]>();
+  for (const d of due) {
+    if (!bySpace.has(d.spaceId)) bySpace.set(d.spaceId, []);
+    bySpace.get(d.spaceId)!.push({ id: d.id, label: d.label });
   }
-  for (const d of due) repo.delete(d.id);
-  console.log(`[soumaya] expired ${due.length} action item(s)`);
+
+  for (const [spaceId, items] of bySpace) {
+    const summary = items.map((d) => d.label).join("; ");
+    try {
+      ctx.handle.sqlite
+        .prepare(
+          `INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, ?, ?, ?)`,
+        )
+        .run(
+          spaceId,
+          "action_expired",
+          `Action items timed out: ${summary}`,
+          JSON.stringify(items.map((d) => d.id)),
+        );
+    } catch {
+      /* logging is best-effort */
+    }
+    const repo = new NodesRepo(ctx.handle, spaceId);
+    for (const d of items) repo.delete(d.id);
+  }
+  console.log(`[soumaya] expired ${due.length} action item(s) across ${bySpace.size} brain(s)`);
 }
 
 setInterval(() => {

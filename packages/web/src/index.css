@@ -476,6 +476,84 @@ body,
   opacity: 0.85;
 }
 
+/* Login / brain gate */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background:
+    radial-gradient(1200px 700px at 50% -10%, rgba(122, 249, 255, 0.08), transparent 60%),
+    #05060c;
+}
+.login-card {
+  width: min(420px, 100%);
+  padding: 26px 24px;
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  background: rgba(12, 16, 28, 0.7);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+.login-card h1 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+.login-sub {
+  font-size: 13px;
+  line-height: 1.5;
+  opacity: 0.8;
+  margin: 0 0 18px;
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+.login-form input {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font-size: 15px; /* >=16px-ish avoids iOS zoom; keep tidy */
+}
+.login-form button {
+  margin-top: 4px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(122, 249, 255, 0.4);
+  background: rgba(122, 249, 255, 0.14);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+}
+.login-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.login-error {
+  color: #ff9b9b;
+  font-size: 12px;
+  margin: 0;
+}
+.login-note {
+  font-size: 11px;
+  opacity: 0.55;
+  line-height: 1.5;
+  margin: 16px 0 0;
+}
+
 /* ML constellations */
 .constellations {
   margin: 4px 0 14px;
