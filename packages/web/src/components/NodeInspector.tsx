@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
 import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
+import { loreFor } from "../graph/lore.js";
 
 interface Props {
   node: GraphNode | null;
@@ -91,6 +92,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </p>
       )}
       <p className="content">{node.content}</p>
+      <p className="lore">✦ {loreFor(node)}</p>
 
       <div className="weight">
         <div className="weight-head">

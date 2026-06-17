@@ -17,6 +17,7 @@ import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
+import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { BG } from "./theme.js";
 
 export interface Graph3DHandle {
@@ -122,6 +123,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // fails we still render the graph rather than blanking the whole screen.
     let bursts: ReturnType<typeof makeCollisionBursts> | null = null;
     let soumaya: SoumayaHandle | null = null;
+    let visitors: VisitorSystem | null = null;
     try {
       scene.background = makeSpaceBackground();
       loadNebulaSkybox(scene);
@@ -138,6 +140,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const station = makeSpaceStation();
       scene.add(station);
       stationObjRef.current = station;
+      visitors = makeVisitors();
+      scene.add(visitors.group);
       addBloom(fg, {});
 
       // Click detection for Soumaya's ship
@@ -206,6 +210,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
+      visitors?.update(dt, dataRef.current.nodes as any[]);
 
       // Follow-lock: keep the jumped-to body centered as it orbits/drifts.
       const fid = followRef.current;
