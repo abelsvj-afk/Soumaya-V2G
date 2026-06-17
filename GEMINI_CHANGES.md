@@ -15,6 +15,16 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ### 2026-06-16: Soumaya Agent & Command Center
 - **Agent Renaming**: Completely renamed the maintenance agent from "Samaya" to "Soumaya" across the entire codebase.
+- **Background Evolution**: 
+    - Refactored maintenance logic into a standalone `MaintenanceService`.
+    - Implemented a server-side "Soumaya Heartbeat" in `packages/server/src/index.ts` that performs autonomous maintenance every 5 minutes.
+- **Soft-Delete Safety**:
+    - Added `deleted_at` and `merged_into` columns to the `nodes` table.
+    - Updated `NodesRepo` to support soft-deletion, preserving memory history during fusions.
+    - Graph queries now automatically filter out "tombstone" nodes.
+- **Multi-Stop Navigation**:
+    - Upgraded `packages/web/src/graph/soumaya.ts` to support sequential flight paths.
+    - The Soumaya ship now visits all targets in a job (e.g., both nodes in a fusion) before completion.
 - **Command Center UI**: 
     - Added `packages/web/src/components/SoumayaPanel.tsx`.
     - Made the Soumaya ship clickable in the 3D scene to open the panel.

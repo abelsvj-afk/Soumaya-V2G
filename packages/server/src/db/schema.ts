@@ -15,6 +15,8 @@ export const nodes = sqliteTable("nodes", {
   emotionalWeight: real("emotional_weight"),
   importance: real("importance"),
   color: text("color"),
+  deletedAt: text("deleted_at"),
+  mergedInto: integer("merged_into").references((): any => nodes.id),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

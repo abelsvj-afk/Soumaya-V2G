@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by Gemini to ensure continuity between agents.
+**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications and [SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md) for system gaps and planned evolution to ensure continuity between agents.
 
 Guidance for working in this repo. Read this before making changes.
 

@@ -28,6 +28,10 @@ export function bootstrapSchema(sqlite: RawDb): void {
       content TEXT NOT NULL,
       emotional_weight REAL,
       importance REAL,
+      celestial_title TEXT,
+      color TEXT,
+      deleted_at TEXT,
+      merged_into INTEGER REFERENCES nodes(id),
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS edges (
@@ -85,6 +89,12 @@ function migrateSchema(sqlite: RawDb): void {
   }
   if (!cols.some((c) => c.name === "color")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN color TEXT`);
+  }
+  if (!cols.some((c) => c.name === "deleted_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN deleted_at TEXT`);
+  }
+  if (!cols.some((c) => c.name === "merged_into")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN merged_into INTEGER REFERENCES nodes(id)`);
   }
 }
 

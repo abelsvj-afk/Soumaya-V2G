@@ -106,6 +106,7 @@ export function makeSoumaya(): SoumayaHandle {
   let speed = 0.25;
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
+  let targetIndex = 0;
   let isFetching = false;
 
   // Orbit-phase state.
@@ -131,7 +132,10 @@ export function makeSoumaya(): SoumayaHandle {
       }
     } finally {
       isFetching = false;
-      if (currentJob) planRoute(nodes);
+      if (currentJob) {
+        targetIndex = 0;
+        planRoute(nodes);
+      }
     }
   };
 
@@ -139,9 +143,12 @@ export function makeSoumaya(): SoumayaHandle {
   const planRoute = (nodes: any[]): boolean => {
     if (!currentJob) return false;
     
-    // For now, always target the first node in the job targets
-    target = nodes.find((n) => n.id === currentJob?.targets[0]);
+    target = nodes.find((n) => n.id === currentJob?.targets[targetIndex]);
     if (!target || target.x == null) {
+      if (currentJob.targets.length > targetIndex + 1) {
+        targetIndex++;
+        return planRoute(nodes);
+      }
       currentJob = null;
       mode = "idle";
       return false;
@@ -209,11 +216,16 @@ export function makeSoumaya(): SoumayaHandle {
         }
 
         if (orbitTime <= 0) {
-          if (currentJob) {
-            completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
-            currentJob = null;
+          if (currentJob && currentJob.targets.length > targetIndex + 1) {
+            targetIndex++;
+            planRoute(nodes);
+          } else {
+            if (currentJob) {
+              completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+              currentJob = null;
+            }
+            mode = "idle";
           }
-          mode = "idle";
         }
       } else {
         // TRAVEL: cruise the Bézier to the standoff point.

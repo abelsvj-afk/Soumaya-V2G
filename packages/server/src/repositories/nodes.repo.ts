@@ -1,4 +1,4 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, isNull } from "drizzle-orm";
 import type { GraphNode, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { nodes, type NodeRow } from "../db/schema.js";
@@ -58,7 +58,12 @@ export class NodesRepo {
   }
 
   getById(id: number): GraphNode | undefined {
-    const row = this.h.db.select().from(nodes).where(eq(nodes.id, id)).get();
+    const row = this.h.db
+      .select()
+      .from(nodes)
+      .where(eq(nodes.id, id))
+      .where(isNull(nodes.deletedAt))
+      .get();
     return row ? toGraphNode(row) : undefined;
   }
 
@@ -85,8 +90,28 @@ export class NodesRepo {
     return tx();
   }
 
+  /** Soft-delete a node by marking it as merged into another. */
+  softDelete(id: number, mergedIntoId: number): boolean {
+    const tx = this.h.sqlite.transaction(() => {
+      // We keep the edges for now, but the node will be hidden from the galaxy.
+      const info = this.h.sqlite.prepare(`
+        UPDATE nodes 
+        SET deleted_at = CURRENT_TIMESTAMP, merged_into = ? 
+        WHERE id = ?
+      `).run(mergedIntoId, id);
+      deleteEmbedding(this.h.sqlite, id); // Remove from search/redundancy index
+      return info.changes > 0;
+    });
+    return tx();
+  }
+
   findByLabel(label: string): GraphNode | undefined {
-    const row = this.h.db.select().from(nodes).where(eq(nodes.label, label)).get();
+    const row = this.h.db
+      .select()
+      .from(nodes)
+      .where(eq(nodes.label, label))
+      .where(isNull(nodes.deletedAt))
+      .get();
     return row ? toGraphNode(row) : undefined;
   }
 
@@ -95,6 +120,7 @@ export class NodesRepo {
     return this.h.db
       .select()
       .from(nodes)
+      .where(isNull(nodes.deletedAt))
       .orderBy(desc(nodes.id))
       .limit(limit)
       .all()
@@ -102,16 +128,27 @@ export class NodesRepo {
   }
 
   all(): GraphNode[] {
-    return this.h.db.select().from(nodes).all().map(toGraphNode);
+    return this.h.db
+      .select()
+      .from(nodes)
+      .where(isNull(nodes.deletedAt))
+      .all()
+      .map(toGraphNode);
   }
 
   byIds(ids: number[]): GraphNode[] {
     if (ids.length === 0) return [];
-    return this.h.db.select().from(nodes).where(inArray(nodes.id, ids)).all().map(toGraphNode);
+    return this.h.db
+      .select()
+      .from(nodes)
+      .where(inArray(nodes.id, ids))
+      .where(isNull(nodes.deletedAt))
+      .all()
+      .map(toGraphNode);
   }
 
   count(): number {
-    const r = this.h.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes`).get() as { c: number };
+    const r = this.h.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL`).get() as { c: number };
     return r.c;
   }
 }
