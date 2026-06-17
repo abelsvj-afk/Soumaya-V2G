@@ -28,6 +28,8 @@ interface OrbitParams {
 export interface OrbitSystem {
   rebuild: (nodes: any[], links: any[]) => void;
   update: (dt: number, nodes: any[]) => void;
+  /** Node id + every body that (transitively) orbits it — its "system". */
+  getDescendants: (id: number) => Set<number>;
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
@@ -35,6 +37,7 @@ const massOf = (n: any): number => n.mass ?? 0.3;
 export function makeOrbitSystem(): OrbitSystem {
   const params = new Map<number, OrbitParams>();
   let order: any[] = []; // parents before children
+  const childIds = new Map<number, number[]>(); // parent id -> child ids (for systems)
 
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
@@ -75,11 +78,16 @@ export function makeOrbitSystem(): OrbitSystem {
     }
 
     const childrenOf = new Map<number, any[]>();
+    childIds.clear();
     for (const n of nodes) {
       const p = parentOf.get(n.id);
       const key = p ? p.id : -1;
       if (!childrenOf.has(key)) childrenOf.set(key, []);
       childrenOf.get(key)!.push(n);
+      if (p) {
+        if (!childIds.has(p.id)) childIds.set(p.id, []);
+        childIds.get(p.id)!.push(n.id);
+      }
     }
 
     const assign = (n: any) => {
@@ -167,5 +175,20 @@ export function makeOrbitSystem(): OrbitSystem {
     }
   };
 
-  return { rebuild, update };
+  const getDescendants = (id: number): Set<number> => {
+    const set = new Set<number>([id]);
+    const queue = [id];
+    while (queue.length) {
+      const cur = queue.shift()!;
+      for (const c of childIds.get(cur) ?? []) {
+        if (!set.has(c)) {
+          set.add(c);
+          queue.push(c);
+        }
+      }
+    }
+    return set;
+  };
+
+  return { rebuild, update, getDescendants };
 }

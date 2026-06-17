@@ -25,6 +25,7 @@ export default function App() {
   const [followShip, setFollowShip] = useState(false);
   const [followStation, setFollowStation] = useState(false);
   const [help, setHelp] = useState(false);
+  const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
 
@@ -148,6 +149,8 @@ export default function App() {
             className="chip-btn"
             onClick={() => {
               setSelected(null);
+              setClustered(false);
+              graphRef.current?.exitCluster();
               setDemo((d) => !d);
             }}
           >
@@ -161,75 +164,80 @@ export default function App() {
         </div>
       </header>
 
-      {/* Floating controls — tap to toggle, so they never bury the galaxy */}
-      <button
-        className={`fab fab-search ${panel === "search" ? "on" : ""}`}
-        onClick={() => toggle("search")}
-        aria-label="Search"
-      >
-        🔍
-      </button>
-      <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
-        ?
-      </button>
-
       {help && <HelpPanel onClose={() => setHelp(false)} />}
-      <button
-        className={`fab fab-dock ${panel === "dock" ? "on" : ""}`}
-        onClick={() => toggle("dock")}
-        aria-label="Panels"
-      >
-        ☰
-      </button>
-      <button
-        className="fab fab-recenter"
-        onClick={() => {
-          graphRef.current?.recenter();
-          setFollowShip(false);
-          setFollowStation(false);
-        }}
-        aria-label="Recenter galaxy"
-        title="Recenter the galaxy"
-      >
-        ⊙
-      </button>
-      <button
-        className={`fab fab-ship ${followShip ? "on" : ""}`}
-        onClick={() => {
-          setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
-          setFollowStation(false);
-        }}
-        aria-label="Focus Soumaya"
-        title="Focus Soumaya's ship"
-      >
-        🛸
-      </button>
-      <button
-        className={`fab fab-station ${followStation ? "on" : ""}`}
-        onClick={() => {
-          setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
-          setFollowShip(false);
-        }}
-        aria-label="Focus space station"
-        title="Focus the space station"
-      >
-        🛰️
-      </button>
-      <button
-        className={`fab fab-music ${music ? "on" : ""}`}
-        onClick={toggleMusic}
-        aria-label="Toggle ambient music"
-        title="Ambient space music"
-      >
-        {music ? "🔊" : "🔈"}
-      </button>
-      <button
-        className={`fab fab-ingest ${panel === "ingest" ? "on" : ""}`}
-        onClick={() => toggle("ingest")}
-        aria-label="Add a memory"
-      >
-        ＋
-      </button>
+
+      {clustered && (
+        <button
+          className="exit-cluster"
+          onClick={() => {
+            graphRef.current?.exitCluster();
+            setClustered(false);
+          }}
+        >
+          ✕ Exit system view
+        </button>
+      )}
+
+      {/* Floating controls — hidden while a panel is open so they never cover it */}
+      {panel === null && (
+        <>
+          <button className="fab fab-search" onClick={() => toggle("search")} aria-label="Search">
+            🔍
+          </button>
+          <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
+            ?
+          </button>
+          <button className="fab fab-dock" onClick={() => toggle("dock")} aria-label="Panels">
+            ☰
+          </button>
+          <button
+            className="fab fab-recenter"
+            onClick={() => {
+              graphRef.current?.recenter();
+              setFollowShip(false);
+              setFollowStation(false);
+              setClustered(false);
+            }}
+            aria-label="Recenter galaxy"
+            title="Recenter the galaxy"
+          >
+            ⊙
+          </button>
+          <button
+            className={`fab fab-ship ${followShip ? "on" : ""}`}
+            onClick={() => {
+              setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
+              setFollowStation(false);
+            }}
+            aria-label="Focus Soumaya"
+            title="Focus Soumaya's ship"
+          >
+            🛸
+          </button>
+          <button
+            className={`fab fab-station ${followStation ? "on" : ""}`}
+            onClick={() => {
+              setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
+              setFollowShip(false);
+            }}
+            aria-label="Focus space station"
+            title="Focus the space station"
+          >
+            🛰️
+          </button>
+          <button
+            className={`fab fab-music ${music ? "on" : ""}`}
+            onClick={toggleMusic}
+            aria-label="Toggle ambient music"
+            title="Ambient space music"
+          >
+            {music ? "🔊" : "🔈"}
+          </button>
+          <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
+            ＋
+          </button>
+        </>
+      )}
 
       {panel === "search" && <SearchBox onFocus={focus} onClose={() => setPanel(null)} />}
       {panel === "ingest" && (
@@ -244,6 +252,11 @@ export default function App() {
           onFocus={focus}
           onChanged={demo ? undefined : handleChanged}
           onDeleted={demo ? undefined : handleDeleted}
+          onIsolate={(id) => {
+            graphRef.current?.isolateSystem(id);
+            setClustered(true);
+            setPanel(null);
+          }}
           onClose={() => setPanel(null)}
           onBack={back}
           canBack={history.length > 0}

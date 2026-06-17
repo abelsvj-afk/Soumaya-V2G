@@ -15,6 +15,7 @@ interface Props {
   onFocus: (id: number) => void;
   onChanged?: (id: number) => void;
   onDeleted?: () => void;
+  onIsolate?: (id: number) => void;
   onClose?: () => void;
   onBack?: () => void;
   canBack?: boolean;
@@ -36,6 +37,7 @@ export function RightDock({
   onFocus,
   onChanged,
   onDeleted,
+  onIsolate,
   onClose,
   onBack,
   canBack,
@@ -67,6 +69,7 @@ export function RightDock({
             onFocus={onFocus}
             onChanged={onChanged}
             onDeleted={onDeleted}
+            onIsolate={onIsolate}
           />
         )}
         {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}

@@ -11,11 +11,13 @@ interface Props {
   onChanged?: (id: number) => void;
   /** Called after a node is deleted. */
   onDeleted?: () => void;
+  /** Show only this memory + the bodies orbiting it. */
+  onIsolate?: (id: number) => void;
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
 
-export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Props) {
+export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
   const [synthBusy, setSynthBusy] = useState(false);
@@ -135,6 +137,12 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
         {synthBusy ? "Connecting…" : "✨ Connect the dots"}
       </button>
       {insight && <p className="insight-text">{insight}</p>}
+
+      {onIsolate && (
+        <button className="synth-btn" onClick={() => onIsolate(node.id)}>
+          🔭 Isolate this system
+        </button>
+      )}
 
       <h3>Connected ({neighbors.length})</h3>
       <ul className="neighbors">

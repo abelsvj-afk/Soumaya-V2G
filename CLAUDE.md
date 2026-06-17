@@ -58,13 +58,15 @@ Always run `npm test` and `npm run typecheck` before committing. The web app mus
   heuristic provider scores it from weighty vocabulary + length).
 - `deriveMass({ importance, degree, emotionalWeight })` blends significance,
   connectedness, and emotional charge into a **0..1 mass**.
-- `classify(mass)` → `star | planet | moon`.
+- `classify(mass)` → 6 tiers: `asteroid | moon | planet | giant | star | supergiant`.
 - The **graph service enriches nodes on read** with `degree`, `mass`, `val`, and
   `celestial` — never denormalize these into the table.
-- Frontend: `forces.ts` applies N-body gravity (heavy bodies pull light ones in),
-  bodies render per class with pulsing emissive + coronas, links are particle
-  "space dust". The simulation never fully cools (`d3AlphaDecay(0)` +
-  `cooldownTicks=Infinity`) so the galaxy keeps drifting.
+- Frontend motion is **kinematic** (`graph/orbits.ts`), not a force sim: each body
+  orbits its heaviest connected neighbor on a fixed path (pinned via fx/fy/fz), so
+  it never collapses. `orbits.getDescendants(id)` powers the "isolate system" view.
+- Agents/assets (`graph/soumaya.ts` ship, `graph/spaceStation.ts`) are glTF models
+  in `packages/web/public/*.glb` with procedural fallbacks; the autonomous agent
+  loop hits `/api/maintenance/*` and is **token-gated behind Research Mode**.
 
 When adding signals that should affect gravity, fold them into `deriveMass` so
 both rendering and physics stay consistent.

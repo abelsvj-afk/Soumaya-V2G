@@ -1,5 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ingestText } from "../api/client.js";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const SpeechRec =
+  typeof window !== "undefined"
+    ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    : undefined;
 
 export function IngestPanel({
   onIngested,
@@ -9,25 +15,58 @@ export function IngestPanel({
   onClose?: () => void;
 }) {
   const [text, setText] = useState("");
+  const [details, setDetails] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
 
   async function submit() {
-    if (!text.trim()) return;
+    const body = details.trim() ? `${text.trim()}\n\n${details.trim()}` : text.trim();
+    if (!body) return;
+    recRef.current?.stop();
     setBusy(true);
     setMsg("");
     try {
-      const r = await ingestText(text);
+      const r = await ingestText(body);
       const n = r.nodes.length;
       const e = r.extractedEdges.length + r.associativeEdges.length;
       setMsg(`+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}`);
       setText("");
+      setDetails("");
+      setShowDetails(false);
       onIngested();
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
       setBusy(false);
     }
+  }
+
+  // Voice → text via the browser's Web Speech API (no dependency, mobile Chrome OK).
+  function toggleMic() {
+    if (!SpeechRec) return;
+    if (listening) {
+      recRef.current?.stop();
+      return;
+    }
+    const rec = new SpeechRec();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+    rec.continuous = true;
+    rec.onresult = (e: any) => {
+      let final = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript;
+      }
+      if (final) setText((t) => (t ? `${t} ${final.trim()}` : final.trim()));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => setListening(false);
+    recRef.current = rec;
+    rec.start();
+    setListening(true);
   }
 
   return (
@@ -49,10 +88,35 @@ export function IngestPanel({
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") submit();
         }}
       />
+
+      {showDetails ? (
+        <textarea
+          className="ingest-details"
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          placeholder="More context (optional) — the why, the backstory, related people, how it makes you feel…"
+          rows={3}
+        />
+      ) : (
+        <button className="ingest-more" onClick={() => setShowDetails(true)}>
+          + Add more context (optional)
+        </button>
+      )}
+
       <div className="row">
         <button onClick={submit} disabled={busy}>
           {busy ? "Thinking…" : "Add to brain"}
         </button>
+        {SpeechRec && (
+          <button
+            className={`mic-btn ${listening ? "on" : ""}`}
+            onClick={toggleMic}
+            title={listening ? "Stop recording" : "Speak your memory"}
+            aria-label="Voice input"
+          >
+            {listening ? "● Listening…" : "🎤 Speak"}
+          </button>
+        )}
         <span className="msg">{msg}</span>
       </div>
     </div>

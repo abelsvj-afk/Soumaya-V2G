@@ -27,6 +27,10 @@ export interface Graph3DHandle {
   toggleFollowShip: () => boolean;
   /** Toggle the camera focusing the space station; returns the new state. */
   toggleFollowStation: () => boolean;
+  /** Isolate a memory's system: show only it + the bodies orbiting it. */
+  isolateSystem: (id: number) => void;
+  /** Exit the isolated system view (show the whole galaxy again). */
+  exitCluster: () => void;
 }
 
 interface Props {
@@ -48,6 +52,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 ) {
   const fgRef = useRef<any>(null);
   const [hoverId, setHoverId] = useState<number | null>(null);
+  // When set, only these node ids (a memory + its orbiting system) are shown.
+  const [cluster, setCluster] = useState<Set<number> | null>(null);
   // Hover wins; otherwise the selected node drives the highlight (mobile = no hover).
   const activeId = hoverId ?? selectedId ?? null;
   const insetRef = useRef(false);
@@ -380,6 +386,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followRef.current = null; // release every follow-lock so we can frame all
         followObjRef.current = null;
         followKindRef.current = null;
+        setCluster(null); // exit any isolated system view
         fgRef.current?.zoomToFit(800, 70);
       },
       toggleFollowShip: () => {
@@ -400,6 +407,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (on) followRef.current = null;
         return on;
       },
+      isolateSystem: (id: number) => {
+        setCluster(orbitsRef.current.getDescendants(id));
+        flyTo((data.nodes as any[]).find((x) => x.id === id));
+      },
+      exitCluster: () => {
+        setCluster(null);
+        followRef.current = null;
+        fgRef.current?.zoomToFit(800, 70);
+      },
     }),
     [data],
   );
@@ -413,6 +429,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       warmupTicks={30}
       cooldownTicks={Infinity}
       cooldownTime={Infinity}
+      nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
+      linkVisibility={(l: any) =>
+        !cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target)))
+      }
       nodeThreeObject={(node: any) => makeNodeObject(node)}
       nodeLabel={(n: any) => `${n.label} · ${String(n.type).replace(/_/g, " ")}`}
       onNodeClick={(n: any) => {

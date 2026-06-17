@@ -649,6 +649,53 @@ body,
   padding: 0 12px !important;
 }
 
+/* Exit isolated-system view */
+.exit-cluster {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  background: var(--glass);
+  border: 1px solid var(--accent);
+  backdrop-filter: blur(14px);
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+/* Ingest: optional detail + mic */
+.ingest-details {
+  margin-top: 8px;
+}
+.ingest-more {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+}
+.mic-btn {
+  background: rgba(122, 249, 255, 0.12) !important;
+  border: 1px solid var(--glass-border) !important;
+  color: var(--accent) !important;
+  border-radius: 10px;
+  padding: 9px 12px !important;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mic-btn.on {
+  background: rgba(255, 90, 120, 0.18) !important;
+  border-color: rgba(255, 120, 150, 0.5) !important;
+  color: #ff9eb0 !important;
+}
+
 /* Synthesize connections */
 .synth-btn {
   margin-top: 14px;
