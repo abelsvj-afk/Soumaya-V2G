@@ -50,11 +50,18 @@ export default function App() {
   const demoData = useMemo(() => makeDemoGalaxy(), []);
   const view = demo ? demoData : data;
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (newIds?: number[]) => {
     try {
-      setData(await getGraph());
+      const g = await getGraph();
+      setData(g);
+      if (newIds && newIds.length > 0) {
+        // Give the graph a moment to render the new nodes before rippling them.
+        setTimeout(() => {
+          for (const id of newIds) graphRef.current?.spawnBurst(id, "user");
+        }, 150);
+      }
     } finally {
-      setLoaded(true); // reveal the galaxy even if the first fetch failed
+      setLoaded(true);
     }
     getHealth()
       .then(setHealth)
@@ -71,11 +78,11 @@ export default function App() {
   // Load the galaxy once a brain is open.
   useEffect(() => {
     if (space) refresh();
-  }, [space, refresh]);
+  }, [space]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
-    (id: number, record = true) => {
+    (id: number, record = true, ripple = false) => {
       const n = view.nodes.find((x) => x.id === id);
       if (!n) return;
       setHistory((h) => (record && selected && selected.id !== id ? [...h, selected.id] : h));
@@ -83,12 +90,37 @@ export default function App() {
       setTab("details");
       setPanel("dock");
       graphRef.current?.focusNode(id);
+      if (ripple) graphRef.current?.spawnBurst(id, "user");
     },
     [view, selected],
   );
 
-  const select = useCallback((node: GraphNode) => goTo(node.id), [goTo]);
-  const focus = useCallback((id: number) => goTo(id), [goTo]);
+  const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);
+
+  const triggerFlashback = useCallback(() => {
+    // Find an old, high-mass memory (Serendipity hook)
+    const candidates = view.nodes.filter(n => {
+      if (!n.createdAt || !n.mass) return false;
+      const ageDays = (Date.now() - Date.parse(n.createdAt)) / (1000 * 60 * 60 * 24);
+      return ageDays > 7 && n.mass > 0.3; 
+    });
+    
+    if (candidates.length > 0) {
+      // Pick a random candidate
+      const target = candidates[Math.floor(Math.random() * candidates.length)]!;
+      goTo(target.id, true);
+      // Spawn a special calibration/synthesis burst to draw attention
+      graphRef.current?.spawnBurst(target.id, "calibration");
+    } else {
+      // Fallback if the brain is too young
+      const all = view.nodes.filter(n => n.mass && n.mass > 0.2);
+      if (all.length > 0) {
+        const target = all[Math.floor(Math.random() * all.length)]!;
+        goTo(target.id, true);
+        graphRef.current?.spawnBurst(target.id, "calibration");
+      }
+    }
+  }, [view, goTo]);
 
   const back = useCallback(() => {
     setHistory((h) => {
@@ -111,7 +143,10 @@ export default function App() {
     const g = await getGraph();
     setData(g);
     const n = g.nodes.find((x) => x.id === id);
-    if (n) setSelected(n);
+    if (n) {
+      setSelected(n);
+      graphRef.current?.spawnBurst(id, "user");
+    }
   }, []);
 
   const handleDeleted = useCallback(() => {
@@ -149,7 +184,7 @@ export default function App() {
       <Graph3D
         ref={graphRef}
         data={view}
-        onSelect={select}
+        onSelect={(node) => focus(node.id)}
         onSoumayaClick={() => {
           setTab("chat"); // tapping her ship = talk to Soumaya
           setPanel("dock");
@@ -227,6 +262,9 @@ export default function App() {
         <>
           <button className="fab fab-search" onClick={() => toggle("search")} aria-label="Search">
             🔍
+          </button>
+          <button className="fab fab-flashback" onClick={triggerFlashback} aria-label="Flashback (Serendipity)" title="Surprise me with an old memory">
+            ☄️
           </button>
           <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
             ?

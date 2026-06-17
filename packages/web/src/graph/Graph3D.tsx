@@ -32,6 +32,8 @@ export interface Graph3DHandle {
   isolateSystem: (id: number) => void;
   /** Exit the isolated system view (show the whole galaxy again). */
   exitCluster: () => void;
+  /** Trigger a visual burst at a node (e.g., for user action rewards). */
+  spawnBurst: (nodeId: number, type?: string) => void;
 }
 
 interface Props {
@@ -80,8 +82,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followRef = useRef<number | null>(null);
   // Generic "focus on a non-memory object" (ship / station). On enable we snap to
   // the front of it once, then just track it so the user can orbit freely.
-  const soumayaObjRef = useRef<THREE.Object3D | null>(null);
-  const stationObjRef = useRef<THREE.Object3D | null>(null);
   const followObjRef = useRef<THREE.Object3D | null>(null);
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
@@ -92,6 +92,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Camera zoom-out ceiling, kept just beyond the galaxy so you can never zoom so
   // far that the bodies leave the star field / you see its edge.
   const maxDistRef = useRef(5200);
+
+  const soumayaObjRef = useRef<THREE.Object3D | null>(null);
+  const stationObjRef = useRef<THREE.Object3D | null>(null);
+  const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -129,11 +133,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     dir.position.set(1, 1, 1);
     scene.add(dir);
 
-    // Scene embellishments + physics are best-effort: if any imperative call
-    // fails we still render the graph rather than blanking the whole screen.
-    let bursts: ReturnType<typeof makeCollisionBursts> | null = null;
+    // Declared outside try-catch so spawnBurst can access it
     let soumaya: SoumayaHandle | null = null;
     let visitors: VisitorSystem | null = null;
+    
     try {
       scene.background = makeSpaceBackground();
       loadNebulaSkybox(scene);
@@ -142,7 +145,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(makeGalaxies());
       scene.add(makeConstellations());
       scene.add(makeComets());
-      bursts = makeCollisionBursts();
+      const bursts = makeCollisionBursts();
+      burstsRef.current = bursts;
       scene.add(bursts.group);
       soumaya = makeSoumaya();
       scene.add(soumaya.object);
@@ -197,6 +201,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
     const FADE_FAR = 540; // labels fully hidden at/over this distance
 
+    const MACRO_DIST = 1800; // swap fidelity for points-of-light beyond this
+
     // Brightness is INVERTED with zoom: a body blooms brightest from afar (the
     // galaxy reads as points of light) and dims/concentrates up close so you can
     // read its label and see the surface texture.
@@ -249,52 +255,82 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followAnchorId = null;
       }
 
+      // 1. Update background / global objects
       scene.traverse((o: any) => {
-        // Self-animating background objects (comets, nebulae).
         if (typeof o.userData?.update === "function") o.userData.update(now);
-        if (o.userData?.spin) {
-          o.rotation.y += 0.005; // bodies turn on their axis, slow + calm
-        }
-        // Pulsing emissive light, scaled DOWN as the camera nears (so close-ups
-        // are readable instead of blinding) and UP when far (bright galaxy).
-        if (o.userData?.pulse) {
-          o.getWorldPosition(tmp);
-          const bf = brightness(tmp.distanceTo(camera.position));
-          const p = o.userData.pulse;
-          const s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
-          const intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
-          const mat = o.material as any;
-          if (mat?.isShaderMaterial) {
-            mat.uniforms.uBrightness.value = intensity;
-            mat.uniforms.uTime.value = now;
-          } else if (mat && mat.emissiveIntensity != null) {
-            mat.emissiveIntensity = intensity;
-          }
-        }
-        // Breathing corona / atmosphere — also dims up close.
-        if (o.userData?.corona) {
-          o.getWorldPosition(tmp);
-          const bf = brightness(tmp.distanceTo(camera.position));
-          const c = o.userData.corona;
-          const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
-          o.scale.set(k, k, 1);
-          (o.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
-        }
-        if (o.userData?.isLabel) {
+      });
+
+      // 2. Optimized node updates (LOD + Pulse + Corona)
+      // Instead of traversing the WHOLE scene (including starfield/nebulae), we
+      // only iterate the bodies themselves. react-force-graph keeps them in a
+      // dedicated group.
+      const graphGroup = scene.children.find((c: any) => c.type === "Group" && c.children.length > dataRef.current.nodes.length * 0.5);
+      if (graphGroup) {
+        graphGroup.children.forEach((o: any) => {
+          if (o.userData?.nodeId == null) return;
+          const id = o.userData.nodeId;
           o.getWorldPosition(tmp);
           const dist = tmp.distanceTo(camera.position);
-          const vis = Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
-          o.visible = vis > 0.02;
-          const mat = o.material as THREE.SpriteMaterial;
-          mat.opacity = vis * 0.95;
-          const mq = o.userData.marquee;
-          if (mq && o.visible) {
-            mq.t += 0.006;
-            // Ease at the ends so the name is readable, not a constant blur.
-            mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
-          }
-        }
-      });
+          const isSelected = id === activeId;
+          const isMacroView = dist > MACRO_DIST && !isSelected;
+
+          // Orbit/Spin
+          if (o.userData?.spin) o.rotation.y += 0.005;
+
+          o.children.forEach((child: any) => {
+            // Pulse/Brightness
+            if (child.userData?.pulse) {
+              const bf = brightness(dist);
+              const p = child.userData.pulse;
+              const s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
+              const intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
+              const mat = child.material as any;
+              if (mat?.isShaderMaterial) {
+                mat.uniforms.uBrightness.value = intensity;
+                mat.uniforms.uTime.value = now;
+              } else if (mat && mat.emissiveIntensity != null) {
+                mat.emissiveIntensity = intensity;
+              }
+            }
+            // Corona
+            if (child.userData?.corona) {
+              const bf = brightness(dist);
+              const c = child.userData.corona;
+              const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
+              child.scale.set(k, k, 1);
+              (child.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
+            }
+
+            // LOD Swapping
+            if (child.userData?.isFidelity) child.visible = !isMacroView;
+            if (child.userData?.isMacro) child.visible = isMacroView;
+            if (child.userData?.isSectorTitle) {
+              child.visible = isMacroView;
+              if (child.visible) {
+                const mat = child.material as THREE.SpriteMaterial;
+                mat.opacity = 0.8;
+                const mq = child.userData.marquee;
+                if (mq) {
+                  mq.t += 0.006;
+                  mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
+                }
+              }
+            } else if (child.userData?.isLabel) {
+              const labelVis = (isMacroView && !isSelected) ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
+              child.visible = labelVis > 0.02;
+              if (child.visible) {
+                const mat = child.material as THREE.SpriteMaterial;
+                mat.opacity = labelVis * 0.95;
+                const mq = child.userData.marquee;
+                if (mq) {
+                  mq.t += 0.006;
+                  mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
+                }
+              }
+            }
+          });
+        });
+      }
 
       // Drive Soumaya along the live graph; spark a maintenance burst on arrival.
       if (soumaya) {
@@ -306,7 +342,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           dt,
           d.nodes as any[],
           d.links as any[],
-          (x, y, z, type) => bursts?.spawn(x, y, z, type),
+          (x, y, z, type) => burstsRef.current?.spawn(x, y, z, type),
           stationP,
         );
 
@@ -456,6 +492,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         setCluster(null);
         followRef.current = null;
         fgRef.current?.zoomToFit(800, 70);
+      },
+      spawnBurst: (id: number, type = "user") => {
+        const n = (data.nodes as any[]).find((x) => x.id === id);
+        if (n && n.x != null) {
+          burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
+        }
       },
     }),
     [data],

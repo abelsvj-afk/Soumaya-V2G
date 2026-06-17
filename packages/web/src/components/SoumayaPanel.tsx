@@ -155,6 +155,37 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
         </div>
       )}
 
+      {/* Consistency Constellation (Habit Grid) */}
+      <div className="constellation-grid" style={{ marginBottom: '1.5rem' }}>
+        <h4 style={{ marginBottom: '0.5rem', fontSize: '0.8rem', color: 'var(--muted)' }}>Consistency Constellation (Recent Activity)</h4>
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {/* Mocking a 14-day trailing activity grid based on logs */}
+          {Array.from({ length: 14 }).map((_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (13 - i));
+            const dateStr = date.toISOString().split('T')[0]!;
+            
+            // Check if any log occurred on this day
+            const hasActivity = logs.some(l => l.createdAt.startsWith(dateStr));
+            
+            return (
+              <div 
+                key={dateStr} 
+                title={hasActivity ? `Activity on ${dateStr}` : `No activity on ${dateStr}`}
+                style={{
+                  width: '14px',
+                  height: '14px',
+                  borderRadius: '2px',
+                  backgroundColor: hasActivity ? 'rgba(100, 200, 255, 0.8)' : 'rgba(255, 255, 255, 0.05)',
+                  boxShadow: hasActivity ? '0 0 4px rgba(100, 200, 255, 0.5)' : 'none',
+                  transition: 'background-color 0.3s'
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
       <div className="log-container">
         <h4>Recent Activity</h4>
         {logs.length === 0 && <p className="empty">No recent logs recorded.</p>}

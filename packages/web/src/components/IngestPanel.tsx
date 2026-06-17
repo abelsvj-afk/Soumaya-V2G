@@ -11,7 +11,7 @@ export function IngestPanel({
   onIngested,
   onClose,
 }: {
-  onIngested: () => void;
+  onIngested: (newIds?: number[]) => void;
   onClose?: () => void;
 }) {
   const [text, setText] = useState("");
@@ -38,7 +38,7 @@ export function IngestPanel({
       setText("");
       setDetails("");
       setShowDetails(false);
-      onIngested();
+      onIngested(r.nodes.map((x: any) => x.id));
     } catch (err) {
       setMsg((err as Error).message);
     } finally {

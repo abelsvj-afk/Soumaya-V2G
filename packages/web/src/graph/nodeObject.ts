@@ -128,6 +128,35 @@ function toMap(c: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
+/** 
+ * A simple, extremely lightweight glowing point for "Macro View".
+ * Used as Level of Detail (LOD) to keep the galaxy performing at high density.
+ */
+function makeMacroBody(color: string, size: number): THREE.Sprite {
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const ctx = c.getContext("2d")!;
+  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+  const rgb = rgbOf(color);
+  g.addColorStop(0, `rgba(${rgb},1)`);
+  g.addColorStop(0.4, `rgba(${rgb},0.4)`);
+  g.addColorStop(1, `rgba(${rgb},0)`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 32, 32);
+  
+  const mat = new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(c),
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.scale.set(size * 1.5, size * 1.5, 1);
+  sprite.userData.isMacro = true;
+  sprite.visible = false; // Hidden by default; toggled by Graph3D tick based on distance
+  return sprite;
+}
+
 /** Pale grey, cratered moon. */
 function makeMoonSurface(): THREE.CanvasTexture {
   const [c, ctx] = surfaceCanvas();
@@ -205,7 +234,6 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       emotionalWeight: node.emotionalWeight,
     });
   const cls = node.celestial ?? classify(mass);
-  const color = bodyColor(node);
   const group = new THREE.Group();
 
   // Time-based progression — but SIZE/growth comes only from mass (significance +
@@ -219,6 +247,19 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   const connected = (node.degree ?? 0) >= 1;
   const fade = connected ? 0 : Math.min(0.6, Math.max(0, ageH - 48) / 240); // ~10d -> -60%
   const vitality = (1 + 0.5 * fresh) * (1 - fade);
+
+  // Age-based Evolution Logic (Green Lane Gamification)
+  const isHot = ageH < 24; // Created in the last 24h
+  const isAncient = ageH > 720 && !connected; // Older than a month and lonely
+
+  // Tweak color based on age
+  let evolvedColor = new THREE.Color(bodyColor(node));
+  if (isHot) {
+    evolvedColor.lerp(new THREE.Color("#ffffff"), 0.15); // Hot white glow
+  } else if (isAncient) {
+    evolvedColor.lerp(new THREE.Color("#ff6b6b"), 0.15).multiplyScalar(0.85); // Redshift + Weathered dim
+  }
+  const color = `#${evolvedColor.getHexString()}`;
 
   const isStarLike = cls === "star" || cls === "supergiant";
   const isPlanetLike = cls === "planet" || cls === "giant";
@@ -285,7 +326,11 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     phase: (node.id % 12) * 0.5,
     vitality, // age-driven glow: brighter when fresh, dimmer when stale + unconnected
   };
-  group.add(mesh);
+
+  // 1. The High-Fidelity Body (Complex geometry, lights, etc.)
+  const fidelity = new THREE.Group();
+  fidelity.userData.isFidelity = true;
+  fidelity.add(mesh);
 
   // Rings: always on gas giants, on ~a third of planets.
   if (cls === "giant" || (cls === "planet" && node.id % 3 === 0)) {
@@ -300,7 +345,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       }),
     );
     ring.rotation.x = Math.PI / 2.4;
-    group.add(ring);
+    fidelity.add(ring);
   }
 
   // Brighter bodies give off more light. Star-like bodies get a corona + a real
@@ -313,16 +358,16 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       speed: 0.5 + mass * 0.7,
       phase: (node.id % 7) * 0.7,
     };
-    group.add(glow);
+    fidelity.add(glow);
     const light = new THREE.PointLight(
       new THREE.Color(color),
       cls === "supergiant" ? 2.5 + mass * 3 : 1.2 + mass * 2.6,
       size * (cls === "supergiant" ? 60 : 45),
       2,
     );
-    group.add(light);
+    fidelity.add(light);
     // A faint asteroid belt orbiting the sun.
-    group.add(makeAsteroidBelt(size * 2.6, size * 3.8));
+    fidelity.add(makeAsteroidBelt(size * 2.6, size * 3.8));
   } else if (isPlanetLike) {
     const glow = makeGlow(color, size * (cls === "giant" ? 1.5 : 1.35));
     glow.userData.corona = {
@@ -331,10 +376,25 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       speed: 0.4 + mass * 0.6,
       phase: (node.id % 7) * 0.7,
     };
-    group.add(glow);
+    fidelity.add(glow);
+  }
+
+  // 2. The Macro Body (Single sprite for high-density performance)
+  const macro = makeMacroBody(color, size);
+
+  // 3. Sector Title (Special huge label for Macro view)
+  if (mass >= 0.44 && node.celestialTitle) {
+    const sectorLabel = makeLabel(node.celestialTitle.toUpperCase());
+    sectorLabel.scale.multiplyScalar(2.5); // Giant sector name
+    sectorLabel.position.set(0, size * 4 + 10, 0);
+    sectorLabel.userData.isSectorTitle = true;
+    sectorLabel.visible = false; // Toggled by LOD logic
+    group.add(sectorLabel);
   }
 
   group.add(makeLabel(node.label));
+  group.add(fidelity);
+  group.add(macro);
   group.userData.nodeId = node.id;
   return group;
 }

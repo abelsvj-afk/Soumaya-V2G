@@ -1,11 +1,12 @@
 import type { GraphData, GraphNode } from "@brain/shared";
 import { NodeInspector } from "./NodeInspector.js";
 import { NodeList } from "./NodeList.js";
+import { SectorView } from "./SectorView.js";
 import { DigestPanel } from "./DigestPanel.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 
-export type DockTab = "details" | "list" | "insights" | "chat" | "soumaya";
+export type DockTab = "details" | "list" | "sectors" | "insights" | "chat" | "soumaya";
 
 interface Props {
   tab: DockTab;
@@ -23,7 +24,8 @@ interface Props {
 
 const TABS: { id: DockTab; label: string }[] = [
   { id: "details", label: "Details" },
-  { id: "list", label: "📋 List" },
+  { id: "sectors", label: "🌌" },
+  { id: "list", label: "📋" },
   { id: "insights", label: "✨" },
   { id: "chat", label: "💬" },
   { id: "soumaya", label: "🛰️" },
@@ -73,6 +75,13 @@ export function RightDock({
           />
         )}
         {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}
+        {tab === "sectors" && (
+          <SectorView
+            graph={graph}
+            onFocus={onFocus}
+            onIsolate={(id) => onIsolate?.(id)}
+          />
+        )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
         {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}

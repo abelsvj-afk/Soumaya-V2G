@@ -58,13 +58,13 @@ means **the user never sees them**, and re-syncing risks regressing Claude's wor
 
 ### Hard rules
 1. **Work only on the deploy branch.** Never commit app/code changes to `master`.
-   ```
+   ```bash
    git fetch origin
    git checkout claude/soumaya-second-brain-v1-m4z4hc
    git rebase origin/claude/soumaya-second-brain-v1-m4z4hc
    ```
 2. **Push back to the same branch:**
-   ```
+   ```bash
    git push origin HEAD:claude/soumaya-second-brain-v1-m4z4hc
    ```
 3. **NEVER** `git push --force`, and **NEVER** re-initialize git / create a new
@@ -74,7 +74,7 @@ means **the user never sees them**, and re-syncing risks regressing Claude's wor
 4. **If a push is rejected** (non-fast-forward): `git fetch` → `git rebase
    origin/claude/...` → resolve → push again. Never force.
 5. **Pre-commit gate (all must pass):**
-   ```
+   ```bash
    npm run typecheck && npm test && npm run build -w @brain/web
    ```
 6. **Additive, not destructive.** Do not delete or wholesale-replace files Claude

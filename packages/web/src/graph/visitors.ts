@@ -14,6 +14,8 @@ interface Variant {
   hull: string;
   glow: string;
 }
+import { bodyColor } from "./theme.js";
+
 const FRIENDLY: Variant = { name: "Luminous Traveler", hull: "#dfe9ff", glow: "#7af9ff" };
 const NEUTRAL: Variant = { name: "Drifter", hull: "#cfd0e0", glow: "#b388ff" };
 const OMINOUS: Variant = { name: "Void Wanderer", hull: "#3a2030", glow: "#ff5a6e" };
@@ -28,9 +30,9 @@ function makeCraft(): {
   const bodyMat = new THREE.MeshStandardMaterial({
     color: "#ffffff",
     emissive: new THREE.Color("#7af9ff"),
-    emissiveIntensity: 0.8,
-    metalness: 0.6,
-    roughness: 0.3,
+    emissiveIntensity: 1.2,
+    metalness: 0.8,
+    roughness: 0.2,
   });
   const body = new THREE.Mesh(new THREE.SphereGeometry(2.4, 18, 12), bodyMat);
   body.scale.set(1, 0.42, 1); // saucer
@@ -39,9 +41,10 @@ function makeCraft(): {
   const ringMat = new THREE.MeshBasicMaterial({
     color: "#aef",
     transparent: true,
-    opacity: 0.6,
+    opacity: 0.8,
     side: THREE.DoubleSide,
     depthWrite: false,
+    blending: THREE.AdditiveBlending,
   });
   const ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, 0.35, 8, 28), ringMat);
   ring.rotation.x = Math.PI / 2;
@@ -73,7 +76,7 @@ export interface VisitorSystem {
   update: (dt: number, nodes: any[]) => void;
 }
 
-export function makeVisitors(maxConcurrent = 2): VisitorSystem {
+export function makeVisitors(maxConcurrent = 3): VisitorSystem {
   const group = new THREE.Group();
   const slots: Slot[] = [];
   for (let i = 0; i < maxConcurrent; i++) {
@@ -89,9 +92,15 @@ export function makeVisitors(maxConcurrent = 2): VisitorSystem {
     const candidates = nodes.filter((n) => n.x != null);
     if (candidates.length === 0) return;
     const target = candidates[Math.floor(Math.random() * candidates.length)];
+    
+    // Color Sync: The visitor adopts the emotional color of the planet it is visiting.
+    const nodeColor = bodyColor(target);
     const emo = target.emotionalWeight ?? 0;
     const variant = emo > 0.3 ? FRIENDLY : emo < -0.3 ? OMINOUS : NEUTRAL;
-    slot.craft.setColor(variant.hull, variant.glow);
+    
+    // Blend the variant's hull with the node's color to show influence
+    slot.craft.setColor(variant.hull, nodeColor);
+
     slot.targetId = target.id;
     slot.phase = "arrive";
     slot.loiter = 12 + Math.random() * 22;
