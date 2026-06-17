@@ -6,6 +6,9 @@ This file contains mandates and workflows for the Gemini CLI agent to follow in 
 
 Claude (the Lead Engineer) is the ultimate authority on architecture and code quality. Gemini's role is to assist with rapid prototyping, surgical fixes, and research.
 
+### 0. Mandatory Workflow
+**GEMINI MUST FOLLOW** the [WORKFLOW.md](./WORKFLOW.md) for every task. No code should be written without first completing **Phase A (The Spec)** and obtaining human approval.
+
 ### 1. Mandatory Tracking Updates
 **ALWAYS** update the following tracking files immediately after any code implementation or significant architectural change:
 - **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)**: Add a detailed log of the change, including the technical rationale and files modified. Include a `[ ] Verified by Claude` checkbox at the top of the new entry.
