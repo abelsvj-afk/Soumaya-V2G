@@ -31,7 +31,6 @@ export function bootstrapSchema(sqlite: RawDb): void {
       importance REAL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
-    CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id);
     CREATE TABLE IF NOT EXISTS edges (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       space_id TEXT NOT NULL DEFAULT 'legacy',
