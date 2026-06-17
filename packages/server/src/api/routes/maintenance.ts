@@ -358,8 +358,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             .where(eq(edges.target, b.id))
             .run();
 
-          // Delete the now-redundant node B
-          nodesRepo.delete(b.id);
+          // Soft-delete the now-redundant node B (recoverable — flagged, not erased)
+          nodesRepo.softDelete(b.id, a.id);
 
           description = `Fused redundant memory "${b.label}" into "${a.label}". Connections re-routed.`;
           res.json({ ok: true, detail: "Memory fusion complete." });

@@ -86,6 +86,13 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "color")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN color TEXT`);
   }
+  // Soft-delete safety (merged/redundant memories are flagged, not erased).
+  if (!cols.some((c) => c.name === "deleted_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN deleted_at TEXT`);
+  }
+  if (!cols.some((c) => c.name === "merged_into")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN merged_into INTEGER`);
+  }
 }
 
 /**
