@@ -71,10 +71,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     dataRef.current = data;
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
-    // Keep the zoom ceiling just beyond the galaxy (but always far enough to see
-    // the space station's wide orbit), and never far enough to exit the stars.
-    const r = orbitsRef.current.getRadius();
-    maxDistRef.current = Math.min(5200, Math.max(2400, r * 1.6));
+    // Place the station just outside the bodies (so planets never pass through it)
+    // and size the zoom ceiling so you can frame the station — wrapped in stars —
+    // but never zoom far enough to exit the surrounding star field.
+    const reff = Math.max(orbitsRef.current.getRadius(), 1000);
+    stationOrbitRef.current = reff + 800;
+    maxDistRef.current = Math.min(6200, Math.max(3200, stationOrbitRef.current + 1400));
   }, [data]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
@@ -92,6 +94,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Camera zoom-out ceiling, kept just beyond the galaxy so you can never zoom so
   // far that the bodies leave the star field / you see its edge.
   const maxDistRef = useRef(5200);
+  // Desired station orbit radius (sized to sit just outside the galaxy bodies).
+  const stationOrbitRef = useRef(1700);
 
   const soumayaObjRef = useRef<THREE.Object3D | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
@@ -230,6 +234,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Keep the zoom ceiling matched to the current galaxy size.
       if (controls) controls.maxDistance = maxDistRef.current;
+      // Keep the station orbiting just outside the bodies (scales with the galaxy).
+      stationObjRef.current?.userData?.setOrbit?.(stationOrbitRef.current);
 
       // Follow-lock: keep the jumped-to body centered as it orbits/drifts.
       const fid = followRef.current;

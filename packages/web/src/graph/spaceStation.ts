@@ -78,13 +78,19 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit FAR out beyond the memory cluster so planets can never pass through it
-  // (the cluster lives well inside ~1000 units; the station holds a wide lane and
-  // rides above the galactic plane for extra clearance), and slowly.
-  const orbitRadius = 1700;
+  // Orbit just beyond the memory cluster so planets can never pass through it.
+  // The radius is set live from the current galaxy size (setOrbit, below) so the
+  // station always rides outside the bodies — and inside the surrounding stars.
+  let orbitRadius = 1700;
   const orbitSpeed = 0.012;
   const orbitPhase = Math.random() * Math.PI * 2;
-  const planeLift = 420; // keep the station above the plane the bodies orbit in
+  let planeLift = 420; // keep the station above the plane the bodies orbit in
+
+  // Graph3D feeds the live galaxy radius so the station sits just outside it.
+  group.userData.setOrbit = (r: number) => {
+    orbitRadius = r;
+    planeLift = Math.max(180, r * 0.22);
+  };
 
   group.userData.update = (time: number) => {
     const dt = lastTime ? Math.min(0.05, time - lastTime) : 0;

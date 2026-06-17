@@ -16,7 +16,9 @@ export function makeStarfield(count = 4000, spread = 7000): THREE.Points {
     new THREE.Color("#cabfff"),
   ];
 
-  const inner = spread * 0.32; // begin near the galaxy's edge so it's wrapped in stars
+  // Begin close enough that the galaxy AND the space station's orbit (which sits
+  // just outside the bodies) are both wrapped in stars, not floating in a void.
+  const inner = spread * 0.18;
   for (let i = 0; i < count; i++) {
     // Distribute on a thick spherical shell (uniform direction + radius in a band)
     // so there are no visible cube edges/corners to "see the box".
