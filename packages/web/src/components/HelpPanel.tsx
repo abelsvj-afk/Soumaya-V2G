@@ -1,3 +1,5 @@
+import { SATELLITE_LORE, SATELLITE_NAME } from "../graph/satellites.js";
+
 interface Props {
   onClose: () => void;
 }
@@ -25,6 +27,7 @@ const CONCEPTS: { title: string; body: string }[] = [
   { title: "Soumaya (tap her ship)", body: "Opens the Command Center: her live activity, Research Mode, and her ⛽ Fuel gauge." },
   { title: "⛽ Fuel (the Celestial Economy)", body: "A free energy you EARN by tending your galaxy — logging memories, forging links, clearing action items. Soumaya SPENDS it on her ambitious deep-dive research + sector charting. Her core duties (surfacing connections, tidying the graph, her daily log) always run regardless — fuel just fuels the extra. The real API budget stays the hard cap." },
   { title: "❄️ Cooling memories (Entropy)", body: "Untended memories slowly go cold — they dim and drift toward a cold blue in the galaxy, and surface in the daily digest as 'going cold'. Well-connected ones cool far slower. Nothing is ever deleted: just visit (focus) a memory to warm it right back up." },
+  { title: `🛰️ ${SATELLITE_NAME}s`, body: SATELLITE_LORE },
 ];
 
 /** A simple in-app guide explaining every control + concept. */

@@ -18,6 +18,7 @@ import { makeSoumaya, type SoumayaHandle } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
+import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { BG } from "./theme.js";
 
 export interface Graph3DHandle {
@@ -140,6 +141,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Declared outside try-catch so spawnBurst can access it
     let soumaya: SoumayaHandle | null = null;
     let visitors: VisitorSystem | null = null;
+    let satellites: SatelliteSystem | null = null;
     
     try {
       scene.background = makeSpaceBackground();
@@ -160,6 +162,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       stationObjRef.current = station;
       visitors = makeVisitors();
       scene.add(visitors.group);
+      satellites = makeSatellites();
+      scene.add(satellites.group);
       addBloom(fg, {});
 
       // Click detection for Soumaya's ship
@@ -231,6 +235,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
       visitors?.update(dt, dataRef.current.nodes as any[]);
+      satellites?.update(dt, dataRef.current.nodes as any[]);
 
       // Keep the zoom ceiling matched to the current galaxy size.
       if (controls) controls.maxDistance = maxDistRef.current;

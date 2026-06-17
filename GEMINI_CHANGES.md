@@ -4,6 +4,21 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Aura-class Beacon satellites (asset + purpose + lore)
+- Added `public/aura-satellite.glb` (user-supplied "Aura_B" model).
+- New `web/src/graph/satellites.ts` — `makeSatellites()` system (procedural probe
+  fallback + glTF swap-in, same pattern as the ship/station), wired into Graph3D
+  beside `visitors`.
+- **Purpose (ties into the entropy economy):** a small fleet that auto-seeks the
+  COLDEST memories (`entropy >= 0.45`), orbits them, and pulses a warm beacon
+  (brighter the colder the memory). Tend a beaconed memory → its entropy resets →
+  the beacon releases and drifts to the next-coldest. Makes the cooling signal
+  physical and points you at what to revisit.
+- **Lore** in `SATELLITE_LORE` (shown in the Help menu): salvaged warmth-relays
+  that can't rekindle a memory — only you can — so they refuse to let one cool
+  unseen.
+- Help menu gains a 🛰️ entry. Typecheck + web build clean; 51 tests still green.
+
 ### 2026-06-17 (Claude): Celestial Economy v2 — voice, visual entropy, fuel polish + a real bugfix
 - **Soumaya's voice (dramatization filter).** New `shared/dramatize.ts` (pure,
   offline): `analyzeSentiment` + `toneFrom` blend the cited memories' emotional
