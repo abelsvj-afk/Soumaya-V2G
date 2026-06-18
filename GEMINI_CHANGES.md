@@ -4,6 +4,20 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Telegram bridge (Phase A — chat + log)
+- [x] **Verified by Claude** — typecheck clean, **55 tests** pass, web build clean.
+- Talk to your brain from Telegram: message → GraphRAG answer (with sources);
+  `/log <thought>` → ingest + fuel. Single brain, text replies, webhook.
+  - `server/src/telegram/bot.ts` (`handleTelegramUpdate` with injected send → unit
+    tested, `tgSend`, `setTelegramWebhook`, `resolveTelegramSpace`).
+  - `server/src/api/routes/telegram.ts` — open `POST /api/telegram/webhook/:secret`
+    (secret verified in path + `X-Telegram-Bot-Api-Secret-Token` header; acks then
+    processes async). Auto-registers on boot when token+secret+`PUBLIC_URL` set.
+  - Command Center shows your Brain ID (for the `TELEGRAM_SPACE_ID` secret).
+- Fully opt-in (no token → no change; offline fallback intact).
+- Evolution path documented in `plans/telegram-and-autonomy.md` (Phase B proactive
+  nudges, Phase C full server-side autonomy, Phase D voice notes + multi-user).
+
 ### 2026-06-17 (Claude): Full audit pass — cohesiveness + pitfall fixes
 - [x] **Verified by Claude** — gate green: typecheck clean, **52 tests pass**, web
   build clean. Working tree clean, branch up to date with origin.

@@ -481,6 +481,17 @@ body,
   gap: 6px;
   align-items: center;
 }
+.brain-id {
+  display: block;
+  margin-top: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+  word-break: break-all;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: 6px;
+  cursor: pointer;
+}
 .link-btn.active {
   filter: drop-shadow(0 0 6px rgba(255, 200, 80, 0.9));
 }

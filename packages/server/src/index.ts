@@ -1,6 +1,7 @@
 import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
+import { setTelegramWebhook } from "./telegram/bot.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -14,6 +15,17 @@ app.listen(PORT, () => {
     `[server] llm: ${ctx.llm.model} ${ctx.llm.available ? "(active)" : "(heuristic fallback — set GEMINI_API_KEY)"}`,
   );
 });
+
+// Telegram: if a bot token + webhook secret + public URL are set, point Telegram
+// at our webhook on boot. Without all three we stay silent (feature is opt-in).
+const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+const tgSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+const publicUrl = process.env.PUBLIC_URL?.replace(/\/$/, "");
+if (tgToken && tgSecret && publicUrl) {
+  void setTelegramWebhook(tgToken, `${publicUrl}/api/telegram/webhook/${tgSecret}`, tgSecret);
+} else if (tgToken) {
+  console.log("[telegram] set TELEGRAM_WEBHOOK_SECRET and PUBLIC_URL to auto-register the webhook");
+}
 
 // Soumaya background heartbeat: light, server-side upkeep so the brain stays tidy
 // even when no client is open. STRICTLY FREE work — it never calls the LLM, so it

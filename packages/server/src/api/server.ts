@@ -12,6 +12,7 @@ import { maintenanceRoutes } from "./routes/maintenance.js";
 import { usageRoutes } from "./routes/usage.js";
 import { constellationRoutes } from "./routes/constellations.js";
 import { spaceRoutes } from "./routes/space.js";
+import { telegramRoutes } from "./routes/telegram.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
 
 /** Assemble the Express app over an AppContext. */
@@ -41,6 +42,9 @@ export function createApp(ctx: AppContext): Express {
 
   // Auth (open): log in to or create a private brain.
   app.use("/api/space", spaceRoutes(ctx));
+
+  // Telegram webhook (open — secured by its own secret, resolves the brain itself).
+  app.use("/api/telegram", telegramRoutes(ctx));
 
   // Settings are deployment-wide (shared API key/budget), so they stay open to
   // the authenticated app shell but aren't per-brain.

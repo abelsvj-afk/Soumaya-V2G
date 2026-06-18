@@ -9,6 +9,7 @@ import {
   getUsage,
   setBudget as apiSetBudget,
   resetUsage,
+  getSpaceId,
   type AgentLog,
   type DailyLog,
   type Usage,
@@ -103,6 +104,25 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
               ? "Out of fuel — her core duties (connections, tidying, daily log) still run; only deep-dive expansion pauses. Add memories, forge links, or clear action items to refuel."
               : "Powers Soumaya's ambitious deep-dive research + sector charting. Earn it by adding memories, forging links, and clearing action items."}
           </p>
+        </div>
+      )}
+
+      {getSpaceId() && (
+        <div className="budget-box">
+          <div className="budget-head">
+            <span>🛰️ Talk to me on Telegram</span>
+          </div>
+          <p className="budget-note">
+            Your Brain ID — set it as the <code>TELEGRAM_SPACE_ID</code> secret so the
+            bot answers from this brain:
+          </p>
+          <code
+            className="brain-id"
+            title="Tap to copy"
+            onClick={() => navigator.clipboard?.writeText(getSpaceId() ?? "")}
+          >
+            {getSpaceId()}
+          </code>
         </div>
       )}
 

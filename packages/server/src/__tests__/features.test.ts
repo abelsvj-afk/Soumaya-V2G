@@ -210,6 +210,44 @@ describe("celestial economy — entropy", () => {
   });
 });
 
+describe("telegram bridge (chat + log, no network)", () => {
+  const ctxOf = () => ({ handle, embeddings, llm }) as any;
+  const collect = () => {
+    const sent: string[] = [];
+    return { sent, send: async (_chatId: number, text: string) => void sent.push(text) };
+  };
+
+  it("/log ingests a memory and confirms with fuel", async () => {
+    const { handleTelegramUpdate } = await import("../telegram/bot.js");
+    const { sent, send } = collect();
+    await handleTelegramUpdate(
+      ctxOf(),
+      { message: { chat: { id: 1 }, text: "/log buy oat milk on the way home" } },
+      send,
+    );
+    expect(sent[0]).toMatch(/Logged/i);
+    expect(sent[0]).toMatch(/⛽/);
+    expect(new NodesRepo(handle).count()).toBeGreaterThan(0);
+  });
+
+  it("a plain message is answered from the brain", async () => {
+    await ingest(handle, { embeddings, llm }, "my dentist appointment is Tuesday", "legacy");
+    const { handleTelegramUpdate } = await import("../telegram/bot.js");
+    const { sent, send } = collect();
+    await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "when is the dentist?" } }, send);
+    expect(sent.length).toBe(1);
+    expect(typeof sent[0]).toBe("string");
+    expect(sent[0]!.length).toBeGreaterThan(0);
+  });
+
+  it("/help explains the commands", async () => {
+    const { handleTelegramUpdate } = await import("../telegram/bot.js");
+    const { sent, send } = collect();
+    await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "/help" } }, send);
+    expect(sent[0]).toMatch(/\/log/);
+  });
+});
+
 describe("offline emotion (heuristic sets emotionalWeight)", () => {
   it("charges nodes positive/negative from wording with no LLM key", async () => {
     const warm = await add("a grateful, joyful, wonderful day with people I love");
