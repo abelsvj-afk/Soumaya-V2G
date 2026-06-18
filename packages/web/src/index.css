@@ -1034,6 +1034,20 @@ body,
   font-size: 10.5px;
   color: var(--muted);
 }
+.nl-group {
+  list-style: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  opacity: 0.85;
+  margin: 10px 0 4px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.nl-group:first-child {
+  margin-top: 0;
+}
 .nl-emodot {
   width: 8px;
   height: 8px;

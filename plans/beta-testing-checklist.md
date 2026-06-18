@@ -47,11 +47,10 @@ These are the foundations already in the app (so the backlog reflects reality):
     signature (warm/neutral/heavy dot), cooling (❄️ via `entropy`), and tags.
   - *Remaining:* constellation membership (needs `/api/constellations`) + visitor indicators
     (needs the Visitor-activity item below).
-- ⬜ **P1 — Timeline context / grouping.** Locate memories by *when* (day / week / month /
-  year / life period).
-  - *Plan:* a timeline grouping mode in the List (or a new "🕰 Timeline" sub-view) that
-    buckets by `occurredAt ?? createdAt`. The List already sorts "most recent"; grouping
-    headers are the next step. Files: `NodeList.tsx` (+ maybe a `TimelinePanel.tsx`).
+- ✅ **P1 — Timeline context / grouping.** Shipped: a **🕰 timeline** toggle in the List
+  groups memories by when they happened (`occurredAt ?? createdAt`) under date headers —
+  Today / Yesterday / Earlier this week / This month / "Month Year" / Undated. Client-only
+  in `NodeList.tsx` (`bucket()` + grouped render).
 - ✅ **P1 — Visual-based discovery (find without the name).** Shipped: `NodeList` filter bar
   filters by size/growth stage, emotional signature (warm/neutral/heavy), memory type,
   ❄️ cooling/brightness, and tags, with sort by heaviest/recent/most-connected/name. (Literal
@@ -115,5 +114,6 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ## Suggested order
 1. **P0:** ✅ tab labels → ✅ expanded List metadata + ✅ visual discovery filters.
-2. **P1 (next):** visitor activity tracking → timeline grouping → cluster context.
+2. **P1:** ✅ visitor activity tracking → ✅ timeline grouping → cluster context (next) →
+   per-row visitor indicators in List.
 3. **P2:** attraction logic → brain-at-scale + recall-signal animation → behavioral persona.

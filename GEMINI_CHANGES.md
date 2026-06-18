@@ -159,6 +159,13 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Timeline grouping in the List (P1)
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
+- A **🕰 timeline** toggle in the List groups memories by when they happened
+  (`occurredAt ?? createdAt`) under date headers — Today / Yesterday / Earlier this week /
+  This month / "Month Year" / Undated. Client-only in `components/NodeList.tsx` (`bucket()`
+  + grouped render via `Fragment`); CSS `.nl-group`. Lets clusters read as life periods.
+
 ### 2026-06-18 (Claude): Visitor activity tracking (P1)
 - [x] **Verified by Claude** — typecheck clean, **85 tests** pass (added `visitors.test.ts`),
   web build clean.

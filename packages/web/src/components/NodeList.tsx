@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   type GraphNode,
   type CelestialClass,
@@ -44,6 +44,21 @@ const EMOTION_DOT: Record<Exclude<Emotion, "all">, string> = {
   negative: "#6bb7ff",
 };
 
+/** Bucket a timestamp into a human time period (for timeline grouping). */
+function bucket(t: number): { key: string; label: string; rank: number } {
+  if (Number.isNaN(t)) return { key: "undated", label: "Undated", rank: -Infinity };
+  const days = Math.floor((Date.now() - t) / 8.64e7);
+  if (days <= 0) return { key: "today", label: "Today", rank: 1e15 };
+  if (days === 1) return { key: "yesterday", label: "Yesterday", rank: 1e15 - 1 };
+  if (days < 7) return { key: "week", label: "Earlier this week", rank: 1e15 - 2 };
+  const d = new Date(t);
+  const now = new Date();
+  if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth())
+    return { key: "month", label: "This month", rank: 1e15 - 3 };
+  const label = d.toLocaleString(undefined, { month: "long", year: "numeric" });
+  return { key: `${d.getFullYear()}-${d.getMonth()}`, label, rank: d.getFullYear() * 12 + d.getMonth() };
+}
+
 /**
  * Discovery-oriented memory index: rich metadata per row + visual/emotional/time
  * filters, so a memory can be found WITHOUT remembering its name ("the large blue
@@ -57,6 +72,7 @@ export function NodeList({ nodes, onFocus }: Props) {
   const [cooling, setCooling] = useState(false);
   const [sort, setSort] = useState<Sort>("mass");
   const [tag, setTag] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState(false);
 
   const memories = useMemo(() => nodes.filter((n) => n.kind !== "action"), [nodes]);
 
@@ -98,9 +114,47 @@ export function NodeList({ nodes, onFocus }: Props) {
     return out;
   }, [memories, q, tier, type, emotion, cooling, tag, sort]);
 
+  // Timeline grouping: bucket the filtered set by when each memory happened.
+  const groups = useMemo(() => {
+    if (!timeline) return [];
+    const map = new Map<string, { label: string; rank: number; items: GraphNode[] }>();
+    for (const n of shown) {
+      const b = bucket(ms(n.occurredAt ?? n.createdAt));
+      if (!map.has(b.key)) map.set(b.key, { label: b.label, rank: b.rank, items: [] });
+      map.get(b.key)!.items.push(n);
+    }
+    return [...map.values()].sort((a, b) => b.rank - a.rank);
+  }, [timeline, shown]);
+
   if (memories.length === 0) {
     return <p className="empty">No memories yet — dump a thought to begin.</p>;
   }
+
+  const renderRow = (n: GraphNode) => {
+    const cls = n.celestial ?? "moon";
+    const emo = emotionBucket(n.emotionalWeight);
+    const when = relative(n.occurredAt ?? n.createdAt);
+    return (
+      <li key={n.id}>
+        <button onClick={() => onFocus(n.id)}>
+          <span className="dot" style={{ background: TYPE_COLORS[n.type] }} />
+          <span className="nl-main">
+            <span className="nl-label">{n.label}</span>
+            <span className="nl-meta2">
+              <span title="growth stage">{CELESTIAL_ICON[cls]} {cls}</span>
+              {(n.degree ?? 0) > 0 && <span title="connections">· {n.degree} link{n.degree === 1 ? "" : "s"}</span>}
+              {when && <span title="when">· {when}</span>}
+              <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
+              {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
+            </span>
+            {n.tags && n.tags.length > 0 && (
+              <span className="nl-tags">{n.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>
+            )}
+          </span>
+        </button>
+      </li>
+    );
+  };
 
   return (
     <div className="dock-body">
@@ -147,6 +201,13 @@ export function NodeList({ nodes, onFocus }: Props) {
         >
           ❄️ cooling
         </button>
+        <button
+          className={`tag-chip ${timeline ? "on" : ""}`}
+          onClick={() => setTimeline((t) => !t)}
+          title="Group by when each memory happened"
+        >
+          🕰 timeline
+        </button>
       </div>
 
       {allTags.length > 0 && (
@@ -164,31 +225,14 @@ export function NodeList({ nodes, onFocus }: Props) {
       )}
 
       <ul className="neighbors node-list">
-        {shown.map((n) => {
-          const cls = n.celestial ?? "moon";
-          const emo = emotionBucket(n.emotionalWeight);
-          const when = relative(n.occurredAt ?? n.createdAt);
-          return (
-            <li key={n.id}>
-              <button onClick={() => onFocus(n.id)}>
-                <span className="dot" style={{ background: TYPE_COLORS[n.type] }} />
-                <span className="nl-main">
-                  <span className="nl-label">{n.label}</span>
-                  <span className="nl-meta2">
-                    <span title="growth stage">{CELESTIAL_ICON[cls]} {cls}</span>
-                    {(n.degree ?? 0) > 0 && <span title="connections">· {n.degree} link{n.degree === 1 ? "" : "s"}</span>}
-                    {when && <span title="when">· {when}</span>}
-                    <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
-                    {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
-                  </span>
-                  {n.tags && n.tags.length > 0 && (
-                    <span className="nl-tags">{n.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>
-                  )}
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {!timeline && shown.map(renderRow)}
+        {timeline &&
+          groups.map((g) => (
+            <Fragment key={g.label}>
+              <li className="nl-group">{g.label}</li>
+              {g.items.map(renderRow)}
+            </Fragment>
+          ))}
         {shown.length === 0 && <li className="empty">No matches — loosen the filters.</li>}
       </ul>
     </div>
