@@ -8,6 +8,7 @@ import {
 } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfield.js";
@@ -146,6 +147,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     dir.position.set(1, 1, 1);
     scene.add(dir);
 
+    // Image-based lighting: a PMREM environment so the glTF models (ship, station,
+    // Aura satellites) — which use metallic PBR materials — actually catch light and
+    // reflections instead of rendering as black silhouettes. Also gives every body a
+    // subtle premium sheen. Generated once from a neutral procedural room.
+    try {
+      const renderer = fg.renderer() as THREE.WebGLRenderer;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    } catch (err) {
+      console.warn("[graph] environment map unavailable:", err);
+    }
+
     // Declared outside try-catch so spawnBurst can access it
     let soumaya: SoumayaHandle | null = null;
     let visitors: VisitorSystem | null = null;
@@ -202,10 +215,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       fg.d3Force("link")?.strength(0);
 
       // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
-      // so you can admire it all but never zoom past the star field.
+      // so you can admire it all but never zoom past the star field. Smooth,
+      // weighty controls (inertial damping + zoom-toward-cursor) for a premium,
+      // non-jittery feel when flying around and zooming in on planets.
       if (controls) {
         controls.maxDistance = maxDistRef.current;
-        controls.minDistance = 12;
+        controls.minDistance = 8;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.075;
+        controls.rotateSpeed = 0.55;
+        controls.zoomSpeed = 0.9;
+        controls.panSpeed = 0.6;
+        controls.zoomToCursor = true; // dolly toward whatever you point at
+        controls.screenSpacePanning = true;
       }
     } catch (err) {
       console.error("[graph] scene setup failed:", err);
@@ -290,7 +312,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
             controls.target.addScaledVector(down, camera.position.distanceTo(followPos) * 0.18);
           }
-          controls.update();
           followAnchor.copy(followPos);
           followAnchorId = fid;
         }
@@ -417,8 +438,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
         }
         controls.target.copy(target); // locked; user can still orbit around it
-        controls.update();
       }
+
+      // Single damped update per frame (required for inertia + zoom-to-cursor).
+      controls?.update();
 
       raf = requestAnimationFrame(tick);
     };
@@ -483,6 +506,45 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     }, 1050);
   };
 
+  // Snap to a flattering "best view" of the whole galaxy: a consistent cinematic
+  // 3/4 angle (slightly above + to the side) framed to the galaxy's bounding
+  // sphere, rather than zoomToFit's lock to whatever angle the camera drifted to.
+  const frameGalaxy = (ms = 900, filter?: (n: any) => boolean) => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const pts = (dataRef.current.nodes as any[]).filter(
+      (n) => n.x != null && (!filter || filter(n)),
+    );
+    if (pts.length === 0) {
+      fg.zoomToFit(ms, 80, filter);
+      return;
+    }
+    const center = new THREE.Vector3();
+    for (const n of pts) center.add(new THREE.Vector3(n.x, n.y, n.z ?? 0));
+    center.multiplyScalar(1 / pts.length);
+    let radius = 1;
+    for (const n of pts) {
+      radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
+    }
+    const cam = fg.camera() as THREE.PerspectiveCamera;
+    const fov = ((cam.fov ?? 60) * Math.PI) / 180;
+    const aspect = cam.aspect ?? 1;
+    // Fit by the tighter of vertical/horizontal FOV, with margin for labels/orbits.
+    const vFit = radius / Math.sin(fov / 2);
+    const hFit = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
+    let dist = Math.max(vFit, hFit) * 1.25;
+    dist = Math.min(dist, maxDistRef.current * 0.95);
+    const az = Math.PI * 0.22; // gentle yaw so it doesn't look dead-on
+    const el = Math.PI * 0.2; // lift above the orbital plane for depth
+    const dirv = new THREE.Vector3(
+      Math.cos(el) * Math.sin(az),
+      Math.sin(el),
+      Math.cos(el) * Math.cos(az),
+    );
+    const camPos = center.clone().addScaledVector(dirv, dist);
+    fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
+  };
+
   useImperativeHandle(
     ref,
     () => ({
@@ -492,7 +554,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjRef.current = null;
         followKindRef.current = null;
         setCluster(null); // exit any isolated system view
-        fgRef.current?.zoomToFit(800, 70);
+        frameGalaxy(900);
       },
       toggleFollowShip: () => {
         const on = followKindRef.current !== "ship";
@@ -539,7 +601,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // Let the visibility filter apply, then fit the camera to the system, and
         // once framed, gently track its centre so it doesn't drift out of view.
         window.setTimeout(() => {
-          fgRef.current?.zoomToFit(900, 90, (n: any) => sys.has(n.id));
+          frameGalaxy(900, (n: any) => sys.has(n.id));
         }, 80);
         window.setTimeout(() => {
           followRef.current = id;
@@ -548,7 +610,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       exitCluster: () => {
         setCluster(null);
         followRef.current = null;
-        fgRef.current?.zoomToFit(800, 70);
+        frameGalaxy(800);
       },
       spawnBurst: (id: number, type = "user") => {
         const n = (data.nodes as any[]).find((x) => x.id === id);

@@ -142,7 +142,13 @@ export async function getGraph(limit = 300): Promise<GraphData> {
 
 export async function ingestText(
   text: string,
-  opts?: { kind?: "memory" | "action"; ttlHours?: number },
+  opts?: {
+    kind?: "memory" | "action";
+    ttlHours?: number;
+    occurredAt?: string;
+    remindAt?: string;
+    tags?: string[];
+  },
 ): Promise<IngestResult> {
   return tracked(
     (async () => {

@@ -14,6 +14,9 @@ export interface NewNode {
   color?: string;
   kind?: "memory" | "action";
   expiresAt?: string;
+  occurredAt?: string;
+  remindAt?: string;
+  tags?: string[];
 }
 
 function toGraphNode(row: NodeRow): GraphNode {
@@ -29,8 +32,23 @@ function toGraphNode(row: NodeRow): GraphNode {
     kind: (row.kind as "memory" | "action" | null) ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
+    occurredAt: row.occurredAt ?? undefined,
+    remindAt: row.remindAt ?? undefined,
+    tags: parseTags(row.tags),
     createdAt: row.createdAt,
   };
+}
+
+/** Tags are stored as a JSON array string; tolerate null/legacy/malformed values. */
+function parseTags(raw: string | null): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr) && arr.length > 0) return arr.map(String);
+  } catch {
+    /* ignore malformed */
+  }
+  return undefined;
 }
 
 /**
@@ -60,6 +78,9 @@ export class NodesRepo {
           color: input.color ?? null,
           kind: input.kind ?? null,
           expiresAt: input.expiresAt ?? null,
+          occurredAt: input.occurredAt ?? null,
+          remindAt: input.remindAt ?? null,
+          tags: input.tags && input.tags.length > 0 ? JSON.stringify(input.tags) : null,
           lastTendedAt: new Date().toISOString(), // freshly tended on creation
         })
         .returning()

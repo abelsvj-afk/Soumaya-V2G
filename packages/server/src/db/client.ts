@@ -29,6 +29,9 @@ export function bootstrapSchema(sqlite: RawDb): void {
       content TEXT NOT NULL,
       emotional_weight REAL,
       importance REAL,
+      occurred_at TEXT,
+      remind_at TEXT,
+      tags TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS edges (
@@ -129,6 +132,17 @@ function migrateSchema(sqlite: RawDb): void {
   // Celestial Economy: when a memory was last tended (drives entropy).
   if (!cols.some((c) => c.name === "last_tended_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN last_tended_at TEXT`);
+  }
+  // Temporal memory: when the event happened (backdatable), a future reminder,
+  // and free/curated tags. All optional, additive for existing volumes.
+  if (!cols.some((c) => c.name === "occurred_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN occurred_at TEXT`);
+  }
+  if (!cols.some((c) => c.name === "remind_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN remind_at TEXT`);
+  }
+  if (!cols.some((c) => c.name === "tags")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN tags TEXT`);
   }
 
   // Multi-tenancy: add space_id to every per-user table on existing volumes.

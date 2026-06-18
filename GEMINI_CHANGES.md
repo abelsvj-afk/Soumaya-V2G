@@ -4,6 +4,35 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Galaxy polish (GLB/camera/autofocus), temporal memories, generative score
+- [x] **Verified by Claude** — typecheck clean, **63 tests** pass, web build clean.
+- **GLB models render properly + premium feel:** added a PMREM environment map
+  (`RoomEnvironment`) to the scene in `graph/Graph3D.tsx`. The ship / space station /
+  Aura satellites use metallic PBR materials that rendered as black silhouettes with
+  no env map — now they catch light + soft reflections (also gives every body sheen).
+- **Camera no longer buggy:** OrbitControls now use inertial damping
+  (`enableDamping`), `zoomToCursor` (dolly toward the planet you point at), tuned
+  rotate/zoom/pan speeds, and a single `controls.update()` per frame (previously
+  update ran only while following an object, so free-fly movement/zoom never settled).
+- **Auto-focus snaps to a real "best view":** new `frameGalaxy()` frames the galaxy's
+  bounding sphere from a consistent cinematic 3/4 angle (yaw + lift) instead of
+  `zoomToFit` locking to whatever angle the camera had drifted to. Used by recenter,
+  exit-cluster, and isolate-system.
+- **Temporal + tagged memories** (full stack): new optional `occurred_at` (backdatable
+  event time), `remind_at` (future reminder), and `tags` (JSON) columns on `nodes`
+  (schema + idempotent migration + bootstrap). Threaded through `NodesRepo`, the
+  ingest pipeline (`IngestMeta`), and `POST /api/ingest` (zod-validated). Web: the
+  dump panel gains a curated tag-chip blend (life-areas + moods, `SUGGESTED_TAGS`) with
+  free-form add, plus optional "when did this happen?" / "remind me" datetime pickers;
+  `NodeInspector` shows tags + friendly relative dates. (Reminder *surfacing* in the
+  daily digest/Telegram is a noted follow-up — storage + display land now.)
+- **Generative "interstellar" score:** rebuilt `graph/audio.ts` into an evolving,
+  infinite Web-Audio engine — organ-like detuned voices gliding through an i–VI–III–VII
+  progression, a high shimmer pad, a rising arpeggio motif, cathedral feedback-delay
+  tail, sweeping filter + slow dynamic swells. No file, no loop seam, zero deps,
+  nothing copyrighted. Slow cinematic fade-in on toggle.
+- Tests: added `occurredAt/remindAt/tags` round-trip to `pipeline.test.ts`.
+
 ### 2026-06-18 (Claude): Telegram Phase B — multi-brain linking + proactive daily digest
 - [x] **Verified by Claude** — typecheck clean, **62 tests** pass, web build clean.
 - This deployment is multi-brain (anyone can open a brain), so Telegram is now

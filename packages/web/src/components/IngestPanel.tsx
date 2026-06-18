@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { SUGGESTED_TAGS } from "@brain/shared";
 import { ingestText } from "../api/client.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -6,6 +7,13 @@ const SpeechRec =
   typeof window !== "undefined"
     ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     : undefined;
+
+/** datetime-local value (local wall-clock, no tz) → ISO 8601 UTC, or undefined. */
+function toIso(local: string): string | undefined {
+  if (!local) return undefined;
+  const d = new Date(local);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
 
 export function IngestPanel({
   onIngested,
@@ -22,7 +30,22 @@ export function IngestPanel({
   const [listening, setListening] = useState(false);
   const [action, setAction] = useState(false);
   const [ttl, setTtl] = useState(24); // hours
+  // Temporal + context metadata.
+  const [tags, setTags] = useState<string[]>([]);
+  const [customTag, setCustomTag] = useState("");
+  const [showWhen, setShowWhen] = useState(false);
+  const [occurred, setOccurred] = useState(""); // datetime-local
+  const [remind, setRemind] = useState(""); // datetime-local
   const recRef = useRef<any>(null);
+
+  const toggleTag = (t: string) =>
+    setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
+
+  const addCustomTag = () => {
+    const t = customTag.trim();
+    if (t && !tags.includes(t)) setTags((prev) => [...prev, t]);
+    setCustomTag("");
+  };
 
   async function submit() {
     const body = details.trim() ? `${text.trim()}\n\n${details.trim()}` : text.trim();
@@ -31,7 +54,12 @@ export function IngestPanel({
     setBusy(true);
     setMsg("");
     try {
-      const r = await ingestText(body, action ? { kind: "action", ttlHours: ttl } : undefined);
+      const r = await ingestText(body, {
+        ...(action ? { kind: "action" as const, ttlHours: ttl } : {}),
+        ...(tags.length ? { tags } : {}),
+        ...(toIso(occurred) ? { occurredAt: toIso(occurred) } : {}),
+        ...(toIso(remind) ? { remindAt: toIso(remind) } : {}),
+      });
       const n = r.nodes.length;
       const e = r.extractedEdges.length + r.associativeEdges.length;
       const fuelBit = r.fuelEarned ? ` · +${r.fuelEarned.toFixed(1)} ⛽` : "";
@@ -43,6 +71,10 @@ export function IngestPanel({
       setText("");
       setDetails("");
       setShowDetails(false);
+      setTags([]);
+      setOccurred("");
+      setRemind("");
+      setShowWhen(false);
       onIngested(r.nodes.map((x: any) => x.id), r.fuelEarned);
     } catch (err) {
       setMsg((err as Error).message);
@@ -107,6 +139,66 @@ export function IngestPanel({
       ) : (
         <button className="ingest-more" onClick={() => setShowDetails(true)}>
           + Add more context (optional)
+        </button>
+      )}
+
+      {/* Tag chips: curated blend (life-areas + moods) plus free-form. */}
+      <div className="tag-row">
+        {SUGGESTED_TAGS.map((t) => (
+          <button
+            key={t}
+            type="button"
+            className={`tag-chip ${tags.includes(t) ? "on" : ""}`}
+            onClick={() => toggleTag(t)}
+          >
+            {t}
+          </button>
+        ))}
+        {tags
+          .filter((t) => !SUGGESTED_TAGS.includes(t))
+          .map((t) => (
+            <button key={t} type="button" className="tag-chip on" onClick={() => toggleTag(t)}>
+              {t} ×
+            </button>
+          ))}
+        <input
+          className="tag-input"
+          value={customTag}
+          onChange={(e) => setCustomTag(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addCustomTag();
+            }
+          }}
+          placeholder="+ tag"
+          aria-label="Add a custom tag"
+        />
+      </div>
+
+      {/* When did this happen + optional reminder. */}
+      {showWhen ? (
+        <div className="when-block">
+          <label className="when-field">
+            <span>🕰️ When did this happen?</span>
+            <input
+              type="datetime-local"
+              value={occurred}
+              onChange={(e) => setOccurred(e.target.value)}
+            />
+          </label>
+          <label className="when-field">
+            <span>⏰ Remind me</span>
+            <input
+              type="datetime-local"
+              value={remind}
+              onChange={(e) => setRemind(e.target.value)}
+            />
+          </label>
+        </div>
+      ) : (
+        <button className="ingest-more" onClick={() => setShowWhen(true)}>
+          + When / remind me (optional)
         </button>
       )}
 

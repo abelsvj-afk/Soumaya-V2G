@@ -18,6 +18,28 @@ interface Props {
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
 
+/** Friendly absolute date + relative hint, tolerant of SQLite "YYYY-MM-DD HH:MM:SS". */
+function fmtWhen(raw: string): string {
+  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return raw;
+  const abs = new Date(t).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const days = Math.round((t - Date.now()) / 8.64e7);
+  let rel = "";
+  if (days === 0) rel = "today";
+  else if (days === -1) rel = "yesterday";
+  else if (days === 1) rel = "tomorrow";
+  else if (days < 0) rel = `${-days}d ago`;
+  else rel = `in ${days}d`;
+  return `${abs} · ${rel}`;
+}
+
 export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
@@ -92,6 +114,25 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </p>
       )}
       <p className="content">{node.content}</p>
+
+      {(node.tags?.length || node.occurredAt || node.remindAt) && (
+        <div className="node-meta">
+          {node.tags && node.tags.length > 0 && (
+            <div className="node-tags">
+              {node.tags.map((t) => (
+                <span key={t} className="tag-chip readonly">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          {node.occurredAt && (
+            <p className="node-when">🕰️ Happened {fmtWhen(node.occurredAt)}</p>
+          )}
+          {node.remindAt && <p className="node-when">⏰ Reminder {fmtWhen(node.remindAt)}</p>}
+        </div>
+      )}
+
       {node.kind === "action" ? (
         <div className="action-due">
           <span>

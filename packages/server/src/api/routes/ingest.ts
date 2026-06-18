@@ -11,18 +11,23 @@ const IngestBody = z.object({
   // Optional: create a transient day-to-day action item that times out.
   kind: z.enum(["memory", "action"]).optional(),
   ttlHours: z.number().min(1).max(24 * 30).optional(),
+  // Optional temporal/context metadata. occurredAt = when it happened (backdatable),
+  // remindAt = a future nudge, tags = curated/free labels.
+  occurredAt: z.string().datetime().optional(),
+  remindAt: z.string().datetime().optional(),
+  tags: z.array(z.string().min(1).max(40)).max(12).optional(),
 });
 
 export function ingestRoutes(ctx: AppContext): Router {
   const r = Router();
-  // POST /api/ingest  { text, kind?, ttlHours? }
+  // POST /api/ingest  { text, kind?, ttlHours?, occurredAt?, remindAt?, tags? }
   r.post("/", async (req, res) => {
     const parsed = IngestBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Body must be { text: string }" });
       return;
     }
-    const { text, kind, ttlHours } = parsed.data;
+    const { text, kind, ttlHours, occurredAt, remindAt, tags } = parsed.data;
     const spaceId = spaceOf(res);
 
     // Action items are quick to-dos: a small body, no LLM extraction or linking,
@@ -39,6 +44,9 @@ export function ingestRoutes(ctx: AppContext): Router {
           importance: 0.12, // small celestial body
           kind: "action",
           expiresAt,
+          occurredAt,
+          remindAt,
+          tags,
         },
         vec,
       );
@@ -51,6 +59,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       { embeddings: ctx.embeddings, llm: ctx.llm },
       text,
       spaceId,
+      { occurredAt, remindAt, tags },
     );
     // Earn fuel for tending the galaxy: a memory + each association it forged.
     const fuelEarned = EARN_MEMORY + EARN_LINK * result.associativeEdges.length;

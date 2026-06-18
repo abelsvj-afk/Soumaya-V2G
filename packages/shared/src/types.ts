@@ -71,8 +71,28 @@ export interface GraphNode {
   lastTendedAt?: string;
   /** 0..1 "coolness" from neglect — enriched on read (0 = freshly tended). */
   entropy?: number;
+  /** Optional user-set date/time the memory's event actually happened (may be backdated). */
+  occurredAt?: string;
+  /** Optional user-set future reminder date/time to resurface this memory. */
+  remindAt?: string;
+  /** Free + curated labels for filtering/context (e.g. "Work", "Idea", "Anxious"). */
+  tags?: string[];
   createdAt: string;
 }
+
+/** Curated starter tags offered in the dump UI: a blend of life-areas + moods. */
+export const SUGGESTED_TAGS: readonly string[] = [
+  "Work",
+  "Health",
+  "Ideas",
+  "People",
+  "Money",
+  "Learning",
+  "Excited",
+  "Anxious",
+  "Grateful",
+  "Urgent",
+];
 
 /** The brain's "fuel" — a free in-app energy that powers Soumaya's autonomy. */
 export interface Fuel {

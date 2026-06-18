@@ -28,6 +28,12 @@ export const nodes = sqliteTable("nodes", {
   kind: text("kind"),
   expiresAt: text("expires_at"),
   lastTendedAt: text("last_tended_at"),
+  // When the memory's event actually happened (user-set, may be backdated).
+  occurredAt: text("occurred_at"),
+  // Future reminder to resurface this memory.
+  remindAt: text("remind_at"),
+  // JSON array of tag strings (curated + free-form).
+  tags: text("tags"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
