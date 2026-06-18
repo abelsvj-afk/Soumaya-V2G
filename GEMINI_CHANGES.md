@@ -4,6 +4,28 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Telegram Phase B — multi-brain linking + proactive daily digest
+- [x] **Verified by Claude** — typecheck clean, **62 tests** pass, web build clean.
+- This deployment is multi-brain (anyone can open a brain), so Telegram is now
+  per-brain: a chat must **link** before it can do anything.
+  - **`/link <name> <passcode>`** authenticates via `SpacesRepo.authOrCreate`
+    (creates the brain if the name is new, rejects a wrong passcode) and binds the
+    chat → brain. `/unlink` disconnects. Until linked, `/log` + questions are refused.
+  - New `telegram_links(chat_id PK, space_id, space_name, last_digest_date, created_at)`
+    table (bootstrap + idempotent migration in `db/client.ts`); `telegram/links.ts`
+    owns the SQL (`TelegramLinksRepo`). Removed the old single-brain env resolution
+    (`TELEGRAM_SPACE_ID` / `TELEGRAM_ALLOWED_CHAT_ID`).
+  - **Proactive nudges:** `sendDailyDigests` (bot.ts) sweeps every linked chat once
+    per UTC day and pushes that brain's digest — fresh memories, latent connections,
+    **"going cold" cooling beacons**, expired actions — via an hourly `setInterval`
+    in `index.ts` (gated on `TELEGRAM_BOT_TOKEN`, idempotent on `last_digest_date`).
+    Free: `buildDailyDigest` never calls the LLM. `/digest` pulls it on demand.
+  - Web: Command Center Telegram card now shows the `/link <name> <passcode>` flow
+    instead of the obsolete Brain-ID/`TELEGRAM_SPACE_ID` copy.
+  - Tests: `server/src/__tests__/telegram.test.ts` (linking, isolation between two
+    brains, digest sweep + idempotency); updated the bridge tests in `features.test.ts`.
+  - Docs: `plans/telegram-and-autonomy.md` updated (Phase B + multi-brain SHIPPED).
+
 ### 2026-06-17 (Claude): Telegram bridge (Phase A — chat + log)
 - [x] **Verified by Claude** — typecheck clean, **55 tests** pass, web build clean.
 - Talk to your brain from Telegram: message → GraphRAG answer (with sources);

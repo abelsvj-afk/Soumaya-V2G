@@ -113,16 +113,19 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
             <span>🛰️ Talk to me on Telegram</span>
           </div>
           <p className="budget-note">
-            Your Brain ID — set it as the <code>TELEGRAM_SPACE_ID</code> secret so the
-            bot answers from this brain:
+            Message the bot, then connect this brain with your login:
           </p>
           <code
             className="brain-id"
             title="Tap to copy"
-            onClick={() => navigator.clipboard?.writeText(getSpaceId() ?? "")}
+            onClick={() => navigator.clipboard?.writeText("/link <name> <passcode>")}
           >
-            {getSpaceId()}
+            /link &lt;name&gt; &lt;passcode&gt;
           </code>
+          <p className="budget-note">
+            Use the same name + passcode you signed in with. After that I'll answer
+            from this brain, log what you send, and bring you a daily digest.
+          </p>
         </div>
       )}
 

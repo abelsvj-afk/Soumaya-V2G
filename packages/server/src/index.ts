@@ -1,7 +1,7 @@
 import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
-import { setTelegramWebhook } from "./telegram/bot.js";
+import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -95,3 +95,19 @@ setInterval(() => {
     console.error("[soumaya] action sweep error:", err);
   }
 }, 60_000);
+
+// Proactive nudges (Phase B): once per UTC day, push each linked chat its brain's
+// daily digest (fresh memories, latent connections, cooling beacons). The sweep is
+// idempotent within the day, so an hourly tick simply fires it on the first run
+// after midnight UTC. Like the heartbeat, the digest is FREE (no LLM). Opt-in: it
+// only runs when a bot token is set, and only chats that /link receive anything.
+if (tgToken) {
+  const DIGEST_SWEEP_MS = Number(process.env.TELEGRAM_DIGEST_SWEEP_MS ?? 1000 * 60 * 60);
+  setInterval(() => {
+    void sendDailyDigests(ctx, (chatId, text) => tgSend(tgToken, chatId, text))
+      .then((sent) => {
+        if (sent > 0) console.log(`[telegram] pushed daily digest to ${sent} chat(s)`);
+      })
+      .catch((err) => console.error("[telegram] digest sweep error:", err));
+  }, DIGEST_SWEEP_MS);
+}

@@ -3,49 +3,47 @@
 How to talk to your Soumaya brain from Telegram, and the roadmap from "answers when
 you message her" to "thinks and reaches out on her own."
 
+This deployment hosts **many private brains** (anyone can open one), so Telegram is
+multi-brain: a chat first **links** to a brain by name + passcode, then everything
+routes to that brain.
+
 ## Phase A — Chat + Log (SHIPPED)
 
-Single brain, text replies, webhook. Message the bot → she answers from your
-memories (GraphRAG, with what she drew on); `/log <thought>` → ingests a memory and
-reports what landed + fuel earned.
+Message the bot → she answers from your memories (GraphRAG, with what she drew on);
+`/log <thought>` → ingests a memory and reports what landed + fuel earned.
 
 - `server/src/telegram/bot.ts` — `handleTelegramUpdate` (send injected, unit-tested),
-  `tgSend`, `setTelegramWebhook`, `resolveTelegramSpace`.
+  `tgSend`, `setTelegramWebhook`, `formatDigest`, `sendDailyDigests`.
 - `server/src/api/routes/telegram.ts` — `POST /api/telegram/webhook/:secret`
   (open route; verifies the secret in the path AND the
   `X-Telegram-Bot-Api-Secret-Token` header; acks immediately, processes async).
 - Webhook auto-registers on boot when the secrets + `PUBLIC_URL` are set.
 
-### Setup (one time)
-1. In Telegram, message **@BotFather** → `/newbot` → copy the bot token.
-2. Pick a long random webhook secret (any opaque string).
-3. Get your **Brain ID** from the app: open the Soumaya Command Center → "Talk to me
-   on Telegram" → tap the Brain ID to copy.
-4. Set Fly secrets and redeploy:
-   ```
-   fly secrets set \
-     TELEGRAM_BOT_TOKEN=123456:ABC... \
-     TELEGRAM_WEBHOOK_SECRET=<random-string> \
-     TELEGRAM_SPACE_ID=<your Brain ID> \
-     PUBLIC_URL=https://brain-soumaya-v1.fly.dev
-   ```
-   Optional hard lock to your own chat: `TELEGRAM_ALLOWED_CHAT_ID=<your chat id>`
-   (DM the bot once, then read the chat id from the server log or @userinfobot).
-5. On boot the server registers the webhook. Message the bot `/start`.
-
-> Feature is fully opt-in: with no `TELEGRAM_BOT_TOKEN` nothing changes.
-> Network note: the deployment must allow outbound HTTPS to `api.telegram.org`.
-
-## Phase B — Proactive nudges (NEXT)
+## Phase B — Proactive nudges (SHIPPED)
 
 Soumaya reaches out, not just responds.
 
-- A server-side scheduler (extend the existing heartbeat in `index.ts`) pushes the
-  **daily digest** and **"going cold" beacon nudges** to the linked chat.
-- Requires persisting the chat id (a `telegram_links` table — see Phase D) and a
-  per-brain "last digest sent" marker so it fires once/day.
-- Must respect the USD budget server-side (already tracked) — digests are free
-  (no LLM) so this is cheap; any LLM summary goes through the budget gate.
+- `sendDailyDigests` (bot.ts) sweeps every linked chat and pushes that brain's
+  **daily digest** — fresh memories with her take, latent connections she surfaced,
+  and **"going cold" beacon nudges** (cooling memories to revisit) + expired actions.
+- Driven by an hourly `setInterval` in `index.ts` (gated on `TELEGRAM_BOT_TOKEN`).
+  Idempotent within a UTC day via `telegram_links.last_digest_date`, so the hourly
+  tick simply fires the digest on the first run after midnight UTC.
+- **Free:** `buildDailyDigest` never calls the LLM, so — like the heartbeat — it can
+  never drain the API budget. `/digest` lets a user pull the same digest on demand.
+
+## Multi-brain linking (SHIPPED — was Phase D "multi-user")
+
+- `telegram_links(chat_id PRIMARY KEY, space_id, space_name, last_digest_date,
+  created_at)` (`db/client.ts` bootstrap + idempotent migration; `telegram/links.ts`
+  owns the SQL via `TelegramLinksRepo`).
+- `/link <name> <passcode>` authenticates via the existing `SpacesRepo.authOrCreate`
+  (creates the brain if the name is new, rejects a wrong passcode) and binds the chat.
+  `/unlink` disconnects. Until a chat links, `/log` and questions are refused with help.
+- Two chats linked to two brains stay fully isolated (covered by `telegram.test.ts`).
+
+> Passcode hygiene: `/link` puts the passcode in the chat history, so the success
+> reply tells the user to delete that message. (Same lightweight auth as the web app.)
 
 ## Phase C — Full server-side autonomy (BIGGER)
 
@@ -62,24 +60,35 @@ server-side so she evolves 24/7 and Telegram talks to that same agent.
   step over the maintenance ops exposed as **tools** — turning the scheduler into a
   real planning agent. Keep the deterministic ladder as the offline fallback.
 
-## Phase D — Voice notes (hybrid growth) + multi-user
+## Phase D — Voice notes (hybrid growth)
 
 - **Voice replies:** browser TTS can't run server-side, so spoken Telegram replies
   need a cloud TTS service (e.g. an API that returns an OGG/MP3). Reuse the
   `shared/dramatize.ts` tone to pick prosody, send as a Telegram voice note, and
   keep text as the default/fallback. Gate behind a `TELEGRAM_TTS_*` key so the
   offline path is never broken.
-- **Multi-user:** a `telegram_links(chat_id PRIMARY KEY, space_id, created_at)`
-  table + a `/link <name> <passcode>` command that authenticates via the existing
-  `SpacesRepo` and binds the chat to that brain. Replaces the single-brain
-  `TELEGRAM_SPACE_ID` resolution with a per-chat lookup.
+
+## Setup (one time)
+1. In Telegram, message **@BotFather** → `/newbot` → copy the bot token.
+2. Pick a long random webhook secret (any opaque string).
+3. Set Fly secrets and redeploy:
+   ```
+   fly secrets set \
+     TELEGRAM_BOT_TOKEN=123456:ABC... \
+     TELEGRAM_WEBHOOK_SECRET=<random-string> \
+     PUBLIC_URL=https://brain-soumaya-v1.fly.dev
+   ```
+4. On boot the server registers the webhook. Message the bot `/start`, then
+   `/link <name> <passcode>` with the same credentials you use on the web app.
+
+> Feature is fully opt-in: with no `TELEGRAM_BOT_TOKEN` nothing changes.
+> Network note: the deployment must allow outbound HTTPS to `api.telegram.org`.
 
 ## Environment variables
 
 | Var | Required | Purpose |
 | --- | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | to enable | BotFather token. |
+| `TELEGRAM_BOT_TOKEN` | to enable | BotFather token. Also enables the daily digest sweep. |
 | `TELEGRAM_WEBHOOK_SECRET` | to enable | Verifies inbound webhooks (path + header). |
-| `TELEGRAM_SPACE_ID` | recommended | Which brain the bot talks to (your Brain ID). |
 | `PUBLIC_URL` | for auto-register | Public base URL of the deployment. |
-| `TELEGRAM_ALLOWED_CHAT_ID` | optional | Restrict the bot to one chat. |
+| `TELEGRAM_DIGEST_SWEEP_MS` | optional | How often to check for due digests (default hourly). |

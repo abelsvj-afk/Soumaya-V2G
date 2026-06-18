@@ -217,8 +217,14 @@ describe("telegram bridge (chat + log, no network)", () => {
     return { sent, send: async (_chatId: number, text: string) => void sent.push(text) };
   };
 
+  // Multi-brain: a chat must /link to a brain before it can log or ask anything.
+  const link = async (handleTelegramUpdate: typeof import("../telegram/bot.js").handleTelegramUpdate) => {
+    await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "/link tester pass" } }, async () => {});
+  };
+
   it("/log ingests a memory and confirms with fuel", async () => {
     const { handleTelegramUpdate } = await import("../telegram/bot.js");
+    await link(handleTelegramUpdate);
     const { sent, send } = collect();
     await handleTelegramUpdate(
       ctxOf(),
@@ -227,12 +233,20 @@ describe("telegram bridge (chat + log, no network)", () => {
     );
     expect(sent[0]).toMatch(/Logged/i);
     expect(sent[0]).toMatch(/⛽/);
-    expect(new NodesRepo(handle).count()).toBeGreaterThan(0);
+    // The memory landed in the linked brain (not the default/legacy space).
+    const total = handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes`).get() as { c: number };
+    expect(total.c).toBeGreaterThan(0);
   });
 
   it("a plain message is answered from the brain", async () => {
-    await ingest(handle, { embeddings, llm }, "my dentist appointment is Tuesday", "legacy");
     const { handleTelegramUpdate } = await import("../telegram/bot.js");
+    await link(handleTelegramUpdate);
+    // Log into the linked brain so the question has something to draw on.
+    await handleTelegramUpdate(
+      ctxOf(),
+      { message: { chat: { id: 1 }, text: "/log my dentist appointment is Tuesday" } },
+      async () => {},
+    );
     const { sent, send } = collect();
     await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "when is the dentist?" } }, send);
     expect(sent.length).toBe(1);

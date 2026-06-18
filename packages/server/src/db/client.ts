@@ -84,6 +84,15 @@ export function bootstrapSchema(sqlite: RawDb): void {
       fuel REAL NOT NULL DEFAULT 25,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- Telegram: bind a chat to a brain so messages route to the right space and
+    -- proactive digests know where to push. One chat → one brain (re-/link swaps).
+    CREATE TABLE IF NOT EXISTS telegram_links (
+      chat_id INTEGER PRIMARY KEY,
+      space_id TEXT NOT NULL,
+      space_name TEXT NOT NULL,
+      last_digest_date TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -144,6 +153,15 @@ function migrateSchema(sqlite: RawDb): void {
       space_id TEXT PRIMARY KEY,
       fuel REAL NOT NULL DEFAULT 25,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    -- Telegram: bind a chat to a brain so messages route to the right space and
+    -- proactive digests know where to push. One chat → one brain (re-/link swaps).
+    CREATE TABLE IF NOT EXISTS telegram_links (
+      chat_id INTEGER PRIMARY KEY,
+      space_id TEXT NOT NULL,
+      space_name TEXT NOT NULL,
+      last_digest_date TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
 }
