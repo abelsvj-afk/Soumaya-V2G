@@ -1,5 +1,5 @@
 import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 
 /** Common words that carry no topical signal, so we don't "link" on them. */
 const STOPWORDS = new Set(
@@ -136,21 +136,26 @@ export class HeuristicProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
     // In-character (Soumaya) even offline — never impersonate the user.
     const chitchat = /\b(how are you|how's it going|what'?s up|you doing|hi|hello|hey)\b/i.test(
       question,
     );
+    // Offline, we can't truly reason over the persona/instructions, but we surface
+    // any retrieved knowledge so doc-RAG is observably working without a key.
+    const kb = opts?.knowledge ? `\n\nFrom your documents:\n${firstLines(opts.knowledge, 4)}` : "";
     if (context.length === 0) {
       const line = chitchat
         ? "Cruising the quiet outer reaches of your galaxy — calm out here, just starlight and a little drift. Ask me about a memory and I'll plot a course to it."
         : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
-      return { answer: line, citations: [] };
+      return { answer: line + kb, citations: [] };
     }
     const top = context.slice(0, 5);
     const answer =
       `From up here I can see a cluster on that heading:\n` +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
+      kb +
       `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.)`;
     return { answer, citations: top.map((c) => c.id) };
   }
@@ -166,7 +171,16 @@ export class HeuristicProvider implements LlmProvider {
     return `This sector contains ${nodes.length} closely related memories, humming with un-synthesized potential.`;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], _persona?: string): Promise<string> {
     return `Stardate: ${new Date().toLocaleDateString()}. Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
   }
+}
+
+/** First N non-empty lines of a block (for the offline knowledge excerpt). */
+function firstLines(text: string, n: number): string {
+  return text
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(0, n)
+    .join("\n");
 }

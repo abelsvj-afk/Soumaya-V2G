@@ -12,6 +12,9 @@ import { maintenanceRoutes } from "./routes/maintenance.js";
 import { usageRoutes } from "./routes/usage.js";
 import { constellationRoutes } from "./routes/constellations.js";
 import { loreRoutes } from "./routes/lore.js";
+import { instructionsRoutes } from "./routes/instructions.js";
+import { documentsRoutes } from "./routes/documents.js";
+import { personaRoutes } from "./routes/persona.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
@@ -22,7 +25,9 @@ export function createApp(ctx: AppContext): Express {
   app.set("trust proxy", 1); // behind Fly's proxy — needed for correct req.ip
   app.use(securityHeaders);
   app.use(cors());
-  app.use(express.json({ limit: "1mb" }));
+  // Raised from 1mb to accommodate knowledge-document text uploads (per-route zod
+  // `max` bounds each endpoint independently). Env-overridable.
+  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "4mb" }));
   app.use("/api", rateLimit());
 
   app.get("/api/health", (_req, res) => {
@@ -62,6 +67,9 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/maintenance", guard, maintenanceRoutes(ctx));
   app.use("/api/constellations", guard, constellationRoutes(ctx));
   app.use("/api/lore", guard, loreRoutes(ctx));
+  app.use("/api/instructions", guard, instructionsRoutes(ctx));
+  app.use("/api/documents", guard, documentsRoutes(ctx));
+  app.use("/api/persona", guard, personaRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

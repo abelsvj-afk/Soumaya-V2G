@@ -42,6 +42,9 @@ implementation quality is the whole game.
   - **Action Items / Agenda** Dock tab; **mature demo galaxy** (~140 nodes).
   - **Lore engine** (`lore/engine.ts`): persistent, versioned, world-aware Chronicle per
     object; grows autonomously. **Fleet & sub-agents**: Scout + Defender + 🚀 Fleet roster.
+  - **AI Companion** (🧠 tab): dual-layer prompts (core identity + stackable, intent-routed
+    custom instruction profiles), "About Me" persona awareness, knowledge-doc RAG (text/MD).
+  - **Living threads**: new links hidden until Soumaya draws them; idle threads faintly pulse.
 - **Active roadmap:** `plans/phase-4-living-galaxy.md`. **Phase 4 COMPLETE** (PWA, music,
   beacons, action list, mature demo, 24/7 autonomy, lore engine, fleet). Follow-ups:
   literal beacon-dispatch animation, Defender alien intercept, LLM-authored lore prose,
@@ -155,6 +158,32 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-18 (Claude): AI Companion Architecture v1 + living threads (hide-until-drawn + idle pulse)
+- [x] **Verified by Claude** — typecheck clean, **81 tests** pass (added `companion.test.ts`,
+  extended `migration.test.ts`), web build clean.
+- **Living threads** (`graph/Graph3D.tsx`): new links now stay **hidden** (`pendingLinksRef` +
+  `linkVisibility` + `fg.refresh()`) until Soumaya physically flies A→B and connects them
+  (then revealed + fired). Added a **faint idle pulse** (low-frequency `emitParticle` on a few
+  random visible links) so dormant threads aren't lifeless; kept the activity firing.
+- **AI Companion (dual-layer + knowledge + intent routing):**
+  - LLM seam: optional `AnswerOptions {systemExtra, persona, knowledge}` on `LlmProvider.answer`
+    (+ `composeSystem` / `buildAnswerPrompt(knowledge)`); threaded through heuristic/openai/
+    gemini/resilient. Optional param ⇒ existing 2-arg test fakes untouched.
+  - **Layer 2 — Custom Instruction Profiles** (`instruction_profiles`): stackable roles
+    (always-on or **auto/intent-routed** via `vec_profiles` + `knnProfiles` semantic match).
+  - **About Me** (`user_persona`): she's always *aware* of who you are (chat + the daily log)
+    but never becomes you.
+  - **Knowledge docs** (`knowledge_docs`/`knowledge_chunks` + `vec_docs`): text/MD upload →
+    `chunkText` → embed → RAG via `knnDocs` into chat. Dependency-free (PDF/DOCX deferred).
+  - `chat()` blends all layers (reusing the one question embedding); memory RAG unchanged.
+  - Routes: `/api/instructions` CRUD, `/api/documents` upload/list/delete, `/api/persona`
+    GET/PUT (space-scoped, zod); JSON limit raised to 4mb (`JSON_BODY_LIMIT`).
+  - Web: one **🧠 Companion** dock tab (`CompanionPanel`) — About Me + Custom Instructions +
+    Knowledge (first `<input type=file>`, `FileReader.readAsText`); `api/client.ts` additions.
+  - Repos: `InstructionProfilesRepo`, `KnowledgeRepo`, `UserPersonaRepo`; `knowledge/ingest.ts`.
+- Deferred (noted in `plans/phase-4-living-galaxy.md` follow-ups): PDF/DOCX parsing,
+  profile↔doc linking, behavioral "Knows Me" auto-persona, structured doc citations.
 
 ### 2026-06-18 (Claude): Soumaya draws connections herself + synapse-style link firing + card fix
 - [x] **Verified by Claude** — typecheck clean, 74 tests pass, web build clean.

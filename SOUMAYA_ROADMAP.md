@@ -75,6 +75,15 @@ This document tracks identified architectural gaps, technical debt, and proposed
 - [x] **Action Items list** (✅ Agenda Dock tab: actions w/ countdowns + Done, plus
   upcoming reminders from `remind_at`).
 
+## 🤖 AI Companion Architecture (Claude, 2026-06-18) — see `plans/phase-4-living-galaxy.md`
+- [x] **Dual-layer prompts:** core identity (Layer 1) + stackable custom instruction profiles
+  (Layer 2), with **intent routing** for `auto` profiles (semantic match via `vec_profiles`).
+- [x] **"About Me" persona awareness:** she's aware of who you are (chat + daily log), never becomes you.
+- [x] **Knowledge documents (RAG):** text/MD upload → chunk → embed (`vec_docs`) → retrieved in chat.
+- [x] One **🧠 Companion** dock tab (About Me / Custom Instructions / Knowledge).
+- [ ] Deferred: PDF/DOCX parsing, profile↔document linking, behavioral "Knows Me" auto-persona,
+  structured clickable doc citations, role-profiles applied to all autonomous jobs.
+
 ## 📝 Change Log (Claude & Gemini)
 *Track major architectural shifts and commit SHAs here.*
 

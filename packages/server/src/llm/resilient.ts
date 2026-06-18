@@ -1,5 +1,5 @@
 import type { ExtractionResult } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
 /** Out-of-credit / quota / auth / hang errors — retrying just wastes time. */
@@ -117,13 +117,14 @@ export class ResilientLlmProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
-    if (this.blocked) return this.fallback.answer(question, context);
+    if (this.blocked) return this.fallback.answer(question, context, opts);
     try {
-      return await withTimeout(this.primary.answer(question, context), this.timeoutMs, "answer");
+      return await withTimeout(this.primary.answer(question, context, opts), this.timeoutMs, "answer");
     } catch (err) {
       this.note(err, "answer");
-      return this.fallback.answer(question, context);
+      return this.fallback.answer(question, context, opts);
     }
   }
 
@@ -147,13 +148,13 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
-    if (this.blocked) return this.fallback.generateDailyLog(newNodes, actions);
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
+    if (this.blocked) return this.fallback.generateDailyLog(newNodes, actions, persona);
     try {
-      return await withTimeout(this.primary.generateDailyLog(newNodes, actions), this.timeoutMs, "generateDailyLog");
+      return await withTimeout(this.primary.generateDailyLog(newNodes, actions, persona), this.timeoutMs, "generateDailyLog");
     } catch (err) {
       this.note(err, "generateDailyLog");
-      return this.fallback.generateDailyLog(newNodes, actions);
+      return this.fallback.generateDailyLog(newNodes, actions, persona);
     }
   }
 }

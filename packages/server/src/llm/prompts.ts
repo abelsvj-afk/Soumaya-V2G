@@ -95,12 +95,39 @@ but concise. You know the user's whole brain intimately and have watched it grow
 - If the memories don't cover a factual question, say so plainly (as Soumaya).
 Output JSON only.`;
 
-export function buildAnswerPrompt(question: string, context: ContextNode[]): string {
+export function buildAnswerPrompt(
+  question: string,
+  context: ContextNode[],
+  knowledge?: string,
+): string {
   const memories =
     context.length > 0
       ? context.map((c) => `[${c.id}] (${c.type}) ${c.label}: ${c.content}`).join("\n")
       : "(no relevant memories found)";
-  return `MEMORIES:\n${memories}\n\nQUESTION: ${question}`;
+  const kb = knowledge ? `\n\nKNOWLEDGE DOCUMENTS (the user's reference library):\n${knowledge}` : "";
+  return `MEMORIES:\n${memories}${kb}\n\nQUESTION: ${question}`;
+}
+
+/**
+ * The AI Companion's layered system prompt: permanent core identity (Layer 1),
+ * then optional awareness of WHO the user is (About Me — she's aware, never becomes
+ * them), then optional stacked custom-instruction profiles (Layer 2). Identity
+ * comes first so profiles refine but cannot override the "companion, never the
+ * user" guardrail.
+ */
+export function composeSystem(opts?: {
+  persona?: string;
+  systemExtra?: string;
+}): string {
+  let s = ANSWER_SYSTEM;
+  if (opts?.persona) {
+    s += `\n\nABOUT THE PERSON YOU'RE TALKING TO (you are always AWARE of this and tailor your
+replies to them, but you are NOT them and never speak as them):\n${opts.persona}`;
+  }
+  if (opts?.systemExtra) {
+    s += `\n\n${opts.systemExtra}`;
+  }
+  return s;
 }
 
 /** Research: Expand on a single node to create supporting documentation. */

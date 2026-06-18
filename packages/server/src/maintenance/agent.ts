@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppContext } from "../context.js";
 import { findCandidates } from "../synthesis/engine.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
+import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
 import { GraphService } from "../graph/service.js";
 import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../db/schema.js";
@@ -323,9 +324,13 @@ export async function executeJob(
     const recentLogs = ctx.handle.sqlite
       .prepare(`SELECT action, description FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 10`)
       .all(spaceId) as { action: string; description: string }[];
+    // Persona awareness: her autonomous log is tailored to who you are (she's
+    // aware of you, never becomes you).
+    const persona = new UserPersonaRepo(ctx.handle, spaceId).get() ?? undefined;
     const logText = await ctx.llm.generateDailyLog(
       recentNodes.map((n) => ({ label: n.label, content: n.content })),
       recentLogs.map((l) => l.description),
+      persona,
     );
     ctx.handle.db
       .insert(dailyLogs)

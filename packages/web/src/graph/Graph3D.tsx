@@ -109,10 +109,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const k = linkKey(l);
         if (!knownLinksRef.current.has(k)) {
           knownLinksRef.current.add(k);
+          pendingLinksRef.current.add(k); // hide it until Soumaya draws it
           fresh.push({ source: linkEnd(l.source), target: linkEnd(l.target), key: k });
         }
       }
-      if (fresh.length > 0) soumayaHandleRef.current?.enqueueLinks(fresh);
+      if (fresh.length > 0) {
+        soumayaHandleRef.current?.enqueueLinks(fresh);
+        fgRef.current?.refresh?.(); // apply the new pending-hidden visibility
+      }
     }
   }, [data]);
 
@@ -142,6 +146,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
   const linksInitedRef = useRef(false);
+  // New links stay hidden until Soumaya physically flies out and connects them.
+  const pendingLinksRef = useRef<Set<string>>(new Set());
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const lastSatCountRef = useRef(-1);
@@ -314,6 +320,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     };
     const fireLink = (key: string) => {
       const f = fgRef.current;
+      // Reveal the freshly-drawn thread now that she's joined both ends.
+      if (pendingLinksRef.current.delete(key)) f?.refresh?.();
       if (!f?.emitParticle) return;
       const l = (dataRef.current.links as any[]).find((x) => linkKey(x) === key);
       if (!l) return;
@@ -334,6 +342,29 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (t2?.x != null) burstsRef.current?.spawn(t2.x, t2.y, t2.z ?? 0, "synthesis");
     };
 
+    // Faint idle pulse: so dormant threads aren't lifeless, occasionally send a
+    // single slow dot down a few random visible links (much quieter than the
+    // activity firing). Tunables:
+    const IDLE_PULSE_EVERY = 4; // seconds between ambient pulses
+    const IDLE_PULSE_LINKS = 2; // how many links shimmer each time
+    let idlePulseT = IDLE_PULSE_EVERY;
+    const idlePulse = () => {
+      const f = fgRef.current;
+      if (!f?.emitParticle) return;
+      const links = (dataRef.current.links as any[]).filter(
+        (l) => !pendingLinksRef.current.has(linkKey(l)),
+      );
+      if (links.length === 0) return;
+      for (let i = 0; i < Math.min(IDLE_PULSE_LINKS, links.length); i++) {
+        const l = links[Math.floor(Math.random() * links.length)];
+        try {
+          f.emitParticle(l);
+        } catch {
+          /* link not mounted */
+        }
+      }
+    };
+
     let raf = 0;
     let last = performance.now() * 0.001;
     const followAnchor = new THREE.Vector3();
@@ -343,6 +374,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const now = performance.now() * 0.001;
       const dt = Math.min(0.05, now - last);
       last = now;
+
+      // Ambient "alive" shimmer on idle threads.
+      idlePulseT -= dt;
+      if (idlePulseT <= 0) {
+        idlePulse();
+        idlePulseT = IDLE_PULSE_EVERY;
+      }
 
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
@@ -740,7 +778,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cooldownTime={Infinity}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) =>
-        !cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target)))
+        // Hidden while pending (Soumaya hasn't drawn it yet), and respects the
+        // isolate-system cluster filter.
+        !pendingLinksRef.current.has(linkKey(l)) &&
+        (!cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))))
       }
       nodeThreeObject={(node: any) => makeNodeObject(node)}
       nodeLabel={(n: any) => `${n.label} · ${String(n.type).replace(/_/g, " ")}`}

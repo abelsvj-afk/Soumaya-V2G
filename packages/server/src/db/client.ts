@@ -109,6 +109,40 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE INDEX IF NOT EXISTS lore_subject_idx
       ON lore(space_id, subject_type, subject_id, version);
+    -- AI Companion: Layer-2 instruction profiles, knowledge docs + chunks, About-Me.
+    CREATE TABLE IF NOT EXISTS instruction_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      body TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      mode TEXT NOT NULL DEFAULT 'always',
+      priority INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS instruction_profiles_space_idx ON instruction_profiles(space_id);
+    CREATE TABLE IF NOT EXISTS knowledge_docs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      mime TEXT NOT NULL DEFAULT 'text/plain',
+      char_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS knowledge_docs_space_idx ON knowledge_docs(space_id);
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      doc_id INTEGER NOT NULL REFERENCES knowledge_docs(id),
+      ordinal INTEGER NOT NULL,
+      content TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS knowledge_chunks_doc_idx ON knowledge_chunks(doc_id);
+    CREATE TABLE IF NOT EXISTS user_persona (
+      space_id TEXT PRIMARY KEY,
+      body TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 
@@ -203,6 +237,40 @@ function migrateSchema(sqlite: RawDb): void {
     );
     CREATE INDEX IF NOT EXISTS lore_subject_idx
       ON lore(space_id, subject_type, subject_id, version);
+    -- AI Companion: Layer-2 instruction profiles, knowledge docs + chunks, About-Me.
+    CREATE TABLE IF NOT EXISTS instruction_profiles (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      body TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      mode TEXT NOT NULL DEFAULT 'always',
+      priority INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS instruction_profiles_space_idx ON instruction_profiles(space_id);
+    CREATE TABLE IF NOT EXISTS knowledge_docs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      mime TEXT NOT NULL DEFAULT 'text/plain',
+      char_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS knowledge_docs_space_idx ON knowledge_docs(space_id);
+    CREATE TABLE IF NOT EXISTS knowledge_chunks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      doc_id INTEGER NOT NULL REFERENCES knowledge_docs(id),
+      ordinal INTEGER NOT NULL,
+      content TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS knowledge_chunks_doc_idx ON knowledge_chunks(doc_id);
+    CREATE TABLE IF NOT EXISTS user_persona (
+      space_id TEXT PRIMARY KEY,
+      body TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 }
 

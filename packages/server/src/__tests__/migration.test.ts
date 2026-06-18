@@ -67,5 +67,21 @@ describe("schema migration on a pre-existing volume", () => {
       .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='nodes_space_idx'`)
       .get();
     expect(idx).toBeDefined();
+
+    // 5. The AI Companion tables + their vec0 tables were added in place too.
+    const tableExists = (name: string) =>
+      handle!.sqlite
+        .prepare(`SELECT name FROM sqlite_master WHERE name = ?`)
+        .get(name) !== undefined;
+    for (const t of [
+      "instruction_profiles",
+      "knowledge_docs",
+      "knowledge_chunks",
+      "user_persona",
+      "vec_docs",
+      "vec_profiles",
+    ]) {
+      expect(tableExists(t), `missing table ${t}`).toBe(true);
+    }
   });
 });

@@ -114,6 +114,66 @@ export const lore = sqliteTable("lore", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+/**
+ * AI Companion — Layer 2: user-created, stackable instruction profiles (roles she
+ * adopts: Therapist, Business Advisor, …). `mode`: 'always' applies whenever
+ * enabled; 'auto' is intent-routed by semantic similarity to the question.
+ */
+export const instructionProfiles = sqliteTable(
+  "instruction_profiles",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    name: text("name").notNull(),
+    body: text("body").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    mode: text("mode").notNull().default("always"),
+    priority: integer("priority").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("instruction_profiles_space_idx").on(t.spaceId)],
+);
+
+/** AI Companion — a user's uploaded reference document (chunks live in knowledge_chunks). */
+export const knowledgeDocs = sqliteTable(
+  "knowledge_docs",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    name: text("name").notNull(),
+    mime: text("mime").notNull().default("text/plain"),
+    charCount: integer("char_count").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("knowledge_docs_space_idx").on(t.spaceId)],
+);
+
+/** A retrievable chunk of a knowledge doc; its embedding lives in vec_docs (JOIN on id). */
+export const knowledgeChunks = sqliteTable(
+  "knowledge_chunks",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    docId: integer("doc_id")
+      .notNull()
+      .references(() => knowledgeDocs.id),
+    ordinal: integer("ordinal").notNull(),
+    content: text("content").notNull(),
+  },
+  (t) => [index("knowledge_chunks_doc_idx").on(t.docId)],
+);
+
+/** AI Companion — "About Me": who the user is (singleton per brain). She's aware, never becomes them. */
+export const userPersona = sqliteTable("user_persona", {
+  spaceId: text("space_id").primaryKey(),
+  body: text("body").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export type InstructionProfileRow = typeof instructionProfiles.$inferSelect;
+export type KnowledgeDocRow = typeof knowledgeDocs.$inferSelect;
+export type KnowledgeChunkRow = typeof knowledgeChunks.$inferSelect;
+
 /** Summarized daily reflections on the brain's evolution. */
 export const dailyLogs = sqliteTable("daily_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),

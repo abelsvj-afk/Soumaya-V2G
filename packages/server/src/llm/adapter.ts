@@ -22,6 +22,19 @@ export interface LinkValidation {
 }
 
 /**
+ * Extra steering layered onto a chat answer (the AI Companion system). All
+ * optional so the offline heuristic + existing 2-arg test fakes stay valid.
+ */
+export interface AnswerOptions {
+  /** Blended, priority-ordered active custom instruction profiles (Layer 2). */
+  systemExtra?: string;
+  /** "About Me": who the user is. Soumaya is AWARE of this, never becomes them. */
+  persona?: string;
+  /** Retrieved knowledge-document chunks, pre-formatted with doc names. */
+  knowledge?: string;
+}
+
+/**
  * LlmProvider is the structured-reasoning seam. Gemini is the default; OpenAI
  * is a drop-in alternate; the heuristic provider keeps everything working with
  * no API key. `available` is false for the heuristic fallback so callers can
@@ -50,13 +63,14 @@ export interface LlmProvider {
   answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }>;
   /** Perform autonomous research on a single node to expand the knowledge base. */
   research(node: LinkCandidate): Promise<{ label: string; content: string }>;
   /** Generate a vibe description for a cluster of nodes. */
   summarizeSector(nodes: LinkCandidate[]): Promise<string>;
-  /** Generate a daily log of the brain's evolution. */
-  generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string>;
+  /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
+  generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
 }
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";

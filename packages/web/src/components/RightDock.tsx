@@ -7,9 +7,10 @@ import { DigestPanel } from "./DigestPanel.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 import { FleetPanel } from "./FleetPanel.js";
+import { CompanionPanel } from "./CompanionPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 
-export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet";
+export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion";
 
 interface Props {
   tab: DockTab;
@@ -38,6 +39,7 @@ const TABS: { id: DockTab; label: string }[] = [
   { id: "chat", label: "💬" },
   { id: "soumaya", label: "🛰️" },
   { id: "fleet", label: "🚀" },
+  { id: "companion", label: "🧠" },
 ];
 
 export function RightDock({
@@ -101,6 +103,7 @@ export function RightDock({
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
         {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}
         {tab === "fleet" && <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} />}
+        {tab === "companion" && <CompanionPanel demo={demo} />}
       </div>
     </div>
   );

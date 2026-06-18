@@ -1123,6 +1123,116 @@ body,
   cursor: pointer;
 }
 
+/* AI Companion panel (About Me / Custom Instructions / Knowledge) */
+.companion-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--glass-border);
+}
+.companion-section h3 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: var(--accent);
+}
+.companion-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+.companion-textarea {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  color: var(--text);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.companion-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.companion-item {
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+.companion-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.companion-mode {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.companion-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.companion-del:hover {
+  color: #ff6b6b;
+}
+.companion-body {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+.companion-doc-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.companion-doc-meta {
+  font-size: 11px;
+  color: var(--muted);
+}
+.companion-new {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.tag-input.wide {
+  width: 100%;
+  box-sizing: border-box;
+}
+.companion-new select,
+.companion-section select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+.companion-new input[type="file"] {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* Fleet roster panel */
 .fleet-intro {
   font-size: 12px;

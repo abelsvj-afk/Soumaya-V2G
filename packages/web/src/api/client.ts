@@ -471,3 +471,115 @@ export async function updateSetting(key: string, value: string): Promise<{ ok: b
   });
   return res.json() as Promise<{ ok: boolean }>;
 }
+
+// --- AI Companion: persona ("About Me"), instruction profiles, knowledge docs ---
+
+export async function getPersona(): Promise<string> {
+  try {
+    const res = await afetch(`${API}/persona`);
+    const d = (await res.json().catch(() => ({}))) as { body?: string };
+    return d.body ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function setPersona(body: string): Promise<void> {
+  await afetch(`${API}/persona`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+}
+
+export interface InstructionProfile {
+  id: number;
+  name: string;
+  body: string;
+  enabled: boolean;
+  mode: "always" | "auto";
+  priority: number;
+  createdAt: string;
+}
+
+export async function getInstructions(): Promise<InstructionProfile[]> {
+  try {
+    const res = await afetch(`${API}/instructions`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as InstructionProfile[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createInstruction(input: {
+  name: string;
+  body: string;
+  mode?: "always" | "auto";
+  priority?: number;
+}): Promise<InstructionProfile> {
+  const res = await afetch(`${API}/instructions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) throw new Error(`Create failed (${res.status})`);
+  return res.json() as Promise<InstructionProfile>;
+}
+
+export async function updateInstruction(
+  id: number,
+  patch: Partial<Pick<InstructionProfile, "name" | "body" | "enabled" | "mode" | "priority">>,
+): Promise<InstructionProfile> {
+  const res = await afetch(`${API}/instructions/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`Update failed (${res.status})`);
+  return res.json() as Promise<InstructionProfile>;
+}
+
+export async function deleteInstruction(id: number): Promise<void> {
+  await afetch(`${API}/instructions/${id}`, { method: "DELETE" });
+}
+
+export interface KnowledgeDoc {
+  id: number;
+  name: string;
+  mime: string;
+  charCount: number;
+  chunks?: number;
+  createdAt: string;
+}
+
+export async function getDocuments(): Promise<KnowledgeDoc[]> {
+  try {
+    const res = await afetch(`${API}/documents`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as KnowledgeDoc[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function uploadDocument(name: string, text: string, mime?: string): Promise<KnowledgeDoc> {
+  return tracked(
+    (async () => {
+      const res = await afetch(`${API}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, text, mime }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error ?? `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<KnowledgeDoc>;
+    })(),
+  );
+}
+
+export async function deleteDocument(id: number): Promise<void> {
+  await afetch(`${API}/documents/${id}`, { method: "DELETE" });
+}

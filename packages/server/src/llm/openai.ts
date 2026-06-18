@@ -1,10 +1,10 @@
 import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
-  ANSWER_SYSTEM,
+  composeSystem,
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
   LOG_SYSTEM,
@@ -178,6 +178,7 @@ export class OpenAiProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
     const schema = {
       type: "object",
@@ -189,8 +190,8 @@ export class OpenAiProvider implements LlmProvider {
       required: ["answer", "citations"],
     };
     const raw = await this.json<{ answer: string; citations: number[] }>(
-      ANSWER_SYSTEM,
-      buildAnswerPrompt(question, context),
+      composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
+      buildAnswerPrompt(question, context, opts?.knowledge),
       schema,
       "answer",
     );
@@ -232,9 +233,9 @@ export class OpenAiProvider implements LlmProvider {
     return raw.vibe;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
     const raw = await this.json<{ log: string }>(
-      LOG_SYSTEM,
+      persona ? `${LOG_SYSTEM}\n\nABOUT THE USER (be aware of who you serve, never become them):\n${persona}` : LOG_SYSTEM,
       buildLogPrompt(newNodes, actions),
       {
         type: "object",
