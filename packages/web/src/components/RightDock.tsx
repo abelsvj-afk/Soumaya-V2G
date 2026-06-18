@@ -1,12 +1,13 @@
 import type { GraphData, GraphNode } from "@brain/shared";
 import { NodeInspector } from "./NodeInspector.js";
 import { NodeList } from "./NodeList.js";
+import { ActionsPanel } from "./ActionsPanel.js";
 import { SectorView } from "./SectorView.js";
 import { DigestPanel } from "./DigestPanel.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 
-export type DockTab = "details" | "list" | "sectors" | "insights" | "chat" | "soumaya";
+export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya";
 
 interface Props {
   tab: DockTab;
@@ -20,12 +21,15 @@ interface Props {
   onClose?: () => void;
   onBack?: () => void;
   canBack?: boolean;
+  /** Demo galaxy is read-only (no backend) — disables destructive actions. */
+  demo?: boolean;
 }
 
 const TABS: { id: DockTab; label: string }[] = [
   { id: "details", label: "Details" },
   { id: "sectors", label: "🌌" },
   { id: "list", label: "📋" },
+  { id: "actions", label: "✅" },
   { id: "insights", label: "✨" },
   { id: "chat", label: "💬" },
   { id: "soumaya", label: "🛰️" },
@@ -43,6 +47,7 @@ export function RightDock({
   onClose,
   onBack,
   canBack,
+  demo,
 }: Props) {
   return (
     <div className="panel dock">
@@ -75,6 +80,9 @@ export function RightDock({
           />
         )}
         {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}
+        {tab === "actions" && (
+          <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} readOnly={demo} />
+        )}
         {tab === "sectors" && (
           <SectorView
             graph={graph}

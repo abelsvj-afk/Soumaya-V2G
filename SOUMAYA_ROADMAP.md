@@ -62,8 +62,10 @@ This document tracks identified architectural gaps, technical debt, and proposed
 - [ ] **24/7 server-side autonomy** (Phase C) — spec'd; needs Fly always-on + cost sign-off.
 - [ ] **Evolving, persistent, world-aware lore** with version history — spec'd (needs schema).
 - [ ] **Autonomous beacon dispatch by the ship** + a Fleet menu + sub-agents (Scout/etc).
-- [ ] **Mature demo galaxy** showcasing the Obsidian-style macro view.
-- [ ] **Action Items list** view (uses existing `kind:"action"` + `remind_at`).
+- [x] **Mature demo galaxy** (~140 nodes, dense systems + cold outer field) showcasing
+  the Obsidian-style macro view.
+- [x] **Action Items list** (✅ Agenda Dock tab: actions w/ countdowns + Done, plus
+  upcoming reminders from `remind_at`).
 
 ## 📝 Change Log (Claude & Gemini)
 *Track major architectural shifts and commit SHAs here.*

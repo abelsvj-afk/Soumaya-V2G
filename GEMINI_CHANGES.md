@@ -149,6 +149,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Phase 4 quick wins — Action Items list + mature demo galaxy
+- [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean.
+- **✅ Agenda Dock tab** (`components/ActionsPanel.tsx`): action items sorted by urgency
+  with due countdowns + a ✓ Done button (clears + earns fuel via existing `deleteNode`),
+  plus an **Upcoming reminders** section from memories' `remind_at`. Read-only in demo.
+  Wired into `RightDock` (new `actions` tab) with a `demo` flag; CSS added.
+- **Mature demo galaxy** (`graph/demoGalaxy.ts`): ~140 nodes — 10 dense themed
+  life-systems + intra/cross-system constellation links + a faint 64-node cold outer
+  field, with varied mass/emotion/entropy/age. Makes beacons appear and gives the
+  Obsidian-style macro view real density on zoom-out.
+- Next in the Phase-4 program (user picked ALL + full 24/7): server-side 24/7 autonomy
+  (needs maintenance-service extraction + fly.toml always-on), then evolving lore
+  engine, then fleet/sub-agents. See `plans/phase-4-living-galaxy.md`.
+
 ### 2026-06-18 (Claude): Phase 4 kickoff — PWA install, music crackle, beacons, lore card, help
 - [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean (PWA
   assets confirmed in `dist/`).

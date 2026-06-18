@@ -435,6 +435,7 @@ export default function App() {
           onClose={() => setPanel(null)}
           onBack={back}
           canBack={history.length > 0}
+          demo={demo}
         />
       )}
     </div>

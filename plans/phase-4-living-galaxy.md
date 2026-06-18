@@ -41,15 +41,13 @@ free upkeep (prune/expire).
 - If a specific phone still crackles, next levers: drop the feedback delay entirely on
   low-power devices, or precompute the pad into a short `AudioBuffer` and loop-crossfade.
 
-## D. Demo mode = a MATURE galaxy + the Obsidian zoom-out phase — 📋 SPEC (🟢)
-- The in-app demo should show a **large, mature system** (hundreds of nodes, dense
-  hubs, constellations, beacons) so new users see what a grown brain looks like and the
-  **Obsidian-style macro view** (points-of-light field) reads properly.
-- Plan: expand `web/src/graph/demoGalaxy.ts` to procedurally generate a rich, clustered
-  graph with varied mass/emotion/entropy; ensure the LOD/macro swap (`MACRO_DIST` in
-  `Graph3D.tsx`) gives a clean Obsidian field on zoom-out. Tie "zoom-out phase" to
-  fading labels → sector titles → pure light, which already exists but needs density to
-  shine.
+## D. Demo mode = a MATURE galaxy + the Obsidian zoom-out phase — ✅ SHIPPED (🟢)
+- `demoGalaxy.ts` now generates ~140 nodes: 10 dense themed life-systems with
+  intra-theme density links, cross-system constellation links, a faint outer field of
+  64 long-tail "fragments" (mostly gone cold), and varied mass/emotion/entropy/age. The
+  cold periphery makes the Aura beacons appear and gives the existing LOD/macro swap
+  (`MACRO_DIST` in `Graph3D.tsx`) a real Obsidian-style field of lights on zoom-out.
+- Follow-up: a guided "zoom-out tour" and even larger optional density if wanted.
 
 ## E. The fleet & sub-agents — partly ✅, mostly 📋 (🟢/🔴)
 - **Beacon color follows emotion** — ✅ (`satellites.ts colorFor`: gold=positive,
@@ -95,11 +93,11 @@ This is the heart of what the user wants and the largest item.
 - ❓ Decisions: how aggressively lore re-writes (every change vs batched), and the
   Fuel/budget cost ceiling for lore generation.
 
-## H. Action items need a dedicated list — 📋 (🟢, quick, next up)
-- Action items (`kind:"action"`, with `expiresAt`) exist but are only visible as small
-  bodies. Add an **Action Items list** (a Dock tab or a section in the List panel):
-  shows label, due/expiry countdown, done ✓ (clears + earns fuel), sorted by urgency.
-  Ties to reminders (`remind_at`) from the temporal-memory work.
+## H. Action items need a dedicated list — ✅ SHIPPED (🟢)
+- New **✅ Agenda** Dock tab (`components/ActionsPanel.tsx`): action items
+  (`kind:"action"`) sorted by urgency with due countdowns + a ✓ Done button (clears the
+  item, earns fuel via the existing `deleteNode` path), plus an **Upcoming reminders**
+  section listing memories whose `remind_at` is in the future. Read-only in demo mode.
 
 ## I. Help = real understanding, not just how-tos — ✅ (ongoing) (🟢)
 - Added a "How the world works (the rules)" section to the Help panel: graph/gravity,
