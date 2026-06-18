@@ -153,6 +153,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Fix deploy — build-time model bake no longer fails the build
+- [x] **Verified by Claude** — typecheck clean; warm.ts exits 0 on fetch failure (tested).
+- **Symptom:** `flyctl deploy` failed at `RUN npx tsx .../embeddings/warm.ts` with
+  `UND_ERR_CONNECT_TIMEOUT` / `terminated` — the Depot/Fly build environment can't reach
+  HuggingFace to download the MiniLM model.
+- **Fix:** `embeddings/warm.ts` is now **best-effort** — retries 3× with backoff, then
+  warns and `exit(0)` so the image still builds. Baking is an optimization, not a
+  requirement: at runtime the model is fetched on first use, and if that also fails the
+  app degrades to the dependency-free **hash** embeddings (existing fallback). Set
+  `EMBED_WARM_STRICT=1` to restore fail-loud locally. Dockerfile unchanged.
+- Note: if the runtime host also can't reach HuggingFace, embeddings run in hash mode
+  (functional but not semantic). If guaranteed-semantic embeddings are needed offline,
+  next step is to commit the quantized model into the repo and bake from there.
+
 ### 2026-06-18 (Claude): 24/7 server-side autonomy (Phase C) — the brain evolves with no tab open
 - [x] **Verified by Claude** — typecheck clean, **68 tests** pass (added `agent.test.ts`),
   web build clean. Route contract preserved (api.test fuel assertions still pass).
