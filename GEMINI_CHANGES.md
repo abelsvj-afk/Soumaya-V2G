@@ -4,6 +4,27 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Full audit pass — cohesiveness + pitfall fixes
+- [x] **Verified by Claude** — gate green: typecheck clean, **52 tests pass**, web
+  build clean. Working tree clean, branch up to date with origin.
+- Ran a repo-wide review (docs, migrations, the four new feature areas) and fixed
+  the real gaps found:
+  - **Autonomous jobs now tend their nodes.** Synthesis/research/sector_vibe were
+    expanding nodes without resetting `last_tended_at`, so a beacon could sit on a
+    memory Soumaya just worked. Now consistent with the manual synthesize.
+  - **Beam NaN guard.** `satellites.ts` skips the beam when the probe sits exactly
+    on a node (zero-length direction would have produced a NaN quaternion).
+  - **Offline emotion.** The heuristic provider now sets `emotionalWeight` from
+    wording (via the shared `analyzeSentiment`), so emotion colour, harmonization,
+    visitor variants, and the chat voice all work with no API key.
+  - **Beacon lore-card auto-close.** If all beacons fade while you're following one,
+    the follow releases and the card closes (no dangling card with no button).
+- **Docs synced** (per WORKFLOW.md): `SOUMAYA_ROADMAP.md` change log + status,
+  `ASSETS_NEEDED.md` (aura-satellite.glb now listed as present).
+- Reviewed but intentionally left as-is: demo galaxy omits entropy (defaults to 0,
+  a patrol beacon still appears); fuel cap has no UI toast (the gauge shows it);
+  space_meta migration is additive/idempotent and fine for the current schema.
+
 ### 2026-06-17 (Claude): Focus speed-dial, always-visible beacons, "where did it land?"
 - **Game-style focus cluster.** Replaced the three stacked focus FABs with ONE
   🎯 button that pops its targets upward (ship 🛸 / station 🪐 / beacon 🛰️) — a

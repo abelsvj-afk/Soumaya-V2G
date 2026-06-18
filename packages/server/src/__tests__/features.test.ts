@@ -210,6 +210,15 @@ describe("celestial economy — entropy", () => {
   });
 });
 
+describe("offline emotion (heuristic sets emotionalWeight)", () => {
+  it("charges nodes positive/negative from wording with no LLM key", async () => {
+    const warm = await add("a grateful, joyful, wonderful day with people I love");
+    const cold = await add("a lonely day of grief, fear and pain");
+    expect(warm.nodes[0]!.emotionalWeight ?? 0).toBeGreaterThan(0);
+    expect(cold.nodes[0]!.emotionalWeight ?? 0).toBeLessThan(0);
+  });
+});
+
 describe("dramatization filter (voice tone)", () => {
   it("reads positive vs negative wording", () => {
     expect(analyzeSentiment("I am so grateful and happy, this is wonderful").valence).toBeGreaterThan(0);

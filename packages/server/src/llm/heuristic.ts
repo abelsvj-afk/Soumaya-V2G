@@ -1,4 +1,4 @@
-import type { ExtractionResult, NodeType, RelationshipType } from "@brain/shared";
+import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
 import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 
 /** Common words that carry no topical signal, so we don't "link" on them. */
@@ -76,6 +76,10 @@ export class HeuristicProvider implements LlmProvider {
   }
 
   async extract(text: string, _context: ContextNode[]): Promise<ExtractionResult> {
+    // Offline emotion: derive a -1..1 charge from the wording so the galaxy still
+    // colours by feeling, harmonization works, visitors pick a variant, and the
+    // chat voice has a tone — all without a cloud key (reuses the shared filter).
+    const { valence } = analyzeSentiment(text);
     return {
       nodes: [
         {
@@ -83,6 +87,7 @@ export class HeuristicProvider implements LlmProvider {
           type: this.guessType(text),
           content: text.trim(),
           importance: heuristicImportance(text),
+          emotionalWeight: Math.round(valence * 100) / 100,
         },
       ],
       edges: [],

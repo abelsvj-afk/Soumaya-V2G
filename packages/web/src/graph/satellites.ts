@@ -276,7 +276,14 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         // --- The real beam: from the probe down to the memory's surface. ---
         const from = g.position.clone();
         const beamDir = tp.clone().sub(from);
-        const len = Math.max(0.001, beamDir.length() - radius); // stop at the surface
+        const gap = beamDir.length();
+        if (gap < 0.001) {
+          // Probe sitting on top of the node — no meaningful beam this frame.
+          s.beam.visible = false;
+          s.impact.visible = false;
+          continue;
+        }
+        const len = Math.max(0.001, gap - radius); // stop at the surface
         beamDir.normalize();
         s.beam.visible = true;
         s.beam.position.copy(from);

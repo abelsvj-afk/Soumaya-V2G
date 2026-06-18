@@ -8,6 +8,9 @@ Vite copies `public/` into the build. Keep models low-poly and ideally ≤ a few
 ## ✅ Present (wired up)
 - `packages/web/public/soumaya-ship.glb` — Soumaya's maintenance ship.
 - `packages/web/public/space_station_3.glb` — the orbiting space station.
+- `packages/web/public/aura-satellite.glb` — Aura-class Beacon (the warmth-relay
+  satellites that beam memories going cold). Loaded by `graph/satellites.ts` with a
+  procedural probe fallback.
 - `packages/web/public/nebula-skybox.glb` — nebula skybox (16K texture, **desktop-only**;
   mobile uses the procedural nebula because 16K exceeds phone GPU limits).
 

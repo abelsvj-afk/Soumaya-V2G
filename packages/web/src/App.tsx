@@ -88,6 +88,15 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // If every beacon fades (its memory got tended) while we're watching one, the
+  // beacon button vanishes — so release the follow + close its lore card too.
+  useEffect(() => {
+    if (followSatellite && satelliteCount === 0) {
+      graphRef.current?.recenter();
+      setFollowSatellite(false);
+    }
+  }, [satelliteCount, followSatellite]);
+
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
     currentSpace()

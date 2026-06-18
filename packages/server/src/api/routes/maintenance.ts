@@ -283,6 +283,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             text,
             score,
           }).run();
+          nodesRepo.tend(t0); // she just worked these — reset their entropy clock
+          nodesRepo.tend(t1);
           description = `Synthesized latent connection between "${a.label}" and "${b.label}".`;
           res.json({ ok: true, detail: "Synthesized new insight." });
         }
@@ -337,6 +339,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
           // Update embedding to reflect new knowledge
           const newEmbedding = await ctx.embeddings.embed(expandedContent);
           upsertEmbedding(ctx.handle.sqlite, original.id, newEmbedding);
+          nodesRepo.tend(original.id); // researched = actively maintained, not cold
 
           description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
           res.json({ ok: true, detail: "Research integrated into memory." });
@@ -405,6 +408,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
             .set({ content: expandedContent })
             .where(and(eq(nodes.id, center.id), eq(nodes.spaceId, spaceId)))
             .run();
+          nodesRepo.tend(center.id); // charting the sector tends its centre
 
           description = `Charted sector vibe around "${center.label}": ${vibe}`;
           res.json({ ok: true, detail: "Sector vibe charted." });
