@@ -29,6 +29,8 @@ export interface Graph3DHandle {
   toggleFollowShip: () => boolean;
   /** Toggle the camera focusing the space station; returns the new state. */
   toggleFollowStation: () => boolean;
+  /** Jump to the next active Aura beacon (cycles through them). False if none. */
+  cycleFollowSatellite: () => boolean;
   /** Isolate a memory's system: show only it + the bodies orbiting it. */
   isolateSystem: (id: number) => void;
   /** Exit the isolated system view (show the whole galaxy again). */
@@ -41,6 +43,8 @@ interface Props {
   data: GraphData;
   onSelect: (node: GraphNode) => void;
   onSoumayaClick?: () => void;
+  /** Fires when the number of active beacons changes (drives the pulsing FAB). */
+  onSatelliteCount?: (count: number) => void;
   /** Currently-selected node — when set, only it + its links stay lit (tap-to-isolate). */
   selectedId?: number | null;
   /** True when the bottom sheet is open — shifts the followed body up so it clears it. */
@@ -51,7 +55,7 @@ interface Props {
 const linkEnd = (v: any): number => (typeof v === "object" && v !== null ? v.id : v);
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, selectedId, bottomInset },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, selectedId, bottomInset },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -88,7 +92,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followObjRef = useRef<THREE.Object3D | null>(null);
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
-  const followKindRef = useRef<"ship" | "station" | null>(null);
+  const followKindRef = useRef<"ship" | "station" | "satellite" | null>(null);
+  // Which active beacon we're cycling through with the satellite focus button.
+  const satFollowIndexRef = useRef(0);
   // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
   const followObjAnchor = useRef(new THREE.Vector3());
   const followObjAnchored = useRef(false);
@@ -100,6 +106,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
   const soumayaObjRef = useRef<THREE.Object3D | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
+  const satellitesRef = useRef<SatelliteSystem | null>(null);
+  const lastSatCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
@@ -163,6 +171,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       visitors = makeVisitors();
       scene.add(visitors.group);
       satellites = makeSatellites();
+      satellitesRef.current = satellites;
       scene.add(satellites.group);
       addBloom(fg, {});
 
@@ -234,8 +243,31 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
-      visitors?.update(dt, dataRef.current.nodes as any[]);
       satellites?.update(dt, dataRef.current.nodes as any[]);
+      // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
+      visitors?.update(
+        dt,
+        dataRef.current.nodes as any[],
+        satellites
+          ? { beaconedIds: satellites.getBeaconedIds(), positions: satellites.getPositions() }
+          : undefined,
+      );
+      // Tell React how many beacons are live, so the focus button can pulse.
+      if (satellites) {
+        const active = satellites.getActive();
+        if (active.length !== lastSatCountRef.current) {
+          lastSatCountRef.current = active.length;
+          onSatelliteCount?.(active.length);
+        }
+        // If the beacon we're following went dark, release the camera.
+        if (followKindRef.current === "satellite") {
+          const stillActive = active.some((a) => a.object === followObjRef.current);
+          if (!stillActive) {
+            followObjRef.current = null;
+            followKindRef.current = null;
+          }
+        }
+      }
 
       // Keep the zoom ceiling matched to the current galaxy size.
       if (controls) controls.maxDistance = maxDistRef.current;
@@ -481,6 +513,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjAnchored.current = false;
         if (on) followRef.current = null;
         return on;
+      },
+      cycleFollowSatellite: () => {
+        const active = satellitesRef.current?.getActive() ?? [];
+        if (active.length === 0) return false;
+        // Advance to the next beacon each press (wraps around the fleet).
+        const i = satFollowIndexRef.current % active.length;
+        satFollowIndexRef.current = (i + 1) % active.length;
+        followKindRef.current = "satellite";
+        followObjRef.current = active[i]!.object;
+        followDistRef.current = 30; // probes are small — sit in close
+        followSnapRef.current = true;
+        followObjAnchored.current = false;
+        followRef.current = null;
+        return true;
       },
       isolateSystem: (id: number) => {
         // Show only this memory + everything orbiting it, then frame the WHOLE

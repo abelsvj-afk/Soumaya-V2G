@@ -4,6 +4,26 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Beacons v2 — beam, focus button, alien fear, deeper lore
+- **Real tractor beam.** `satellites.ts` now fires a tapered additive beam from
+  each probe down to its memory's surface (orientation/length recomputed per
+  frame), with an impact glow where it lands — replacing the "just floating +
+  glowing" look. Beam width/opacity scale with how cold the memory is.
+- **Beacon focus button.** New 🛰️ FAB that only appears + **pulses** while
+  beacons are deployed; clicking cycles the camera through them
+  (`Graph3D.cycleFollowSatellite`, fed by `satellites.getActive()` and an
+  `onSatelliteCount` callback). The follow auto-releases when a beacon goes dark.
+  The space-station FAB icon moved 🛰️ → 🪐 (it's a station, not a satellite).
+- **Aliens fear/hate beacons.** `visitors.ts` takes a `VisitorHazard`
+  (beaconed ids + positions): drifters won't target a beamed memory, and if a
+  beacon strays within FLEE_RADIUS they flush hostile-red and bolt.
+- **Beacon lore.** `objectLore.ts` gains a `satellite` kind with evolving,
+  brain-aware text (names the coldest memory, counts the cooling ones, notes the
+  drifters' fear); shown in the focus card (ObjectLoreCard). SATELLITE_LORE also
+  updated to mention the beam + the aliens.
+- Help menu updated (station 🪐, beacon 🛰️). Typecheck + web build clean; 51 tests
+  green.
+
 ### 2026-06-17 (Claude): Aura-class Beacon satellites (asset + purpose + lore)
 - Added `public/aura-satellite.glb` (user-supplied "Aura_B" model).
 - New `web/src/graph/satellites.ts` — `makeSatellites()` system (procedural probe

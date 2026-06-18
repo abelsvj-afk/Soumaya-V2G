@@ -1,7 +1,7 @@
 import type { GraphData } from "@brain/shared";
 
 /** Lore-bearing non-memory objects in the galaxy. */
-export type LoreObjectKind = "station" | "ship";
+export type LoreObjectKind = "station" | "ship" | "satellite";
 
 interface BrainSignals {
   count: number; // memories
@@ -9,6 +9,8 @@ interface BrainSignals {
   tone: number; // avg emotional weight, -1..1
   ageDays: number; // since the oldest memory (the galaxy's age)
   hub?: string; // biggest hub's label
+  cooling: number; // memories going cold (entropy >= threshold)
+  coldest?: string; // label of the coldest memory
 }
 
 /** Parse sqlite ("YYYY-MM-DD HH:MM:SS", UTC) or ISO timestamps safely. */
@@ -29,6 +31,8 @@ function readSignals(graph: GraphData): BrainSignals {
   let toneN = 0;
   let oldest = Infinity;
   let hub = nodes[0];
+  let cooling = 0;
+  let coldest = nodes[0];
   for (const n of nodes) {
     if (typeof n.emotionalWeight === "number") {
       toneSum += n.emotionalWeight;
@@ -37,6 +41,8 @@ function readSignals(graph: GraphData): BrainSignals {
     const ms = parseTs(n.createdAt);
     if (ms !== null && ms < oldest) oldest = ms;
     if ((n.degree ?? 0) > (hub?.degree ?? -1) || (hub == null)) hub = n;
+    if ((n.entropy ?? 0) >= 0.45) cooling += 1;
+    if ((n.entropy ?? 0) > (coldest?.entropy ?? -1) || coldest == null) coldest = n;
   }
   const ageDays = oldest === Infinity ? 0 : Math.max(0, (Date.now() - oldest) / 86_400_000);
   return {
@@ -45,6 +51,8 @@ function readSignals(graph: GraphData): BrainSignals {
     tone: toneN > 0 ? toneSum / toneN : 0,
     ageDays,
     hub: hub?.label,
+    cooling,
+    coldest: (coldest?.entropy ?? 0) >= 0.45 ? coldest?.label : undefined,
   };
 }
 
@@ -98,6 +106,19 @@ export function objectLoreFor(
             : `${s.count} worlds and ${s.links} routes — a vast, humming galaxy. I rarely sleep; there's always a new orbit to plot.`;
     const mood = `The currents out here run ${tone}.`;
     return { title, log: `${intro} ${state} ${mood}` };
+  }
+
+  if (kind === "satellite") {
+    const title = "Aura-class Beacon";
+    const intro = `An Aura beacon — one of the salvaged warmth-relays, ${age}.`;
+    const duty =
+      s.cooling === 0
+        ? `Every memory runs warm right now; I drift on standby, beam banked, listening for the first to chill.`
+        : s.coldest
+          ? `${s.cooling} ${s.cooling === 1 ? "memory is" : "memories are"} going cold — I've pinned my beam to “${s.coldest}” so it won't fade unseen. I can't rekindle it; that's yours to do. Come back to it and I'll move on.`
+          : `${s.cooling} ${s.cooling === 1 ? "memory is" : "memories are"} cooling; I'm holding a beam over the dimmest of them until you return.`;
+    const aside = `The drifters keep their distance — my beam fouls their bearings, and they've learned to fear it.`;
+    return { title, log: `${intro} ${duty} ${aside}` };
   }
 
   // station

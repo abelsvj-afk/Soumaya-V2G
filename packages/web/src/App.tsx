@@ -36,6 +36,8 @@ export default function App() {
   const [music, setMusic] = useState(false);
   const [followShip, setFollowShip] = useState(false);
   const [followStation, setFollowStation] = useState(false);
+  const [followSatellite, setFollowSatellite] = useState(false);
+  const [satelliteCount, setSatelliteCount] = useState(0);
   const [help, setHelp] = useState(false);
   const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
@@ -197,6 +199,7 @@ export default function App() {
           setTab("chat"); // tapping her ship = talk to Soumaya
           setPanel("dock");
         }}
+        onSatelliteCount={setSatelliteCount}
         selectedId={selected?.id ?? null}
         bottomInset={panel === "dock"}
       />
@@ -253,10 +256,10 @@ export default function App() {
 
       {help && <HelpPanel onClose={() => setHelp(false)} />}
 
-      {/* Evolving lore for the focused object (station / ship). */}
-      {(followStation || followShip) && (
+      {/* Evolving lore for the focused object (station / ship / beacon). */}
+      {(followStation || followShip || followSatellite) && (
         <ObjectLoreCard
-          kind={followShip ? "ship" : "station"}
+          kind={followShip ? "ship" : followSatellite ? "satellite" : "station"}
           graph={view}
           onClose={() => {
             if (followShip) {
@@ -266,6 +269,10 @@ export default function App() {
             if (followStation) {
               graphRef.current?.toggleFollowStation();
               setFollowStation(false);
+            }
+            if (followSatellite) {
+              graphRef.current?.recenter();
+              setFollowSatellite(false);
             }
           }}
         />
@@ -304,6 +311,7 @@ export default function App() {
               graphRef.current?.recenter();
               setFollowShip(false);
               setFollowStation(false);
+              setFollowSatellite(false);
               setClustered(false);
             }}
             aria-label="Recenter galaxy"
@@ -316,6 +324,7 @@ export default function App() {
             onClick={() => {
               setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
               setFollowStation(false);
+              setFollowSatellite(false);
             }}
             aria-label="Focus Soumaya"
             title="Focus Soumaya's ship"
@@ -327,12 +336,28 @@ export default function App() {
             onClick={() => {
               setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
               setFollowShip(false);
+              setFollowSatellite(false);
             }}
             aria-label="Focus space station"
             title="Focus the space station"
           >
-            🛰️
+            🪐
           </button>
+          {satelliteCount > 0 && (
+            <button
+              className={`fab fab-satellite pulse ${followSatellite ? "on" : ""}`}
+              onClick={() => {
+                const on = graphRef.current?.cycleFollowSatellite() ?? false;
+                setFollowSatellite(on);
+                setFollowShip(false);
+                setFollowStation(false);
+              }}
+              aria-label="Jump to an Aura beacon"
+              title={`Jump to a beacon (${satelliteCount} active over cooling memories)`}
+            >
+              🛰️
+            </button>
+          )}
           <button
             className={`fab fab-music ${music ? "on" : ""}`}
             onClick={toggleMusic}

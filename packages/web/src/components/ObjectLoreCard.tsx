@@ -20,7 +20,7 @@ export function ObjectLoreCard({
     <div className="object-lore">
       <div className="object-lore-head">
         <span className="object-lore-title">
-          {kind === "ship" ? "🛸" : "🛰️"} {title}
+          {kind === "ship" ? "🛸" : kind === "satellite" ? "🛰️" : "🪐"} {title}
         </span>
         <button className="object-lore-close" onClick={onClose} aria-label="Close">
           ✕

@@ -7,15 +7,16 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
  *
  * PURPOSE (tied to the Celestial Economy's entropy): a small fleet of probes that
  * autonomously seek out memories going COLD from neglect (high `entropy`) and take
- * up orbit around them, pulsing a warm beacon. They make the abstract cooling
- * signal physical — a satellite circling a memory is Soumaya saying "this one is
- * fading, come back to it." Tend the memory (focus it → entropy resets) and the
- * beacon's work is done; it drifts off to the next-coldest star.
+ * up orbit around them, firing a warm tractor BEAM down onto the memory. They make
+ * the abstract cooling signal physical — a satellite beaming a memory is Soumaya
+ * saying "this one is fading, come back to it." Tend the memory (focus it →
+ * entropy resets) and the beam cuts out; the beacon drifts to the next-coldest.
  *
  * LORE: the Aura beacons are older than the ship — salvaged warmth-relays Soumaya
  * keeps in the dark between the memories. They cannot rekindle a memory themselves;
- * only you can. So they do the one thing they can: they refuse to let a cooling
- * thought go dark unseen, and hold a light over it until you return.
+ * only you can. So they do the one thing they can: pin a warm beam to a cooling
+ * thought and hold it there until you return. (Drifters give them a wide berth —
+ * the relays' beam scrambles a wanderer's bearings, so the aliens fear them.)
  *
  * Procedural fallback first; the real glTF swaps in when it loads. Self-animated
  * from the Graph3D tick via update(dt, nodes).
@@ -23,9 +24,10 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 export const SATELLITE_NAME = "Aura-class Beacon";
 export const SATELLITE_LORE =
-  "Soumaya's salvaged warmth-relays. They drift to memories going cold and hold a " +
-  "beacon over them — they can't rekindle a fading thought, only you can, so they " +
-  "make sure none cools unseen. Visit a beaconed memory to warm it; the beacon moves on.";
+  "Soumaya's salvaged warmth-relays. They drift to memories going cold and pin a " +
+  "warm beam onto them — they can't rekindle a fading thought, only you can, so they " +
+  "make sure none cools unseen. Visit a beamed memory to warm it; the beacon moves on. " +
+  "Drifters fear them: the beam scrambles a wanderer's bearings, so the aliens keep clear.";
 
 /** A memory is "going cold" (worth a beacon) at/above this entropy. */
 const COLD_THRESHOLD = 0.45;
@@ -45,17 +47,17 @@ const bodyRadius = (n: any): number => {
   }
 };
 
-function makeBeaconSprite(): THREE.Sprite {
+function makeGlowSprite(inner: string, mid: string): THREE.Sprite {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const ctx = c.getContext("2d")!;
   const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, "rgba(255,210,130,0.95)");
-  g.addColorStop(0.4, "rgba(255,170,80,0.35)");
+  g.addColorStop(0, inner);
+  g.addColorStop(0.4, mid);
   g.addColorStop(1, "rgba(255,150,60,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
-  const s = new THREE.Sprite(
+  return new THREE.Sprite(
     new THREE.SpriteMaterial({
       map: new THREE.CanvasTexture(c),
       transparent: true,
@@ -63,12 +65,10 @@ function makeBeaconSprite(): THREE.Sprite {
       blending: THREE.AdditiveBlending,
     }),
   );
-  s.scale.set(34, 34, 1);
-  return s;
 }
 
-/** A single procedural satellite (central bus + solar panels + dish) + beacon. */
-function makeProbe(): { group: THREE.Group; beacon: THREE.Sprite; fallback: THREE.Group } {
+/** A single procedural satellite (central bus + solar panels + dish) + running light. */
+function makeProbe(): { group: THREE.Group; light: THREE.Sprite; fallback: THREE.Group } {
   const group = new THREE.Group();
 
   const fallback = new THREE.Group();
@@ -111,8 +111,10 @@ function makeProbe(): { group: THREE.Group; beacon: THREE.Sprite; fallback: THRE
   fallback.add(dish);
   group.add(fallback);
 
-  const beacon = makeBeaconSprite();
-  group.add(beacon);
+  // Small running light on the probe itself (the beam below does the heavy lifting).
+  const light = makeGlowSprite("rgba(255,210,130,0.95)", "rgba(255,170,80,0.3)");
+  light.scale.set(10, 10, 1);
+  group.add(light);
 
   group.scale.setScalar(1.5);
   group.visible = false;
@@ -138,11 +140,33 @@ function makeProbe(): { group: THREE.Group; beacon: THREE.Sprite; fallback: THRE
     (err) => console.warn("[satellites] model failed to load; using procedural probe", err),
   );
 
-  return { group, beacon, fallback };
+  return { group, light, fallback };
 }
+
+/** A warm tractor beam (a tapered cylinder) that connects the probe to its memory. */
+function makeBeam(): THREE.Mesh {
+  // Unit cylinder along +Y; we orient + scale it between the two points each frame.
+  const geom = new THREE.CylinderGeometry(0.18, 1.1, 1, 10, 1, true);
+  geom.translate(0, 0.5, 0); // base at y=0, tip at y=1 so we can anchor at the probe
+  const mat = new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#ffb24d"),
+    transparent: true,
+    opacity: 0.0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide,
+  });
+  const beam = new THREE.Mesh(geom, mat);
+  beam.visible = false;
+  return beam;
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
 
 interface Slot {
   probe: ReturnType<typeof makeProbe>;
+  beam: THREE.Mesh;
+  impact: THREE.Sprite;
   targetId: number | null;
   angle: number;
   spin: number;
@@ -152,6 +176,12 @@ interface Slot {
 export interface SatelliteSystem {
   group: THREE.Group;
   update: (dt: number, nodes: any[]) => void;
+  /** Active beacons (currently beaming a memory) — for the focus button. */
+  getActive: () => { object: THREE.Object3D; targetId: number }[];
+  /** Ids of memories currently under a beam (drifters avoid these). */
+  getBeaconedIds: () => Set<number>;
+  /** World positions of active beacons (drifters flee these). */
+  getPositions: () => THREE.Vector3[];
 }
 
 export function makeSatellites(maxCount = 3): SatelliteSystem {
@@ -159,8 +189,11 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
   const slots: Slot[] = [];
   for (let i = 0; i < maxCount; i++) {
     const probe = makeProbe();
-    group.add(probe.group);
-    slots.push({ probe, targetId: null, angle: Math.random() * Math.PI * 2, spin: 0, fade: 0 });
+    const beam = makeBeam();
+    const impact = makeGlowSprite("rgba(255,235,190,0.95)", "rgba(255,180,90,0.45)");
+    impact.visible = false;
+    group.add(probe.group, beam, impact);
+    slots.push({ probe, beam, impact, targetId: null, angle: Math.random() * Math.PI * 2, spin: 0, fade: 0 });
   }
 
   let retarget = 0;
@@ -171,7 +204,7 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
       .filter((n) => (n.entropy ?? 0) >= COLD_THRESHOLD && n.x != null)
       .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0));
     const taken = new Set<number>();
-    // Keep a slot on its target if it's still cold; otherwise it's free.
+    // Keep a slot on its target if it's still cold; otherwise free it.
     for (const s of slots) {
       if (s.targetId != null && cold.some((n) => n.id === s.targetId)) taken.add(s.targetId);
       else s.targetId = null;
@@ -201,40 +234,75 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 
-        // Visibility eases in when beaconing, out when idle.
         const wantVisible = tp != null;
         s.fade = THREE.MathUtils.clamp(s.fade + (wantVisible ? dt : -dt) * 1.5, 0, 1);
         g.visible = s.fade > 0.02;
-        if (!g.visible) continue;
 
-        if (tp) {
-          const standoff = bodyRadius(target) + 18;
-          s.angle += dt * 0.6;
-          const want = new THREE.Vector3(
-            tp.x + Math.cos(s.angle) * standoff,
-            tp.y + Math.sin(s.angle * 0.7) * standoff * 0.4,
-            tp.z + Math.sin(s.angle) * standoff,
-          );
-          // Ease toward the orbit point (so a fresh assignment glides in).
-          const dir = want.clone().sub(g.position);
-          const d = dir.length();
-          g.position.addScaledVector(dir.normalize(), Math.min(d, 220 * dt));
-          g.lookAt(tp);
-
-          // Beacon pulses brighter the colder the memory is.
-          const entropy = target.entropy ?? 0.5;
-          s.spin += dt;
-          const pulse = 0.7 + 0.3 * Math.sin(s.spin * 3);
-          const scale = (26 + entropy * 26) * pulse * s.fade;
-          s.probe.beacon.scale.set(scale, scale, 1);
-          (s.probe.beacon.material as THREE.SpriteMaterial).opacity = (0.35 + entropy * 0.5) * s.fade;
+        if (!g.visible || !tp || !target) {
+          s.beam.visible = false;
+          s.impact.visible = false;
+          continue;
         }
+
+        const radius = bodyRadius(target);
+        const standoff = radius + 18;
+        s.angle += dt * 0.6;
+        const want = new THREE.Vector3(
+          tp.x + Math.cos(s.angle) * standoff,
+          tp.y + Math.sin(s.angle * 0.7) * standoff * 0.4,
+          tp.z + Math.sin(s.angle) * standoff,
+        );
+        const dir = want.clone().sub(g.position);
+        const d = dir.length();
+        g.position.addScaledVector(dir.normalize(), Math.min(d, 220 * dt));
+        g.lookAt(tp);
         g.scale.setScalar(1.5 * (0.4 + 0.6 * s.fade));
+
+        const entropy = target.entropy ?? 0.5;
+        s.spin += dt;
+        const pulse = 0.7 + 0.3 * Math.sin(s.spin * 3);
+
+        // Running light on the probe.
+        const ls = 9 * pulse * s.fade;
+        s.probe.light.scale.set(ls, ls, 1);
+        (s.probe.light.material as THREE.SpriteMaterial).opacity = 0.6 * s.fade;
+
+        // --- The real beam: from the probe down to the memory's surface. ---
+        const from = g.position.clone();
+        const beamDir = tp.clone().sub(from);
+        const len = Math.max(0.001, beamDir.length() - radius); // stop at the surface
+        beamDir.normalize();
+        s.beam.visible = true;
+        s.beam.position.copy(from);
+        s.beam.quaternion.setFromUnitVectors(UP, beamDir);
+        // Width pulses + grows with how cold the memory is; length spans the gap.
+        const width = (0.5 + entropy * 0.9) * (0.85 + 0.15 * Math.sin(s.spin * 5));
+        s.beam.scale.set(width, len, width);
+        (s.beam.material as THREE.MeshBasicMaterial).opacity = (0.22 + entropy * 0.4) * pulse * s.fade;
+
+        // Impact glow where the beam strikes the surface.
+        const hit = from.clone().addScaledVector(beamDir, len);
+        s.impact.visible = true;
+        s.impact.position.copy(hit);
+        const isz = (radius * 1.4 + 6) * (0.85 + 0.15 * Math.sin(s.spin * 6));
+        s.impact.scale.set(isz, isz, 1);
+        (s.impact.material as THREE.SpriteMaterial).opacity = (0.4 + entropy * 0.5) * s.fade;
       }
     } catch {
       /* skip frame */
     }
   };
 
-  return { group, update };
+  const getActive = () =>
+    slots
+      .filter((s) => s.targetId != null && s.fade > 0.5)
+      .map((s) => ({ object: s.probe.group as THREE.Object3D, targetId: s.targetId as number }));
+
+  const getBeaconedIds = () =>
+    new Set(slots.filter((s) => s.targetId != null && s.fade > 0.3).map((s) => s.targetId as number));
+
+  const getPositions = () =>
+    slots.filter((s) => s.fade > 0.3).map((s) => s.probe.group.position.clone());
+
+  return { group, update, getActive, getBeaconedIds, getPositions };
 }

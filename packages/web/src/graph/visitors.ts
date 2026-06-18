@@ -71,10 +71,21 @@ interface Slot {
   exit: THREE.Vector3;
 }
 
+/** What the Aura beacons are doing right now — drifters fear/hate these. */
+export interface VisitorHazard {
+  /** Memories currently under a beam — aliens won't visit these. */
+  beaconedIds: Set<number>;
+  /** World positions of active beacons — aliens flee when one gets close. */
+  positions: THREE.Vector3[];
+}
+
 export interface VisitorSystem {
   group: THREE.Group;
-  update: (dt: number, nodes: any[]) => void;
+  update: (dt: number, nodes: any[], hazard?: VisitorHazard) => void;
 }
+
+/** How close a beacon must get before a drifter panics and bolts. */
+const FLEE_RADIUS = 240;
 
 export function makeVisitors(maxConcurrent = 3): VisitorSystem {
   const group = new THREE.Group();
@@ -86,10 +97,12 @@ export function makeVisitors(maxConcurrent = 3): VisitorSystem {
   }
   let spawnTimer = 8; // first visitor a few seconds in
 
-  const spawn = (nodes: any[]) => {
+  const spawn = (nodes: any[], hazard?: VisitorHazard) => {
     const slot = slots.find((s) => s.phase === "idle");
     if (!slot) return;
-    const candidates = nodes.filter((n) => n.x != null);
+    // Drifters give beamed memories a wide berth — they won't even approach one.
+    const beaconed = hazard?.beaconedIds;
+    const candidates = nodes.filter((n) => n.x != null && !(beaconed?.has(n.id)));
     if (candidates.length === 0) return;
     const target = candidates[Math.floor(Math.random() * candidates.length)];
     
@@ -112,16 +125,29 @@ export function makeVisitors(maxConcurrent = 3): VisitorSystem {
     slot.craft.group.visible = true;
   };
 
-  const update = (dt: number, nodes: any[]) => {
+  const update = (dt: number, nodes: any[], hazard?: VisitorHazard) => {
     try {
       spawnTimer -= dt;
       if (spawnTimer <= 0) {
-        spawn(nodes);
+        spawn(nodes, hazard);
         spawnTimer = 25 + Math.random() * 45; // next visitor in 25–70s
       }
       for (const s of slots) {
         if (s.phase === "idle") continue;
         const g = s.craft.group;
+
+        // FEAR: if a beacon strays too close, the drifter flashes hostile and bolts.
+        if (s.phase !== "leave" && hazard?.positions?.length) {
+          let nearest = Infinity;
+          for (const p of hazard.positions) nearest = Math.min(nearest, p.distanceTo(g.position));
+          if (nearest < FLEE_RADIUS) {
+            s.craft.setColor(OMINOUS.hull, OMINOUS.glow); // hate/fear flush
+            s.phase = "leave";
+            // Run directly away from the galaxy centre (and the beam).
+            s.exit.copy(g.position).normalize().multiplyScalar(2800);
+          }
+        }
+
         const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 

@@ -911,6 +911,25 @@ body,
   left: 14px;
   font-size: 18px;
 }
+.fab-satellite {
+  bottom: 298px;
+  left: 14px;
+  font-size: 18px;
+}
+/* The beacon button breathes while satellites are beaming cooling memories. */
+.fab-satellite.pulse {
+  animation: fabpulse 1.6s ease-in-out infinite;
+}
+@keyframes fabpulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 178, 77, 0);
+    border-color: rgba(255, 178, 77, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px 4px rgba(255, 178, 77, 0.55);
+    border-color: rgba(255, 178, 77, 1);
+  }
+}
 
 /* Back arrow + memory list */
 .tab-back {
