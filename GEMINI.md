@@ -8,9 +8,38 @@ Claude (the Lead Engineer) is the ultimate authority on architecture and code qu
 
 ### 0. Mandatory Workflow & Skills
 - **Workflow**: Gemini **MUST FOLLOW** the [WORKFLOW.md](./WORKFLOW.md).
+- **Operating Guide**: The practical, file-level "what you own vs what's off-limits"
+  lives at the **top of [GEMINI_CHANGES.md](./GEMINI_CHANGES.md)** (🟢 Green Zone /
+  🔴 Red Zone / the gate / how to log). Read it before every task.
 - **Superpowers**: Gemini **MUST UTILIZE** the specialized skills in [.gemini/skills/](./.gemini/skills/):
+    - [🛠️ Implementation Craft](./.gemini/skills/implementation.md): **READ THIS WHEN
+      WRITING CODE.** Anti-stupidity rules + the repo's real-bug Hall of Shame. This is
+      the most important skill — implementation quality is where things break.
+    - [🌌 Galaxy & Frontend Mastery](./.gemini/skills/frontend-3d.md): The concrete
+      three.js / React / audio patterns that already work here. Copy, don't reinvent.
     - [⚡ Obra Superpowers](./.gemini/skills/superpowers.md): For the 7-phase agentic development cycle.
     - [🧪 Systematic Debugging](./.gemini/skills/debugging.md): For hypothesis-driven bug fixing.
+
+### 0.5 The Implementation Commandments (non-negotiable — the gist of the skills)
+These exist because unverified, hallucinated changes have broken the live app. Obey literally:
+1. **Verify, never assume.** "Done" is a lie unless `npm run typecheck && npm test &&
+   npm run build -w @brain/web` actually passed. No claim without a command behind it.
+2. **Grep before you write.** Never invent a function signature, prop, or import — find
+   the definition AND an existing caller and mirror it. *If you can't point to where it's
+   defined, you may not call it.*
+3. **Trace the data end-to-end first.** A field crosses
+   `db/schema → migration → repo mapper → service → route (zod) → api/client → React`.
+   Edit every link or it silently vanishes.
+4. **Smallest diff that works.** No drive-by refactors, no reformatting, no "just-in-case"
+   code. Surgical `replace` edits. Never delete/rewrite files Claude authored.
+5. **No `any`, no `as` to silence the compiler.** A cast means you misread the type — go
+   read it. Guard array access and nulls.
+6. **Respect the contract.** Touching shared types, db columns, `space_id` scoping,
+   token/USD/Fuel spend, or a route shape = **Red Zone → stage a plan, don't push.**
+7. **Offline fallback is sacred.** The app must run with zero API keys.
+8. **Visual honesty.** Every backend state change gets a matching visual event.
+9. **Finish the loop:** gate → log in `GEMINI_CHANGES.md` (never tick "Verified") → commit
+   on the deploy branch. Never `--force`, never `git init`.
 
 ### 1. Mandatory Tracking Updates
 **ALWAYS** update the following tracking files immediately after any code implementation or significant architectural change:

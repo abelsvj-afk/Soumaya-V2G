@@ -11,6 +11,11 @@ practical, file-level version of `GEMINI.md` + `WORKFLOW.md`. If those two ever
 disagree with this, this wins. Your job is **fast, surgical, visually-rich frontend
 work that keeps the gate green and never destabilizes the load-bearing systems.**
 
+**Before writing code, read your skills:** [🛠️ Implementation Craft](./.gemini/skills/implementation.md)
+(anti-stupidity rules + real-bug Hall of Shame) and [🌌 Galaxy & Frontend Mastery](./.gemini/skills/frontend-3d.md)
+(the three.js/React/audio patterns that already work). These are the "real deal" skills —
+implementation quality is the whole game.
+
 ## 📍 CURRENT STATE (Claude keeps this current — your source of truth)
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
@@ -139,6 +144,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-18 (Claude): Gave Gemini real implementation skills (anti-stupidity)
+- [x] **Verified by Claude** — docs-only (no code), gate untouched.
+- Added two concrete, repo-specific skill files (the old skills were process-only,
+  no actual implementation craft):
+  - `.gemini/skills/implementation.md` — the Prime Directive (verify, never assume),
+    grep-before-you-write, trace-data-end-to-end, smallest-diff, no-`any`, contract
+    respect, offline fallback, + a **Hall of Shame** of real bugs that shipped here
+    (vec0 `INSERT OR REPLACE`, UTC parsing, black GLBs, damping `update()`, direct
+    `fetch` bypassing the api client, `git init` orphaning master, wrong arg order).
+  - `.gemini/skills/frontend-3d.md` — the canonical "add a 3D object" recipe, three.js
+    traps, reusable visual building blocks, React/api-client rules, audio engine rules.
+- `GEMINI.md`: linked both new skills + the Operating Guide, and embedded the
+  **Implementation Commandments** (the 9-point gist) directly in the file so it's
+  enforced even if the skills aren't opened.
+- `GEMINI_CHANGES.md`: Operating Guide intro now points to the skills.
 
 ### 2026-06-18 (Claude): Galaxy polish (GLB/camera/autofocus), temporal memories, generative score
 - [x] **Verified by Claude** — typecheck clean, **63 tests** pass, web build clean.
