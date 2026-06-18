@@ -30,16 +30,18 @@ interface Props {
   getFleetStatus?: () => FleetStatus | undefined;
 }
 
-const TABS: { id: DockTab; label: string }[] = [
-  { id: "details", label: "Details" },
-  { id: "sectors", label: "🌌" },
-  { id: "list", label: "📋" },
-  { id: "actions", label: "✅" },
-  { id: "insights", label: "✨" },
-  { id: "chat", label: "💬" },
-  { id: "soumaya", label: "🛰️" },
-  { id: "fleet", label: "🚀" },
-  { id: "companion", label: "🧠" },
+// Each tab carries a human `name` (tooltip + accessible label) so the icon row is
+// debuggable and screen-reader friendly; `name` also maps 1:1 to the tab id/code.
+const TABS: { id: DockTab; label: string; name: string }[] = [
+  { id: "details", label: "Details", name: "Details" },
+  { id: "sectors", label: "🌌", name: "Sectors" },
+  { id: "list", label: "📋", name: "List" },
+  { id: "actions", label: "✅", name: "Agenda" },
+  { id: "insights", label: "✨", name: "Insights" },
+  { id: "chat", label: "💬", name: "Chat" },
+  { id: "soumaya", label: "🛰️", name: "Soumaya" },
+  { id: "fleet", label: "🚀", name: "Fleet" },
+  { id: "companion", label: "🧠", name: "Companion" },
 ];
 
 export function RightDock({
@@ -66,7 +68,14 @@ export function RightDock({
           </button>
         )}
         {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? "on" : ""} onClick={() => setTab(t.id)}>
+          <button
+            key={t.id}
+            className={tab === t.id ? "on" : ""}
+            onClick={() => setTab(t.id)}
+            title={t.name}
+            aria-label={t.name}
+            aria-current={tab === t.id ? "page" : undefined}
+          >
             {t.label}
           </button>
         ))}

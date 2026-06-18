@@ -159,6 +159,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Auto-derived persona (not user-editable) + master Beta Checklist + tab labels
+- [x] **Verified by Claude** — typecheck clean, **82 tests** pass, web build clean.
+- **"About Me" is now auto-derived, not editable.** New `persona/derive.ts`
+  (`derivePersona` + `refreshPersona`): a free, offline heuristic synthesis of the user
+  from their memories (themes/tags, emotional baseline, top hubs, time span). Refreshed
+  on read when stale (>6h), in the 24/7 autonomy loop, and on demand; `chat()` reads it
+  via `refreshPersona`. Route `/api/persona` is read-only (GET + POST `/refresh`); the PUT
+  + `setPersona` are gone. Companion UI shows it read-only with an "↻ Update now". Test added.
+- **Canonical master backlog:** `plans/beta-testing-checklist.md` — "Beta Testing Checklist
+  v0.1" (shipped foundations) + organized, prioritized "Additions to v0.1" (navigation,
+  memory discovery, visitor system, brain-at-scale immersion) with a short implementation
+  plan per item and the no-name-recall design principle. Future issues append here.
+- **P0 quick win:** every dock tab now has a human name → `title` tooltip + `aria-label` +
+  `aria-current` (`RightDock.tsx`) so the icon row is debuggable/accessible. (Visible inline
+  labels on wide docks remain as a small follow-up.)
+
 ### 2026-06-18 (Claude): AI Companion Architecture v1 + living threads (hide-until-drawn + idle pulse)
 - [x] **Verified by Claude** — typecheck clean, **81 tests** pass (added `companion.test.ts`,
   extended `migration.test.ts`), web build clean.

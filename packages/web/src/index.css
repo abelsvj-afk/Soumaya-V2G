@@ -1152,6 +1152,17 @@ body,
   resize: vertical;
   box-sizing: border-box;
 }
+.companion-persona {
+  background: rgba(122, 249, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #d7d3ee;
+  font-style: italic;
+  margin-bottom: 8px;
+}
 .companion-list {
   list-style: none;
   margin: 0 0 10px;

@@ -4,6 +4,7 @@ import { NodesRepo } from "./repositories/nodes.repo.js";
 import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
 import { selectJob, executeJob } from "./maintenance/agent.js";
 import { evolveLore } from "./lore/engine.js";
+import { refreshPersona } from "./persona/derive.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -116,6 +117,12 @@ if (process.env.AUTONOMY === "on") {
       const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces`).all() as { id: string }[];
       const spaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
       for (const spaceId of spaceIds) {
+        // Keep the auto-derived "About Me" persona current (free, throttled to ~6h).
+        try {
+          refreshPersona(ctx.handle, spaceId);
+        } catch (e) {
+          console.error("[autonomy] persona refresh failed:", e);
+        }
         const job = selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
         const detail = await executeJob(ctx, spaceId, job);

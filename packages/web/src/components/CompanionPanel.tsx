@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   getPersona,
-  setPersona,
+  refreshPersona,
   getInstructions,
   createInstruction,
   updateInstruction,
@@ -34,39 +34,32 @@ export function CompanionPanel({ demo }: { demo?: boolean }) {
 
 function AboutMe() {
   const [body, setBody] = useState("");
-  const [saved, setSaved] = useState(true);
-  const [msg, setMsg] = useState("");
+  const [busy, setBusy] = useState(false);
   useEffect(() => {
-    getPersona().then((b) => setBody(b));
+    getPersona().then(setBody);
   }, []);
-  const save = async () => {
-    await setPersona(body);
-    setSaved(true);
-    setMsg("Saved");
-    setTimeout(() => setMsg(""), 1500);
+  const refresh = async () => {
+    setBusy(true);
+    try {
+      setBody(await refreshPersona());
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <section className="companion-section">
       <h3>🪪 About Me</h3>
       <p className="companion-hint">
-        Who you are, what matters to you, how you like to be spoken to. Soumaya is always aware
-        of this and tailors her replies — she never pretends to be you.
+        What Soumaya has learned about you from your galaxy. She keeps this current on her own
+        and stays aware of it when she talks to you — it isn't edited by hand.
       </p>
-      <textarea
-        className="companion-textarea"
-        rows={5}
-        value={body}
-        onChange={(e) => {
-          setBody(e.target.value);
-          setSaved(false);
-        }}
-        placeholder="e.g. I'm a founder juggling a startup and family. Be direct, a little warm, and challenge my assumptions…"
-      />
+      <div className="companion-persona">
+        {body ? body : "Soumaya is still getting to know you — add a few more memories."}
+      </div>
       <div className="row">
-        <button onClick={save} disabled={saved}>
-          {saved ? "Saved" : "Save"}
+        <button onClick={refresh} disabled={busy} title="Re-derive from your latest memories">
+          {busy ? "Updating…" : "↻ Update now"}
         </button>
-        <span className="msg">{msg}</span>
       </div>
     </section>
   );

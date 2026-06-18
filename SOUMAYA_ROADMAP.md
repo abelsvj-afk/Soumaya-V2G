@@ -81,6 +81,9 @@ This document tracks identified architectural gaps, technical debt, and proposed
 - [x] **"About Me" persona awareness:** she's aware of who you are (chat + daily log), never becomes you.
 - [x] **Knowledge documents (RAG):** text/MD upload → chunk → embed (`vec_docs`) → retrieved in chat.
 - [x] One **🧠 Companion** dock tab (About Me / Custom Instructions / Knowledge).
+- [x] **"About Me" is auto-derived, not user-editable** (`persona/derive.ts`): synthesized from
+  the brain (themes/emotion/hubs/span), refreshed on read + in the autonomy loop.
+- [→] **Master backlog** now lives in `plans/beta-testing-checklist.md` (canonical; append there).
 - [ ] Deferred: PDF/DOCX parsing, profile↔document linking, behavioral "Knows Me" auto-persona,
   structured clickable doc citations, role-profiles applied to all autonomous jobs.
 

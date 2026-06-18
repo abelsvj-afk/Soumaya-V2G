@@ -474,6 +474,8 @@ export async function updateSetting(key: string, value: string): Promise<{ ok: b
 
 // --- AI Companion: persona ("About Me"), instruction profiles, knowledge docs ---
 
+// "About Me" is auto-derived by Soumaya (not user-editable). GET returns the
+// current (re-derived if stale); refresh forces a regeneration.
 export async function getPersona(): Promise<string> {
   try {
     const res = await afetch(`${API}/persona`);
@@ -484,12 +486,14 @@ export async function getPersona(): Promise<string> {
   }
 }
 
-export async function setPersona(body: string): Promise<void> {
-  await afetch(`${API}/persona`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ body }),
-  });
+export async function refreshPersona(): Promise<string> {
+  try {
+    const res = await afetch(`${API}/persona/refresh`, { method: "POST" });
+    const d = (await res.json().catch(() => ({}))) as { body?: string };
+    return d.body ?? "";
+  } catch {
+    return "";
+  }
 }
 
 export interface InstructionProfile {

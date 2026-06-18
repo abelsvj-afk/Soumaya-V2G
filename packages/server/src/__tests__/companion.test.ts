@@ -139,6 +139,25 @@ describe("AI Companion — knowledge RAG", () => {
   });
 });
 
+describe("AI Companion — auto-derived persona (About Me)", () => {
+  it("is empty for a sparse brain and synthesizes once there's enough", async () => {
+    const { derivePersona, refreshPersona } = await import("../persona/derive.js");
+    const { ingest } = await import("../ingestion/pipeline.js");
+    expect(derivePersona(handle, "legacy")).toBe("");
+
+    for (const t of [
+      "a hopeful business idea about coffee roasting",
+      "a grateful reflection about family dinners",
+      "an exciting plan to learn sailing this summer",
+    ]) {
+      await ingest(handle, { embeddings, llm: new HeuristicProvider() }, t, "legacy");
+    }
+    const persona = refreshPersona(handle, "legacy", true);
+    expect(persona.length).toBeGreaterThan(20);
+    expect(persona).toMatch(/galaxy holds \d+ memories/);
+  });
+});
+
 describe("AI Companion — repo scoping", () => {
   it("keeps instruction profiles private per space", async () => {
     await addProfile("spaceA", { name: "A-only", body: "secret" });

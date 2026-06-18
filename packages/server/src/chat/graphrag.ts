@@ -5,7 +5,8 @@ import { knn, knnDocs, knnProfiles } from "../db/vec.js";
 import { multiHopNeighbors } from "../graph/traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InstructionProfilesRepo } from "../repositories/instructions.repo.js";
-import { KnowledgeRepo, UserPersonaRepo } from "../repositories/knowledge.repo.js";
+import { KnowledgeRepo } from "../repositories/knowledge.repo.js";
+import { refreshPersona } from "../persona/derive.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import type { LlmProvider } from "../llm/adapter.js";
 
@@ -78,8 +79,8 @@ export async function chat(
         chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n")
       : undefined;
 
-  // "About Me" awareness (she is aware of who you are, never becomes you).
-  const persona = new UserPersonaRepo(h, spaceId).get() ?? undefined;
+  // "About Me" awareness (auto-derived; she's aware of who you are, never becomes you).
+  const persona = refreshPersona(h, spaceId) || undefined;
 
   const { answer, citations } = await deps.llm.answer(question, context, {
     systemExtra,
