@@ -15,7 +15,7 @@ import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfiel
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
-import { makeSoumaya, type SoumayaHandle } from "./soumaya.js";
+import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
@@ -60,6 +60,12 @@ interface Props {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const linkEnd = (v: any): number => (typeof v === "object" && v !== null ? v.id : v);
+/** Stable key for a connection (undirected) so we can track which are already drawn. */
+const linkKey = (l: any): string => {
+  const a = linkEnd(l.source);
+  const b = linkEnd(l.target);
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
+};
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   { data, onSelect, onSoumayaClick, onSatelliteCount, selectedId, bottomInset },
@@ -89,6 +95,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const reff = Math.max(orbitsRef.current.getRadius(), 1000);
     stationOrbitRef.current = reff + 800;
     maxDistRef.current = Math.min(6200, Math.max(3200, stationOrbitRef.current + 1400));
+
+    // Detect freshly-formed connections so SOUMAYA flies out and draws them herself
+    // (rather than the line just popping in). The first data load is the baseline —
+    // we don't make her redraw the entire pre-existing graph.
+    const keys = (data.links as any[]).map(linkKey);
+    if (!linksInitedRef.current) {
+      knownLinksRef.current = new Set(keys);
+      linksInitedRef.current = true;
+    } else {
+      const fresh: LinkTask[] = [];
+      for (const l of data.links as any[]) {
+        const k = linkKey(l);
+        if (!knownLinksRef.current.has(k)) {
+          knownLinksRef.current.add(k);
+          fresh.push({ source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+        }
+      }
+      if (fresh.length > 0) soumayaHandleRef.current?.enqueueLinks(fresh);
+    }
   }, [data]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
@@ -112,7 +137,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const stationOrbitRef = useRef(1700);
 
   const soumayaObjRef = useRef<THREE.Object3D | null>(null);
+  const soumayaHandleRef = useRef<SoumayaHandle | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
+  // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
+  const knownLinksRef = useRef<Set<string>>(new Set());
+  const linksInitedRef = useRef(false);
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const lastSatCountRef = useRef(-1);
@@ -184,6 +213,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       burstsRef.current = bursts;
       scene.add(bursts.group);
       soumaya = makeSoumaya();
+      soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
       soumayaObjRef.current = soumaya.object;
       const station = makeSpaceStation();
@@ -261,6 +291,47 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const brightness = (d: number): number => {
       const t = Math.min(1, Math.max(0, (d - DIM_NEAR) / (BRIGHT_FAR - DIM_NEAR)));
       return 0.25 + 0.35 * t; // 0.25x up close .. 0.6x far away
+    };
+
+    // Nerve firing: emit single particles down links ON ACTIVITY (Soumaya tending a
+    // memory, or fastening a new connection) instead of a constant random stream.
+    // `emitParticle` fires one dot along a link using the particle accessors below.
+    const fireAlongNode = (nodeId: number) => {
+      const f = fgRef.current;
+      if (!f?.emitParticle) return;
+      let fired = 0;
+      for (const l of dataRef.current.links as any[]) {
+        if (fired >= 5) break;
+        if (linkEnd(l.source) === nodeId || linkEnd(l.target) === nodeId) {
+          try {
+            f.emitParticle(l);
+          } catch {
+            /* link not mounted yet */
+          }
+          fired++;
+        }
+      }
+    };
+    const fireLink = (key: string) => {
+      const f = fgRef.current;
+      if (!f?.emitParticle) return;
+      const l = (dataRef.current.links as any[]).find((x) => linkKey(x) === key);
+      if (!l) return;
+      // A short burst of dots so the new connection visibly "lights up".
+      for (let i = 0; i < 4; i++) {
+        window.setTimeout(() => {
+          try {
+            f.emitParticle(l);
+          } catch {
+            /* ignore */
+          }
+        }, i * 160);
+      }
+      // Spark at both endpoints to read as "connected".
+      const s = (dataRef.current.nodes as any[]).find((n) => n.id === linkEnd(l.source));
+      const t2 = (dataRef.current.nodes as any[]).find((n) => n.id === linkEnd(l.target));
+      if (s?.x != null) burstsRef.current?.spawn(s.x, s.y, s.z ?? 0, "synthesis");
+      if (t2?.x != null) burstsRef.current?.spawn(t2.x, t2.y, t2.z ?? 0, "synthesis");
     };
 
     let raf = 0;
@@ -418,10 +489,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           dt,
           d.nodes as any[],
           d.links as any[],
-          (x, y, z, type) => burstsRef.current?.spawn(x, y, z, type),
+          (x, y, z, type, nodeId) => {
+            burstsRef.current?.spawn(x, y, z, type);
+            // Nerve firing: when she tends a memory, pulse signal down its synapses.
+            if (nodeId != null) fireAlongNode(nodeId);
+          },
           stationP,
+          // When she fastens a new connection, fire a burst of pulses down it.
+          (key) => fireLink(key),
         );
-
       }
 
       // Focus on a non-memory object (ship/station): snap to its FRONT once, then
@@ -681,9 +757,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }}
       linkWidth={(l: any) => 0.15 + (l.weight ?? 0.4) * 0.5}
       linkCurvature={0.18}
-      linkDirectionalParticles={(l: any) => Math.round(2 + (l.weight ?? 0.4) * 4)}
-      linkDirectionalParticleSpeed={(l: any) => 0.0006 + (l.weight ?? 0.4) * 0.0022}
-      linkDirectionalParticleWidth={(l: any) => 1.0 + (l.weight ?? 0.4) * 1.6}
+      // No constant stream — connections fire like synapses only when something
+      // real happens on them (Soumaya tending a memory or forging a link). The
+      // pulses are emitted imperatively via fg.emitParticle (fireAlongNode/fireLink).
+      linkDirectionalParticles={0}
+      linkDirectionalParticleSpeed={(l: any) => 0.004 + (l.weight ?? 0.4) * 0.004}
+      linkDirectionalParticleWidth={(l: any) => 1.6 + (l.weight ?? 0.4) * 2.0}
       linkDirectionalParticleColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
         return lit ? "rgba(205,215,255,0.95)" : "rgba(150,160,200,0.06)";

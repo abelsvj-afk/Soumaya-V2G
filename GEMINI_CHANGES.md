@@ -156,6 +156,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Soumaya draws connections herself + synapse-style link firing + card fix
+- [x] **Verified by Claude** — typecheck clean, 74 tests pass, web build clean.
+- **Lore-card overlap (re-fix, with screenshot):** the card was colliding with the LEFT
+  FAB column (dock/recenter/music/focus, all `left:14px`) — my prior fix had anchored it
+  to `left:12px`, straight into them. Re-anchored `.object-lore` to `left:70px right:14px`
+  (max-width 460, auto-centered) so it always clears the left button stack.
+- **Soumaya forges new links on-screen:** when a new connection appears (after ingest /
+  autonomy), Graph3D diffs the link set and queues it to the ship (`soumaya.enqueueLinks`).
+  She flies to the source memory, "grabs" it (spark), carries the thread to the target,
+  and fastens it — `linkToSource` → `linkToTarget` modes in `soumaya.ts`, with an
+  `onLinkConnect(key)` callback. New links take priority over patrol; the first data load
+  is the baseline so she doesn't redraw the whole existing graph.
+- **Synapse firing (event-driven, not random):** constant link particles are OFF
+  (`linkDirectionalParticles=0`); pulses are emitted imperatively via `fg.emitParticle`
+  only on real activity — `fireAlongNode` when she tends a memory, `fireLink` (a 4-dot
+  burst + endpoint sparks) when she fastens a connection. Curved lines + dots preserved.
+- Limitation (noted): the faint curve still appears immediately and lights up when she
+  connects it; fully hiding a link until drawn needs a renderer change (`fg.refresh`
+  rebuilds all node objects) — staged as a follow-up.
+
 ### 2026-06-18 (Claude): Fleet & sub-agents v1 (the last Phase-4 big rock)
 - [x] **Verified by Claude** — typecheck clean, 74 tests pass, web build clean.
 - **Sub-agents** (`graph/subAgents.ts`): **Scout** (teal) surveys the frontier — newest /

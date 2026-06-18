@@ -514,16 +514,18 @@ body,
   opacity: 0.85;
 }
 
-/* Object lore card (shown while focusing the station / ship) */
+/* Object lore card (shown while focusing the station / ship / beacon). It must
+   clear the LEFT FAB column (dock/recenter/music/focus are all at left:14px,
+   ~46px wide) — that column is what was covering the text. We also keep a small
+   right inset, and center within the cleared band on wide screens. */
 .object-lore {
   position: absolute;
-  /* Anchor left and stop short of the right-hand FAB rail (~46px buttons at
-     right:14px) so the focus/music/beacon buttons never cover the card text. */
-  left: 12px;
-  right: 78px;
+  left: 70px;
+  right: 14px;
   bottom: 92px;
   width: auto;
-  max-width: 440px;
+  max-width: 460px;
+  margin: 0 auto;
   z-index: 20;
   background: var(--glass);
   border: 1px solid var(--glass-border);

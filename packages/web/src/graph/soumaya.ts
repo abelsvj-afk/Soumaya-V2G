@@ -3,6 +3,13 @@ import * as THREE from "three";
 import { gltfLoader } from "./gltf.js";
 import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
 
+/** A connection Soumaya should personally fly out and forge (source → target). */
+export interface LinkTask {
+  source: number;
+  target: number;
+  key: string;
+}
+
 export interface SoumayaHandle {
   object: THREE.Object3D;
   /** Advance the agent; reads live node/link positions, sparks on arrival. */
@@ -10,9 +17,12 @@ export interface SoumayaHandle {
     dt: number,
     nodes: any[],
     links: any[],
-    onArrive: (x: number, y: number, z: number, type: string) => void,
+    onArrive: (x: number, y: number, z: number, type: string, nodeId?: number) => void,
     stationPos?: THREE.Vector3 | null,
+    onLinkConnect?: (key: string) => void,
   ) => void;
+  /** Queue new connections for her to draw herself (takes priority over patrol). */
+  enqueueLinks: (tasks: LinkTask[]) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -101,13 +111,20 @@ export function makeSoumaya(): SoumayaHandle {
   group.scale.setScalar(1.5);
   group.visible = false;
 
-  let mode: "travel" | "orbit" | "idle" | "dockTravel" | "docking" = "idle";
+  let mode: "travel" | "orbit" | "idle" | "dockTravel" | "docking" | "linkToSource" | "linkToTarget" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
+
+  // Connections she's been asked to forge herself (fly to A, grab the thread, fly
+  // to B, connect). Drained before patrol so new memories get linked on-screen.
+  const linkQueue: LinkTask[] = [];
+  let activeLink: LinkTask | null = null;
+  let linkTgtNode: any = null;
+  let onLinkConnectCb: ((key: string) => void) | null = null;
 
   // Station docking: after a few jobs, fly to the station to "recharge".
   const DOCK_EVERY = 4;
@@ -199,7 +216,49 @@ export function makeSoumaya(): SoumayaHandle {
     group.visible = true;
   };
 
-  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos) => {
+  // Curve from the current position to a standoff point near a given body.
+  const curveTo = (node: any): boolean => {
+    if (!node || node.x == null) return false;
+    const to = vecOf(node);
+    const standoff = bodyRadius(node) + 12;
+    const off = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5)
+      .normalize()
+      .multiplyScalar(standoff);
+    const endpoint = to.clone().add(off);
+    const from = group.visible
+      ? group.position.clone()
+      : endpoint.clone().add(new THREE.Vector3(80, 50, 80));
+    const mid = from
+      .clone()
+      .add(endpoint)
+      .multiplyScalar(0.5)
+      .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
+    curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
+    t = 0;
+    speed = Math.min(0.5, 60 / (from.distanceTo(endpoint) || 1));
+    group.visible = true;
+    return true;
+  };
+
+  // Begin the next queued connection: fly to its source memory first.
+  const startLink = (nodes: any[]): void => {
+    while (linkQueue.length > 0) {
+      const task = linkQueue.shift()!;
+      const src = nodes.find((n) => n.id === task.source);
+      const tgt = nodes.find((n) => n.id === task.target);
+      if (src?.x != null && tgt?.x != null && curveTo(src)) {
+        activeLink = task;
+        target = src;
+        linkTgtNode = tgt;
+        mode = "linkToSource";
+        return;
+      }
+      // endpoints not ready/positioned — drop and try the next.
+    }
+  };
+
+  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect) => {
+    if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     try {
       if (stationPos) {
         stationLoc.copy(stationPos);
@@ -207,6 +266,11 @@ export function makeSoumaya(): SoumayaHandle {
       }
 
       if (mode === "idle") {
+        // Forge any new connections she's been asked to draw before patrolling.
+        if (linkQueue.length > 0) {
+          startLink(nodes);
+          return;
+        }
         acquireJob(nodes);
         return;
       }
@@ -297,6 +361,29 @@ export function makeSoumaya(): SoumayaHandle {
           orbitAngle = Math.random() * Math.PI * 2;
           curve = null;
           currentVel = 0;
+        } else if (t >= 1 && mode === "linkToSource") {
+          // Reached the new memory — grab the thread, then carry it to the other end.
+          const p = vecOf(target);
+          onArrive(p.x, p.y, p.z, "synthesis", target?.id);
+          curve = null;
+          currentVel = 0;
+          if (linkTgtNode && curveTo(linkTgtNode)) {
+            target = linkTgtNode;
+            mode = "linkToTarget";
+          } else {
+            activeLink = null;
+            mode = "idle";
+          }
+        } else if (t >= 1 && mode === "linkToTarget") {
+          // Reached the far end — fasten the connection and let it fire.
+          const p = vecOf(target);
+          onArrive(p.x, p.y, p.z, "synthesis", target?.id);
+          if (activeLink && onLinkConnectCb) onLinkConnectCb(activeLink.key);
+          activeLink = null;
+          linkTgtNode = null;
+          curve = null;
+          currentVel = 0;
+          mode = "idle";
         } else if (t >= 1) {
           // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
@@ -335,5 +422,13 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
-  return { object: group, update };
+  const enqueueLinks = (tasks: LinkTask[]) => {
+    for (const task of tasks) {
+      if (!linkQueue.some((q) => q.key === task.key) && activeLink?.key !== task.key) {
+        linkQueue.push(task);
+      }
+    }
+  };
+
+  return { object: group, update, enqueueLinks };
 }
