@@ -361,7 +361,7 @@ export default function App() {
               aria-label="Focus space station"
               title="Focus the space station"
             >
-              🪐
+              🌐
             </button>
             {satelliteCount > 0 && (
               <button

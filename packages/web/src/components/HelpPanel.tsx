@@ -11,7 +11,7 @@ const ROWS: { icon: string; title: string; body: string }[] = [
   { icon: "☰", title: "Panels", body: "Details, Sectors (🌌), List (📋), Insights (✨), Chat (💬), and Soumaya (🛰️)." },
   { icon: "⊙", title: "Recenter", body: "Re-frame the whole galaxy and release any focus lock." },
   { icon: "🛸", title: "Focus Soumaya", body: "Lock the camera onto her ship (snaps to the front); orbit freely while she works." },
-  { icon: "🪐", title: "Focus the station", body: "Lock onto Waystation Soumaya-Prime, the megastructure orbiting your galaxy." },
+  { icon: "🌐", title: "Focus the station", body: "Lock onto Waystation Soumaya-Prime, the megastructure orbiting your galaxy." },
   { icon: "🛰️", title: "Jump to a beacon", body: "Only appears — and pulses — when Aura beacons are deployed over cooling memories. Tap to fly between them; each is parked on a memory going cold, so it doubles as a shortcut to what needs tending." },
   { icon: "🔈", title: "Music", body: "Toggle the ambient space drone." },
   { icon: "🗣️", title: "Soumaya's voice", body: "(in Chat) Toggle her speaking voice on/off. When on, she reads her answers aloud, shaping her tone to the emotional weather of what you're discussing — never a flat robot. The choice is remembered on this device." },
