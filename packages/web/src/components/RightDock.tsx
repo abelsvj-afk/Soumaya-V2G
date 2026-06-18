@@ -77,6 +77,7 @@ export function RightDock({
             onChanged={onChanged}
             onDeleted={onDeleted}
             onIsolate={onIsolate}
+            demo={demo}
           />
         )}
         {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}

@@ -153,6 +153,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Lore engine v1 — persistent, versioned, world-aware, evolving
+- [x] **Verified by Claude** — typecheck clean, **74 tests** pass (added `lore.test.ts`),
+  web build clean.
+- **Schema:** new `lore` table (`subject_type/subject_id/version/text/trigger`) +
+  idempotent migration/bootstrap + index. Append-only, space-scoped.
+- **`lore/engine.ts`:** `LoreRepo` (history/current/append), `evolveLore`,
+  `getOrCreateLore`. A world-aware **heuristic chronicler** composes each chapter from
+  the memory's live state (emotion, entropy, degree, named neighbors) + the trigger, so
+  the story mutates as the galaxy changes. v1 = immutable genesis; deterministic per
+  (subject, version). Offline + free (no LLM, no key) — LLM prose is a noted follow-up.
+- **Autonomous growth:** the 24/7 loop appends a free chapter to whatever memory Soumaya
+  just worked (synthesis→linked / merge→merged / else evolved).
+- **API:** `GET /api/lore/:type/:id` (genesis-on-read) + `POST .../evolve` (space-scoped).
+- **UI:** a "Chronicle" block in the Node Inspector — latest chapter, expandable earlier
+  chapters, and a "✦ Evolve" button (hidden in the demo galaxy).
+- Phase 4 remaining: **fleet & sub-agents** (autonomous beacon dispatch, Fleet menu,
+  Scout/Defender). See `plans/phase-4-living-galaxy.md`.
+
 ### 2026-06-18 (Claude): Fix deploy — build-time model bake no longer fails the build
 - [x] **Verified by Claude** — typecheck clean; warm.ts exits 0 on fetch failure (tested).
 - **Symptom:** `flyctl deploy` failed at `RUN npx tsx .../embeddings/warm.ts` with

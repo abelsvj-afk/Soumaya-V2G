@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType } from "@brain/shared";
 
 const API = "/api";
 
@@ -211,6 +211,30 @@ export async function deleteNode(id: number): Promise<void> {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error ?? `Delete failed (${res.status})`);
   }
+}
+
+/** An object's evolving lore (oldest → newest); genesis is created on first read. */
+export async function getLore(subjectType: LoreSubjectType, subjectId: string): Promise<LoreEntry[]> {
+  try {
+    const res = await afetch(`${API}/lore/${subjectType}/${encodeURIComponent(subjectId)}`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as LoreEntry[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Append the next lore chapter; returns the full updated history. */
+export async function evolveLore(
+  subjectType: LoreSubjectType,
+  subjectId: string,
+): Promise<LoreEntry[]> {
+  const res = await afetch(`${API}/lore/${subjectType}/${encodeURIComponent(subjectId)}/evolve`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(`Evolve failed (${res.status})`);
+  const d = (await res.json()) as { history: LoreEntry[] };
+  return d.history;
 }
 
 export async function getNeighbors(id: number, depth = 2): Promise<GraphData> {

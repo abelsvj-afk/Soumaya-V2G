@@ -1121,6 +1121,62 @@ body,
   cursor: pointer;
 }
 
+/* Chronicle — an object's evolving, versioned lore */
+.chronicle {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  background: rgba(122, 249, 255, 0.04);
+}
+.chronicle-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.chronicle-head h3 {
+  margin: 0;
+  font-size: 13px;
+  color: var(--accent);
+}
+.chronicle-now {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  font-style: italic;
+  color: #d7d3ee;
+}
+.chronicle-toggle {
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+.chronicle-history {
+  margin: 8px 0 0;
+  padding-left: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chronicle-history li {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  border-left: 2px solid var(--glass-border);
+  padding-left: 8px;
+}
+.chronicle-v {
+  color: var(--accent);
+  font-weight: 600;
+  margin-right: 4px;
+}
+
 /* Agenda / action items panel */
 .agenda-h {
   font-size: 13px;

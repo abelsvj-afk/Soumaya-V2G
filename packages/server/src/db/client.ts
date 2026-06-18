@@ -96,6 +96,19 @@ export function bootstrapSchema(sqlite: RawDb): void {
       last_digest_date TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- Append-only, versioned lore per object (memory/ship/station/beacon).
+    CREATE TABLE IF NOT EXISTS lore (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      subject_type TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      trigger TEXT NOT NULL DEFAULT 'genesis',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS lore_subject_idx
+      ON lore(space_id, subject_type, subject_id, version);
   `);
 }
 
@@ -177,6 +190,19 @@ function migrateSchema(sqlite: RawDb): void {
       last_digest_date TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- Append-only, versioned lore per object (memory/ship/station/beacon).
+    CREATE TABLE IF NOT EXISTS lore (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      subject_type TEXT NOT NULL,
+      subject_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      text TEXT NOT NULL,
+      trigger TEXT NOT NULL DEFAULT 'genesis',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS lore_subject_idx
+      ON lore(space_id, subject_type, subject_id, version);
   `);
 }
 

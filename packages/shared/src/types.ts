@@ -94,6 +94,25 @@ export const SUGGESTED_TAGS: readonly string[] = [
   "Urgent",
 ];
 
+/** What a piece of lore is about: a memory body, or one of the agents/objects. */
+export type LoreSubjectType = "memory" | "ship" | "station" | "beacon";
+
+/**
+ * A single saved "chapter" of an object's evolving lore. Lore is append-only and
+ * versioned: v1 is the immutable genesis, later versions extend/mutate it as the
+ * galaxy changes — so you can read how a memory's story grew over time.
+ */
+export interface LoreEntry {
+  id: number;
+  subjectType: LoreSubjectType;
+  subjectId: string;
+  version: number;
+  text: string;
+  /** What prompted this chapter: genesis | evolved | linked | merged | cooled | warmed | manual. */
+  trigger: string;
+  createdAt: string;
+}
+
 /** The brain's "fuel" — a free in-app energy that powers Soumaya's autonomy. */
 export interface Fuel {
   /** Current fuel for this brain. */

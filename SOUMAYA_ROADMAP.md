@@ -63,7 +63,9 @@ This document tracks identified architectural gaps, technical debt, and proposed
   `executeJob`) shared by the route + a server loop in `index.ts` (`AUTONOMY=on`,
   every 5 min), gated by Research Mode + USD budget + Fuel; `fly.toml auto_stop='off'`.
   Resolves Critical Gap #1 (Frontend Execution Dependency).
-- [ ] **Evolving, persistent, world-aware lore** with version history — spec'd (needs schema).
+- [x] **Evolving, persistent, world-aware lore** with version history (v1): `lore` table +
+  `lore/engine.ts` (heuristic chronicler) + Chronicle UI + autonomous growth in the loop.
+  Follow-up: LLM-authored prose layer.
 - [ ] **Autonomous beacon dispatch by the ship** + a Fleet menu + sub-agents (Scout/etc).
 - [x] **Mature demo galaxy** (~140 nodes, dense systems + cold outer field) showcasing
   the Obsidian-style macro view.

@@ -11,6 +11,7 @@ import { chatRoutes } from "./routes/chat.js";
 import { maintenanceRoutes } from "./routes/maintenance.js";
 import { usageRoutes } from "./routes/usage.js";
 import { constellationRoutes } from "./routes/constellations.js";
+import { loreRoutes } from "./routes/lore.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
@@ -60,6 +61,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/chat", guard, chatRoutes(ctx));
   app.use("/api/maintenance", guard, maintenanceRoutes(ctx));
   app.use("/api/constellations", guard, constellationRoutes(ctx));
+  app.use("/api/lore", guard, loreRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

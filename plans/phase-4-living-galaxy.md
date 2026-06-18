@@ -73,24 +73,25 @@ Legend: ✅ shipped · 🚧 in progress · 📋 spec'd/staged (needs build) · �
   FAB rail (z-index). Re-anchored it (`left:12px; right:78px`) so it always clears the
   focus/music/beacon buttons. (Watch for the same with any future bottom cards.)
 
-## G. Lore as a persistent, evolving, world-aware game mechanic — 📋 SPEC (🔴, big)
-This is the heart of what the user wants and the largest item.
-- **Persist lore per object.** Today lore is generated on the fly (`graph/lore.ts`,
-  `objectLore.ts`) and not saved. Plan: a `lore` table (`id, space_id, subject_type,
-  subject_id, text, version, created_at, parent_version`) so each memory/ship/station/
-  beacon has a saved, versioned lore entry. 🔴 schema → stage migration.
-- **Stable origin + build-on-top.** Each lore has a v1 "genesis" that never changes;
-  new versions extend/mutate it (append-only history), so you can scroll its evolution.
-- **World-aware.** Lore generation gets context about *neighbors* (linked memories),
-  nearby objects (which beacon/ship/station relates), and that it lives in space — so
-  stories reference each other and stay consistent.
-- **Mutates as memories change.** When memories are added/linked/merged or go cold/warm,
-  affected lore gets a new version (for good or worse — stories shift). Gated by Fuel +
-  budget (LLM), with an offline heuristic fallback.
-- **History UI.** A lore timeline on each object (Node Inspector / lore card) to read how
-  it changed over time — ties directly to the memory dates/timestamps (already added).
-- ❓ Decisions: how aggressively lore re-writes (every change vs batched), and the
-  Fuel/budget cost ceiling for lore generation.
+## G. Lore as a persistent, evolving, world-aware game mechanic — ✅ SHIPPED v1 (🔴 schema)
+The heart of the request. v1 is a complete, offline-first vertical slice:
+- **Persisted + versioned.** New `lore` table (`id, space_id, subject_type, subject_id,
+  version, text, trigger, created_at`) + idempotent migration/bootstrap. Append-only:
+  v1 = genesis (immutable), each later chapter extends it. `lore/engine.ts` (`LoreRepo`,
+  `evolveLore`, `getOrCreateLore`), space-scoped.
+- **World-aware + mutating.** The chronicler composes each chapter from the memory's
+  LIVE state — emotion, entropy (warm/cooling/cold), degree, and named neighbors — plus
+  the trigger (genesis/linked/merged/cooled/warmed/manual), so the story shifts as the
+  galaxy changes. Deterministic per (subject, version) so history is stable.
+- **Autonomous growth.** The 24/7 loop appends a free chapter to whatever memory Soumaya
+  just worked (synthesis→linked, merge→merged, else evolved) — lore builds on its own.
+- **History UI.** A "Chronicle" block in the Node Inspector: latest chapter + expandable
+  earlier chapters + a "✦ Evolve" button. Genesis is created on first view.
+- **API.** `GET /api/lore/:type/:id` (history, genesis-on-read), `POST .../evolve`.
+- Tests: `lore.test.ts` (versioning, immutable genesis, determinism, world-aware,
+  agent lore, per-space scoping).
+- **Follow-up (next layer):** LLM-authored prose via an optional `chronicle?` on the
+  LlmProvider seam (heuristic stays the offline base); richer agent/object cross-awareness.
 
 ## H. Action items need a dedicated list — ✅ SHIPPED (🟢)
 - New **✅ Agenda** Dock tab (`components/ActionsPanel.tsx`): action items

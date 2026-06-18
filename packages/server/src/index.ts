@@ -3,6 +3,7 @@ import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
 import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
 import { selectJob, executeJob } from "./maintenance/agent.js";
+import { evolveLore } from "./lore/engine.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -118,7 +119,20 @@ if (process.env.AUTONOMY === "on") {
         const job = selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
         const detail = await executeJob(ctx, spaceId, job);
-        if (detail) console.log(`[autonomy] ${spaceId.slice(0, 8)}: ${job.type}`);
+        if (detail) {
+          console.log(`[autonomy] ${spaceId.slice(0, 8)}: ${job.type}`);
+          // Lore mutates as memories change: append a free heuristic chapter to the
+          // worked memory so its story grows on its own over time.
+          const target = job.targets[0];
+          if (target != null) {
+            const trig = job.type === "merging" ? "merged" : job.type === "synthesis" ? "linked" : "evolved";
+            try {
+              evolveLore(ctx.handle, spaceId, "memory", String(target), trig);
+            } catch (e) {
+              console.error("[autonomy] lore evolve failed:", e);
+            }
+          }
+        }
       }
     } catch (err) {
       console.error("[autonomy] loop error:", err);

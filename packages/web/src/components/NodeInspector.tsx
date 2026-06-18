@@ -3,6 +3,7 @@ import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
 import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
+import { Chronicle } from "./Chronicle.js";
 
 interface Props {
   node: GraphNode | null;
@@ -14,6 +15,8 @@ interface Props {
   onDeleted?: () => void;
   /** Show only this memory + the bodies orbiting it. */
   onIsolate?: (id: number) => void;
+  /** Demo galaxy has no backend — hide lore/Chronicle there. */
+  demo?: boolean;
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
@@ -40,7 +43,7 @@ function fmtWhen(raw: string): string {
   return `${abs} · ${rel}`;
 }
 
-export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate }: Props) {
+export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
   const [synthBusy, setSynthBusy] = useState(false);
@@ -163,6 +166,8 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       ) : (
         <p className="lore">✦ {loreFor(node)}</p>
       )}
+
+      {node.kind !== "action" && <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />}
 
       <div className="weight">
         <div className="weight-head">

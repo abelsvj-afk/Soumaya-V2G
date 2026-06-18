@@ -96,6 +96,24 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
+/**
+ * Append-only, versioned lore: each object (a memory, or an agent like the ship /
+ * station / beacon) accrues "chapters" of its evolving story. v1 = genesis (never
+ * rewritten); later versions extend it as the galaxy changes.
+ */
+export const lore = sqliteTable("lore", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id").notNull(),
+  version: integer("version").notNull(),
+  text: text("text").notNull(),
+  trigger: text("trigger").notNull().default("genesis"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 /** Summarized daily reflections on the brain's evolution. */
 export const dailyLogs = sqliteTable("daily_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
