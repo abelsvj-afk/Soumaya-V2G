@@ -20,7 +20,11 @@ import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
+import { makeSubAgents, type SubAgentSystem } from "./subAgents.js";
 import { BG } from "./theme.js";
+
+/** Live status of each fleet unit, read by the Fleet panel. */
+export type FleetStatus = Record<string, { active: boolean; detail: string }>;
 
 export interface Graph3DHandle {
   focusNode: (id: number) => void;
@@ -38,6 +42,8 @@ export interface Graph3DHandle {
   exitCluster: () => void;
   /** Trigger a visual burst at a node (e.g., for user action rewards). */
   spawnBurst: (nodeId: number, type?: string) => void;
+  /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
+  getFleetStatus: () => FleetStatus;
 }
 
 interface Props {
@@ -108,6 +114,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const soumayaObjRef = useRef<THREE.Object3D | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
   const satellitesRef = useRef<SatelliteSystem | null>(null);
+  const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const lastSatCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
 
@@ -163,6 +170,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let soumaya: SoumayaHandle | null = null;
     let visitors: VisitorSystem | null = null;
     let satellites: SatelliteSystem | null = null;
+    let subAgents: SubAgentSystem | null = null;
     
     try {
       scene.background = makeSpaceBackground();
@@ -186,6 +194,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       satellites = makeSatellites();
       satellitesRef.current = satellites;
       scene.add(satellites.group);
+      subAgents = makeSubAgents();
+      subAgentsRef.current = subAgents;
+      scene.add(subAgents.group);
       addBloom(fg, {});
 
       // Click detection for Soumaya's ship
@@ -266,6 +277,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
       satellites?.update(dt, dataRef.current.nodes as any[]);
+      subAgents?.update(dt, dataRef.current.nodes as any[]);
       // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
       visitors?.update(
         dt,
@@ -617,6 +629,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (n && n.x != null) {
           burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
         }
+      },
+      getFleetStatus: (): FleetStatus => {
+        const labelOf = (nid: number) =>
+          (dataRef.current.nodes as any[]).find((n) => n.id === nid)?.label ?? `#${nid}`;
+        const active = satellitesRef.current?.getActive() ?? [];
+        const sub = subAgentsRef.current?.getStatus() ?? [];
+        const status: FleetStatus = {
+          ship: { active: true, detail: "On her rounds" },
+          station: { active: true, detail: "Holding orbit" },
+          beacon: {
+            active: active.length > 0,
+            detail:
+              active.length > 0
+                ? `${active.length} deployed → ${active.map((a) => labelOf(a.targetId)).join(", ")}`
+                : "None deployed",
+          },
+        };
+        for (const s of sub) status[s.id] = { active: s.active, detail: s.detail };
+        return status;
       },
     }),
     [data],

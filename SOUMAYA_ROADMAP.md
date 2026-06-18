@@ -66,7 +66,10 @@ This document tracks identified architectural gaps, technical debt, and proposed
 - [x] **Evolving, persistent, world-aware lore** with version history (v1): `lore` table +
   `lore/engine.ts` (heuristic chronicler) + Chronicle UI + autonomous growth in the loop.
   Follow-up: LLM-authored prose layer.
-- [ ] **Autonomous beacon dispatch by the ship** + a Fleet menu + sub-agents (Scout/etc).
+- [x] **Fleet & sub-agents** (v1): Scout + Defender sub-agents (`graph/subAgents.ts`),
+  a 🚀 Fleet roster Dock tab with live status (`FleetPanel` + `graph/fleet.ts` +
+  `Graph3D.getFleetStatus`). Follow-ups: literal ship→beacon dispatch animation, wire
+  live drifter positions into Defender intercept, sub-agents running real jobs.
 - [x] **Mature demo galaxy** (~140 nodes, dense systems + cold outer field) showcasing
   the Obsidian-style macro view.
 - [x] **Action Items list** (✅ Agenda Dock tab: actions w/ countdowns + Done, plus

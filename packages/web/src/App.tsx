@@ -436,6 +436,7 @@ export default function App() {
           onBack={back}
           canBack={history.length > 0}
           demo={demo}
+          getFleetStatus={() => graphRef.current?.getFleetStatus()}
         />
       )}
     </div>

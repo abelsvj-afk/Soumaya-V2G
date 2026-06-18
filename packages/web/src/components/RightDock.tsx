@@ -6,8 +6,10 @@ import { SectorView } from "./SectorView.js";
 import { DigestPanel } from "./DigestPanel.js";
 import { ChatPanel } from "./ChatPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
+import { FleetPanel } from "./FleetPanel.js";
+import type { FleetStatus } from "../graph/Graph3D.js";
 
-export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya";
+export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet";
 
 interface Props {
   tab: DockTab;
@@ -23,6 +25,8 @@ interface Props {
   canBack?: boolean;
   /** Demo galaxy is read-only (no backend) — disables destructive actions. */
   demo?: boolean;
+  /** Live fleet status getter (from the 3D scene) for the Fleet tab. */
+  getFleetStatus?: () => FleetStatus | undefined;
 }
 
 const TABS: { id: DockTab; label: string }[] = [
@@ -33,6 +37,7 @@ const TABS: { id: DockTab; label: string }[] = [
   { id: "insights", label: "✨" },
   { id: "chat", label: "💬" },
   { id: "soumaya", label: "🛰️" },
+  { id: "fleet", label: "🚀" },
 ];
 
 export function RightDock({
@@ -48,6 +53,7 @@ export function RightDock({
   onBack,
   canBack,
   demo,
+  getFleetStatus,
 }: Props) {
   return (
     <div className="panel dock">
@@ -94,6 +100,7 @@ export function RightDock({
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
         {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}
+        {tab === "fleet" && <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} />}
       </div>
     </div>
   );

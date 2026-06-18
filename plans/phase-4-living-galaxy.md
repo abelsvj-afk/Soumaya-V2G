@@ -48,25 +48,27 @@ Legend: ✅ shipped · 🚧 in progress · 📋 spec'd/staged (needs build) · �
   (`MACRO_DIST` in `Graph3D.tsx`) a real Obsidian-style field of lights on zoom-out.
 - Follow-up: a guided "zoom-out tour" and even larger optional density if wanted.
 
-## E. The fleet & sub-agents — partly ✅, mostly 📋 (🟢/🔴)
-- **Beacon color follows emotion** — ✅ (`satellites.ts colorFor`: gold=positive,
-  blue=heavy, amber=neutral; uses the node's LLM color when present).
-- **Guard the heaviest hub when nothing's cold** — ✅ (`reassign` falls back to a
-  sentinel over the top `hubWeight` node; calm steady ray vs urgent rescue beam).
-- **Fleet size ~3, but Soumaya DEPLOYS them when she sees fit (autonomous, not random)**
-  — 📋. Plan: the ship physically dispatches a beacon (flies out, releases it) when a
-  memory crosses cold, instead of beacons just appearing. Needs a small dispatch state
-  machine in `soumaya.ts` + `satellites.ts`.
-- **A "Fleet" menu** listing each satellite/agent and what it does — 📋 (new Dock tab or
-  Command-Center section).
-- **Sub-agents that report to Soumaya** (small ships/satellites = Scout/Librarian/Defender)
-  that she dispatches for research / defense / other tasks, feeding her Research Mode —
-  📋 🔴. The roadmap already notes a `Multi-Agent Registry` using the `agent` column.
-  This is a big system; spec separately before building.
-- **Starter system for new users** (a seeded beginning so it's never empty) — 📋, ties
-  to D (demo) and the roadmap "Genesis Log".
-- **❓ Beacon types:** different beacon classes with different jobs/colors (warmth relay
-  vs guard vs scout). Confirm the taxonomy when we build the Fleet menu.
+## E. The fleet & sub-agents — ✅ SHIPPED v1 (🟢)
+- **Beacon color follows emotion** — ✅ (`satellites.ts colorFor`).
+- **Guard the heaviest hub when nothing's cold** — ✅ (`reassign` sentinel; calm ray vs
+  urgent rescue beam).
+- **Sub-agents that report to Soumaya** — ✅ `graph/subAgents.ts`: **Scout** (teal) flies
+  the frontier surveying the newest/least-connected memories; **Defender** (amber-red)
+  guards the heaviest hub and has intercept logic for hostile drifters. Procedural,
+  self-animated from the Graph3D tick, each exposes a live status.
+- **A "Fleet" menu** — ✅ new **🚀 Fleet** Dock tab (`components/FleetPanel.tsx` +
+  `graph/fleet.ts` roster): every unit (ship, station, beacons, scout, defender) with its
+  role, lore, and a **live status** polled from the scene (`Graph3D.getFleetStatus`).
+- **Remaining (follow-ups):**
+  - Literal **dispatch animation** — the ship flies out and *releases* a beacon when a
+    memory goes cold (currently beacons auto-appear). Needs a dispatch state machine
+    across `soumaya.ts` + `satellites.ts`.
+  - **Defender live intercept:** wire real drifter positions (`visitors.ts` getter) into
+    `subAgents.update` so the Defender actually chases aliens (logic is ready, data isn't
+    plumbed yet).
+  - **Sub-agents doing real maintenance jobs** (Scout feeding Research Mode targets) via
+    the `agent` column / Multi-Agent Registry.
+  - **Starter system** for brand-new brains; beacon-type taxonomy.
 
 ## F. Lower cards hidden behind side buttons — ✅ FIXED (🟢)
 - The object-lore card (shown while following ship/station/beacon) sat under the right

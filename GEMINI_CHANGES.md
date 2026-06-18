@@ -40,9 +40,12 @@ implementation quality is the whole game.
   - **24/7 server-side autonomy** (`maintenance/agent.ts` + loop in `index.ts`,
     `AUTONOMY=on`): brains evolve with no tab open, gated by Research Mode + budget + Fuel.
   - **Action Items / Agenda** Dock tab; **mature demo galaxy** (~140 nodes).
-- **Active roadmap:** `plans/phase-4-living-galaxy.md` is the live capture of the user's
-  big asks. DONE: PWA, music fix, beacons, action list, mature demo, 24/7 autonomy.
-  NEXT: evolving persistent lore engine → fleet/sub-agents.
+  - **Lore engine** (`lore/engine.ts`): persistent, versioned, world-aware Chronicle per
+    object; grows autonomously. **Fleet & sub-agents**: Scout + Defender + 🚀 Fleet roster.
+- **Active roadmap:** `plans/phase-4-living-galaxy.md`. **Phase 4 COMPLETE** (PWA, music,
+  beacons, action list, mature demo, 24/7 autonomy, lore engine, fleet). Follow-ups:
+  literal beacon-dispatch animation, Defender alien intercept, LLM-authored lore prose,
+  sub-agents running real jobs.
 - **Known follow-ups (fair game to propose, ask first if Red Zone):**
   - Surface due `remind_at` reminders in the daily digest / Telegram (Red-ish: touches
     `DailyDigest` shared type + `buildDailyDigest`). Stage a plan.
@@ -152,6 +155,23 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-18 (Claude): Fleet & sub-agents v1 (the last Phase-4 big rock)
+- [x] **Verified by Claude** — typecheck clean, 74 tests pass, web build clean.
+- **Sub-agents** (`graph/subAgents.ts`): **Scout** (teal) surveys the frontier — newest /
+  least-connected memories; **Defender** (amber-red) guards the heaviest hub (with
+  intercept logic ready for hostile drifters). Procedural, self-animated from the Graph3D
+  tick, each exposes a live status. Never throws (frame-guarded).
+- **Fleet roster** (`graph/fleet.ts` + `components/FleetPanel.tsx`): new **🚀 Fleet** Dock
+  tab listing every unit (ship, station, Aura beacons, Scout, Defender) with role + lore +
+  a **live status** dot/line polled from the scene via `Graph3D.getFleetStatus()` (added
+  to the imperative handle; beacons report count + target labels).
+- Wiring: Graph3D instantiates/updates sub-agents + exposes fleet status; RightDock gains
+  the `fleet` tab + `getFleetStatus` prop; App passes the getter; Help documents the Fleet
+  and Chronicle; fleet CSS added.
+- **Phase 4 COMPLETE.** Follow-ups noted in `plans/phase-4-living-galaxy.md`: literal
+  ship→beacon dispatch animation, Defender live drifter intercept (plumb visitor
+  positions), sub-agents running real maintenance jobs, LLM-authored lore prose.
 
 ### 2026-06-18 (Claude): Lore engine v1 — persistent, versioned, world-aware, evolving
 - [x] **Verified by Claude** — typecheck clean, **74 tests** pass (added `lore.test.ts`),

@@ -8,7 +8,7 @@ const ROWS: { icon: string; title: string; body: string }[] = [
   { icon: "＋", title: "Add a memory", body: "Dump any thought. It's turned into a celestial body, weighted by how significant + connected it is." },
   { icon: "🔍", title: "Search", body: "Find a memory by meaning and fly straight to it." },
   { icon: "🌌", title: "Sectors", body: "Navigate the galaxy by major hubs. High-level index for high-density clusters." },
-  { icon: "☰", title: "Panels", body: "Details, Sectors (🌌), List (📋), Insights (✨), Chat (💬), and Soumaya (🛰️)." },
+  { icon: "☰", title: "Panels", body: "Details, Sectors (🌌), List (📋), Agenda (✅), Insights (✨), Chat (💬), Soumaya (🛰️), and Fleet (🚀)." },
   { icon: "⊙", title: "Recenter", body: "Re-frame the whole galaxy and release any focus lock." },
   { icon: "🛸", title: "Focus Soumaya", body: "Lock the camera onto her ship (snaps to the front); orbit freely while she works." },
   { icon: "🌐", title: "Focus the station", body: "Lock onto Waystation Soumaya-Prime, the megastructure orbiting your galaxy." },
@@ -70,6 +70,14 @@ const MECHANICS: { title: string; body: string }[] = [
   {
     title: "Install it like an app",
     body: "Use your browser's 'Add to Home Screen' to install Soumaya as a standalone app. It launches full-screen and the galaxy still loads offline (your live memories need a connection).",
+  },
+  {
+    title: "The Fleet (🚀 tab)",
+    body: "Soumaya doesn't work alone. The Fleet tab is the roster of everyone reporting to her: her ship, the Waystation, the Aura beacons (warmth relays), the Scout (surveys the newest/loneliest memories — the frontier), and the Defender (guards your heaviest hub and intercepts hostile drifters). Each shows a live status of what it's doing right now.",
+  },
+  {
+    title: "Chronicle (an object's lore)",
+    body: "Open a memory's Details to find its Chronicle — an evolving, saved story that grows new chapters as the memory gets connected, merged, or goes cold and warm again. The first chapter (its genesis) never changes; tap ✦ Evolve to write the next one, or watch Soumaya add chapters on her own over time.",
   },
 ];
 
