@@ -901,24 +901,39 @@ body,
   left: 14px;
   font-size: 18px;
 }
-.fab-ship {
+/* Game-style focus cluster: a single button that pops its targets upward. */
+.focus-cluster {
+  position: fixed;
+  left: 14px;
   bottom: 186px;
-  left: 14px;
-  font-size: 18px;
+  width: 44px;
+  height: 44px;
+  z-index: 20;
 }
-.fab-station {
-  bottom: 242px;
-  left: 14px;
-  font-size: 18px;
+.focus-cluster .focus-main {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font-size: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.fab-satellite {
-  bottom: 298px;
-  left: 14px;
-  font-size: 18px;
+.focus-cluster .focus-main.active {
+  transform: rotate(90deg);
 }
-/* The beacon button breathes while satellites are beaming cooling memories. */
-.fab-satellite.pulse {
-  animation: fabpulse 1.6s ease-in-out infinite;
+/* The main button glows while beacons are deployed (so you know to open it). */
+.focus-cluster .focus-main.has-beacons {
+  animation: fabpulse 1.8s ease-in-out infinite;
+}
+.focus-cluster .focus-item {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font-size: 18px;
+  transition: transform 0.24s cubic-bezier(0.2, 0.9, 0.3, 1.3), opacity 0.18s ease;
+  will-change: transform, opacity;
+}
+.focus-cluster .focus-item.beacon-item {
+  border-color: rgba(255, 178, 77, 0.7);
 }
 @keyframes fabpulse {
   0%, 100% {

@@ -10,7 +10,8 @@ interface BrainSignals {
   ageDays: number; // since the oldest memory (the galaxy's age)
   hub?: string; // biggest hub's label
   cooling: number; // memories going cold (entropy >= threshold)
-  coldest?: string; // label of the coldest memory
+  coldest?: string; // label of the coldest memory (only if actually cold)
+  watch?: string; // label of the most-neglected memory (always set if any exist)
 }
 
 /** Parse sqlite ("YYYY-MM-DD HH:MM:SS", UTC) or ISO timestamps safely. */
@@ -53,6 +54,7 @@ function readSignals(graph: GraphData): BrainSignals {
     hub: hub?.label,
     cooling,
     coldest: (coldest?.entropy ?? 0) >= 0.45 ? coldest?.label : undefined,
+    watch: coldest?.label,
   };
 }
 
@@ -113,7 +115,9 @@ export function objectLoreFor(
     const intro = `An Aura beacon — one of the salvaged warmth-relays, ${age}.`;
     const duty =
       s.cooling === 0
-        ? `Every memory runs warm right now; I drift on standby, beam banked, listening for the first to chill.`
+        ? s.watch
+          ? `Every memory still runs warm — so I keep a faint watch-beam on “${s.watch}”, the one drifting closest to cold, and wait for the chill.`
+          : `No memories in range yet; I drift on standby, beam banked, listening for the first light.`
         : s.coldest
           ? `${s.cooling} ${s.cooling === 1 ? "memory is" : "memories are"} going cold — I've pinned my beam to “${s.coldest}” so it won't fade unseen. I can't rekindle it; that's yours to do. Come back to it and I'll move on.`
           : `${s.cooling} ${s.cooling === 1 ? "memory is" : "memories are"} cooling; I'm holding a beam over the dimmest of them until you return.`;

@@ -4,6 +4,22 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ## Completed Tasks
 
+### 2026-06-17 (Claude): Focus speed-dial, always-visible beacons, "where did it land?"
+- **Game-style focus cluster.** Replaced the three stacked focus FABs with ONE
+  🎯 button that pops its targets upward (ship 🛸 / station 🪐 / beacon 🛰️) — a
+  speed-dial. The main button glows while beacons are deployed; opening rotates it
+  to ✕. (App.tsx `focusItemStyle` + `.focus-cluster` CSS.)
+- **Beacons are now actually visible.** Before, beacons only deployed on memories
+  already ≥3 weeks cold (entropy ≥ 0.45), which a young brain never has — so none
+  ever showed. `satellites.reassign` now always keeps ≥1 beacon on patrol over the
+  most-neglected memory, and the fleet GROWS as memories truly cool. Beam opacity
+  still scales with entropy (faint patrol → bright rescue). Beacon lore updated for
+  the patrol state.
+- **See where new memories populate.** After an ingest, the camera now flies to
+  the new memory (and selects it) right after the green/amber spawn bursts, so you
+  watch where it landed in the galaxy. (App `refresh`.)
+- Typecheck + web build clean; 51 tests green.
+
 ### 2026-06-17 (Claude): Beacons v2 — beam, focus button, alien fear, deeper lore
 - **Real tractor beam.** `satellites.ts` now fires a tapered additive beam from
   each probe down to its memory's surface (orientation/length recomputed per

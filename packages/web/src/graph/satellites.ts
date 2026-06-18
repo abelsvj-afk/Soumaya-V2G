@@ -199,26 +199,32 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
   let retarget = 0;
 
   const reassign = (nodes: any[]) => {
-    // Coldest memories first (only those actually going cold + placed in space).
-    const cold = nodes
-      .filter((n) => (n.entropy ?? 0) >= COLD_THRESHOLD && n.x != null)
+    // Rank memories by neglect (coldest first). We always keep at least one beacon
+    // on patrol over the most-neglected memory so the fleet is visibly present even
+    // in a young, warm galaxy; the fleet GROWS as more memories actually go cold.
+    const ranked = nodes
+      .filter((n) => n.kind !== "action" && n.x != null)
       .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0));
+    if (ranked.length === 0) {
+      for (const s of slots) s.targetId = null;
+      return;
+    }
+    const coldCount = ranked.filter((n) => (n.entropy ?? 0) >= COLD_THRESHOLD).length;
+    const desired = Math.min(slots.length, ranked.length, Math.max(1, coldCount));
+    const wanted = new Set(ranked.slice(0, desired).map((n) => n.id));
+
+    // Drop slots whose target is no longer wanted; keep the ones still in the set.
     const taken = new Set<number>();
-    // Keep a slot on its target if it's still cold; otherwise free it.
     for (const s of slots) {
-      if (s.targetId != null && cold.some((n) => n.id === s.targetId)) taken.add(s.targetId);
+      if (s.targetId != null && wanted.has(s.targetId)) taken.add(s.targetId);
       else s.targetId = null;
     }
-    // Fill free slots with the coldest unbeaconed memories.
-    let ci = 0;
+    // Fill free slots with the wanted memories not already covered.
+    const fill = ranked.slice(0, desired).filter((n) => !taken.has(n.id));
+    let fi = 0;
     for (const s of slots) {
       if (s.targetId != null) continue;
-      while (ci < cold.length && taken.has(cold[ci]!.id)) ci++;
-      if (ci < cold.length) {
-        s.targetId = cold[ci]!.id;
-        taken.add(cold[ci]!.id);
-        ci++;
-      }
+      if (fi < fill.length) s.targetId = fill[fi++]!.id;
     }
   };
 

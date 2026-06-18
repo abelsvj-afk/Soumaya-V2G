@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
+
+/** Pop-up offset for an item in the focus cluster (stacks upward when open). */
+function focusItemStyle(index: number, open: boolean): CSSProperties {
+  return open
+    ? { transform: `translateY(${-(index + 1) * 54}px)`, opacity: 1, pointerEvents: "auto" }
+    : { transform: "translateY(0) scale(0.4)", opacity: 0, pointerEvents: "none" };
+}
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
@@ -38,6 +45,7 @@ export default function App() {
   const [followStation, setFollowStation] = useState(false);
   const [followSatellite, setFollowSatellite] = useState(false);
   const [satelliteCount, setSatelliteCount] = useState(0);
+  const [focusMenuOpen, setFocusMenuOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
@@ -66,6 +74,11 @@ export default function App() {
           if (fuelEarned && fuelEarned > 0)
             for (const id of newIds) graphRef.current?.spawnBurst(id, "fuel");
         }, 150);
+        // Then fly the camera to the new memory so you can SEE where it populated.
+        setTimeout(() => {
+          graphRef.current?.focusNode(newIds[0]!);
+          setSelected(g.nodes.find((n) => n.id === newIds[0]) ?? null);
+        }, 550);
       }
     } finally {
       setLoaded(true);
@@ -312,6 +325,7 @@ export default function App() {
               setFollowShip(false);
               setFollowStation(false);
               setFollowSatellite(false);
+              setFocusMenuOpen(false);
               setClustered(false);
             }}
             aria-label="Recenter galaxy"
@@ -319,45 +333,64 @@ export default function App() {
           >
             ⊙
           </button>
-          <button
-            className={`fab fab-ship ${followShip ? "on" : ""}`}
-            onClick={() => {
-              setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
-              setFollowStation(false);
-              setFollowSatellite(false);
-            }}
-            aria-label="Focus Soumaya"
-            title="Focus Soumaya's ship"
-          >
-            🛸
-          </button>
-          <button
-            className={`fab fab-station ${followStation ? "on" : ""}`}
-            onClick={() => {
-              setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
-              setFollowShip(false);
-              setFollowSatellite(false);
-            }}
-            aria-label="Focus space station"
-            title="Focus the space station"
-          >
-            🪐
-          </button>
-          {satelliteCount > 0 && (
+          {/* Game-style focus cluster: one button that pops up the camera targets. */}
+          <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
             <button
-              className={`fab fab-satellite pulse ${followSatellite ? "on" : ""}`}
+              className={`fab focus-item ${followShip ? "on" : ""}`}
+              style={focusItemStyle(0, focusMenuOpen)}
               onClick={() => {
-                const on = graphRef.current?.cycleFollowSatellite() ?? false;
-                setFollowSatellite(on);
-                setFollowShip(false);
+                setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
                 setFollowStation(false);
+                setFollowSatellite(false);
+                setFocusMenuOpen(false);
               }}
-              aria-label="Jump to an Aura beacon"
-              title={`Jump to a beacon (${satelliteCount} active over cooling memories)`}
+              aria-label="Focus Soumaya"
+              title="Focus Soumaya's ship"
             >
-              🛰️
+              🛸
             </button>
-          )}
+            <button
+              className={`fab focus-item ${followStation ? "on" : ""}`}
+              style={focusItemStyle(1, focusMenuOpen)}
+              onClick={() => {
+                setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
+                setFollowShip(false);
+                setFollowSatellite(false);
+                setFocusMenuOpen(false);
+              }}
+              aria-label="Focus space station"
+              title="Focus the space station"
+            >
+              🪐
+            </button>
+            {satelliteCount > 0 && (
+              <button
+                className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
+                style={focusItemStyle(2, focusMenuOpen)}
+                onClick={() => {
+                  const on = graphRef.current?.cycleFollowSatellite() ?? false;
+                  setFollowSatellite(on);
+                  setFollowShip(false);
+                  setFollowStation(false);
+                  // keep menu open so you can cycle through multiple beacons
+                }}
+                aria-label="Jump to an Aura beacon"
+                title={`Jump to a beacon (${satelliteCount} deployed over cooling memories)`}
+              >
+                🛰️
+              </button>
+            )}
+            <button
+              className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
+                (followShip || followStation || followSatellite) && !focusMenuOpen ? "on" : ""
+              } ${satelliteCount > 0 ? "has-beacons" : ""}`}
+              onClick={() => setFocusMenuOpen((o) => !o)}
+              aria-label="Camera focus targets"
+              title="Focus targets (ship · station · beacons)"
+            >
+              {focusMenuOpen ? "✕" : "🎯"}
+            </button>
+          </div>
           <button
             className={`fab fab-music ${music ? "on" : ""}`}
             onClick={toggleMusic}
