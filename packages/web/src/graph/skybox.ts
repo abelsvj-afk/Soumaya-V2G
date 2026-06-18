@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfLoader } from "./gltf.js";
 
 /**
  * Load the uploaded nebula skybox glb and wrap it around the whole scene as a
@@ -12,7 +12,7 @@ export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000): void {
   // OOM the decoder — so only attempt it on larger screens. Phones keep the rich
   // procedural nebula background, which always works.
   if (typeof window !== "undefined" && window.innerWidth < 1100) return;
-  new GLTFLoader().load(
+  gltfLoader().load(
     "/nebula-skybox.glb",
     (gltf) => {
       const sky = gltf.scene;

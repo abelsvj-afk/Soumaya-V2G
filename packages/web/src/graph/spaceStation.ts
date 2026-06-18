@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfLoader } from "./gltf.js";
 
 /**
  * A large space station that orbits the center of the galaxy.
@@ -49,7 +49,7 @@ export function makeSpaceStation(): THREE.Object3D {
   let lastTime = 0;
   let selfSpin = 0;
 
-  new GLTFLoader().load(
+  gltfLoader().load(
     "/space_station_3.glb",
     (gltf) => {
       const model = gltf.scene;

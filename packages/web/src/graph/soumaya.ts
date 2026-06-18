@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfLoader } from "./gltf.js";
 import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
 
 export interface SoumayaHandle {
@@ -58,7 +58,7 @@ export function makeSoumaya(): SoumayaHandle {
   group.add(hull);
 
   // Swap in the real glTF ship once it loads; the procedural hull is the fallback.
-  new GLTFLoader().load(
+  gltfLoader().load(
     "/soumaya-ship.glb",
     (gltf) => {
       const model = gltf.scene;

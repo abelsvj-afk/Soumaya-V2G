@@ -113,5 +113,6 @@ galaxy. A feature with no on-screen feedback is unfinished.
 | `SoumayaPanel` called `fetch('/api/...')` directly → 401 under multi-tenancy | Always go through `api/client.ts` (sends `x-space-id`). |
 | `git init` on the clone → orphaned `master`, lost all of Claude's work | Never re-init git. Never force-push. |
 | Wrong arg order in LLM provider methods | Grep the real signature before calling. |
+| Draco-compressed GLB silently fell back to the procedural mesh (right shape, no textures) | A GLB can need a DRACOLoader/KTX2/WebP plugin. Parse the GLB's `extensionsUsed` to diagnose; don't eyeball it. Bundle decoders in `/public`. |
 
 When you hit a new bug, add a row here in your post-mortem so the next agent learns.

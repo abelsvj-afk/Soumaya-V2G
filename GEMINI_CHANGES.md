@@ -145,6 +145,23 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Fix the Aura satellite "right shape, wrong textures" — Draco decoder
+- [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean.
+- **Root cause (diagnosed by parsing the GLB, not guessing):** `aura-satellite.glb`
+  is the ONLY model exported with `KHR_draco_mesh_compression` (+ `EXT_texture_webp`).
+  react-force-graph's `GLTFLoader` had no Draco decoder, so the load *threw* → the
+  `onError` handler swapped in the **procedural fallback probe** (bus + panels + dish).
+  That stand-in is the right general shape but has none of the real foil/panel textures
+  — exactly the "shape is right but not the designs" the user saw. The ship + station
+  aren't Draco, which is why only the satellite looked wrong.
+- **Fix:** new shared `graph/gltf.ts` (`gltfLoader()`) attaches a `DRACOLoader` whose
+  decoder is **bundled in `/public/draco/`** (served as static assets — offline-safe,
+  no CDN, like the baked MiniLM model). All four model loaders (satellite, ship,
+  station, nebula skybox) now use it, so a future Draco/WebP export can't silently fall
+  back again. WebP textures are decoded natively by three once Draco is in place.
+- Files: `graph/gltf.ts` (new), `graph/{satellites,spaceStation,soumaya,skybox}.ts`,
+  `public/draco/*` (decoder). Added the bug to the Implementation skill's Hall of Shame.
+
 ### 2026-06-18 (Claude): Gave Gemini real implementation skills (anti-stupidity)
 - [x] **Verified by Claude** — docs-only (no code), gate untouched.
 - Added two concrete, repo-specific skill files (the old skills were process-only,

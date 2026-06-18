@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfLoader } from "./gltf.js";
 
 /**
  * Aura-class Beacons — Soumaya's deployed relay satellites.
@@ -120,7 +120,8 @@ function makeProbe(): { group: THREE.Group; light: THREE.Sprite; fallback: THREE
   group.visible = false;
 
   // Swap in the real glTF satellite once it loads (keep its own materials).
-  new GLTFLoader().load(
+  // Uses the shared Draco-aware loader — this model is Draco-compressed.
+  gltfLoader().load(
     "/aura-satellite.glb",
     (gltf) => {
       const model = gltf.scene;
