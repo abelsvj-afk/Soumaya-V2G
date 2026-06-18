@@ -32,6 +32,47 @@ const CONCEPTS: { title: string; body: string }[] = [
   { title: `🛰️ ${SATELLITE_NAME}s`, body: SATELLITE_LORE },
 ];
 
+// The deeper "why" — the mechanics a player needs to understand to read the world,
+// not just operate the buttons. (Kept honest to what the app actually does today.)
+const MECHANICS: { title: string; body: string }[] = [
+  {
+    title: "It's a real graph, with real gravity",
+    body: "Every memory becomes a celestial body. Its size/class (asteroid → moon → planet → giant → star → supergiant) is its gravitational MASS, blended from three things: how important it is, how connected it is, and its emotional charge. Heavy memories pull lighter ones into orbit around them, so the layout is meaning, not decoration.",
+  },
+  {
+    title: "Memories link themselves",
+    body: "When you add a thought, it's embedded and automatically linked to the memories closest to it in meaning — no manual tagging. Those associative links are what grow constellations and let the galaxy reveal structure you didn't know was there.",
+  },
+  {
+    title: "Soumaya is autonomous",
+    body: "The ship isn't decoration — she works on her own: surfacing latent connections (Insights ✨), tidying and merging duplicates, researching your biggest hubs, and writing a daily log. Her ambitious work is gated by Research Mode + ⛽ Fuel; her core upkeep always runs. The API budget is the hard ceiling.",
+  },
+  {
+    title: "Heat & cold (Entropy)",
+    body: "Memories cool when neglected — they dim and drift toward cold blue, and show up in the daily digest as 'going cold'. Well-connected memories cool much slower. Nothing is ever deleted; focusing a memory warms it right back.",
+  },
+  {
+    title: "The Aura beacons (her fleet)",
+    body: "When memories go cold, Soumaya dispatches relay beacons that take orbit and beam them warm — the colder the memory, the brighter the beam. When NOTHING is cold, a beacon instead stands sentinel over your heaviest hub star. A beam's color follows the memory's EMOTION (warm gold for joyful, cool blue for heavy). Visit a beamed memory to warm it; the beacon moves on.",
+  },
+  {
+    title: "Time: when it happened, reminders & tags",
+    body: "A memory can carry the date/time its event actually happened (you can backdate it), a future reminder, and tags (Work, Ideas, Anxious…). These let the brain be a timeline, not just a pile — and tags give you fast context/filtering.",
+  },
+  {
+    title: "Your brain is private",
+    body: "Each brain is its own private space, opened with a name + passcode. Anyone can create their own; brains never see each other's memories.",
+  },
+  {
+    title: "Talk to it from your phone (Telegram)",
+    body: "Link a Telegram chat to your brain (/link name passcode) and you can log thoughts and ask questions by message — and Soumaya sends you a daily digest on her own.",
+  },
+  {
+    title: "Install it like an app",
+    body: "Use your browser's 'Add to Home Screen' to install Soumaya as a standalone app. It launches full-screen and the galaxy still loads offline (your live memories need a connection).",
+  },
+];
+
 /** A simple in-app guide explaining every control + concept. */
 export function HelpPanel({ onClose }: Props) {
   return (
@@ -65,6 +106,21 @@ export function HelpPanel({ onClose }: Props) {
           <li key={c.title}>
             <span>
               <b>{c.title}</b> — {c.body}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <h3>How the world works (the rules)</h3>
+      <p className="help-intro">
+        Soumaya is part tool, part living world. These are the mechanics behind what you
+        see — worth knowing so the galaxy reads as meaning, not just pretty lights.
+      </p>
+      <ul className="help-list">
+        {MECHANICS.map((m) => (
+          <li key={m.title}>
+            <span>
+              <b>{m.title}</b> — {m.body}
             </span>
           </li>
         ))}

@@ -34,6 +34,25 @@ const COLD_THRESHOLD = 0.45;
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
 
+/** How "heavy a hub" a memory is — what the fleet guards when nothing is cold. */
+const hubWeight = (n: any): number => (n.mass ?? 0) * 2 + (n.degree ?? 0) * 0.3;
+
+/**
+ * The beam/impact color for a target. It follows the memory's EMOTIONAL color so a
+ * joyful memory glows warm gold and a heavy one cool blue — the relay's warmth is
+ * tinted by the feeling it's tending. Falls back to the LLM-assigned node color,
+ * then to the classic warm amber.
+ */
+const colorFor = (n: any): THREE.Color => {
+  if (typeof n.color === "string" && /^#?[0-9a-f]{6}$/i.test(n.color)) {
+    return new THREE.Color(n.color.startsWith("#") ? n.color : `#${n.color}`);
+  }
+  const ew = n.emotionalWeight ?? 0;
+  if (ew > 0.2) return new THREE.Color("#ffcf6b"); // warm — positive
+  if (ew < -0.2) return new THREE.Color("#6bb7ff"); // cool — heavy/negative
+  return new THREE.Color("#ffb24d"); // neutral amber
+};
+
 /** Approximate a body's visual radius (mirrors nodeObject sizing) for standoff. */
 const bodyRadius = (n: any): number => {
   const m = n.mass ?? 0.3;
@@ -172,6 +191,7 @@ interface Slot {
   angle: number;
   spin: number;
   fade: number; // 0..1 visibility ease
+  guard: boolean; // true = guarding a heavy hub (nothing cold); false = warming a cold memory
 }
 
 export interface SatelliteSystem {
@@ -194,24 +214,33 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
     const impact = makeGlowSprite("rgba(255,235,190,0.95)", "rgba(255,180,90,0.45)");
     impact.visible = false;
     group.add(probe.group, beam, impact);
-    slots.push({ probe, beam, impact, targetId: null, angle: Math.random() * Math.PI * 2, spin: 0, fade: 0 });
+    slots.push({ probe, beam, impact, targetId: null, angle: Math.random() * Math.PI * 2, spin: 0, fade: 0, guard: false });
   }
 
   let retarget = 0;
 
   const reassign = (nodes: any[]) => {
-    // Rank memories by neglect (coldest first). We always keep at least one beacon
-    // on patrol over the most-neglected memory so the fleet is visibly present even
-    // in a young, warm galaxy; the fleet GROWS as more memories actually go cold.
-    const ranked = nodes
-      .filter((n) => n.kind !== "action" && n.x != null)
-      .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0));
-    if (ranked.length === 0) {
+    const memories = nodes.filter((n) => n.kind !== "action" && n.x != null);
+    if (memories.length === 0) {
       for (const s of slots) s.targetId = null;
       return;
     }
-    const coldCount = ranked.filter((n) => (n.entropy ?? 0) >= COLD_THRESHOLD).length;
-    const desired = Math.min(slots.length, ranked.length, Math.max(1, coldCount));
+    const cold = memories
+      .filter((n) => (n.entropy ?? 0) >= COLD_THRESHOLD)
+      .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0));
+
+    // Cold memories exist → warm the coldest (fleet GROWS with how many are cold).
+    // Nothing cold → fall back to GUARDING the single heaviest hub star, so the
+    // fleet is always visibly doing something purposeful.
+    let ranked: any[];
+    let desired: number;
+    if (cold.length > 0) {
+      ranked = cold;
+      desired = Math.min(slots.length, cold.length);
+    } else {
+      ranked = [...memories].sort((a, b) => hubWeight(b) - hubWeight(a));
+      desired = 1; // one sentinel on the brain's heaviest hub
+    }
     const wanted = new Set(ranked.slice(0, desired).map((n) => n.id));
 
     // Drop slots whose target is no longer wanted; keep the ones still in the set.
@@ -266,12 +295,17 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         g.scale.setScalar(1.5 * (0.4 + 0.6 * s.fade));
 
         const entropy = target.entropy ?? 0.5;
+        // Guard mode = nothing's cold, so this beacon is sentinel over a heavy hub
+        // (calm, steady) rather than rescuing a cooling memory (urgent, bright).
+        s.guard = entropy < COLD_THRESHOLD;
+        const col = colorFor(target); // beam follows the memory's emotional color
         s.spin += dt;
         const pulse = 0.7 + 0.3 * Math.sin(s.spin * 3);
 
-        // Running light on the probe.
+        // Running light on the probe (tinted to the memory's feeling).
         const ls = 9 * pulse * s.fade;
         s.probe.light.scale.set(ls, ls, 1);
+        (s.probe.light.material as THREE.SpriteMaterial).color.copy(col);
         (s.probe.light.material as THREE.SpriteMaterial).opacity = 0.6 * s.fade;
 
         // --- The real beam: from the probe down to the memory's surface. ---
@@ -289,18 +323,25 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         s.beam.visible = true;
         s.beam.position.copy(from);
         s.beam.quaternion.setFromUnitVectors(UP, beamDir);
-        // Width pulses + grows with how cold the memory is; length spans the gap.
-        const width = (0.5 + entropy * 0.9) * (0.85 + 0.15 * Math.sin(s.spin * 5));
+        // Warming a cold memory: wide, bright beam that grows with the chill.
+        // Guarding a hub: a thin, steady sentinel ray. Both tinted to the emotion.
+        const beamMat = s.beam.material as THREE.MeshBasicMaterial;
+        beamMat.color.copy(col);
+        const width = s.guard
+          ? 0.4 * (0.9 + 0.1 * Math.sin(s.spin * 2))
+          : (0.5 + entropy * 0.9) * (0.85 + 0.15 * Math.sin(s.spin * 5));
         s.beam.scale.set(width, len, width);
-        (s.beam.material as THREE.MeshBasicMaterial).opacity = (0.22 + entropy * 0.4) * pulse * s.fade;
+        beamMat.opacity = (s.guard ? 0.16 : 0.22 + entropy * 0.4) * pulse * s.fade;
 
-        // Impact glow where the beam strikes the surface.
+        // Impact glow where the beam strikes the surface (also emotion-tinted).
         const hit = from.clone().addScaledVector(beamDir, len);
         s.impact.visible = true;
         s.impact.position.copy(hit);
         const isz = (radius * 1.4 + 6) * (0.85 + 0.15 * Math.sin(s.spin * 6));
         s.impact.scale.set(isz, isz, 1);
-        (s.impact.material as THREE.SpriteMaterial).opacity = (0.4 + entropy * 0.5) * s.fade;
+        const impactMat = s.impact.material as THREE.SpriteMaterial;
+        impactMat.color.copy(col);
+        impactMat.opacity = (s.guard ? 0.28 : 0.4 + entropy * 0.5) * s.fade;
       }
     } catch {
       /* skip frame */

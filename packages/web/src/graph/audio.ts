@@ -25,7 +25,7 @@ const CHORDS: number[][] = [
   [-2, 5, 10, 14], // VII    (G)
 ];
 // Arpeggio motif (scale degrees, semitones) — a slow rising figure over the chord.
-const MOTIF = [0, 7, 12, 16, 19, 16, 12, 7];
+const MOTIF = [0, 7, 12, 16, 19, 12];
 
 const hzAt = (semis: number): number => ROOT_HZ * Math.pow(2, semis / 12);
 
@@ -46,26 +46,43 @@ export function makeAmbientAudio(): AmbientAudio {
     const AC =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    ctx = new AC();
+    // latencyHint:"playback" asks the browser for a LARGER audio buffer. We don't
+    // care about latency for ambient music, and the bigger buffer is the single
+    // biggest fix for the "radio static / crackle" on phones (it's buffer underruns
+    // when the audio thread can't keep up). Fall back gracefully if unsupported.
+    try {
+      ctx = new AC({ latencyHint: "playback" });
+    } catch {
+      ctx = new AC();
+    }
     master = ctx.createGain();
     master.gain.value = 0.0001;
 
-    // A soft master compressor so swells stay warm and never clip.
-    const comp = ctx.createDynamicsCompressor();
-    comp.threshold.value = -18;
-    comp.knee.value = 24;
-    comp.ratio.value = 3;
-    master.connect(comp);
-    comp.connect(ctx.destination);
+    // Brick-wall limiter on the very end: clipping (samples past ±1.0) is itself a
+    // major source of crackle/distortion on mobile. A fast, high-ratio compressor
+    // catches swell peaks so the output can never clip.
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -2;
+    limiter.knee.value = 0;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.003;
+    limiter.release.value = 0.25;
+    master.connect(limiter);
+    limiter.connect(ctx.destination);
 
-    // Long reverb-ish tail via a gentle feedback delay (cathedral depth, no IR file).
+    // Cathedral tail via a feedback delay — but TAMED: a low-pass inside the loop
+    // and modest feedback so it can't resonate/build into a clipping howl.
     const delay = ctx.createDelay(2.0);
     delay.delayTime.value = 0.45;
+    const fbCut = ctx.createBiquadFilter();
+    fbCut.type = "lowpass";
+    fbCut.frequency.value = 1600;
     const fb = ctx.createGain();
-    fb.gain.value = 0.4;
+    fb.gain.value = 0.26;
     const wet = ctx.createGain();
-    wet.gain.value = 0.32;
-    delay.connect(fb);
+    wet.gain.value = 0.2;
+    delay.connect(fbCut);
+    fbCut.connect(fb);
     fb.connect(delay);
     delay.connect(wet);
     wet.connect(master);
@@ -103,7 +120,7 @@ export function makeAmbientAudio(): AmbientAudio {
     shimmer.gain.value = 0.014;
     shimmer.connect(master);
     shimmer.connect(delay);
-    for (const semis of [24, 31, 36]) {
+    for (const semis of [24, 31]) {
       const o = ctx.createOscillator();
       o.type = "sine";
       o.frequency.value = hzAt(semis);
@@ -194,7 +211,7 @@ export function makeAmbientAudio(): AmbientAudio {
       }
       playing = false;
     } else {
-      master.gain.linearRampToValueAtTime(0.4, t + 2.5); // slow cinematic fade-in
+      master.gain.linearRampToValueAtTime(0.34, t + 2.5); // slow cinematic fade-in
       advance(); // start the harmony immediately
       schedTimer = window.setInterval(advance, BAR * 1000);
       playing = true;

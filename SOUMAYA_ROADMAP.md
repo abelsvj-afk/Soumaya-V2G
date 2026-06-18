@@ -50,6 +50,21 @@ This document tracks identified architectural gaps, technical debt, and proposed
 - [x] **Offline emotion:** the heuristic provider now sets `emotionalWeight` from
   wording, so color/harmonization/visitors/voice all work with no API key.
 
+## 🛰️ Phase 4 — Living Galaxy (Claude, 2026-06-18) — see `plans/phase-4-living-galaxy.md`
+- [x] **Installable PWA:** manifest + service worker + generated icons → Add-to-Home-Screen
+  on Android/iOS, standalone launch, offline shell (`/api` never cached).
+- [x] **Music crackle fixed:** `latencyHint:"playback"` + brick-wall limiter + tamed
+  feedback loop + fewer oscillators (mobile underruns/clipping were the cause).
+- [x] **Beacons:** beam color now follows the memory's emotion; when nothing is cold a
+  beacon stands sentinel over the heaviest hub (guard mode) instead of idling.
+- [x] **Lore card overlap fixed:** re-anchored so the right-hand FAB rail never covers it.
+- [x] **Help:** added a "How the world works" mechanics/understanding section.
+- [ ] **24/7 server-side autonomy** (Phase C) — spec'd; needs Fly always-on + cost sign-off.
+- [ ] **Evolving, persistent, world-aware lore** with version history — spec'd (needs schema).
+- [ ] **Autonomous beacon dispatch by the ship** + a Fleet menu + sub-agents (Scout/etc).
+- [ ] **Mature demo galaxy** showcasing the Obsidian-style macro view.
+- [ ] **Action Items list** view (uses existing `kind:"action"` + `remind_at`).
+
 ## 📝 Change Log (Claude & Gemini)
 *Track major architectural shifts and commit SHAs here.*
 

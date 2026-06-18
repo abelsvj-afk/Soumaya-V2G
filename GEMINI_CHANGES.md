@@ -34,7 +34,11 @@ implementation quality is the whole game.
   - **Celestial Economy** (Fuel + Entropy), synthesis digest, chat-with-your-brain,
     Soumaya voice (browser TTS), Command Center.
   - **Temporal + tagged memories:** `occurred_at` / `remind_at` / `tags` on nodes.
-  - **Generative "interstellar" ambient score** (`graph/audio.ts`, Web Audio, no file).
+  - **Generative "interstellar" ambient score** (`graph/audio.ts`, Web Audio, no file;
+    mobile-hardened: limiter + playback latency + tamed feedback).
+  - **Installable PWA** (manifest + service worker + icons) — Add-to-Home-Screen.
+- **Active roadmap:** `plans/phase-4-living-galaxy.md` is the live capture of the user's
+  big asks (24/7 autonomy, evolving lore, fleet/sub-agents, mature demo, action list).
 - **Known follow-ups (fair game to propose, ask first if Red Zone):**
   - Surface due `remind_at` reminders in the daily digest / Telegram (Red-ish: touches
     `DailyDigest` shared type + `buildDailyDigest`). Stage a plan.
@@ -144,6 +148,28 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-18 (Claude): Phase 4 kickoff — PWA install, music crackle, beacons, lore card, help
+- [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean (PWA
+  assets confirmed in `dist/`).
+- **Installable to phone (PWA):** `manifest.webmanifest`, conservative service worker
+  (`public/sw.js` — never caches `/api`, network-first nav, cache-first assets), real
+  PNG icons generated dependency-free (`scripts/gen-icons.mjs` → 192/512/apple-touch),
+  `index.html` head tags, SW registered in `main.tsx` (prod only).
+- **Music crackle on phones fixed:** `AudioContext({latencyHint:"playback"})` (bigger
+  buffer → fixes underrun static), brick-wall limiter (no clip-crackle), tamed
+  low-passed feedback loop, fewer oscillators. (`graph/audio.ts`)
+- **Beacons:** beam/impact/light color now follows the memory's EMOTION (`colorFor`);
+  when nothing is cold a beacon stands sentinel over the heaviest hub (guard mode, calm
+  ray) instead of idling. (`graph/satellites.ts`)
+- **Lore-card overlap fixed:** `.object-lore` re-anchored (`left:12 right:78`) so the
+  right FAB rail never covers it. (`index.css`)
+- **Help:** new "How the world works (the rules)" section — graph/gravity, auto-linking,
+  autonomy, entropy, fleet (guard + emotional color), time, privacy, Telegram, install.
+- **Captured the full 2026-06-18 brain-dump** in `plans/phase-4-living-galaxy.md` (every
+  item, with zone + status) + roadmap Phase 4. STAGED (need decisions/bigger build):
+  24/7 server-side autonomy, evolving persistent world-aware lore w/ history, autonomous
+  beacon dispatch + Fleet menu + sub-agents, mature demo galaxy, Action Items list.
 
 ### 2026-06-18 (Claude): Fix the Aura satellite "right shape, wrong textures" — Draco decoder
 - [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean.

@@ -517,10 +517,13 @@ body,
 /* Object lore card (shown while focusing the station / ship) */
 .object-lore {
   position: absolute;
-  left: 50%;
+  /* Anchor left and stop short of the right-hand FAB rail (~46px buttons at
+     right:14px) so the focus/music/beacon buttons never cover the card text. */
+  left: 12px;
+  right: 78px;
   bottom: 92px;
-  transform: translateX(-50%);
-  width: min(440px, 88vw);
+  width: auto;
+  max-width: 440px;
   z-index: 20;
   background: var(--glass);
   border: 1px solid var(--glass-border);
