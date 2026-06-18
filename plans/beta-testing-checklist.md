@@ -41,25 +41,21 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ### 🧠 Memory Discovery System
 
-- 🟡 **P0 — Expand memory metadata in the List view.** Rows show only name + mass today.
-  - *Plan:* enrich `web/src/components/NodeList.tsx` rows with data already on `GraphNode`:
-    created (`createdAt`) + last-tended (`lastTendedAt`), emotional signature (color dot +
-    `emotionalWeight`), growth stage (`celestial`/`CELESTIAL_ICON`), connection count
-    (`degree`). Constellation membership needs the constellations route (`/api/constellations`);
-    visitor indicators depend on the Visitor-activity item below. Files: `NodeList.tsx`,
-    `index.css`.
+- 🟡 **P0 — Expand memory metadata in the List view.** (mostly shipped)
+  - *Done:* `NodeList.tsx` rows now show growth stage (`celestial` + `CELESTIAL_ICON`),
+    connection count (`degree`), when (`occurredAt ?? createdAt`, relative), emotional
+    signature (warm/neutral/heavy dot), cooling (❄️ via `entropy`), and tags.
+  - *Remaining:* constellation membership (needs `/api/constellations`) + visitor indicators
+    (needs the Visitor-activity item below).
 - ⬜ **P1 — Timeline context / grouping.** Locate memories by *when* (day / week / month /
   year / life period).
   - *Plan:* a timeline grouping mode in the List (or a new "🕰 Timeline" sub-view) that
-    buckets by `occurredAt ?? createdAt`. Server can expose an ordered, lightweight feed;
-    or group client-side from the existing graph data. Files: `NodeList.tsx` (+ maybe a
-    `TimelinePanel.tsx`), reuse `occurred_at` already on nodes.
-- ⬜ **P1 — Visual-based discovery (find without the name).** Filter/search by planet
-  color, size, ring/moon presence, growth stage, brightness, visitor activity.
-  - *Plan:* a filter bar on the List/Search driven by the celestial fields already derived
-    on read (`mass`/`celestial`, `color`/`emotionalWeight`, `entropy` for brightness,
-    `degree`). Rings/moons are render-derived from mass tier → filter by tier. Files:
-    `NodeList.tsx` / `SearchBox.tsx`, possibly a `discovery` helper in `web/src/graph`.
+    buckets by `occurredAt ?? createdAt`. The List already sorts "most recent"; grouping
+    headers are the next step. Files: `NodeList.tsx` (+ maybe a `TimelinePanel.tsx`).
+- ✅ **P1 — Visual-based discovery (find without the name).** Shipped: `NodeList` filter bar
+  filters by size/growth stage, emotional signature (warm/neutral/heavy), memory type,
+  ❄️ cooling/brightness, and tags, with sort by heaviest/recent/most-connected/name. (Literal
+  ring/moon filters skipped — not first-class features; size tier covers "large … planet".)
 - 🟡 **P1 — Cluster context (why these belong together).** Sectors/constellations exist but
   don't explain the bond.
   - *Plan:* in `SectorView.tsx` / constellations, surface shared signals across a cluster:
@@ -116,6 +112,6 @@ These are the foundations already in the app (so the backlog reflects reality):
 ---
 
 ## Suggested order
-1. **P0:** tab labels → expanded List metadata (fast, high-signal for testing/debugging).
-2. **P1:** visitor activity tracking → visual-based discovery → timeline grouping → cluster context.
+1. **P0:** ✅ tab labels → ✅ expanded List metadata + ✅ visual discovery filters.
+2. **P1 (next):** visitor activity tracking → timeline grouping → cluster context.
 3. **P2:** attraction logic → brain-at-scale + recall-signal animation → behavioral persona.

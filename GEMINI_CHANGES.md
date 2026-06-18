@@ -159,6 +159,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Memory Discovery — rich List metadata + visual/emotional/time filters
+- [x] **Verified by Claude** — typecheck clean, 82 tests pass, web build clean.
+- Prioritized by Claude from `plans/beta-testing-checklist.md` (the list had no project
+  context): picked the **Memory Discovery** bundle first — it directly serves the core
+  "find a memory without its name" principle and reuses data already on each node.
+- `web/src/components/NodeList.tsx` rewritten: each row now shows **growth stage**
+  (celestial icon+class), **connection count** (`degree`), **when** (`occurredAt ?? createdAt`,
+  relative), **emotional signature** (warm/neutral/heavy dot), **❄️ cooling** (`entropy`), and
+  **tags**. Plus a filter bar: by size/growth, feeling, type, cooling, tag, and sort
+  (heaviest/recent/most-connected/name). All client-side over the enriched graph data.
+- Deferred within the bundle: constellation-membership + visitor indicators (need the
+  constellations route / a visitor-activity log), and timeline grouping headers.
+
 ### 2026-06-18 (Claude): Auto-derived persona (not user-editable) + master Beta Checklist + tab labels
 - [x] **Verified by Claude** — typecheck clean, **82 tests** pass, web build clean.
 - **"About Me" is now auto-derived, not editable.** New `persona/derive.ts`
