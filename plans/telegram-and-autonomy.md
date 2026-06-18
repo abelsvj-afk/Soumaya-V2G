@@ -45,20 +45,23 @@ Soumaya reaches out, not just responds.
 > Passcode hygiene: `/link` puts the passcode in the chat history, so the success
 > reply tells the user to delete that message. (Same lightweight auth as the web app.)
 
-## Phase C — Full server-side autonomy (BIGGER)
+## Phase C — Full server-side autonomy (SHIPPED)
 
-Today the *thinking* agent (synthesis/research/merging/daily-log) is **browser-
-driven** (`web/src/graph/soumaya.ts` polls `/maintenance/next-job`). Move it
-server-side so she evolves 24/7 and Telegram talks to that same agent.
+The *thinking* agent (synthesis/research/merging/daily-log) was **browser-driven**
+(`web/src/graph/soumaya.ts` polls `/maintenance/next-job`). It now also runs
+**server-side 24/7** so she evolves with no tab open.
 
-- A server loop calls the existing `next-job`/`complete-job` logic on a timer,
-  gated by Research Mode + USD budget + **fuel** (move fuel/budget checks fully
-  server-side; they already live there).
-- Add **job claiming/idempotency** so the server loop and any open browser tab
-  can't double-execute the same job (a `claimed_at`/lock on the chosen target).
-- Optional: replace the fixed if/else job ladder with an LLM "pick the next action"
-  step over the maintenance ops exposed as **tools** — turning the scheduler into a
-  real planning agent. Keep the deterministic ladder as the offline fallback.
+- Job logic extracted to `server/src/maintenance/agent.ts` (`selectJob` +
+  `executeJob`) — the single source of truth shared by the HTTP route and a server
+  loop in `index.ts` (opt-in `AUTONOMY=on`, every `AUTONOMY_MS`≈5 min, re-entrancy
+  guarded, skips no-op patrol). Gated by Research Mode + USD budget + **fuel** (all
+  server-side already). `fly.toml` sets `auto_stop_machines='off'` for true 24/7.
+- Still open: **job claiming/idempotency** (a `claimed_at`/lock so the server loop and
+  an open browser tab can't double-execute the same job). Low-risk today (jobs are
+  tend-guarded + mostly idempotent), but worth adding.
+- Optional next: replace the fixed if/else ladder with an LLM "pick the next action"
+  step over the maintenance ops exposed as **tools** — a real planning agent — keeping
+  the deterministic ladder as the offline fallback.
 
 ## Phase D — Voice notes (hybrid growth)
 

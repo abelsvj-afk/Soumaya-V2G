@@ -37,8 +37,12 @@ implementation quality is the whole game.
   - **Generative "interstellar" ambient score** (`graph/audio.ts`, Web Audio, no file;
     mobile-hardened: limiter + playback latency + tamed feedback).
   - **Installable PWA** (manifest + service worker + icons) — Add-to-Home-Screen.
+  - **24/7 server-side autonomy** (`maintenance/agent.ts` + loop in `index.ts`,
+    `AUTONOMY=on`): brains evolve with no tab open, gated by Research Mode + budget + Fuel.
+  - **Action Items / Agenda** Dock tab; **mature demo galaxy** (~140 nodes).
 - **Active roadmap:** `plans/phase-4-living-galaxy.md` is the live capture of the user's
-  big asks (24/7 autonomy, evolving lore, fleet/sub-agents, mature demo, action list).
+  big asks. DONE: PWA, music fix, beacons, action list, mature demo, 24/7 autonomy.
+  NEXT: evolving persistent lore engine → fleet/sub-agents.
 - **Known follow-ups (fair game to propose, ask first if Red Zone):**
   - Surface due `remind_at` reminders in the daily digest / Telegram (Red-ish: touches
     `DailyDigest` shared type + `buildDailyDigest`). Stage a plan.
@@ -148,6 +152,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-18 (Claude): 24/7 server-side autonomy (Phase C) — the brain evolves with no tab open
+- [x] **Verified by Claude** — typecheck clean, **68 tests** pass (added `agent.test.ts`),
+  web build clean. Route contract preserved (api.test fuel assertions still pass).
+- **Extracted the job brain** into `maintenance/agent.ts` (`selectJob` + `executeJob`):
+  the single source of truth for job selection + execution + logging + fuel. The HTTP
+  route (`api/routes/maintenance.ts`) is now a thin delegator (next-job → `selectJob`,
+  complete-job → `executeJob`) — same request/response shapes as before.
+- **Server-side loop in `index.ts`** (opt-in `AUTONOMY=on`, every `AUTONOMY_MS`≈5 min):
+  iterates every brain, runs one meaningful job each tick. Re-entrancy guard prevents
+  overlapping ticks; the no-op "patrol" is skipped. Same gating as the browser: LLM work
+  needs Research Mode + USD budget; expansion also needs Fuel; free upkeep always runs —
+  so it cannot exceed the budget, and with Research Mode off it just tidies for free.
+- **`fly.toml`:** `AUTONOMY='on'` + `auto_stop_machines='off'` (machine never sleeps so
+  the loop runs 24/7 — the always-on cost the user accepted).
+- Resolves roadmap Critical Gap #1 (frontend execution dependency). Still open: a
+  `claimed_at` lock so an open tab + the server can't double-run one job (low risk now).
+- Next in Phase 4: evolving persistent lore engine, then fleet/sub-agents.
 
 ### 2026-06-18 (Claude): Phase 4 quick wins — Action Items list + mature demo galaxy
 - [x] **Verified by Claude** — typecheck clean, 63 tests pass, web build clean.

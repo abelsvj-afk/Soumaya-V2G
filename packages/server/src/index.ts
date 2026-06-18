@@ -2,6 +2,8 @@ import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
 import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
+import { selectJob, executeJob } from "./maintenance/agent.js";
+import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -95,6 +97,37 @@ setInterval(() => {
     console.error("[soumaya] action sweep error:", err);
   }
 }, 60_000);
+
+// 24/7 autonomy (Phase C): the thinking agent, server-side. Opt-in via AUTONOMY=on.
+// Every tick it iterates each brain, picks ONE meaningful job and runs it — using
+// the SAME selection/execution + gating as the browser loop (maintenance/agent.ts):
+// LLM-backed work needs Research Mode + USD budget; expansion also needs Fuel; free
+// upkeep always runs. So with Research Mode off it just keeps brains tidy for free,
+// and it can never exceed the budget. Patrol (a pure no-op log) is skipped to avoid
+// log spam. A re-entrancy guard prevents overlapping ticks if an LLM job runs long.
+if (process.env.AUTONOMY === "on") {
+  const AUTONOMY_MS = Number(process.env.AUTONOMY_MS ?? 1000 * 60 * 5);
+  let running = false;
+  setInterval(async () => {
+    if (running) return;
+    running = true;
+    try {
+      const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces`).all() as { id: string }[];
+      const spaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
+      for (const spaceId of spaceIds) {
+        const job = selectJob(ctx, spaceId);
+        if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
+        const detail = await executeJob(ctx, spaceId, job);
+        if (detail) console.log(`[autonomy] ${spaceId.slice(0, 8)}: ${job.type}`);
+      }
+    } catch (err) {
+      console.error("[autonomy] loop error:", err);
+    } finally {
+      running = false;
+    }
+  }, AUTONOMY_MS);
+  console.log(`[autonomy] server-side loop ON (every ${AUTONOMY_MS}ms)`);
+}
 
 // Proactive nudges (Phase B): once per UTC day, push each linked chat its brain's
 // daily digest (fresh memories, latent connections, cooling beacons). The sweep is

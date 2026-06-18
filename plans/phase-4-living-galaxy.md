@@ -16,22 +16,21 @@ Legend: ✅ shipped · 🚧 in progress · 📋 spec'd/staged (needs build) · �
 - Follow-ups: an in-app "Install" button using the `beforeinstallprompt` event; richer
   offline (queue ingests made offline and sync later).
 
-## B. Run the brain 24/7 with true autonomy — 📋 SPEC (🔴 Phase C)
-Today the *thinking* agent is browser-driven (`web/src/graph/soumaya.ts` polls
-`/maintenance/next-job`); it stops when the tab closes. The server heartbeat only does
-free upkeep (prune/expire).
-- **Plan:** a server-side loop (in `index.ts`, like the heartbeat) that calls the
-  existing `next-job`/`complete-job` logic on a timer, **gated by Research Mode + USD
-  budget + Fuel** (move those checks fully server-side; they already live there).
-- **Job claiming/idempotency:** a `claimed_at`/lock on the chosen target so the server
-  loop and an open browser tab can't double-execute the same job.
-- **❓ Hosting decision:** Fly machines auto-stop when idle. True 24/7 needs
-  `auto_stop_machines=false` / `min_machines_running=1` in `fly.toml` — which costs more
-  (a machine always on). Confirm before enabling.
-- **❓ Cost guard:** autonomous LLM work spends real money. Default OFF behind an env
-  flag (`AUTONOMY=on`) + Fuel + budget; ship dark, you flip it on.
-- Visual honesty: the browser still animates the ship for jobs while open; when closed,
-  work happens server-side and shows next time you open (and via Telegram digest).
+## B. Run the brain 24/7 with true autonomy — ✅ SHIPPED (🔴 Phase C) — user chose full 24/7
+- Extracted the job brain into `maintenance/agent.ts` (`selectJob` + `executeJob`), the
+  single source of truth now used by BOTH the browser route
+  (`api/routes/maintenance.ts`, now thin) and a new **server-side loop in `index.ts`**.
+- The loop (opt-in `AUTONOMY=on`, default every 5 min, set in `fly.toml [env]`)
+  iterates every brain, picks one meaningful job and runs it. Re-entrancy guard stops
+  overlapping ticks; the no-op "patrol" is skipped to avoid log spam.
+- **Gating is unchanged + fully server-side:** LLM work needs Research Mode + USD
+  budget; expansion (research/sector_vibe) also needs Fuel; free upkeep always runs. So
+  with Research Mode off it just keeps every brain tidy for free, and it can never
+  exceed the budget. Telegram digest already surfaces what she did.
+- `fly.toml`: `auto_stop_machines='off'` so the machine never sleeps (accepted cost).
+- Follow-ups: per-target `claimed_at` lock so an open browser tab + the server can't
+  double-run the same job (currently low-risk: jobs are idempotent-ish + tend-guarded);
+  smarter per-space cadence as brain count grows.
 
 ## C. Music static / crackle on phones — ✅ FIXED (🟢)
 - Root causes addressed: `AudioContext({ latencyHint: "playback" })` (bigger buffer →

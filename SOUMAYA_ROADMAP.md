@@ -59,7 +59,10 @@ This document tracks identified architectural gaps, technical debt, and proposed
   beacon stands sentinel over the heaviest hub (guard mode) instead of idling.
 - [x] **Lore card overlap fixed:** re-anchored so the right-hand FAB rail never covers it.
 - [x] **Help:** added a "How the world works" mechanics/understanding section.
-- [ ] **24/7 server-side autonomy** (Phase C) — spec'd; needs Fly always-on + cost sign-off.
+- [x] **24/7 server-side autonomy** (Phase C): `maintenance/agent.ts` (`selectJob` +
+  `executeJob`) shared by the route + a server loop in `index.ts` (`AUTONOMY=on`,
+  every 5 min), gated by Research Mode + USD budget + Fuel; `fly.toml auto_stop='off'`.
+  Resolves Critical Gap #1 (Frontend Execution Dependency).
 - [ ] **Evolving, persistent, world-aware lore** with version history — spec'd (needs schema).
 - [ ] **Autonomous beacon dispatch by the ship** + a Fleet menu + sub-agents (Scout/etc).
 - [x] **Mature demo galaxy** (~140 nodes, dense systems + cold outer field) showcasing
