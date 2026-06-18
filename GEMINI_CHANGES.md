@@ -2,6 +2,142 @@
 
 This document tracks all changes made by Gemini to the Soumaya Brain repository. This is a mandatory reference for Claude to maintain project continuity.
 
+---
+
+# 🧭 OPERATING GUIDE FOR GEMINI — read this top to bottom before you touch anything
+
+Gemini, this section is written **for you** by Claude (lead engineer). It is the
+practical, file-level version of `GEMINI.md` + `WORKFLOW.md`. If those two ever
+disagree with this, this wins. Your job is **fast, surgical, visually-rich frontend
+work that keeps the gate green and never destabilizes the load-bearing systems.**
+
+## 📍 CURRENT STATE (Claude keeps this current — your source of truth)
+
+- **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
+  `master` is orphaned and NOT deployed — never commit app code there.
+- **Last verified gate:** typecheck clean · **63 tests pass** · web build clean.
+- **What exists & works today:**
+  - 3D galaxy (react-force-graph-3d + three.js), kinematic orbits (no force sim),
+    celestial mass model, LOD, bloom, **PMREM env map** (GLBs now lit, not black).
+  - Ship (Soumaya), space station, **Aura beacon satellites** (seek cold memories,
+    fire beams), alien **visitors** (fear the beacons).
+  - Ingestion pipeline → typed nodes + associative auto-linking; **offline heuristic
+    fallback** (no API key required) for embeddings + LLM.
+  - **Multi-tenant brains** (anyone can register a private space; name+passcode auth).
+  - **Telegram bridge** (Phase A chat/log + Phase B per-brain proactive daily digest;
+    chats `/link` to a brain).
+  - **Celestial Economy** (Fuel + Entropy), synthesis digest, chat-with-your-brain,
+    Soumaya voice (browser TTS), Command Center.
+  - **Temporal + tagged memories:** `occurred_at` / `remind_at` / `tags` on nodes.
+  - **Generative "interstellar" ambient score** (`graph/audio.ts`, Web Audio, no file).
+- **Known follow-ups (fair game to propose, ask first if Red Zone):**
+  - Surface due `remind_at` reminders in the daily digest / Telegram (Red-ish: touches
+    `DailyDigest` shared type + `buildDailyDigest`). Stage a plan.
+  - Pending UI polish: bottom-menu / button overlaps (see "Pending Tasks" below).
+
+## 🟢 GREEN ZONE — your workshop. Build freely here (then run the gate + log it).
+
+These are yours. Make real changes, no permission needed beyond the gate:
+
+- **`packages/web/src/graph/*`** — the 3D/visual layer (three.js). Effects, new
+  celestial objects, materials, shaders, starfield/nebula, audio, lore visuals.
+  *(Exception: `graph/orbits.ts` is Red — see below.)*
+- **`packages/web/src/components/*`** — UI panels, FABs, cards, inspectors, copy.
+- **`packages/web/src/index.css`** — all styling.
+- **Lore / text / personality** — `graph/lore.ts`, `graph/objectLore.ts`, in-character
+  copy, help text, tag suggestions' *labels*.
+- **Self-contained algorithms** — a pure helper with no schema/contract impact.
+- **Infra** — shell, deps (sparingly!), git on the deploy branch.
+
+### Real skills for Green Zone work (this is the "only Claude can teach you" part)
+
+1. **Adding a 3D object — always this exact recipe** (see `graph/spaceStation.ts`,
+   `satellites.ts`, `soumaya.ts` as canon):
+   - Build a **procedural fallback first** (basic meshes) so it works before/without
+     the GLB. Then `new GLTFLoader().load(...)`, and on success hide the fallback and
+     `group.add(model)`. Never hard-depend on a GLB loading.
+   - **Normalize scale + recenter** every loaded model: `new THREE.Box3().setFromObject`,
+     get size → `k = targetSize / maxDim`, `model.scale.setScalar(k)`,
+     `model.position.copy(center.multiplyScalar(-k))`. Do NOT override the model's own
+     materials/colors.
+   - **Animate via `group.userData.update = (time) => {...}`** — Graph3D's tick calls
+     every object's `userData.update` each frame. Don't start your own rAF loop.
+   - Keep model files reasonable; huge GLBs (>15MB) choke mobile GPUs (the 18MB nebula
+     skybox renders black on mobile — that's why it's desktop-only + procedural default).
+2. **The black-GLB lesson:** metallic PBR materials render as **black silhouettes
+   with no environment map**. The scene now has a global PMREM `RoomEnvironment`
+   (`Graph3D.tsx`) — rely on it; don't bolt per-object hacks.
+3. **Camera/controls:** OrbitControls damping REQUIRES `controls.update()` once per
+   frame — there is exactly one call at the end of Graph3D's tick. Don't add more
+   (double-damping) and don't fight `fg.cameraPosition()` tweens with manual writes.
+4. **Glow/auras:** additive `THREE.Sprite` with a radial-gradient `CanvasTexture`,
+   `depthWrite:false`, `blending:AdditiveBlending`. (Pattern repeated everywhere.)
+5. **"Visual honesty" rule (mandatory):** any backend state change the user can cause
+   (ingest, fusion, a beacon, a reminder firing) MUST have a matching visual event in
+   the galaxy. A silent feature is an unfinished feature.
+6. **Offline fallback is sacred:** never make a feature hard-require a cloud key. There
+   is always a `hash` embedding + `heuristic` LLM path. If your feature needs the LLM,
+   it must degrade gracefully without it.
+7. **Match the surrounding style:** comment *why*, not *what*; small dependency-free
+   solutions over new packages.
+
+## 🔴 RED ZONE — READ-ONLY for you. Do NOT edit & push. Stage a plan, hand to Claude.
+
+Touching these has repeatedly broken the live app. You may **read** them to understand
+the system, but for any *change* use the **Over-the-Shoulder protocol** (research →
+write a Spec + diff in chat → STOP and wait for Claude/user). Do not commit them.
+
+- **`packages/shared/*`** — domain types + zod schemas. A change here ripples into BOTH
+  server and web; it's the contract. (Adding a field is still Red — stage it.)
+- **`packages/server/src/db/*`** — `schema.ts`, `client.ts` (`migrateSchema`!), `vec.ts`.
+  Migrations must stay **additive + idempotent** or a deploy crashes on the live volume.
+- **Multi-tenancy scoping** — every per-user query is filtered by `space_id`
+  (`repositories/*.repo.ts`, `api/middleware.ts`, `auth/spaces.ts`). Get this wrong and
+  brains leak into each other.
+- **Provider seams + cost guards** — `embeddings/adapter.ts`, `llm/adapter.ts`,
+  `ResilientLlmProvider`, the **token/USD budget gating** and **Fuel** spend logic.
+- **`packages/web/src/api/client.ts`** — the hardened fetch wrapper (`x-space-id`
+  header, error handling). Bypassing it = 401s under multi-tenancy.
+- **`packages/web/src/graph/orbits.ts`** — the kinematic orbit system. Load-bearing;
+  the galaxy collapses if this is wrong.
+- **Server route contracts** — request/response shapes other layers depend on.
+
+Quick test: *"Could this change how data is stored, scoped, billed, or typed across
+packages?"* If yes → Red Zone → stage it, don't push it.
+
+## 🚦 THE GATE — non-negotiable. Run before every commit; all three must pass.
+
+```bash
+npm run typecheck && npm test && npm run build -w @brain/web
+```
+
+## 🌳 GIT — the rules that keep your work from vanishing
+
+- Work **only** on `claude/soumaya-second-brain-v1-m4z4hc`. Push to the same branch.
+- **NEVER** `git push --force`. **NEVER** `git init` / re-create history on this clone
+  (that is what orphaned `master` and deleted Claude's fixes once already).
+- Rejected push → `git fetch` → `git rebase origin/claude/...` → resolve → push. No force.
+- **Additive, not destructive:** make surgical edits; don't wholesale-replace files
+  Claude authored.
+
+## 📝 HOW TO LOG YOUR WORK (so Claude's continuity stays accurate)
+
+After every change, add an entry to the **top** of "## Completed Tasks" using this
+template, and update "📍 CURRENT STATE" above if the project's capabilities changed:
+
+```
+### YYYY-MM-DD (Gemini): <short title>
+- [ ] Verified by Claude   ← you NEVER tick this; only Claude does, after audit.
+- What changed and the *why* (the rationale, not just the what).
+- Files touched: <paths>.
+- Zone: Green (shipped) | Red (STAGED — awaiting Claude/user).
+- Gate: typecheck/tests/build status you observed.
+```
+
+Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you found.
+
+---
+
 ## Completed Tasks
 
 ### 2026-06-18 (Claude): Galaxy polish (GLB/camera/autofocus), temporal memories, generative score
