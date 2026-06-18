@@ -67,12 +67,14 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ### 👽 Visitor System
 
-- ⬜ **P1 — Visitor activity tracking.** Show most-visited memories, visitor history, types,
-  frequency.
-  - *Plan:* a `visitor_log(space_id, node_id, visitor_type, at)` table (additive migration)
-    written when `visitors.ts` parks a craft on a memory; a small read API + a panel/section.
-    Files: `db/schema.ts`+`db/client.ts`, new `repositories/visitors.repo.ts`, a route, and
-    a UI surface (Fleet tab or List indicators). Feeds the "visitor indicators" in List view.
+- ✅ **P1 — Visitor activity tracking.** Shipped: `visitor_stats` table (aggregated
+  visits per memory + craft type, additive migration); `visitors.ts` fires `onVisit` on
+  arrival → `Graph3D` batches → `POST /api/visitors/log` (fire-and-forget, skipped in demo).
+  `VisitorsRepo.top()` + `GET /api/visitors` power a **"👽 Most visited memories"** section in
+  the 🚀 Fleet tab (visits × types × last-seen, click to fly). Files: `db/schema.ts`,
+  `db/client.ts`, `repositories/visitors.repo.ts`, `api/routes/visitors.ts`, `graph/visitors.ts`,
+  `graph/Graph3D.tsx`, `components/FleetPanel.tsx`. *Remaining:* per-row visitor indicators
+  in the List view (needs the count map plumbed into `NodeList`).
 - ⬜ **P2 — Define alien attraction logic.** Make *why* a visitor picks a memory explicit.
   - *Plan:* formalize target scoring in `web/src/graph/visitors.ts` from emotional intensity
     (`|emotionalWeight|`), emotional rarity (distance from brain average), importance/mass,

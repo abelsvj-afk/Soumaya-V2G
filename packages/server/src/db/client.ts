@@ -143,6 +143,16 @@ export function bootstrapSchema(sqlite: RawDb): void {
       body TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- Visitor activity: aggregated visits per memory + craft type.
+    CREATE TABLE IF NOT EXISTS visitor_stats (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      node_id INTEGER NOT NULL,
+      visitor_type TEXT NOT NULL,
+      visits INTEGER NOT NULL DEFAULT 0,
+      last_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, node_id, visitor_type)
+    );
+    CREATE INDEX IF NOT EXISTS visitor_stats_space_idx ON visitor_stats(space_id);
   `);
 }
 
@@ -271,6 +281,16 @@ function migrateSchema(sqlite: RawDb): void {
       body TEXT NOT NULL,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- Visitor activity: aggregated visits per memory + craft type.
+    CREATE TABLE IF NOT EXISTS visitor_stats (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      node_id INTEGER NOT NULL,
+      visitor_type TEXT NOT NULL,
+      visits INTEGER NOT NULL DEFAULT 0,
+      last_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, node_id, visitor_type)
+    );
+    CREATE INDEX IF NOT EXISTS visitor_stats_space_idx ON visitor_stats(space_id);
   `);
 }
 

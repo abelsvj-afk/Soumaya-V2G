@@ -19,6 +19,7 @@ import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
+import { logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { makeSubAgents, type SubAgentSystem } from "./subAgents.js";
 import { BG } from "./theme.js";
@@ -56,6 +57,8 @@ interface Props {
   selectedId?: number | null;
   /** True when the bottom sheet is open — shifts the followed body up so it clears it. */
   bottomInset?: boolean;
+  /** Demo galaxy — don't report visitor activity to the real backend. */
+  demo?: boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -68,7 +71,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, selectedId, bottomInset },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, selectedId, bottomInset, demo },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -81,6 +84,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     insetRef.current = !!bottomInset;
   }, [bottomInset]);
+  // Buffer visitor arrivals and flush them to the backend periodically (not in demo).
+  const visitBufRef = useRef<{ nodeId: number; type: string }[]>([]);
+  const demoRef = useRef(false);
+  useEffect(() => {
+    demoRef.current = !!demo;
+  }, [demo]);
 
   // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
@@ -225,7 +234,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const station = makeSpaceStation();
       scene.add(station);
       stationObjRef.current = station;
-      visitors = makeVisitors();
+      visitors = makeVisitors(3, (nodeId, type) => {
+        if (!demoRef.current) visitBufRef.current.push({ nodeId, type });
+      });
       scene.add(visitors.group);
       satellites = makeSatellites();
       satellitesRef.current = satellites;
@@ -348,6 +359,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const IDLE_PULSE_EVERY = 4; // seconds between ambient pulses
     const IDLE_PULSE_LINKS = 2; // how many links shimmer each time
     let idlePulseT = IDLE_PULSE_EVERY;
+    // Flush buffered visitor arrivals to the backend every ~20s.
+    let visitFlushT = 20;
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -380,6 +393,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (idlePulseT <= 0) {
         idlePulse();
         idlePulseT = IDLE_PULSE_EVERY;
+      }
+
+      // Persist visitor arrivals in batches.
+      visitFlushT -= dt;
+      if (visitFlushT <= 0) {
+        visitFlushT = 20;
+        if (visitBufRef.current.length > 0) {
+          logVisits(visitBufRef.current.splice(0, visitBufRef.current.length));
+        }
       }
 
       // Advance every body along its orbit first, so the camera + Soumaya read

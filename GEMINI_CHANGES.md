@@ -159,6 +159,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Visitor activity tracking (P1)
+- [x] **Verified by Claude** — typecheck clean, **85 tests** pass (added `visitors.test.ts`),
+  web build clean.
+- Real, persisted visitor activity per brain. New `visitor_stats` aggregate table
+  (`space_id, node_id, visitor_type, visits, last_at`; additive bootstrap + idempotent
+  migrate). `repositories/visitors.repo.ts` (`record` upsert + `top` join w/ labels,
+  deduped types, deleted-node-safe). Routes `GET /api/visitors` + `POST /api/visitors/log`
+  (zod, space-scoped) behind the guard.
+- Capture: `graph/visitors.ts` fires `onVisit(nodeId, type)` when a craft settles on a
+  memory; `Graph3D` buffers + flushes every ~20s via `logVisits` (fire-and-forget,
+  **skipped in demo** via a new `demo` prop). Client: `logVisits` + `getVisitorActivity`.
+- UI: a **"👽 Most visited memories"** section in the 🚀 Fleet tab (visits × types ×
+  last-seen, click-to-fly). Remaining: per-row visitor indicators in the List view.
+
 ### 2026-06-18 (Claude): Memory Discovery — rich List metadata + visual/emotional/time filters
 - [x] **Verified by Claude** — typecheck clean, 82 tests pass, web build clean.
 - Prioritized by Claude from `plans/beta-testing-checklist.md` (the list had no project

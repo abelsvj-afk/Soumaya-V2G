@@ -224,6 +224,7 @@ export default function App() {
         onSatelliteCount={setSatelliteCount}
         selectedId={selected?.id ?? null}
         bottomInset={panel === "dock"}
+        demo={demo}
       />
 
       {!loaded && (

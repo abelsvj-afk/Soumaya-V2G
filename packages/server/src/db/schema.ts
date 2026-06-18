@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, integer, text, real, index } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, real, index, primaryKey } from "drizzle-orm/sqlite-core";
 
 /**
  * Relational tables for the knowledge graph. Vectors live in the separate
@@ -173,6 +173,22 @@ export const userPersona = sqliteTable("user_persona", {
 export type InstructionProfileRow = typeof instructionProfiles.$inferSelect;
 export type KnowledgeDocRow = typeof knowledgeDocs.$inferSelect;
 export type KnowledgeChunkRow = typeof knowledgeChunks.$inferSelect;
+
+/** Aggregated visitor activity per memory + craft type (drives "most visited"). */
+export const visitorStats = sqliteTable(
+  "visitor_stats",
+  {
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    nodeId: integer("node_id").notNull(),
+    visitorType: text("visitor_type").notNull(),
+    visits: integer("visits").notNull().default(0),
+    lastAt: text("last_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spaceId, t.nodeId, t.visitorType] }),
+    index("visitor_stats_space_idx").on(t.spaceId),
+  ],
+);
 
 /** Summarized daily reflections on the brain's evolution. */
 export const dailyLogs = sqliteTable("daily_logs", {

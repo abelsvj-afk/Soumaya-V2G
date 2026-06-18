@@ -69,7 +69,11 @@ interface Slot {
   loiter: number;
   angle: number;
   exit: THREE.Vector3;
+  variant: Variant;
 }
+
+/** Fired when a craft actually reaches (settles on) a memory. */
+export type OnVisit = (nodeId: number, visitorType: string) => void;
 
 /** What the Aura beacons are doing right now — drifters fear/hate these. */
 export interface VisitorHazard {
@@ -87,13 +91,13 @@ export interface VisitorSystem {
 /** How close a beacon must get before a drifter panics and bolts. */
 const FLEE_RADIUS = 240;
 
-export function makeVisitors(maxConcurrent = 3): VisitorSystem {
+export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSystem {
   const group = new THREE.Group();
   const slots: Slot[] = [];
   for (let i = 0; i < maxConcurrent; i++) {
     const craft = makeCraft();
     group.add(craft.group);
-    slots.push({ craft, phase: "idle", targetId: null, loiter: 0, angle: 0, exit: new THREE.Vector3() });
+    slots.push({ craft, phase: "idle", targetId: null, loiter: 0, angle: 0, exit: new THREE.Vector3(), variant: NEUTRAL });
   }
   let spawnTimer = 8; // first visitor a few seconds in
 
@@ -114,6 +118,7 @@ export function makeVisitors(maxConcurrent = 3): VisitorSystem {
     // Blend the variant's hull with the node's color to show influence
     slot.craft.setColor(variant.hull, nodeColor);
 
+    slot.variant = variant;
     slot.targetId = target.id;
     slot.phase = "arrive";
     slot.loiter = 12 + Math.random() * 22;
@@ -170,7 +175,11 @@ export function makeVisitors(maxConcurrent = 3): VisitorSystem {
           const d = dir.length();
           g.position.addScaledVector(dir.normalize(), Math.min(d, 140 * dt));
           g.lookAt(tp);
-          if (d < 12) s.phase = "loiter";
+          if (d < 12) {
+            s.phase = "loiter";
+            // It has arrived — record the visit (the memory + which craft type).
+            if (s.targetId != null) onVisit?.(s.targetId, s.variant.name);
+          }
         } else if (s.phase === "loiter") {
           s.loiter -= dt;
           s.angle += dt * 0.5;

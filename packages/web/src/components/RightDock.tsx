@@ -111,7 +111,9 @@ export function RightDock({
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
         {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}
-        {tab === "fleet" && <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} />}
+        {tab === "fleet" && (
+          <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
+        )}
         {tab === "companion" && <CompanionPanel demo={demo} />}
       </div>
     </div>

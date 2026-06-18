@@ -587,3 +587,34 @@ export async function uploadDocument(name: string, text: string, mime?: string):
 export async function deleteDocument(id: number): Promise<void> {
   await afetch(`${API}/documents/${id}`, { method: "DELETE" });
 }
+
+// --- Visitor activity ---
+
+export interface VisitedMemory {
+  nodeId: number;
+  label: string;
+  type: string;
+  visits: number;
+  visitorTypes: string[];
+  lastAt: string;
+}
+
+/** Report a batch of visitor arrivals (fire-and-forget; never throws/badges). */
+export function logVisits(events: { nodeId: number; type: string }[]): void {
+  if (events.length === 0) return;
+  void afetch(`${API}/visitors/log`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ events }),
+  }).catch(() => {});
+}
+
+export async function getVisitorActivity(): Promise<VisitedMemory[]> {
+  try {
+    const res = await afetch(`${API}/visitors`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as VisitedMemory[]) : [];
+  } catch {
+    return [];
+  }
+}
