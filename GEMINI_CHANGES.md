@@ -159,6 +159,13 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Cluster context — why memories belong together (P1)
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
+- Each Sector card (`components/SectorView.tsx`) now explains the bond: the system's
+  **emotional tone**, **time span**, **shared people** (person-type members), and **shared
+  tags** (in ≥2 members) — computed client-side from the hub + its neighbors. CSS
+  `.sector-context`. Makes a cluster legible instead of a blob.
+
 ### 2026-06-18 (Claude): Timeline grouping in the List (P1)
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
 - A **🕰 timeline** toggle in the List groups memories by when they happened

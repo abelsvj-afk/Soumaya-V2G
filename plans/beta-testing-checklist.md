@@ -55,12 +55,10 @@ These are the foundations already in the app (so the backlog reflects reality):
   filters by size/growth stage, emotional signature (warm/neutral/heavy), memory type,
   ❄️ cooling/brightness, and tags, with sort by heaviest/recent/most-connected/name. (Literal
   ring/moon filters skipped — not first-class features; size tier covers "large … planet".)
-- 🟡 **P1 — Cluster context (why these belong together).** Sectors/constellations exist but
-  don't explain the bond.
-  - *Plan:* in `SectorView.tsx` / constellations, surface shared signals across a cluster:
-    shared tags, shared people (person-type nodes), shared time window (`occurredAt` span),
-    shared emotional tone. Compute server-side in the constellations route or client-side
-    from cluster members. Files: `api/routes/constellations.ts`, `SectorView.tsx`.
+- ✅ **P1 — Cluster context (why these belong together).** Shipped: each Sector card in
+  `SectorView.tsx` now shows the system's emotional tone, time span, shared people
+  (person-type members), and shared tags (appearing in ≥2 members) — computed client-side
+  from the hub + its neighbors. CSS `.sector-context`.
 - 🟡 **P1 — Improve identification without the title (umbrella).** Satisfied collectively by
   Timeline + Visual discovery + Cluster context above; track as the rollup acceptance item.
 
@@ -114,6 +112,6 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ## Suggested order
 1. **P0:** ✅ tab labels → ✅ expanded List metadata + ✅ visual discovery filters.
-2. **P1:** ✅ visitor activity tracking → ✅ timeline grouping → cluster context (next) →
-   per-row visitor indicators in List.
+2. **P1:** ✅ visitor activity tracking → ✅ timeline grouping → ✅ cluster context →
+   per-row visitor indicators in List (next).
 3. **P2:** attraction logic → brain-at-scale + recall-signal animation → behavioral persona.

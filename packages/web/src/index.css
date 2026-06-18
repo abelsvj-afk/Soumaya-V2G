@@ -1757,6 +1757,26 @@ button {
   font-size: 12px;
   color: var(--muted);
 }
+.sector-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 6px 0;
+}
+.sector-ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.sector-ctx.tag {
+  color: var(--accent);
+}
 .sector-actions {
   display: flex;
   gap: 8px;
