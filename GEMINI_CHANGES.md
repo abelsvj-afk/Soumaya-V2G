@@ -159,6 +159,34 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Sun/orbit/UX beta batch 2 (spin, glare, distance, dock, lore card, Companion editing, nav, dispatch)
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
+- **Sun**: baked clip was spinning fast → `mixer.timeScale=0.08` + gentle self-rotation;
+  brightness rolled back (point light ~1.6, calmer corona); **focus-dim** (`setFocusDim`) fades
+  the sun's glow + lowers bloom when you focus/zoom a body so it can't blind (`sun.ts`,
+  `Graph3D`, `bloom.ts`).
+- **Load no longer starts inside the sun**: frame the whole galaxy once on first load
+  (`Graph3D` `initialFramedRef` → `frameGalaxy(0)`); `frameGalaxy` now bounds by the sun radius
+  so recenter always shows the sun + all systems.
+- **Planets keep realistic distance**: `orbits.ts` `SUN_GAP=450` (+ raised `TOP_TARGET`) so no
+  body kisses the sun.
+- **Custom Instructions 400 fixed**: the route now returns the exact zod reason and the limits
+  were too tight — `body` max raised to 50k, name to 120 (`instructions.ts`); same zod-detail on
+  documents/persona. Profiles + docs are now **editable** (inline edit name/body/mode; doc
+  rename via `PATCH /api/documents/:id` + `renameDoc`), and a picked file always fills the doc
+  name. New **"💬 Try it" chat** in the Companion tab uses the active roles/knowledge.
+- **Dock tabs stay reachable**: sticky tab row + `flex:1;min-height:0` scroll body so tabs +
+  close never get pushed off (`index.css`).
+- **Lore card decoupled from focus**: `loreDismissed` state — closing the card keeps the camera
+  focus; opening any panel hides the card; a new follow resets it (`App.tsx`).
+- **On-screen zoom controls**: `Graph3D.zoomBy()` + +/− FABs (zoom gestures sometimes fail).
+- **Cluster names when zoomed out**: macro sector label now renders for every hub
+  (`mass≥0.44`) using `celestialTitle ?? label` (`nodeObject.ts`).
+- **Beacons dispatched from the station**: probes launch from the station's world position and
+  fly out to the cold memory (`satellites.ts` `launchedFor` + `stationPos`; wired in `Graph3D`).
+- **Music starts promptly**: the `<audio>` is created + preloaded on load (`audio.ts`).
+- Deferred: more cinematic Soumaya flight (banking/easing) — `soumaya.ts` untouched; iterative.
+
 ### 2026-06-18 (Claude): Central Sun (heliocentric cluster orbits) + looping MP3 soundtrack
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean (sun.glb +
   ambient-loop.mp3 confirmed in `dist/`).

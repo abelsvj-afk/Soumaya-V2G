@@ -36,6 +36,17 @@ export function documentsRoutes(ctx: AppContext): Router {
     res.json(doc);
   });
 
+  r.patch("/:id", (req, res) => {
+    const id = Number(req.params.id);
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    if (!Number.isFinite(id) || !name || name.length > 200) {
+      res.status(400).json({ error: "Body must be { name: string }" });
+      return;
+    }
+    const ok = new KnowledgeRepo(ctx.handle, spaceOf(res)).renameDoc(id, name);
+    res.status(ok ? 200 : 404).json({ ok });
+  });
+
   r.delete("/:id", (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isFinite(id)) {

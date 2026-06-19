@@ -17,7 +17,7 @@ import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
-import { makeSun } from "./sun.js";
+import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { logVisits } from "../api/client.js";
@@ -32,6 +32,8 @@ export interface Graph3DHandle {
   focusNode: (id: number) => void;
   /** Frame the whole galaxy back in view (fixes drift / "stuck on one side"). */
   recenter: () => void;
+  /** On-screen zoom: factor < 1 zooms in, > 1 zooms out (for the +/- buttons). */
+  zoomBy: (factor: number) => void;
   /** Toggle the camera focusing Soumaya's ship; returns the new state. */
   toggleFollowShip: () => boolean;
   /** Toggle the camera focusing the space station; returns the new state. */
@@ -159,6 +161,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const soumayaHandleRef = useRef<SoumayaHandle | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
   const sunRef = useRef<THREE.Object3D | null>(null);
+  const bloomRef = useRef<{ strength: number } | null>(null);
+  const initialFramedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
   const linksInitedRef = useRef(false);
@@ -260,7 +264,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       subAgents = makeSubAgents();
       subAgentsRef.current = subAgents;
       scene.add(subAgents.group);
-      addBloom(fg, {});
+      bloomRef.current = addBloom(fg, {});
 
       // Click detection for Soumaya's ship
       const canvas = fg.renderer().domElement;
@@ -423,7 +427,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
-      satellites?.update(dt, dataRef.current.nodes as any[]);
+
+      // First frame with real positions → open zoomed-out (not inside the sun).
+      if (!initialFramedRef.current) {
+        const ns = dataRef.current.nodes as any[];
+        if (ns.length === 0 || ns.some((n) => n.x != null)) {
+          initialFramedRef.current = true;
+          frameGalaxy(0);
+        }
+      }
+
+      // Focus dim: when the camera is locked onto a body, fade the sun's glare +
+      // soften bloom so the body reads clearly; restore when free/recentered.
+      const focused = followRef.current != null || followObjRef.current != null;
+      sunRef.current?.userData?.setFocusDim?.(focused);
+      if (bloomRef.current) {
+        const target = focused ? 0.16 : 0.35;
+        bloomRef.current.strength += (target - bloomRef.current.strength) * Math.min(1, dt * 3);
+      }
+
+      // Beacons launch from the station, so hand the satellites its world position.
+      const stationWorld = stationObjRef.current
+        ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+        : null;
+      satellites?.update(dt, dataRef.current.nodes as any[], stationWorld);
       subAgents?.update(dt, dataRef.current.nodes as any[]);
       // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
       visitors?.update(
@@ -707,6 +734,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     for (const n of pts) {
       radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
     }
+    // Always enclose the (gigantic) sun at the origin too, plus headroom.
+    radius = Math.max(radius, center.length() + SUN_RADIUS_MAX) * 1.12;
     const cam = fg.camera() as THREE.PerspectiveCamera;
     const fov = ((cam.fov ?? 60) * Math.PI) / 180;
     const aspect = cam.aspect ?? 1;
@@ -736,6 +765,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followKindRef.current = null;
         setCluster(null); // exit any isolated system view
         frameGalaxy(900);
+      },
+      zoomBy: (factor: number) => {
+        const fg = fgRef.current;
+        if (!fg) return;
+        const cam = fg.camera() as THREE.PerspectiveCamera;
+        const controls = fg.controls?.();
+        const target = controls?.target ?? new THREE.Vector3();
+        const offset = cam.position.clone().sub(target);
+        const min = controls?.minDistance ?? 8;
+        const max = controls?.maxDistance ?? maxDistRef.current;
+        const len = Math.max(min, Math.min(max, offset.length() * factor));
+        cam.position.copy(target.clone().add(offset.normalize().multiplyScalar(len)));
+        controls?.update?.();
       },
       toggleFollowShip: () => {
         const on = followKindRef.current !== "ship";

@@ -214,6 +214,13 @@ body,
   border-bottom: 1px solid var(--glass-border);
   overflow-x: auto;
   scrollbar-width: thin;
+  /* Pinned so the tab row + close button stay reachable on long panels/mobile. */
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--glass);
+  backdrop-filter: blur(14px);
 }
 .dock .tabs button {
   flex: 0 0 auto;
@@ -242,6 +249,8 @@ body,
   border-bottom-color: var(--accent);
 }
 .dock-content {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 16px;
 }
@@ -958,6 +967,16 @@ body,
   left: 14px;
   font-size: 18px;
 }
+.fab-zoom-in {
+  bottom: 130px;
+  right: 14px;
+  font-size: 22px;
+}
+.fab-zoom-out {
+  bottom: 74px;
+  right: 14px;
+  font-size: 26px;
+}
 /* Game-style focus cluster: a single button that pops its targets upward. */
 .focus-cluster {
   position: fixed;
@@ -1308,6 +1327,17 @@ body,
   padding: 2px 8px;
   cursor: pointer;
 }
+.companion-edit {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1;
+}
+.companion-edit:hover {
+  color: var(--accent);
+}
 .companion-del {
   margin-left: auto;
   background: none;
@@ -1316,6 +1346,16 @@ body,
   font-size: 16px;
   cursor: pointer;
   line-height: 1;
+}
+.companion-answer {
+  background: rgba(122, 249, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #d7d3ee;
+  white-space: pre-wrap;
 }
 .companion-del:hover {
   color: #ff6b6b;

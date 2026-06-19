@@ -527,7 +527,10 @@ export async function createInstruction(input: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
-  if (!res.ok) throw new Error(`Create failed (${res.status})`);
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `Create failed (${res.status})`);
+  }
   return res.json() as Promise<InstructionProfile>;
 }
 
@@ -540,7 +543,10 @@ export async function updateInstruction(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
   });
-  if (!res.ok) throw new Error(`Update failed (${res.status})`);
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `Update failed (${res.status})`);
+  }
   return res.json() as Promise<InstructionProfile>;
 }
 
@@ -582,6 +588,14 @@ export async function uploadDocument(name: string, text: string, mime?: string):
       return res.json() as Promise<KnowledgeDoc>;
     })(),
   );
+}
+
+export async function renameDocument(id: number, name: string): Promise<void> {
+  await afetch(`${API}/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function deleteDocument(id: number): Promise<void> {

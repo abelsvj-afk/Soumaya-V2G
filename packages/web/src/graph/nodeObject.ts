@@ -398,9 +398,10 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // 2. The Macro Body (Single sprite for high-density performance)
   const macro = makeMacroBody(color, size);
 
-  // 3. Sector Title (Special huge label for Macro view)
-  if (mass >= 0.44 && node.celestialTitle) {
-    const sectorLabel = makeLabel(node.celestialTitle.toUpperCase());
+  // 3. Sector Title — every hub gets a name at macro/zoomed-out view (its poetic
+  // celestialTitle if the LLM gave one, else the memory's own label).
+  if (mass >= 0.44) {
+    const sectorLabel = makeLabel((node.celestialTitle ?? node.label).toUpperCase());
     sectorLabel.scale.multiplyScalar(2.5); // Giant sector name
     sectorLabel.position.set(0, size * 4 + 10, 0);
     sectorLabel.userData.isSectorTitle = true;

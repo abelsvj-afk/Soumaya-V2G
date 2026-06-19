@@ -47,6 +47,9 @@ export default function App() {
   const [satelliteCount, setSatelliteCount] = useState(0);
   const [visitorCount, setVisitorCount] = useState(0);
   const [followVisitor, setFollowVisitor] = useState(false);
+  // Lore card dismissed independently of the camera follow (× closes the card but
+  // keeps focus). Reset to false whenever a new focus target is chosen.
+  const [loreDismissed, setLoreDismissed] = useState(false);
   // Transient glow on the focus button when a NEW beacon launches (not constant).
   const [beaconPulse, setBeaconPulse] = useState(false);
   const prevSatRef = useRef(0);
@@ -57,6 +60,12 @@ export default function App() {
   const graphRef = useRef<Graph3DHandle>(null);
 
   useEffect(() => onAiActivity(setAiBusy), []);
+
+  // Create the ambient audio on mount so the loop preloads/buffers before the
+  // first 🔈 toggle (otherwise it lags on slow/mobile connections).
+  useEffect(() => {
+    if (!audioRef.current) audioRef.current = makeAmbientAudio();
+  }, []);
 
   const toggleMusic = useCallback(() => {
     if (!audioRef.current) audioRef.current = makeAmbientAudio();
@@ -304,25 +313,13 @@ export default function App() {
 
       {help && <HelpPanel onClose={() => setHelp(false)} />}
 
-      {/* Evolving lore for the focused object (station / ship / beacon). */}
-      {(followStation || followShip || followSatellite) && (
+      {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
+          panel is open or when dismissed — dismissing keeps the camera focus. */}
+      {(followStation || followShip || followSatellite) && panel === null && !loreDismissed && (
         <ObjectLoreCard
           kind={followShip ? "ship" : followSatellite ? "satellite" : "station"}
           graph={view}
-          onClose={() => {
-            if (followShip) {
-              graphRef.current?.toggleFollowShip();
-              setFollowShip(false);
-            }
-            if (followStation) {
-              graphRef.current?.toggleFollowStation();
-              setFollowStation(false);
-            }
-            if (followSatellite) {
-              graphRef.current?.recenter();
-              setFollowSatellite(false);
-            }
-          }}
+          onClose={() => setLoreDismissed(true)}
         />
       )}
 
@@ -368,12 +365,30 @@ export default function App() {
           >
             ⊙
           </button>
+          {/* On-screen zoom (works when pinch/trackpad zoom fails). */}
+          <button
+            className="fab fab-zoom-in"
+            onClick={() => graphRef.current?.zoomBy(0.8)}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            ＋
+          </button>
+          <button
+            className="fab fab-zoom-out"
+            onClick={() => graphRef.current?.zoomBy(1.25)}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            －
+          </button>
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
           <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
             <button
               className={`fab focus-item ${followShip ? "on" : ""}`}
               style={focusItemStyle(0, focusMenuOpen)}
               onClick={() => {
+                setLoreDismissed(false);
                 setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
                 setFollowStation(false);
                 setFollowSatellite(false);
@@ -388,6 +403,7 @@ export default function App() {
               className={`fab focus-item ${followStation ? "on" : ""}`}
               style={focusItemStyle(1, focusMenuOpen)}
               onClick={() => {
+                setLoreDismissed(false);
                 setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
                 setFollowShip(false);
                 setFollowSatellite(false);
@@ -403,6 +419,7 @@ export default function App() {
                 className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
                 style={focusItemStyle(2, focusMenuOpen)}
                 onClick={() => {
+                  setLoreDismissed(false);
                   const on = graphRef.current?.cycleFollowSatellite() ?? false;
                   setFollowSatellite(on);
                   setFollowShip(false);

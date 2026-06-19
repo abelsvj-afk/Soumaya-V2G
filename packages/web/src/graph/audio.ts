@@ -56,6 +56,11 @@ export function makeAmbientAudio(): AmbientAudio {
     return playing;
   };
 
+  // Create the element up front so the (large) file buffers before the first
+  // toggle — avoids the "music takes a while to start" lag. Loading without
+  // playing is allowed on mobile (no gesture needed to preload).
+  ensure();
+
   return {
     toggle,
     get playing() {

@@ -95,6 +95,14 @@ export class KnowledgeRepo {
       .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
   }
 
+  /** Rename a doc (scoped). Returns true if it existed. */
+  renameDoc(id: number, name: string): boolean {
+    const res = this.h.sqlite
+      .prepare(`UPDATE knowledge_docs SET name = ? WHERE id = ? AND space_id = ?`)
+      .run(name, id, this.spaceId);
+    return res.changes > 0;
+  }
+
   /** Hard-delete a doc: drop its chunk vectors, chunk rows, then the doc — scoped. */
   deleteDoc(id: number): boolean {
     const doc = this.h.db

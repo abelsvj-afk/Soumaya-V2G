@@ -46,8 +46,8 @@ export function makeSun(): THREE.Object3D {
   corona.scale.setScalar(SUN_RADIUS * 3.2);
   group.add(corona);
 
-  // The sun is the system's primary light source.
-  const light = new THREE.PointLight(new THREE.Color("#fff2d0"), 2.4, 0, 1.5);
+  // The sun is the system's primary light source (calmer than before).
+  const light = new THREE.PointLight(new THREE.Color("#fff2d0"), 1.6, 0, 1.5);
   group.add(light);
 
   let mixer: THREE.AnimationMixer | null = null;
@@ -55,15 +55,19 @@ export function makeSun(): THREE.Object3D {
   let baseModelScale = 1;
   let last = 0;
   let spin = 0;
+  // Focus dim: fade the sun's glow when the camera focuses a body so it can't blind.
+  let dimTarget = 1;
+  let dim = 1;
+  const CORONA_OPACITY = 0.7;
 
   gltfLoader().load(
     "/sun.glb",
     (gltf) => {
       model = gltf.scene;
       const box = new THREE.Box3().setFromObject(model);
-      const dim = new THREE.Vector3();
-      box.getSize(dim);
-      const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
+      const dim2 = new THREE.Vector3();
+      box.getSize(dim2);
+      const maxDim = Math.max(dim2.x, dim2.y, dim2.z) || 1;
       baseModelScale = (currentRadius * 2) / maxDim; // diameter = 2 * radius
       model.scale.setScalar(baseModelScale);
       const center = new THREE.Vector3();
@@ -71,6 +75,7 @@ export function makeSun(): THREE.Object3D {
       model.position.copy(center.multiplyScalar(-baseModelScale)); // recenter
       if (gltf.animations && gltf.animations.length > 0) {
         mixer = new THREE.AnimationMixer(model);
+        mixer.timeScale = 0.08; // the baked clip spins fast — slow it way down
         for (const clip of gltf.animations) mixer.clipAction(clip).play();
       }
       fallback.visible = false;
@@ -83,8 +88,8 @@ export function makeSun(): THREE.Object3D {
 
   const applyRadius = () => {
     fallback.scale.setScalar(currentRadius);
-    corona.scale.setScalar(currentRadius * 3.2);
-    light.intensity = 2.0 + (currentRadius / SUN_RADIUS_MAX) * 1.2;
+    corona.scale.setScalar(currentRadius * 2.8);
+    light.intensity = (1.2 + (currentRadius / SUN_RADIUS_MAX) * 0.6) * dim;
     if (model) {
       // Re-fit the model to the current radius (baseModelScale was for SUN_RADIUS).
       model.scale.setScalar(baseModelScale * (currentRadius / SUN_RADIUS));
@@ -101,13 +106,24 @@ export function makeSun(): THREE.Object3D {
     }
   };
 
+  // Called by Graph3D: dim the sun's glow while focusing/zoomed into a body.
+  group.userData.setFocusDim = (on: boolean) => {
+    dimTarget = on ? 0.25 : 1;
+  };
+
   group.userData.update = (time: number) => {
     const dt = last ? Math.min(0.05, time - last) : 0;
     last = time;
     mixer?.update(dt);
-    spin += dt * 0.02; // slow, ponderous rotation
+    spin += dt * 0.015; // slow, ponderous rotation
     if (model) model.rotation.y = spin;
     else fallback.rotation.y = spin;
+    // Ease the focus-dim and apply to corona opacity + light.
+    if (Math.abs(dim - dimTarget) > 0.01) {
+      dim += (dimTarget - dim) * Math.min(1, dt * 4);
+      (corona.material as THREE.SpriteMaterial).opacity = CORONA_OPACITY * dim;
+      light.intensity = (1.2 + (currentRadius / SUN_RADIUS_MAX) * 0.6) * Math.max(0.4, dim);
+    }
   };
 
   return group;

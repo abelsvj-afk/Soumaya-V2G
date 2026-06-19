@@ -45,11 +45,14 @@ const massOf = (n: any): number => n.mass ?? 0.3;
 const bodySize = (n: any): number => 24 + massOf(n) * 60;
 
 const MARGIN = 26; // breathing room between any two bodies
-const TOP_STEP = 340; // max radial spacing between top-level systems
-const TOP_MIN_STEP = 250; // min spacing — keeps systems apart when the galaxy is busy
+const TOP_STEP = 360; // max radial spacing between top-level systems
+const TOP_MIN_STEP = 260; // min spacing — keeps systems apart when the galaxy is busy
+// Realistic gap between the Sun's surface and the innermost orbit — no body ever
+// "kisses" the sun.
+const SUN_GAP = 450;
 // Target radius the top-level systems try to fit inside (beyond the Sun), so the
 // galaxy stays a compact cluster and comet swings still fit the star field.
-const TOP_TARGET = 2400;
+const TOP_TARGET = 2800;
 
 export function makeOrbitSystem(): OrbitSystem {
   const params = new Map<number, OrbitParams>();
@@ -109,7 +112,7 @@ export function makeOrbitSystem(): OrbitSystem {
 
     const assignTop = (n: any, i: number, k: number) => {
       const nSize = bodySize(n);
-      const minR = SUN_RADIUS_MAX + nSize + MARGIN; // always clear the (max) sun
+      const minR = SUN_RADIUS_MAX + SUN_GAP + nSize + MARGIN; // clear the sun by a real gap
       const fit = k > 1 ? (TOP_TARGET - minR) / (k - 1) : TOP_STEP;
       const step = Math.min(TOP_STEP, Math.max(TOP_MIN_STEP, fit));
       const baseRadius = minR + i * step;
