@@ -6,8 +6,11 @@ import { InstructionProfilesRepo } from "../../repositories/instructions.repo.js
 import { upsertProfileEmbedding, deleteProfileEmbedding } from "../../db/vec.js";
 
 const Mode = z.enum(["always", "auto"]);
-// Generous body limit — a custom instruction / operating manual can be long.
-const BODY_MAX = 50000;
+// Generous body limit — a custom instruction / operating manual can be long
+// (knowledge docs allow ~3.5M chars; an instruction stays well within the 4mb
+// JSON body cap). Bounded so it can't be abused, but big enough to paste a
+// full operating manual without hitting the wall.
+const BODY_MAX = 1_000_000;
 const CreateBody = z.object({
   name: z.string().min(1).max(120),
   body: z.string().min(1).max(BODY_MAX),
