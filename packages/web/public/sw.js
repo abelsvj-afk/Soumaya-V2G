@@ -8,7 +8,7 @@
  *    background network fill, so the galaxy loads instantly and works offline.
  * Bump CACHE when the shell changes to evict the old one on activate.
  */
-const CACHE = "soumaya-v1";
+const CACHE = "soumaya-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {

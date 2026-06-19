@@ -159,6 +159,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-19 (Claude): New app icon (galaxy-brain) for installed/PWA app
+- [x] **Verified by Claude** — web build clean, icons emitted to `dist/`.
+- Replaced the home-screen / install icons with the galaxy-brain artwork (resized via `sharp`
+  from the 1254² source): `public/icon-512.png` (512²), `public/icon-192.png` (192²),
+  `public/apple-touch-icon.png` (180²). Manifest + `index.html` already reference these paths,
+  so no markup change was needed (512 is reused as the `maskable` icon too).
+- Bumped the service-worker cache (`public/sw.js` `soumaya-v1` → `soumaya-v2`) since the icons
+  are precached in the SHELL — otherwise returning installs would keep the old cached icons.
+
 ### 2026-06-19 (Claude): Realistic Soumaya flight + floating, toggleable task label
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
 - **Cinematic flight** (`graph/soumaya.ts`): the cruise/Bézier branch now samples the curve at a
