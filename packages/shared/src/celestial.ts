@@ -8,6 +8,7 @@ export type CelestialClass =
   | "asteroid"
   | "moon"
   | "planet"
+  | "gas_giant"
   | "giant"
   | "star"
   | "supergiant";
@@ -16,6 +17,7 @@ export const CELESTIAL_CLASSES: readonly CelestialClass[] = [
   "asteroid",
   "moon",
   "planet",
+  "gas_giant",
   "giant",
   "star",
   "supergiant",
@@ -26,9 +28,21 @@ export const CELESTIAL_ICON: Record<CelestialClass, string> = {
   asteroid: "▪",
   moon: "○",
   planet: "◍",
+  gas_giant: "🪐",
   giant: "◉",
   star: "★",
   supergiant: "✸",
+};
+
+/** Human-facing label per class (the id `gas_giant` reads as "gas giant"). */
+export const CELESTIAL_LABEL: Record<CelestialClass, string> = {
+  asteroid: "asteroid",
+  moon: "moon",
+  planet: "planet",
+  gas_giant: "gas giant",
+  giant: "giant",
+  star: "star",
+  supergiant: "supergiant",
 };
 
 export interface MassSignals {
@@ -67,9 +81,10 @@ export function deriveMass({ importance, degree, emotionalWeight }: MassSignals)
  */
 export function classify(mass: number): CelestialClass {
   if (mass >= 0.8) return "supergiant";
-  if (mass >= 0.6) return "star";
-  if (mass >= 0.44) return "giant";
-  if (mass >= 0.26) return "planet";
+  if (mass >= 0.6) return "star"; // a hand-maxed importance (1 ≈ 0.62) reaches star
+  if (mass >= 0.48) return "giant";
+  if (mass >= 0.36) return "gas_giant";
+  if (mass >= 0.24) return "planet";
   if (mass >= 0.12) return "moon";
   return "asteroid";
 }

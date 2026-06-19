@@ -23,7 +23,7 @@ const CONCEPTS: { title: string; body: string }[] = [
   { title: "Emerald Ripples", body: "Manual user actions (like updating weights) trigger a green ripple — a sign of user energy flowing into the brain." },
   { title: "Star Age Tints", body: "New memories burn hot white. Older, unconnected memories gradually redshift into a weathered glow, creating a visual fossil record." },
   { title: "Flashback Comet ☄️", body: "Tap the comet icon to randomly fly to a high-importance memory from the past. Serendipity in action." },
-  { title: "Weight slider", body: "Sets a memory's importance → its size/class (asteroid → moon → planet → giant → star → supergiant). 'auto' re-rates it." },
+  { title: "Weight slider", body: "Sets a memory's importance → its size/class (asteroid → moon → planet → gas giant → giant → star → supergiant). 'auto' re-rates it." },
   { title: "✨ Connect the dots", body: "(in Details) The AI ties THIS memory together with the ones it's linked to, into a fresh insight." },
   { title: "💬 Chat", body: "Ask your brain a question; it answers from your memories, with citations you can fly to. Turn on 🗣️ to hear her answer aloud." },
   { title: "Soumaya (tap her ship)", body: "Opens the Command Center: her live activity, Research Mode, and her ⛽ Fuel gauge." },
@@ -37,7 +37,7 @@ const CONCEPTS: { title: string; body: string }[] = [
 const MECHANICS: { title: string; body: string }[] = [
   {
     title: "It's a real graph, with real gravity",
-    body: "Every memory becomes a celestial body. Its size/class (asteroid → moon → planet → giant → star → supergiant) is its gravitational MASS, blended from three things: how important it is, how connected it is, and its emotional charge. Heavy memories pull lighter ones into orbit around them, so the layout is meaning, not decoration.",
+    body: "Every memory becomes a celestial body. Its size/class (asteroid → moon → planet → gas giant → giant → star → supergiant) is its gravitational MASS, blended from three things: how important it is, how connected it is, and its emotional charge. Heavy memories pull lighter ones into orbit around them, so the layout is meaning, not decoration.",
   },
   {
     title: "Memories link themselves",

@@ -212,17 +212,30 @@ body,
 .dock .tabs {
   display: flex;
   border-bottom: 1px solid var(--glass-border);
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .dock .tabs button {
-  flex: 1;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
   background: none;
   border: none;
   color: var(--muted);
-  padding: 12px 6px;
-  font-size: 12px;
+  padding: 8px 10px;
   font-weight: 600;
   cursor: pointer;
   border-bottom: 2px solid transparent;
+}
+.dock .tabs .tab-ic {
+  font-size: 16px;
+  line-height: 1;
+}
+.dock .tabs .tab-name {
+  font-size: 10px;
+  letter-spacing: 0.01em;
 }
 .dock .tabs button.on {
   color: var(--text);
@@ -346,6 +359,34 @@ body,
 .weight-val {
   font-size: 11px;
   color: var(--muted);
+}
+/* Celestial tier legend under the weight slider (asteroid → supergiant). */
+.tier-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 2px;
+  margin-top: 6px;
+}
+.tier-step {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  opacity: 0.35;
+  filter: grayscale(0.6);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.tier-step.on {
+  opacity: 1;
+  filter: none;
+  transform: scale(1.35);
+}
+.tier-current {
+  text-align: center;
+  font-size: 10.5px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 3px;
 }
 
 /* Insights + chat */
@@ -936,9 +977,10 @@ body,
 .focus-cluster .focus-main.active {
   transform: rotate(90deg);
 }
-/* The main button glows while beacons are deployed (so you know to open it). */
-.focus-cluster .focus-main.has-beacons {
-  animation: fabpulse 1.8s ease-in-out infinite;
+/* The main button pulses briefly only when something happens (a new beacon
+   launches / lore updates), then settles — not a constant glow. */
+.focus-cluster .focus-main.pulse {
+  animation: fabpulse 1.8s ease-in-out 2;
 }
 .focus-cluster .focus-item {
   position: absolute;
@@ -950,6 +992,9 @@ body,
 }
 .focus-cluster .focus-item.beacon-item {
   border-color: rgba(255, 178, 77, 0.7);
+}
+.focus-cluster .focus-item.visitor-item {
+  border-color: rgba(179, 136, 255, 0.7);
 }
 @keyframes fabpulse {
   0%, 100% {

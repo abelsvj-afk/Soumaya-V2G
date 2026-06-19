@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES } from "@brain/shared";
 import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
@@ -105,7 +105,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       </span>
       {node.celestial && (
         <span className="meta">
-          {CELESTIAL_ICON[node.celestial]} {node.celestial} · weight{" "}
+          {CELESTIAL_ICON[node.celestial]} {CELESTIAL_LABEL[node.celestial]} · weight{" "}
           {Math.round((node.mass ?? 0) * 100)}%
           {node.degree ? ` · ${node.degree} link${node.degree === 1 ? "" : "s"}` : ""}
         </span>
@@ -194,6 +194,18 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           }}
         />
         <span className="weight-val">{Math.round(weight * 100)}%</span>
+        <div className="tier-legend" aria-hidden="true">
+          {CELESTIAL_CLASSES.map((c) => (
+            <span
+              key={c}
+              className={`tier-step ${node.celestial === c ? "on" : ""}`}
+              title={CELESTIAL_LABEL[c]}
+            >
+              {CELESTIAL_ICON[c]}
+            </span>
+          ))}
+        </div>
+        <div className="tier-current">{node.celestial ? CELESTIAL_LABEL[node.celestial] : ""}</div>
       </div>
 
       {onDeleted && (

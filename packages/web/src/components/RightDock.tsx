@@ -33,7 +33,7 @@ interface Props {
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
 // debuggable and screen-reader friendly; `name` also maps 1:1 to the tab id/code.
 const TABS: { id: DockTab; label: string; name: string }[] = [
-  { id: "details", label: "Details", name: "Details" },
+  { id: "details", label: "ⓘ", name: "Details" },
   { id: "sectors", label: "🌌", name: "Sectors" },
   { id: "list", label: "📋", name: "List" },
   { id: "actions", label: "✅", name: "Agenda" },
@@ -76,7 +76,8 @@ export function RightDock({
             aria-label={t.name}
             aria-current={tab === t.id ? "page" : undefined}
           >
-            {t.label}
+            <span className="tab-ic">{t.label}</span>
+            <span className="tab-name">{t.name}</span>
           </button>
         ))}
         {onClose && (

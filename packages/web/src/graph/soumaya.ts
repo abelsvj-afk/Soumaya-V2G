@@ -37,6 +37,8 @@ const bodyRadius = (n: any): number => {
       return 6 + m * 6;
     case "giant":
       return 6.5 + m * 5;
+    case "gas_giant":
+      return 5.5 + m * 4.5;
     case "planet":
       return 4 + m * 4;
     case "moon":

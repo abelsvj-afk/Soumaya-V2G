@@ -86,6 +86,8 @@ export interface VisitorHazard {
 export interface VisitorSystem {
   group: THREE.Group;
   update: (dt: number, nodes: any[], hazard?: VisitorHazard) => void;
+  /** Visible craft currently in the sandbox (for the "jump to visitor" button). */
+  getActive: () => { object: THREE.Object3D; targetId: number | null }[];
 }
 
 /** How close a beacon must get before a drifter panics and bolts. */
@@ -200,5 +202,10 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
     }
   };
 
-  return { group, update };
+  const getActive = () =>
+    slots
+      .filter((s) => s.phase !== "idle" && s.craft.group.visible)
+      .map((s) => ({ object: s.craft.group as THREE.Object3D, targetId: s.targetId }));
+
+  return { group, update, getActive };
 }

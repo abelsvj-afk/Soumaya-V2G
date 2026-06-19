@@ -273,7 +273,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   const color = `#${evolvedColor.getHexString()}`;
 
   const isStarLike = cls === "star" || cls === "supergiant";
-  const isPlanetLike = cls === "planet" || cls === "giant";
+  const isPlanetLike = cls === "planet" || cls === "gas_giant" || cls === "giant";
   const isRocky = cls === "moon" || cls === "asteroid";
 
   // Size grows with class then mass within the class.
@@ -281,6 +281,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     asteroid: 2.2 + mass * 2,
     moon: 3 + mass * 2.5,
     planet: 4 + mass * 4,
+    gas_giant: 5.5 + mass * 4.5,
     giant: 6.5 + mass * 5,
     star: 6 + mass * 6,
     supergiant: 9 + mass * 7,
@@ -294,7 +295,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   try {
     if (isStarLike) {
       material = makeStarMaterial(color);
-      baseBrightness = cls === "supergiant" ? 1.4 : 1.25;
+      baseBrightness = cls === "supergiant" ? 1.65 : 1.45; // suns read a touch brighter
     } else if (isPlanetLike) {
       material = makePlanetMaterial(color);
       baseBrightness = 1.0;
@@ -329,7 +330,6 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       ? new THREE.IcosahedronGeometry(size, 0)
       : new THREE.SphereGeometry(size, isRocky ? 24 : 48, isRocky ? 24 : 48);
   const mesh = new THREE.Mesh(geom, material);
-  mesh.userData.spin = true; // every body turns; speed handled in the tick
   mesh.userData.pulse = {
     base: baseBrightness,
     amp: isStarLike ? 0.25 : isPlanetLike ? 0.12 : 0.06,
@@ -341,10 +341,15 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // 1. The High-Fidelity Body (Complex geometry, lights, etc.)
   const fidelity = new THREE.Group();
   fidelity.userData.isFidelity = true;
+  // Self-rotation: the body (+ its rings) spins on its own axis while the orbit
+  // system carries it around its heaviest neighbor. Smaller bodies spin faster.
+  // (Spin lives on the fidelity group so camera-facing labels don't rotate.)
+  fidelity.userData.spin = true;
+  fidelity.userData.spinSpeed = 0.0015 + 0.05 / (size + 4);
   fidelity.add(mesh);
 
-  // Rings: always on gas giants, on ~a third of planets.
-  if (cls === "giant" || (cls === "planet" && node.id % 3 === 0)) {
+  // Rings: always on gas giants + giants, on ~a third of planets.
+  if (cls === "gas_giant" || cls === "giant" || (cls === "planet" && node.id % 3 === 0)) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(size * 1.5, size * 2.3, 48),
       new THREE.MeshBasicMaterial({
@@ -362,17 +367,17 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // Brighter bodies give off more light. Star-like bodies get a corona + a real
   // point light that illuminates nearby worlds; giants/planets get a faint glow.
   if (isStarLike) {
-    const glow = makeGlow(color, size * (cls === "supergiant" ? 2.8 : 2.2));
+    const glow = makeGlow(color, size * (cls === "supergiant" ? 3.0 : 2.4));
     glow.userData.corona = {
       base: glow.scale.x,
-      baseOpacity: cls === "supergiant" ? 0.4 : 0.3,
+      baseOpacity: cls === "supergiant" ? 0.5 : 0.4,
       speed: 0.5 + mass * 0.7,
       phase: (node.id % 7) * 0.7,
     };
     fidelity.add(glow);
     const light = new THREE.PointLight(
       new THREE.Color(color),
-      cls === "supergiant" ? 2.5 + mass * 3 : 1.2 + mass * 2.6,
+      cls === "supergiant" ? 3.0 + mass * 3.5 : 1.6 + mass * 3,
       size * (cls === "supergiant" ? 60 : 45),
       2,
     );

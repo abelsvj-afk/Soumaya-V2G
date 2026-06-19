@@ -3,7 +3,8 @@ import type { GraphNode } from "@brain/shared";
 const BODY: Record<string, string> = {
   supergiant: "a blazing supergiant",
   star: "a steady star",
-  giant: "a banded gas giant",
+  giant: "a colossal ringed giant",
+  gas_giant: "a banded gas giant",
   planet: "a living world",
   moon: "a quiet moon",
   asteroid: "a lone wandering shard",

@@ -159,6 +159,30 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Beta bug-fix batch (Companion Add, visitor jump, beacon glow, gas giant, spin, tabs)
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
+- **Custom Instructions "Add" silently failed** → `CompanionPanel.tsx` now surfaces a
+  `msg` (validation: "add a name and the instructions"; plus a real `catch`) so it's never
+  silent. (Knowledge already surfaced errors.)
+- **Jump-to-visitor button** → `graph/visitors.ts` exposes `getActive()`; `Graph3D` adds
+  `visitorsRef`, an `onVisitorCount` callback, and `cycleFollowVisitor()` (+`"visitor"`
+  follow-kind, release-on-leave); `App.tsx` shows a 👽 target in the 🎯 focus speed-dial
+  only when visitors are present.
+- **Focus button no longer glows constantly** → dropped the persistent `has-beacons`
+  animation; now a finite `.pulse` (~2 cycles) fires only when a NEW beacon launches
+  (tracked via `prevSatRef` in `App.tsx`).
+- **New "gas giant" 7th body type** → `shared/celestial.ts` adds `gas_giant`
+  (`asteroid·moon·planet·gas_giant·giant·star·supergiant`), a `CELESTIAL_LABEL` map, and
+  re-split `classify`; rendering/colors/lore/bodyRadius updated (`theme`, `nodeObject`,
+  `satellites`, `soumaya`, `lore`). Displays use `CELESTIAL_LABEL`. Asteroid now visible
+  in a **tier legend** under the weight slider (`NodeInspector`) + the List size filter.
+- **Bodies self-spin again** → the spin flag was on the mesh but the tick checked the
+  node group; moved spin to the **fidelity group** (`nodeObject`) + rotate it in the tick
+  (`Graph3D`). Bodies now orbit their neighbor AND spin on their own axis. **Stars glow a
+  bit more** (brightness/corona/point-light bumps).
+- **Dock tabs now show names** → `RightDock` renders icon + name; tab bar scrolls
+  horizontally (`index.css`).
+
 ### 2026-06-18 (Claude): Cluster context — why memories belong together (P1)
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
 - Each Sector card (`components/SectorView.tsx`) now explains the bond: the system's

@@ -4,6 +4,7 @@ import {
   type CelestialClass,
   type NodeType,
   CELESTIAL_ICON,
+  CELESTIAL_LABEL,
   CELESTIAL_CLASSES,
 } from "@brain/shared";
 import { TYPE_COLORS } from "../graph/theme.js";
@@ -141,7 +142,7 @@ export function NodeList({ nodes, onFocus }: Props) {
           <span className="nl-main">
             <span className="nl-label">{n.label}</span>
             <span className="nl-meta2">
-              <span title="growth stage">{CELESTIAL_ICON[cls]} {cls}</span>
+              <span title="growth stage">{CELESTIAL_ICON[cls]} {CELESTIAL_LABEL[cls]}</span>
               {(n.degree ?? 0) > 0 && <span title="connections">· {n.degree} link{n.degree === 1 ? "" : "s"}</span>}
               {when && <span title="when">· {when}</span>}
               <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
@@ -170,7 +171,7 @@ export function NodeList({ nodes, onFocus }: Props) {
           <option value="all">any size</option>
           {[...CELESTIAL_CLASSES].reverse().map((c) => (
             <option key={c} value={c}>
-              {CELESTIAL_ICON[c]} {c}
+              {CELESTIAL_ICON[c]} {CELESTIAL_LABEL[c]}
             </option>
           ))}
         </select>

@@ -45,6 +45,11 @@ export default function App() {
   const [followStation, setFollowStation] = useState(false);
   const [followSatellite, setFollowSatellite] = useState(false);
   const [satelliteCount, setSatelliteCount] = useState(0);
+  const [visitorCount, setVisitorCount] = useState(0);
+  const [followVisitor, setFollowVisitor] = useState(false);
+  // Transient glow on the focus button when a NEW beacon launches (not constant).
+  const [beaconPulse, setBeaconPulse] = useState(false);
+  const prevSatRef = useRef(0);
   const [focusMenuOpen, setFocusMenuOpen] = useState(false);
   const [help, setHelp] = useState(false);
   const [clustered, setClustered] = useState(false);
@@ -96,6 +101,25 @@ export default function App() {
       setFollowSatellite(false);
     }
   }, [satelliteCount, followSatellite]);
+
+  // Pulse the focus button briefly only when a NEW beacon launches, then stop.
+  useEffect(() => {
+    if (satelliteCount > prevSatRef.current) {
+      setBeaconPulse(true);
+      const t = window.setTimeout(() => setBeaconPulse(false), 3600);
+      prevSatRef.current = satelliteCount;
+      return () => window.clearTimeout(t);
+    }
+    prevSatRef.current = satelliteCount;
+  }, [satelliteCount]);
+
+  // Release the visitor follow when the craft we're watching leaves.
+  useEffect(() => {
+    if (followVisitor && visitorCount === 0) {
+      graphRef.current?.recenter();
+      setFollowVisitor(false);
+    }
+  }, [visitorCount, followVisitor]);
 
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
@@ -222,6 +246,7 @@ export default function App() {
           setPanel("dock");
         }}
         onSatelliteCount={setSatelliteCount}
+        onVisitorCount={setVisitorCount}
         selectedId={selected?.id ?? null}
         bottomInset={panel === "dock"}
         demo={demo}
@@ -382,6 +407,7 @@ export default function App() {
                   setFollowSatellite(on);
                   setFollowShip(false);
                   setFollowStation(false);
+                  setFollowVisitor(false);
                   // keep menu open so you can cycle through multiple beacons
                 }}
                 aria-label="Jump to an Aura beacon"
@@ -390,10 +416,27 @@ export default function App() {
                 🛰️
               </button>
             )}
+            {visitorCount > 0 && (
+              <button
+                className={`fab focus-item visitor-item ${followVisitor ? "on" : ""}`}
+                style={focusItemStyle(satelliteCount > 0 ? 3 : 2, focusMenuOpen)}
+                onClick={() => {
+                  const on = graphRef.current?.cycleFollowVisitor() ?? false;
+                  setFollowVisitor(on);
+                  setFollowShip(false);
+                  setFollowStation(false);
+                  setFollowSatellite(false);
+                }}
+                aria-label="Jump to a visitor"
+                title={`Jump to a visitor (${visitorCount} drifting in)`}
+              >
+                👽
+              </button>
+            )}
             <button
               className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
-                (followShip || followStation || followSatellite) && !focusMenuOpen ? "on" : ""
-              } ${satelliteCount > 0 ? "has-beacons" : ""}`}
+                (followShip || followStation || followSatellite || followVisitor) && !focusMenuOpen ? "on" : ""
+              } ${beaconPulse ? "pulse" : ""}`}
               onClick={() => setFocusMenuOpen((o) => !o)}
               aria-label="Camera focus targets"
               title="Focus targets (ship · station · beacons)"

@@ -71,20 +71,29 @@ function Instructions() {
   const [body, setBody] = useState("");
   const [mode, setMode] = useState<"always" | "auto">("always");
   const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const refresh = () => getInstructions().then(setList);
   useEffect(() => {
     refresh();
   }, []);
 
   const add = async () => {
-    if (!name.trim() || !body.trim()) return;
+    if (!name.trim() || !body.trim()) {
+      setMsg("Add a name and the instructions before saving.");
+      return;
+    }
     setBusy(true);
+    setMsg("");
     try {
       await createInstruction({ name: name.trim(), body: body.trim(), mode });
       setName("");
       setBody("");
       setMode("always");
       await refresh();
+      setMsg("Added.");
+      setTimeout(() => setMsg(""), 1500);
+    } catch (err) {
+      setMsg((err as Error).message || "Couldn't add that profile.");
     } finally {
       setBusy(false);
     }
@@ -155,6 +164,7 @@ function Instructions() {
           <button onClick={add} disabled={busy}>
             {busy ? "Adding…" : "Add profile"}
           </button>
+          <span className="msg">{msg}</span>
         </div>
       </div>
     </section>

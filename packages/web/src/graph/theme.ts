@@ -19,6 +19,7 @@ export const CELESTIAL_COLORS: Record<CelestialClass, string[]> = {
   asteroid: ["#8a8170", "#9a8d78", "#7d7466", "#a39a86"],
   moon: ["#cfd6e6", "#aab2cc", "#dfe6f5", "#9fb0c8"],
   planet: ["#6fb7ff", "#b388ff", "#5fe0b0", "#ffd166", "#ff9ec7", "#7af9ff"],
+  gas_giant: ["#d8b48a", "#c98f5a", "#e6c79a", "#b87f99", "#caa06e", "#9fb6d8"],
   giant: ["#e8a766", "#d98c5f", "#e3c08a", "#c98f5a", "#dcae72"],
   star: ["#fff4d6", "#ffe08a", "#ffd0a0", "#cfe3ff", "#ffc4f0"],
   supergiant: ["#cfe3ff", "#9fc4ff", "#ffd9c0", "#ff9e8a", "#e6ecff"],

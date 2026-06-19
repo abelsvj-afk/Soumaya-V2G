@@ -60,6 +60,7 @@ const bodyRadius = (n: any): number => {
     case "supergiant": return 9 + m * 7;
     case "star": return 6 + m * 6;
     case "giant": return 6.5 + m * 5;
+    case "gas_giant": return 5.5 + m * 4.5;
     case "planet": return 4 + m * 4;
     case "moon": return 3 + m * 2.5;
     default: return 2.2 + m * 2;

@@ -37,6 +37,8 @@ export interface Graph3DHandle {
   toggleFollowStation: () => boolean;
   /** Jump to the next active Aura beacon (cycles through them). False if none. */
   cycleFollowSatellite: () => boolean;
+  /** Jump to the next visitor craft (cycles through them). False if none. */
+  cycleFollowVisitor: () => boolean;
   /** Isolate a memory's system: show only it + the bodies orbiting it. */
   isolateSystem: (id: number) => void;
   /** Exit the isolated system view (show the whole galaxy again). */
@@ -53,6 +55,8 @@ interface Props {
   onSoumayaClick?: () => void;
   /** Fires when the number of active beacons changes (drives the pulsing FAB). */
   onSatelliteCount?: (count: number) => void;
+  /** Fires when the number of visitors in the sandbox changes (drives the FAB). */
+  onVisitorCount?: (count: number) => void;
   /** Currently-selected node — when set, only it + its links stay lit (tap-to-isolate). */
   selectedId?: number | null;
   /** True when the bottom sheet is open — shifts the followed body up so it clears it. */
@@ -71,7 +75,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, selectedId, bottomInset, demo },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -137,7 +141,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followObjRef = useRef<THREE.Object3D | null>(null);
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
-  const followKindRef = useRef<"ship" | "station" | "satellite" | null>(null);
+  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | null>(null);
   // Which active beacon we're cycling through with the satellite focus button.
   const satFollowIndexRef = useRef(0);
   // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
@@ -159,7 +163,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const pendingLinksRef = useRef<Set<string>>(new Set());
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
+  const visitorsRef = useRef<VisitorSystem | null>(null);
+  const visFollowIndexRef = useRef(0);
   const lastSatCountRef = useRef(-1);
+  const lastVisCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
@@ -237,6 +244,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       visitors = makeVisitors(3, (nodeId, type) => {
         if (!demoRef.current) visitBufRef.current.push({ nodeId, type });
       });
+      visitorsRef.current = visitors;
       scene.add(visitors.group);
       satellites = makeSatellites();
       satellitesRef.current = satellites;
@@ -433,6 +441,22 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
         }
       }
+      // Tell React how many visitors are around (drives the "jump to visitor" FAB).
+      if (visitors) {
+        const vActive = visitors.getActive();
+        if (vActive.length !== lastVisCountRef.current) {
+          lastVisCountRef.current = vActive.length;
+          onVisitorCount?.(vActive.length);
+        }
+        // Release the camera if the visitor we were following has left.
+        if (followKindRef.current === "visitor") {
+          const stillHere = vActive.some((a) => a.object === followObjRef.current);
+          if (!stillHere) {
+            followObjRef.current = null;
+            followKindRef.current = null;
+          }
+        }
+      }
 
       // Keep the zoom ceiling matched to the current galaxy size.
       if (controls) controls.maxDistance = maxDistRef.current;
@@ -481,10 +505,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const isSelected = id === activeId;
           const isMacroView = dist > MACRO_DIST && !isSelected;
 
-          // Orbit/Spin
-          if (o.userData?.spin) o.rotation.y += 0.005;
-
           o.children.forEach((child: any) => {
+            // Self-rotation: the body (+ rings) spins on its own axis while the
+            // orbit system carries it around its neighbor. (Lives on the fidelity
+            // group so labels don't rotate.)
+            if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
             // Pulse/Brightness
             if (child.userData?.pulse) {
               const bf = brightness(dist);
@@ -733,6 +758,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followKindRef.current = "satellite";
         followObjRef.current = active[i]!.object;
         followDistRef.current = 30; // probes are small — sit in close
+        followSnapRef.current = true;
+        followObjAnchored.current = false;
+        followRef.current = null;
+        return true;
+      },
+      cycleFollowVisitor: () => {
+        const active = visitorsRef.current?.getActive() ?? [];
+        if (active.length === 0) return false;
+        const i = visFollowIndexRef.current % active.length;
+        visFollowIndexRef.current = (i + 1) % active.length;
+        followKindRef.current = "visitor";
+        followObjRef.current = active[i]!.object;
+        followDistRef.current = 34; // craft are small — sit in fairly close
         followSnapRef.current = true;
         followObjAnchored.current = false;
         followRef.current = null;
