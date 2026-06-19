@@ -159,6 +159,23 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-18 (Claude): Central Sun (heliocentric cluster orbits) + looping MP3 soundtrack
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean (sun.glb +
+  ambient-loop.mp3 confirmed in `dist/`).
+- **Sun** (`graph/sun.ts`, user-uploaded `public/sun.glb`): a gigantic central star at the
+  origin (radius 460→600 world units, ≫ any memory) with corona + central point light + its
+  baked animation + slow self-rotation. Role = "core self" — size grows gently with brain
+  count on a saturating curve, **hard-clamped** so it never overgrows (`setBrainScale`).
+- **Heliocentric cluster orbits** (`graph/orbits.ts` rewrite): the Sun is the fixed anchor;
+  each cluster keeps its own nested internal orbits + axial spin, while the cluster as a
+  whole **revolves around the Sun**. Top-level shells always clear the (max) sun; a seeded
+  ~15% drift wide like **comets** (near-escape) then return — all bounded so nothing leaves
+  the view. Wired into `Graph3D` (sun at origin + `setBrainScale` on data change; zoom/station
+  envelope auto-expand from `getRadius`).
+- **Soundtrack** (`graph/audio.ts`): replaced the generative engine with the uploaded loop
+  (`public/ambient-loop.mp3`, `HTMLAudioElement` `loop=true`) + fade in/out; same
+  `AmbientAudio` interface so the 🔈 toggle is unchanged.
+
 ### 2026-06-18 (Claude): Beta bug-fix batch (Companion Add, visitor jump, beacon glow, gas giant, spin, tabs)
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
 - **Custom Instructions "Add" silently failed** → `CompanionPanel.tsx` now surfaces a

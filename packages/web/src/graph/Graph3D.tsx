@@ -17,6 +17,7 @@ import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
+import { makeSun } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { logVisits } from "../api/client.js";
@@ -102,6 +103,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     dataRef.current = data;
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
+    sunRef.current?.userData?.setBrainScale?.(data.nodes.length); // core-self size (clamped)
     // Place the station just outside the bodies (so planets never pass through it)
     // and size the zoom ceiling so you can frame the station — wrapped in stars —
     // but never zoom far enough to exit the surrounding star field.
@@ -156,6 +158,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const soumayaObjRef = useRef<THREE.Object3D | null>(null);
   const soumayaHandleRef = useRef<SoumayaHandle | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
+  const sunRef = useRef<THREE.Object3D | null>(null);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
   const linksInitedRef = useRef(false);
@@ -238,6 +241,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
       soumayaObjRef.current = soumaya.object;
+      // The Sun: the gigantic central body every cluster revolves around.
+      const sun = makeSun();
+      sunRef.current = sun;
+      sun.userData.setBrainScale?.(dataRef.current.nodes.length);
+      scene.add(sun);
       const station = makeSpaceStation();
       scene.add(station);
       stationObjRef.current = station;
