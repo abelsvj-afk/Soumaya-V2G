@@ -336,6 +336,29 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  // Keep the floating task label in sync with whatever she's doing right now.
+  // Called at a single exit point (finally) so it tracks the ship in EVERY mode —
+  // including docking/idle, which return early from the main update body.
+  const syncLabel = (dt: number) => {
+    let taskText = "";
+    if (mode === "docking" || mode === "dockTravel") {
+      taskText = "Recharging at the station";
+    } else if (mode === "linkToSource" || mode === "linkToTarget") {
+      taskText = "Forging a new connection";
+    } else if (currentJob) {
+      taskText =
+        currentJob.description ||
+        (currentJob.type === "patrol" ? "Patrolling the galaxy" : `Running ${currentJob.type}`);
+    }
+    if (taskText !== lastTaskText) {
+      lastTaskText = taskText;
+      if (taskText) taskLabel.draw(taskText);
+    }
+    taskLabel.sprite.position.set(group.position.x, group.position.y + 18, group.position.z);
+    taskLabel.tick(dt);
+    taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
+  };
+
   const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     try {
@@ -502,27 +525,6 @@ export function makeSoumaya(): SoumayaHandle {
         }
       }
 
-      // Floating task label: reflect what she's doing right now, above the ship.
-      let taskText = "";
-      if (mode === "docking" || mode === "dockTravel") {
-        taskText = "Recharging at the station";
-      } else if (mode === "linkToSource" || mode === "linkToTarget") {
-        taskText = "Forging a new connection";
-      } else if (currentJob) {
-        taskText =
-          currentJob.description ||
-          (currentJob.type === "patrol"
-            ? "Patrolling the galaxy"
-            : `Running ${currentJob.type}`);
-      }
-      if (taskText !== lastTaskText) {
-        lastTaskText = taskText;
-        if (taskText) taskLabel.draw(taskText);
-      }
-      taskLabel.sprite.position.set(group.position.x, group.position.y + 18, group.position.z);
-      taskLabel.tick(dt);
-      taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
-
       // Dynamic Propulsion Beam: scale based on velocity
       if (group.visible) {
         // Normalize velocity for scaling (Travel speed is roughly 20-50 units/sec, Orbit is ~5-10)
@@ -534,6 +536,13 @@ export function makeSoumaya(): SoumayaHandle {
       }
     } catch {
       /* skip this frame */
+    } finally {
+      // Always track the label to the ship, in every mode (docking/idle return early).
+      try {
+        syncLabel(dt);
+      } catch {
+        /* label is non-critical — never let it break the frame */
+      }
     }
   };
 
