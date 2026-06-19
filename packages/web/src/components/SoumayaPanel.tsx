@@ -15,7 +15,15 @@ import {
   type Usage,
 } from "../api/client.js";
 
-export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
+export function SoumayaPanel({
+  onFocus,
+  showShipTask,
+  setShowShipTask,
+}: {
+  onFocus: (id: number) => void;
+  showShipTask?: boolean;
+  setShowShipTask?: (v: boolean) => void;
+}) {
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [researchEnabled, setResearchEnabled] = useState(false);
@@ -81,6 +89,22 @@ export function SoumayaPanel({ onFocus }: { onFocus: (id: number) => void }) {
       <p className="description" style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '1rem' }}>
         Autonomous agent for graph maintenance and knowledge expansion. Research consumes tokens.
       </p>
+
+      {setShowShipTask && (
+        <div className="toggle-box" style={{ marginBottom: '1rem' }}>
+          <span className="mini-label">Show her current task above the ship</span>
+          <button
+            className={`mini ${showShipTask ? 'active' : ''}`}
+            onClick={() => setShowShipTask(!showShipTask)}
+            style={{
+              backgroundColor: showShipTask ? 'rgba(100,200,255,0.2)' : 'transparent',
+              borderColor: showShipTask ? '#64c8ff' : 'rgba(255,255,255,0.2)',
+            }}
+          >
+            {showShipTask ? "ON" : "OFF"}
+          </button>
+        </div>
+      )}
 
       {fuel && (
         <div className="budget-box">

@@ -28,6 +28,9 @@ interface Props {
   demo?: boolean;
   /** Live fleet status getter (from the 3D scene) for the Fleet tab. */
   getFleetStatus?: () => FleetStatus | undefined;
+  /** Floating ship-task label preference + setter (Soumaya tab toggle). */
+  showShipTask?: boolean;
+  setShowShipTask?: (v: boolean) => void;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -58,6 +61,8 @@ export function RightDock({
   canBack,
   demo,
   getFleetStatus,
+  showShipTask,
+  setShowShipTask,
 }: Props) {
   return (
     <div className="panel dock">
@@ -111,7 +116,13 @@ export function RightDock({
         )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {tab === "chat" && <ChatPanel onFocus={onFocus} />}
-        {tab === "soumaya" && <SoumayaPanel onFocus={onFocus} />}
+        {tab === "soumaya" && (
+          <SoumayaPanel
+            onFocus={onFocus}
+            showShipTask={showShipTask}
+            setShowShipTask={setShowShipTask}
+          />
+        )}
         {tab === "fleet" && (
           <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
         )}

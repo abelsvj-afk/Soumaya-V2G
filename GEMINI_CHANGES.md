@@ -20,7 +20,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed — never commit app code there.
-- **Last verified gate:** typecheck clean · **63 tests pass** · web build clean.
+- **Last verified gate:** typecheck clean · **85 tests pass** · web build clean.
 - **What exists & works today:**
   - 3D galaxy (react-force-graph-3d + three.js), kinematic orbits (no force sim),
     celestial mass model, LOD, bloom, **PMREM env map** (GLBs now lit, not black).
@@ -158,6 +158,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-19 (Claude): Realistic Soumaya flight + floating, toggleable task label
+- [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.
+- **Cinematic flight** (`graph/soumaya.ts`): the cruise/Bézier branch now samples the curve at a
+  smoothstepped `t` (`smooth()`), so she eases out of and into every hop instead of moving
+  linearly. She also **banks into turns** — roll derived from the cross product of consecutive
+  path tangents projected onto her local up, clamped to ±0.6 rad and damped toward the target so
+  she leans, holds, and levels out. (Finishes the deferred Tier-D #15.)
+- **Floating "current task" label** (`graph/soumaya.ts` `makeTaskLabel()`): a billboard Sprite
+  (CanvasTexture) floats ~18u above the ship showing what she's doing — "Recharging at the
+  station", "Forging a new connection", or the live maintenance-job description. Long text
+  **marquee-scrolls** via `tex.offset.x` (RepeatWrapping) past a width cap. The label is added to
+  the scene by `Graph3D` (not parented to the ship) so banking never tilts it.
+- **Toggle** (Soumaya tab): "Show her current task above the ship" ON/OFF, persisted to
+  `localStorage` (`ship.task`, default on). Threaded `showShipTask`/`setShowShipTask` through
+  `App` → `Graph3D` (`setTaskVisible` + live effect) and `App` → `RightDock` → `SoumayaPanel`.
 
 ### 2026-06-18 (Claude): Sun/orbit/UX beta batch 2 (spin, glare, distance, dock, lore card, Companion editing, nav, dispatch)
 - [x] **Verified by Claude** — typecheck clean, 85 tests pass, web build clean.

@@ -50,6 +50,11 @@ export default function App() {
   // Lore card dismissed independently of the camera follow (× closes the card but
   // keeps focus). Reset to false whenever a new focus target is chosen.
   const [loreDismissed, setLoreDismissed] = useState(false);
+  // Show Soumaya's current task on a floating label above her ship (persisted).
+  const [showShipTask, setShowShipTask] = useState(() => localStorage.getItem("ship.task") !== "0");
+  useEffect(() => {
+    localStorage.setItem("ship.task", showShipTask ? "1" : "0");
+  }, [showShipTask]);
   // Transient glow on the focus button when a NEW beacon launches (not constant).
   const [beaconPulse, setBeaconPulse] = useState(false);
   const prevSatRef = useRef(0);
@@ -259,6 +264,7 @@ export default function App() {
         selectedId={selected?.id ?? null}
         bottomInset={panel === "dock"}
         demo={demo}
+        showShipTask={showShipTask}
       />
 
       {!loaded && (
@@ -498,6 +504,8 @@ export default function App() {
           canBack={history.length > 0}
           demo={demo}
           getFleetStatus={() => graphRef.current?.getFleetStatus()}
+          showShipTask={showShipTask}
+          setShowShipTask={setShowShipTask}
         />
       )}
     </div>

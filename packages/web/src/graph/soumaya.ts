@@ -23,9 +23,80 @@ export interface SoumayaHandle {
   ) => void;
   /** Queue new connections for her to draw herself (takes priority over patrol). */
   enqueueLinks: (tasks: LinkTask[]) => void;
+  /** Floating "current task" billboard — added to the scene by Graph3D so the
+   *  ship's banking never tilts it. Toggle its visibility via setTaskVisible. */
+  taskLabel: THREE.Object3D;
+  /** Turn the floating task label on/off (user preference). */
+  setTaskVisible: (v: boolean) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
+
+/** Smoothstep ease (slow start + slow finish) — gives accel/decel along a path. */
+const smooth = (x: number): number => {
+  const c = x < 0 ? 0 : x > 1 ? 1 : x;
+  return c * c * (3 - 2 * c);
+};
+
+/**
+ * A billboard "task" label that floats above the ship and shows what she's doing.
+ * Long text marquee-scrolls. Kept as a standalone object (added to the scene by
+ * Graph3D) so the ship's banking/roll never tilts or swings it.
+ */
+function makeTaskLabel() {
+  const canvas = document.createElement("canvas");
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.visible = false;
+  const H = 56; // canvas px height
+  const HU = 11; // world height
+  const MAXW = 120; // world width before it marquees
+  let scroll = false;
+  let off = 0;
+  let widthUnits = HU;
+
+  const draw = (text: string) => {
+    const ctx = canvas.getContext("2d")!;
+    const FS = 32;
+    const pad = 22;
+    ctx.font = `600 ${FS}px system-ui, -apple-system, sans-serif`;
+    const w = Math.max(64, Math.ceil(ctx.measureText(text).width) + pad * 2);
+    canvas.width = w;
+    canvas.height = H;
+    const c = canvas.getContext("2d")!;
+    c.clearRect(0, 0, w, H);
+    c.font = `600 ${FS}px system-ui, -apple-system, sans-serif`;
+    c.textBaseline = "middle";
+    // translucent pill
+    c.fillStyle = "rgba(8,5,20,0.5)";
+    c.fillRect(0, 0, w, H);
+    c.fillStyle = "#cfe0ff";
+    c.fillText(text, pad, H / 2 + 1);
+    tex.needsUpdate = true;
+    widthUnits = (w / H) * HU;
+    if (widthUnits > MAXW) {
+      scroll = true;
+      tex.repeat.x = MAXW / widthUnits;
+      sprite.scale.set(MAXW, HU, 1);
+    } else {
+      scroll = false;
+      tex.repeat.x = 1;
+      tex.offset.x = 0;
+      sprite.scale.set(widthUnits, HU, 1);
+    }
+  };
+
+  const tick = (dt: number) => {
+    if (scroll) {
+      off = (off + dt * 0.06) % 1;
+      tex.offset.x = off;
+    }
+  };
+
+  return { sprite, draw, tick };
+}
 
 /** Approximate a body's visual radius (mirrors nodeObject sizing) for standoff. */
 const bodyRadius = (n: any): number => {
@@ -112,6 +183,12 @@ export function makeSoumaya(): SoumayaHandle {
   group.add(glow);
   group.scale.setScalar(1.5);
   group.visible = false;
+
+  // Floating "what she's doing" label (billboard added to scene by Graph3D).
+  const taskLabel = makeTaskLabel();
+  let taskEnabled = false;
+  let lastTaskText = "";
+  let bank = 0; // current banked roll (smoothed toward target each frame)
 
   let mode: "travel" | "orbit" | "idle" | "dockTravel" | "docking" | "linkToSource" | "linkToTarget" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
@@ -400,15 +477,51 @@ export function makeSoumaya(): SoumayaHandle {
           curve = null;
           currentVel = 0;
         } else {
-          const p = curve.getPointAt(t);
-          const pPrev = curve.getPointAt(prevT);
+          // Ease accel/decel along the hop: sample the curve at a smoothstepped
+          // parameter so she pulls away slowly and settles in slowly.
+          const e = smooth(t);
+          const ePrev = smooth(prevT);
+          const p = curve.getPointAt(e);
+          const pPrev = curve.getPointAt(ePrev);
           currentVel = p.distanceTo(pPrev) / dt;
-          
+
           group.position.copy(p);
-          const tangent = curve.getTangentAt(Math.min(0.999, t));
+          const tangent = curve.getTangentAt(Math.min(0.999, e));
           group.lookAt(p.clone().add(tangent));
+
+          // Bank into turns: how much the heading is rotating (cross of the
+          // previous vs current tangent, signed about the ship's local up) drives
+          // a roll. Smooth toward it so she leans, holds, and levels out.
+          const tanPrev = curve.getTangentAt(Math.min(0.999, Math.max(0, ePrev)));
+          const turn = new THREE.Vector3().crossVectors(tanPrev, tangent);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.quaternion);
+          const signed = turn.dot(up);
+          const targetBank = Math.max(-0.6, Math.min(0.6, -signed * 14));
+          bank += (targetBank - bank) * Math.min(1, dt * 3);
+          group.rotateZ(bank);
         }
       }
+
+      // Floating task label: reflect what she's doing right now, above the ship.
+      let taskText = "";
+      if (mode === "docking" || mode === "dockTravel") {
+        taskText = "Recharging at the station";
+      } else if (mode === "linkToSource" || mode === "linkToTarget") {
+        taskText = "Forging a new connection";
+      } else if (currentJob) {
+        taskText =
+          currentJob.description ||
+          (currentJob.type === "patrol"
+            ? "Patrolling the galaxy"
+            : `Running ${currentJob.type}`);
+      }
+      if (taskText !== lastTaskText) {
+        lastTaskText = taskText;
+        if (taskText) taskLabel.draw(taskText);
+      }
+      taskLabel.sprite.position.set(group.position.x, group.position.y + 18, group.position.z);
+      taskLabel.tick(dt);
+      taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
 
       // Dynamic Propulsion Beam: scale based on velocity
       if (group.visible) {
@@ -432,5 +545,10 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
-  return { object: group, update, enqueueLinks };
+  const setTaskVisible = (v: boolean) => {
+    taskEnabled = v;
+    if (!v) taskLabel.sprite.visible = false;
+  };
+
+  return { object: group, update, enqueueLinks, taskLabel: taskLabel.sprite, setTaskVisible };
 }

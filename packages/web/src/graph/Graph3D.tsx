@@ -66,6 +66,8 @@ interface Props {
   bottomInset?: boolean;
   /** Demo galaxy — don't report visitor activity to the real backend. */
   demo?: boolean;
+  /** Show the floating "current task" label above Soumaya's ship. */
+  showShipTask?: boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -78,7 +80,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -97,6 +99,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     demoRef.current = !!demo;
   }, [demo]);
+  // Floating ship task label preference — kept in a ref for the engine loop, and
+  // pushed to the live handle whenever the user toggles it.
+  const showShipTaskRef = useRef(true);
+  useEffect(() => {
+    showShipTaskRef.current = !!showShipTask;
+    soumayaHandleRef.current?.setTaskVisible(!!showShipTask);
+  }, [showShipTask]);
 
   // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
@@ -244,6 +253,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       soumaya = makeSoumaya();
       soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
+      scene.add(soumaya.taskLabel);
+      soumaya.setTaskVisible(!!showShipTaskRef.current);
       soumayaObjRef.current = soumaya.object;
       // The Sun: the gigantic central body every cluster revolves around.
       const sun = makeSun();
