@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
 import { gltfLoader } from "./gltf.js";
+import { SUN_RADIUS_MAX } from "./sun.js";
 import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
 
 /** A connection Soumaya should personally fly out and forge (source → target). */
@@ -8,6 +9,15 @@ export interface LinkTask {
   source: number;
   target: number;
   key: string;
+}
+
+/** A discarded memory Soumaya should drag to the Sun and fling in (deletion). */
+export interface RemovalTask {
+  x: number;
+  y: number;
+  z: number;
+  color?: string;
+  size?: number;
 }
 
 export interface SoumayaHandle {
@@ -29,6 +39,11 @@ export interface SoumayaHandle {
   enqueuePlacements: (ids: number[]) => void;
   /** Queue beacon targets for her to fly to and dispatch (takes priority over patrol). */
   enqueueBeacons: (ids: number[]) => void;
+  /** Queue discarded memories for her to drag to the Sun and fling in (deletion). */
+  enqueueRemovals: (tasks: RemovalTask[]) => void;
+  /** The body she's currently dragging to the Sun — added to the scene by Graph3D
+   *  so it animates in world space (not parented to the banking ship). */
+  cargo: THREE.Object3D;
   /** Floating "current task" billboard — added to the scene by Graph3D so the
    *  ship's banking never tilts it. Toggle its visibility via setTaskVisible. */
   taskLabel: THREE.Object3D;
@@ -190,6 +205,18 @@ export function makeSoumaya(): SoumayaHandle {
   group.scale.setScalar(1.5);
   group.visible = false;
 
+  // The doomed memory she drags to the Sun (world-space; added to scene by Graph3D).
+  const cargo = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 16, 16),
+    new THREE.MeshStandardMaterial({
+      color: "#cfe0ff",
+      emissive: new THREE.Color("#8aa0ff"),
+      emissiveIntensity: 0.5,
+      roughness: 0.7,
+    }),
+  );
+  cargo.visible = false;
+
   // Floating "what she's doing" label (billboard added to scene by Graph3D).
   const taskLabel = makeTaskLabel();
   let taskEnabled = false;
@@ -206,6 +233,8 @@ export function makeSoumaya(): SoumayaHandle {
     | "linkToTarget"
     | "placePickup"
     | "placeCarry"
+    | "removeTravel"
+    | "removeCarry"
     | "beaconTravel" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
@@ -217,6 +246,10 @@ export function makeSoumaya(): SoumayaHandle {
   // Beacons she needs to dispatch (fly to target memory and deploy)
   const beaconQueue: number[] = [];
   let activeBeacon: number | null = null;
+
+  // Discarded memories to drag to the Sun and fling in (deletion spectacle).
+  const removalQueue: RemovalTask[] = [];
+  let activeRemoval: RemovalTask | null = null;
 
   // Connections she's been asked to forge herself (fly to A, grab the thread, fly
   // to B, connect). Drained before patrol so new memories get linked on-screen.
@@ -384,6 +417,27 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  // Begin a deletion: fly to where the discarded memory was, so she can grab it
+  // and drag it into the Sun. (The body is already gone from the graph data; the
+  // task carries its last position + look.)
+  const startRemoval = (): void => {
+    const task = removalQueue.shift();
+    if (!task) return;
+    const to = new THREE.Vector3(task.x, task.y, task.z);
+    const from = group.visible ? group.position.clone() : to.clone().add(new THREE.Vector3(80, 50, 80));
+    const mid = from
+      .clone()
+      .add(to)
+      .multiplyScalar(0.5)
+      .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
+    curve = new THREE.QuadraticBezierCurve3(from, mid, to);
+    t = 0;
+    speed = Math.min(0.5, 60 / (from.distanceTo(to) || 1));
+    activeRemoval = task;
+    mode = "removeTravel";
+    group.visible = true;
+  };
+
   // Start beacon dispatch: fly directly to the target memory to deploy the beacon.
   const startBeaconDispatch = (nodes: any[]): void => {
     while (beaconQueue.length > 0) {
@@ -403,7 +457,9 @@ export function makeSoumaya(): SoumayaHandle {
   // including docking/idle, which return early from the main update body.
   const syncLabel = (dt: number) => {
     let taskText = "";
-    if (mode === "placePickup" || mode === "placeCarry") {
+    if (mode === "removeTravel" || mode === "removeCarry") {
+      taskText = "Casting a memory into the Sun";
+    } else if (mode === "placePickup" || mode === "placeCarry") {
       taskText = "Ferrying a new memory into place";
     } else if (mode === "beaconTravel") {
       taskText = "Deploying an Aura beacon";
@@ -435,8 +491,12 @@ export function makeSoumaya(): SoumayaHandle {
       }
 
       if (mode === "idle") {
-        // Place any brand-new memories first (bring the body in), THEN dispatch any
-        // new beacons, THEN forge the connections, THEN routine patrol/maintenance.
+        // Deletions are user-initiated → handle first; then place new memories, then
+        // dispatch beacons, forge connections, and finally routine maintenance.
+        if (removalQueue.length > 0) {
+          startRemoval();
+          return;
+        }
         if (placeQueue.length > 0 && orbitApi) {
           startPlacement(nodes);
           return;
@@ -553,6 +613,29 @@ export function makeSoumaya(): SoumayaHandle {
             currentVel = step / Math.max(dt, 0.001);
           }
         }
+      } else if (mode === "removeCarry") {
+        // Dragging a discarded memory into the Sun (origin). The cargo flies inward;
+        // the ship trails it but is clamped to a safe standoff so she never enters
+        // the Sun herself. On contact with the surface: a fiery consumption flare.
+        const cargoPos = cargo.position.clone();
+        const dist = cargoPos.length(); // distance from the Sun's center (origin)
+        if (!activeRemoval || dist <= SUN_RADIUS_MAX || cargoPos.lengthSq() < 1e-3) {
+          onArrive(cargoPos.x, cargoPos.y, cargoPos.z, "consume"); // flare + burst (Graph3D)
+          cargo.visible = false;
+          activeRemoval = null;
+          mode = "idle";
+          currentVel = 0;
+        } else {
+          const dirIn = cargoPos.clone().multiplyScalar(-1).normalize(); // toward the Sun
+          const step = Math.min(dist - SUN_RADIUS_MAX, (70 + dist * 0.4) * dt); // ease, faster when far
+          const nc = cargoPos.addScaledVector(dirIn, step);
+          cargo.position.copy(nc);
+          // Ship trails just behind the cargo, never closer than a safe standoff.
+          const standoff = Math.max(nc.length() + 50, SUN_RADIUS_MAX + 120);
+          group.position.copy(nc.clone().normalize().multiplyScalar(standoff));
+          group.lookAt(nc);
+          currentVel = step / Math.max(dt, 0.001);
+        }
       } else {
         // TRAVEL (to a memory) / DOCKTRAVEL (to the station): cruise the Bézier.
         if (!curve) {
@@ -613,6 +696,19 @@ export function makeSoumaya(): SoumayaHandle {
           curve = null;
           currentVel = 0;
           mode = "idle";
+        } else if (t >= 1 && mode === "removeTravel") {
+          // Reached the discarded memory — grab it (show the cargo) and haul it sunward.
+          curve = null;
+          currentVel = 0;
+          if (activeRemoval) {
+            (cargo.material as THREE.MeshStandardMaterial).color.set(activeRemoval.color ?? "#cfe0ff");
+            cargo.scale.setScalar(activeRemoval.size ?? 4);
+            cargo.position.set(activeRemoval.x, activeRemoval.y, activeRemoval.z);
+            cargo.visible = true;
+            mode = "removeCarry";
+          } else {
+            mode = "idle";
+          }
         } else if (t >= 1) {
           // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
@@ -693,10 +789,24 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  const enqueueRemovals = (tasks: RemovalTask[]) => {
+    for (const task of tasks) removalQueue.push(task);
+  };
+
   const setTaskVisible = (v: boolean) => {
     taskEnabled = v;
     if (!v) taskLabel.sprite.visible = false;
   };
 
-  return { object: group, update, enqueueLinks, enqueuePlacements, enqueueBeacons, taskLabel: taskLabel.sprite, setTaskVisible };
+  return {
+    object: group,
+    update,
+    enqueueLinks,
+    enqueuePlacements,
+    enqueueBeacons,
+    enqueueRemovals,
+    cargo,
+    taskLabel: taskLabel.sprite,
+    setTaskVisible,
+  };
 }

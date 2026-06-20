@@ -15,7 +15,7 @@ import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfiel
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
-import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
+import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
@@ -23,7 +23,7 @@ import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { isNodeProcessing, logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { makeSubAgents, type SubAgentSystem, type SubAgentHazard } from "./subAgents.js";
-import { BG } from "./theme.js";
+import { BG, TYPE_COLORS } from "./theme.js";
 
 /** Live status of each fleet unit, read by the Fleet panel. */
 export type FleetStatus = Record<string, { active: boolean; detail: string }>;
@@ -117,6 +117,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const orbitsRef = useRef(makeOrbitSystem());
   useEffect(() => {
     dataRef.current = data;
+    const prevById = nodeByIdRef.current; // last frame's nodes (for detecting deletions)
     nodeByIdRef.current = new Map((data.nodes as any[]).map((n: any) => [n.id, n]));
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
     sunRef.current?.userData?.setBrainScale?.(data.nodes.length); // core-self size (clamped)
@@ -184,6 +185,27 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // No station yet — just track them as known so they place normally.
         for (const n of data.nodes as any[]) knownNodesRef.current.add(n.id);
       }
+
+      // DELETED memories: Soumaya drags each to the Sun and flings it in (Phase 2b).
+      const liveIds = new Set((data.nodes as any[]).map((n) => n.id));
+      const removals: RemovalTask[] = [];
+      for (const id of knownNodesRef.current) {
+        if (!liveIds.has(id)) {
+          knownNodesRef.current.delete(id);
+          orbitsRef.current.release(id); // in case it was mid-ferry
+          const old = prevById.get(id);
+          if (old && old.x != null) {
+            removals.push({
+              x: old.x,
+              y: old.y,
+              z: old.z ?? 0,
+              color: TYPE_COLORS[old.type as keyof typeof TYPE_COLORS] ?? "#cfe0ff",
+              size: 4 + (old.mass ?? 0.3) * 5,
+            });
+          }
+        }
+      }
+      if (removals.length > 0) soumayaHandleRef.current?.enqueueRemovals(removals);
     }
   }, [data, demo]);
 
@@ -299,6 +321,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
       scene.add(soumaya.taskLabel);
+      scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
       soumaya.setTaskVisible(!!showShipTaskRef.current);
       soumayaObjRef.current = soumaya.object;
       // The Sun: the gigantic central body every cluster revolves around.
@@ -748,6 +771,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             if (type === "beacon_dispatch" && nodeId != null) {
               satellitesRef.current?.release(nodeId);
               burstsRef.current?.spawn(x, y, z, "synthesis");
+            } else if (type === "consume") {
+              // A discarded memory hit the Sun — fiery burst + a corona eruption.
+              burstsRef.current?.spawn(x, y, z, "consume");
+              sunRef.current?.userData?.flare?.();
             } else {
               burstsRef.current?.spawn(x, y, z, type);
             }

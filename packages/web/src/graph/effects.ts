@@ -60,6 +60,7 @@ export function makeCollisionBursts(count = 20): CollisionBursts {
   const poolMerging: THREE.Sprite[] = [];      // Dark Purple Vortex
   const poolUser: THREE.Sprite[] = [];         // Emerald Green (User Activity)
   const poolFuel: THREE.Sprite[] = [];         // Warm Gold (Fuel earned)
+  const poolConsume: THREE.Sprite[] = [];      // Fiery red/orange (memory flung into the Sun)
 
   for (let i = 0; i < count; i++) {
     const b = makeBurst("rgba(150,180,255,0.45)");
@@ -93,6 +94,10 @@ export function makeCollisionBursts(count = 20): CollisionBursts {
     const f = makeBurst("rgba(255,200,80,0.8)", 200); // amber fuel sparkle
     poolFuel.push(f);
     group.add(f);
+
+    const cons = makeBurst("rgba(255,120,40,0.9)", 340); // big fiery consumption flare
+    poolConsume.push(cons);
+    group.add(cons);
   }
 
   let next = 0;
@@ -107,6 +112,7 @@ export function makeCollisionBursts(count = 20): CollisionBursts {
       else if (type === "merging") pool = poolMerging;
       else if (type === "user") pool = poolUser;
       else if (type === "fuel") pool = poolFuel;
+      else if (type === "consume") pool = poolConsume;
 
       const b = pool[next % pool.length]!;
       next++;

@@ -165,6 +165,17 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Living Brain Phase 2b — deletion into the Sun
+- [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
+- On delete, Soumaya flies to the memory's last spot, grabs a glowing cargo replica, and drags it
+  into the Sun (clamped to a standoff so she never enters); on contact it's consumed in a fiery
+  burst + a corona flare. The actual delete is unchanged (server-side) — this is the funeral.
+- `effects.ts`: new fiery "consume" burst pool. `sun.ts`: `flare()` eruption + `getRadius()`.
+  `soumaya.ts`: `removeTravel`/`removeCarry` modes + a world-space `cargo` mesh + `enqueueRemovals`.
+  `Graph3D.tsx`: detects deleted ids (knownNodes - live data) using the prior node map for last
+  position/colour, releases any mid-ferry hold, enqueues the removal; `consume` arrival fires the
+  burst + sun flare. All green-zone visual/behaviour; orbits untouched.
+
 ### 2026-06-20 (Gemini): Per-memory story arcs in object lore
 - [x] Verified by Claude
 - Created a `findStoryArcs()` analyzer in `objectLore.ts` that detects specific patterns in the graph's memory relationships (conflict resolution/complication, muse inspiration, paradox, concept analogy).

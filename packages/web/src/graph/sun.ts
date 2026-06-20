@@ -59,6 +59,8 @@ export function makeSun(): THREE.Object3D {
   let dimTarget = 1;
   let dim = 1;
   const CORONA_OPACITY = 0.7;
+  // Flare: a brief eruption when Soumaya flings a discarded memory into the sun.
+  let flareT = 0;
 
   gltfLoader().load(
     "/sun.glb",
@@ -111,6 +113,13 @@ export function makeSun(): THREE.Object3D {
     dimTarget = on ? 0.25 : 1;
   };
 
+  // The sun's current world radius (so the ship knows where its surface is).
+  group.userData.getRadius = (): number => currentRadius;
+  // Erupt: a brief corona + light flare when a memory is consumed by the sun.
+  group.userData.flare = (): void => {
+    flareT = 1;
+  };
+
   group.userData.update = (time: number) => {
     const dt = last ? Math.min(0.05, time - last) : 0;
     last = time;
@@ -123,6 +132,15 @@ export function makeSun(): THREE.Object3D {
       dim += (dimTarget - dim) * Math.min(1, dt * 4);
       (corona.material as THREE.SpriteMaterial).opacity = CORONA_OPACITY * dim;
       light.intensity = (1.2 + (currentRadius / SUN_RADIUS_MAX) * 0.6) * Math.max(0.4, dim);
+    }
+    // Consumption flare: erupt the corona + light briefly, then settle back.
+    if (flareT > 0) {
+      flareT = Math.max(0, flareT - dt * 1.1);
+      const fb = flareT; // 1 → 0
+      corona.scale.setScalar(currentRadius * (2.8 + fb * 1.6));
+      (corona.material as THREE.SpriteMaterial).opacity = Math.min(1, CORONA_OPACITY * dim * (1 + fb * 2.2));
+      light.intensity = (1.2 + (currentRadius / SUN_RADIUS_MAX) * 0.6) * Math.max(0.4, dim) * (1 + fb * 2.5);
+      if (flareT === 0) applyRadius(); // restore baseline corona scale + light
     }
   };
 

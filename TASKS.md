@@ -81,8 +81,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   waystation dock; she flies out, tows each into its live orbit slot, drops it (orbit system resumes),
   blooms it. Additive `hold/release/slotOf` seam in `orbits.ts`; `placePickup/placeCarry` modes in
   `soumaya.ts`; new-node detection in `Graph3D.tsx`. Safe fallback (releases → normal placement).
-- [ ] 🔴 **Phase 2b — deletion into the Sun** (Claude) — on delete she drags the body to the Sun and
-  flings it in; fiery solar-flare consumption burst on contact. `soumaya.ts` + `sun.ts` + delete wiring.
+- [x] 🔴 **Phase 2b — deletion into the Sun** (Claude) — on delete, Soumaya flies to the memory's
+  spot, drags a cargo replica into the Sun (clamped so she never enters), and it's consumed in a
+  fiery burst + corona flare. `effects.ts` (consume pool) + `sun.ts` (flare/getRadius) +
+  `soumaya.ts` (removeTravel/removeCarry + cargo) + `Graph3D.tsx` (deletion detection).
 - [ ] 🟡 **Phase 3 — links decay & she repairs them** (Claude) — edges fade/break with neglect
   (reuse entropy signal), Soumaya re-draws degraded ones. Client-only decay first; persisted edge
   health is RED.
