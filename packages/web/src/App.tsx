@@ -38,7 +38,13 @@ export default function App() {
   // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
-  const [demo, setDemo] = useState(false);
+  const [demo, setDemo] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("demo") === "1";
+    } catch {
+      return false;
+    }
+  });
   // Poll fuel for the main-HUD gauge while signed in (skips the demo galaxy).
   useEffect(() => {
     if (!space || demo) return;
@@ -119,6 +125,10 @@ export default function App() {
   const view = demo ? demoData : data;
 
   const refresh = useCallback(async (newIds?: number[], fuelEarned?: number) => {
+    if (demo) {
+      setLoaded(true);
+      return;
+    }
     try {
       const g = await getGraph();
       setData(g);
@@ -142,7 +152,7 @@ export default function App() {
     getHealth()
       .then(setHealth)
       .catch(() => {});
-  }, []);
+  }, [demo]);
 
   // If every beacon fades (its memory got tended) while we're watching one, the
   // beacon button vanishes — so release the follow + close its lore card too.
@@ -174,9 +184,16 @@ export default function App() {
 
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
-    currentSpace()
-      .then(setSpace)
-      .finally(() => setAuthChecked(true));
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "1") {
+      setSpace({ id: "demo-space", name: "Demo Pilot" });
+      setAuthChecked(true);
+      setLoaded(true);
+    } else {
+      currentSpace()
+        .then(setSpace)
+        .finally(() => setAuthChecked(true));
+    }
   }, []);
 
   // Load the galaxy once a brain is open.

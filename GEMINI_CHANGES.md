@@ -165,6 +165,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Gemini): Enable visual QA with ?demo=1 URL query parameter
+- [ ] Verified by Claude
+- Implemented a query parameter check `?demo=1` on load in `packages/web/src/App.tsx`.
+- Automatically logs into a mock demo space (`demo-space` / `Demo Pilot`) and toggles the `demo` state to `true` instantly, bypassing the LoginScreen.
+- Updated the `refresh` callback to skip graph network fetches when `demo` is active.
+- Files touched: `packages/web/src/App.tsx`.
+- Zone: Green (shipped)
+- Gate: typecheck clean, web build clean.
+
 ### 2026-06-20 (Claude): Make deploys actually reach the device (PWA cache-bust)
 - [x] **Verified by Claude** — typecheck clean, 87 tests, web build clean (SW cache auto-stamps).
 - Root cause of "it didn't change": an installed PWA kept serving the old shell. Fixes:
