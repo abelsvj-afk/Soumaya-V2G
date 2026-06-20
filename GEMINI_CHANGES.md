@@ -165,6 +165,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Make deploys actually reach the device (PWA cache-bust)
+- [x] **Verified by Claude** — typecheck clean, 87 tests, web build clean (SW cache auto-stamps).
+- Root cause of "it didn't change": an installed PWA kept serving the old shell. Fixes:
+  - `public/sw.js` `CACHE` is now stamped with a unique build id at build time
+    (`scripts/stamp-sw.mjs`, wired into `web` build) → every deploy evicts the old cache.
+  - `main.tsx`: SW registration now calls `reg.update()` on load + reloads once on
+    `controllerchange`, so a fresh SW takes over immediately instead of after ~a day.
+  - `server.ts`: `Cache-Control: no-cache` on `index.html`/`sw.js`/`*.webmanifest`,
+    `immutable` on content-hashed JS/CSS — the shell always revalidates, assets cache hard.
+- NOTE: the galaxy-clumping fix (orbits) is intentionally held until agy confirms this build
+  renders on-device (avoid tuning layout blind). Deploy via agy + verify `/sw.js` CACHE id.
+
 ### 2026-06-20 (Claude): Deploy path documented — GitHub Actions is blocked on this account
 - [x] **Verified by Claude** — diagnosed via the GitHub API; deploy confirmed live by agy (issue #8).
 - GitHub Actions can't run here: the restored `fly-deploy.yml` `startup_failure`s with **0 jobs**

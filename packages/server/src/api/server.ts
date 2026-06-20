@@ -78,9 +78,24 @@ export function createApp(ctx: AppContext): Express {
   const webDir = process.env.WEB_DIR;
   if (webDir) {
     const dir = path.resolve(webDir);
-    app.use(express.static(dir));
+    // The shell (index.html / sw.js / manifest) must NEVER be cached, or a deploy
+    // won't reach an installed PWA. Content-hashed assets (…-AbC123.js/.css) are
+    // immutable, so cache them hard. This is what makes new builds actually show up.
+    app.use(
+      express.static(dir, {
+        setHeaders: (res, filePath) => {
+          const base = path.basename(filePath);
+          if (base === "index.html" || base === "sw.js" || base.endsWith(".webmanifest")) {
+            res.setHeader("Cache-Control", "no-cache, must-revalidate");
+          } else if (/\.[A-Za-z0-9]{8,}\.(?:js|css)$/.test(base)) {
+            res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          }
+        },
+      }),
+    );
     app.use((req, res, next) => {
       if (req.method !== "GET" || req.path.startsWith("/api")) return next();
+      res.setHeader("Cache-Control", "no-cache, must-revalidate"); // SPA shell — always revalidate
       res.sendFile(path.join(dir, "index.html"));
     });
   }
