@@ -101,12 +101,17 @@ never crosses brains. Pre-existing data lives under `legacy` and is claimed by t
 
 Single container (Fly.io): `Dockerfile` builds the web app, bakes the MiniLM
 embedding model into the image, and the Express server serves both the API and the
-static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. **Deploys are
-push-triggered by Fly's GitHub integration** (Fly builds the Dockerfile on push —
-no GitHub Actions involved). See `DEPLOYMENT.md`. There is intentionally no CI
-workflow: this account's Actions runners don't provision, so a workflow only added
-red noise; `DEPLOYMENT.md` carries a ready-to-restore `ci.yml` for when Actions
-works. Migrations must be additive + idempotent so a push can never crash boot on
+static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`.
+
+**How deploys actually happen (verified 2026-06-20):** GitHub Actions is **blocked on
+this account** — runs `startup_failure` with 0 jobs (private-repo Actions minutes/
+runner unavailable), so `.github/workflows/fly-deploy.yml` never ships anything. The
+working path is a **manual `fly deploy --remote-only`** (run by `agy` from Termux, who
+has the `FLY_API_TOKEN`; this sandbox has no flyctl/Fly network). The durable fix is to
+reconnect **Fly's native GitHub auto-deploy** (Fly dashboard → app → GitHub), which
+builds the Dockerfile on push without Actions. Either way: pushing alone does NOT deploy
+right now — trigger a `fly deploy` (delegate to `agy`) after pushing branch changes you
+want live. Migrations must be additive + idempotent so a deploy can never crash boot on
 the existing volume (`migrateSchema`; covered by `migration.test.ts`).
 
 LLM is optional — without a key the app runs in heuristic mode. To use a key:

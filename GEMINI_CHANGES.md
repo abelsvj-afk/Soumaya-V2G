@@ -165,6 +165,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Deploy path documented — GitHub Actions is blocked on this account
+- [x] **Verified by Claude** — diagnosed via the GitHub API; deploy confirmed live by agy (issue #8).
+- GitHub Actions can't run here: the restored `fly-deploy.yml` `startup_failure`s with **0 jobs**
+  (private-repo Actions minutes/runner unavailable), so pushing never ships. Confirmed by a manual
+  `workflow_dispatch` (run #51, 0 jobs, 1s).
+- **Working deploy path:** `agy` runs `fly deploy --remote-only` from Termux (has the FLY_API_TOKEN).
+  agy deployed HEAD `bb2aefc` → Fly **v11**, machine started, 1/1 health check passing (issue #8) —
+  this shipped all of Living-Brain Phases 0–4 + the orbit-spread fix that were stuck undeployed.
+- Durable fix: reconnect Fly's native GitHub auto-deploy (builds on push, no Actions). Documented
+  in `CLAUDE.md` → Deployment. NOTE for both agents: **a push alone does not deploy** — trigger a
+  `fly deploy` after pushing anything you want live.
+
 ### 2026-06-20 (Claude): Living Brain Phase 4 — fuel legible on the HUD + slow passive regen
 - [x] **Verified by Claude** — typecheck clean, 87 tests pass, web build clean.
 - **Surfaced fuel** on the main HUD: an ⛽ gauge (`fuel/capacity`) in the brand row with a tooltip
