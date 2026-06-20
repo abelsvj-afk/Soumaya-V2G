@@ -95,6 +95,7 @@ const FLEE_RADIUS = 240;
 
 export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSystem {
   const group = new THREE.Group();
+  const visitsMap = new Map<number, number>();
   const slots: Slot[] = [];
   for (let i = 0; i < maxConcurrent; i++) {
     const craft = makeCraft();
@@ -110,7 +111,60 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
     const beaconed = hazard?.beaconedIds;
     const candidates = nodes.filter((n) => n.x != null && !(beaconed?.has(n.id)));
     if (candidates.length === 0) return;
-    const target = candidates[Math.floor(Math.random() * candidates.length)];
+
+    // Calculate average emotional weight for the brain to compute rarity
+    const totalEmotionalWeight = nodes.reduce((sum, n) => sum + (n.emotionalWeight ?? 0), 0);
+    const avgEmotionalWeight = nodes.length > 0 ? totalEmotionalWeight / nodes.length : 0;
+
+    // Score all candidates
+    const scored = candidates.map((n) => {
+      const emotionalIntensity = Math.abs(n.emotionalWeight ?? 0);
+      const emotionalRarity = Math.abs((n.emotionalWeight ?? 0) - avgEmotionalWeight);
+      const massFactor = n.mass ?? n.importance ?? 0.1;
+      const densityFactor = (n.degree ?? 0) / 10;
+      
+      let recencyFactor = 0.5;
+      const timeStr = n.lastTendedAt ?? n.occurredAt ?? n.createdAt;
+      if (timeStr) {
+        const ageMs = Date.now() - Date.parse(timeStr);
+        if (!Number.isNaN(ageMs)) {
+          // decay over 7 days
+          recencyFactor = Math.exp(-ageMs / (7 * 24 * 3600 * 1000));
+        }
+      }
+      
+      const visits = visitsMap.get(n.id) ?? 0;
+      const revisitPenalty = 1 / (1 + visits);
+      
+      // Attractions score function
+      const score = (
+        emotionalIntensity * 1.5 +
+        emotionalRarity * 1.0 +
+        massFactor * 2.0 +
+        densityFactor * 0.8 +
+        recencyFactor * 1.2
+      ) * revisitPenalty;
+
+      return { node: n, score };
+    });
+
+    // Sort by attraction score descending
+    scored.sort((a, b) => b.score - a.score);
+
+    // Pick top nodes with geometric decay probability distribution (70% top 1, 21% top 2, etc.)
+    let target = scored[0]?.node;
+    if (scored.length > 1) {
+      const r = Math.random();
+      let index = 0;
+      let accum = 0.7;
+      while (r > accum && index < scored.length - 1) {
+        index++;
+        accum += Math.pow(0.3, index) * 0.7;
+      }
+      target = scored[index]?.node ?? scored[0]?.node;
+    }
+
+    if (!target) return;
     
     // Color Sync: The visitor adopts the emotional color of the planet it is visiting.
     const nodeColor = bodyColor(target);
@@ -180,7 +234,10 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
           if (d < 12) {
             s.phase = "loiter";
             // It has arrived — record the visit (the memory + which craft type).
-            if (s.targetId != null) onVisit?.(s.targetId, s.variant.name);
+            if (s.targetId != null) {
+              visitsMap.set(s.targetId, (visitsMap.get(s.targetId) ?? 0) + 1);
+              onVisit?.(s.targetId, s.variant.name);
+            }
           }
         } else if (s.phase === "loiter") {
           s.loiter -= dt;

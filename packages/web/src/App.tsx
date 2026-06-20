@@ -506,6 +506,7 @@ export default function App() {
           getFleetStatus={() => graphRef.current?.getFleetStatus()}
           showShipTask={showShipTask}
           setShowShipTask={setShowShipTask}
+          onRecall={(ids) => graphRef.current?.fireRecall(ids)}
         />
       )}
     </div>

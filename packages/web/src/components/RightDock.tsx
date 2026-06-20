@@ -31,6 +31,7 @@ interface Props {
   /** Floating ship-task label preference + setter (Soumaya tab toggle). */
   showShipTask?: boolean;
   setShowShipTask?: (v: boolean) => void;
+  onRecall?: (ids: number[]) => void;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -64,6 +65,7 @@ export function RightDock({
   getFleetStatus,
   showShipTask,
   setShowShipTask,
+  onRecall,
 }: Props) {
   return (
     <div className="panel dock">
@@ -116,7 +118,7 @@ export function RightDock({
           />
         )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
-        {tab === "chat" && <ChatPanel onFocus={onFocus} />}
+        {tab === "chat" && <ChatPanel onFocus={onFocus} onRecall={onRecall} />}
         {tab === "soumaya" && (
           <SoumayaPanel
             onFocus={onFocus}

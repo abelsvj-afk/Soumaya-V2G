@@ -48,6 +48,8 @@ export interface Graph3DHandle {
   exitCluster: () => void;
   /** Trigger a visual burst at a node (e.g., for user action rewards). */
   spawnBurst: (nodeId: number, type?: string) => void;
+  /** Fire visual recall signals along synapses for cited node IDs. */
+  fireRecall: (citationIds: number[]) => void;
   /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
   getFleetStatus: () => FleetStatus;
 }
@@ -399,10 +401,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     // Faint idle pulse: so dormant threads aren't lifeless, occasionally send a
     // single slow dot down a few random visible links (much quieter than the
-    // activity firing). Tunables:
-    const IDLE_PULSE_EVERY = 4; // seconds between ambient pulses
-    const IDLE_PULSE_LINKS = 2; // how many links shimmer each time
-    let idlePulseT = IDLE_PULSE_EVERY;
+    // activity firing).
+    const IDLE_PULSE_EVERY_BASE = 4; // base seconds between ambient pulses
+    let idlePulseT = IDLE_PULSE_EVERY_BASE;
     // Flush buffered visitor arrivals to the backend every ~20s.
     let visitFlushT = 20;
     const idlePulse = () => {
@@ -412,7 +413,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         (l) => !pendingLinksRef.current.has(linkKey(l)),
       );
       if (links.length === 0) return;
-      for (let i = 0; i < Math.min(IDLE_PULSE_LINKS, links.length); i++) {
+      // Intensify pulse density with node count: more links shimmer for larger brains
+      const numNodes = dataRef.current.nodes.length;
+      const pulseLinksCount = Math.max(2, Math.floor(numNodes / 10));
+      for (let i = 0; i < Math.min(pulseLinksCount, links.length); i++) {
         const l = links[Math.floor(Math.random() * links.length)];
         try {
           f.emitParticle(l);
@@ -436,7 +440,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       idlePulseT -= dt;
       if (idlePulseT <= 0) {
         idlePulse();
-        idlePulseT = IDLE_PULSE_EVERY;
+        // Intensify idle pulse frequency with node count (down to every 1 second)
+        const numNodes = dataRef.current.nodes.length;
+        const pulseEvery = Math.max(1, IDLE_PULSE_EVERY_BASE - Math.floor(numNodes / 20));
+        idlePulseT = pulseEvery;
       }
 
       // Persist visitor arrivals in batches.
@@ -785,6 +792,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
   };
 
+  const getLinkActivity = (l: any) => {
+    const sourceNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.source));
+    const targetNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.target));
+    if (!sourceNode || !targetNode) return 0;
+    const timeStr = sourceNode.lastTendedAt ?? sourceNode.createdAt ?? targetNode.lastTendedAt ?? targetNode.createdAt;
+    if (!timeStr) return 0;
+    const ageMs = Date.now() - Date.parse(timeStr);
+    if (Number.isNaN(ageMs)) return 0;
+    return Math.max(0, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // decay over 3 days
+  };
+
   useImperativeHandle(
     ref,
     () => ({
@@ -884,6 +902,36 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
         }
       },
+      fireRecall: (ids: number[]) => {
+        // Emit particles along all links associated with the cited nodes
+        const f = fgRef.current;
+        if (!f?.emitParticle) return;
+        const citedSet = new Set(ids);
+        for (const l of dataRef.current.links as any[]) {
+          const s = linkEnd(l.source);
+          const t = linkEnd(l.target);
+          if (citedSet.has(s) || citedSet.has(t)) {
+            try {
+              // emit a couple of fast particles down the connection
+              f.emitParticle(l);
+              window.setTimeout(() => {
+                try {
+                  f.emitParticle(l);
+                } catch {}
+              }, 120);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+        // Also spawn a subtle burst at each of the cited nodes
+        for (const id of ids) {
+          const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
+          if (n && n.x != null) {
+            burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, "synthesis");
+          }
+        }
+      },
       getFleetStatus: (): FleetStatus => {
         const labelOf = (nid: number) =>
           (dataRef.current.nodes as any[]).find((n) => n.id === nid)?.label ?? `#${nid}`;
@@ -932,12 +980,33 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       onNodeHover={(n: any) => setHoverId(n ? n.id : null)}
       // Connections read as faint gravitational filaments; the relationship is
       // carried by streams of drifting "space dust" rather than solid lines.
+      // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        return lit ? "rgba(150,180,255,0.22)" : "rgba(120,120,150,0.02)";
+        if (!lit) return "rgba(120,120,150,0.02)";
+        
+        const activity = getLinkActivity(l);
+        const opacity = 0.18 + activity * 0.36; // base 0.18 .. 0.54 active
+        
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        const macroFactor = Math.min(1.5, Math.max(0.6, dist / 800));
+        
+        return `rgba(150, 180, 255, ${Math.min(0.8, opacity * macroFactor)})`;
       }}
-      linkWidth={(l: any) => 0.15 + (l.weight ?? 0.4) * 0.5}
-      linkCurvature={0.18}
+      linkWidth={(l: any) => {
+        const activity = getLinkActivity(l);
+        return 0.15 + (l.weight ?? 0.4) * 0.5 + activity * 0.3; // active lines are slightly thicker
+      }}
+      linkCurvature={(l: any) => {
+        const activity = getLinkActivity(l);
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        
+        // At macro zoom (> 800 distance), links curve more significantly to form neuron-like fibers
+        const baseCurvature = dist > 800 ? 0.28 : 0.12;
+        return baseCurvature + activity * 0.16; // active lines wander/curve more organically
+      }}
       // No constant stream — connections fire like synapses only when something
       // real happens on them (Soumaya tending a memory or forging a link). The
       // pulses are emitted imperatively via fg.emitParticle (fireAlongNode/fireLink).
