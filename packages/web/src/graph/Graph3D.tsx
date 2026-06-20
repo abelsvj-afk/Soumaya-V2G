@@ -418,9 +418,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         (l) => !pendingLinksRef.current.has(linkKey(l)),
       );
       if (links.length === 0) return;
-      // Intensify pulse density with node count: more links shimmer for larger brains
+      // Intensify pulse density with node count: more links shimmer for larger brains (capped at 15 to prevent flooding)
       const numNodes = dataRef.current.nodes.length;
-      const pulseLinksCount = Math.max(2, Math.floor(numNodes / 10));
+      const pulseLinksCount = Math.min(15, Math.max(2, Math.floor(numNodes / 10)));
       for (let i = 0; i < Math.min(pulseLinksCount, links.length); i++) {
         const l = links[Math.floor(Math.random() * links.length)];
         try {
@@ -433,6 +433,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     let raf = 0;
     let last = performance.now() * 0.001;
+    let lastDist = 0;
+    let lastRefreshTime = 0;
     const followAnchor = new THREE.Vector3();
     let followAnchorId: number | null = null;
     const followPos = new THREE.Vector3();
@@ -440,6 +442,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const now = performance.now() * 0.001;
       const dt = Math.min(0.05, now - last);
       last = now;
+
+      // Make link curvature/opacity zoom-bias live:
+      // Track camera distance and periodically refresh link styles when zooming/scrolling
+      const camera = fgRef.current?.camera();
+      if (camera) {
+        const dist = camera.position.length();
+        const nowMs = performance.now();
+        if (Math.abs(dist - lastDist) > 35 && nowMs - lastRefreshTime > 250) {
+          lastDist = dist;
+          lastRefreshTime = nowMs;
+          fgRef.current?.refresh?.();
+        }
+      }
 
       // Ambient "alive" shimmer on idle threads.
       idlePulseT -= dt;
@@ -1107,16 +1122,31 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (!lit) return "rgba(120,120,150,0.02)";
         
         const activity = getLinkActivity(l);
-        const opacity = 0.18 + activity * 0.36; // base 0.18 .. 0.54 active
-        
         const camera = fgRef.current?.camera();
         const dist = camera ? camera.position.length() : 1200;
         const macroFactor = Math.min(1.5, Math.max(0.6, dist / 800));
         
+        if (dist > 800) {
+          // Macro zoom: cold links fade, active connections glow as vibrant cyan axons
+          const opacity = (0.07 + activity * 0.68) * macroFactor;
+          if (activity > 0.12) {
+            return `rgba(122, 249, 255, ${Math.min(0.85, opacity)})`; // glowing cyan
+          }
+          return `rgba(150, 180, 255, ${Math.min(0.8, opacity)})`;
+        }
+        
+        const opacity = 0.18 + activity * 0.36; // base 0.18 .. 0.54 active
         return `rgba(150, 180, 255, ${Math.min(0.8, opacity * macroFactor)})`;
       }}
       linkWidth={(l: any) => {
         const activity = getLinkActivity(l);
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        
+        if (dist > 800) {
+          // Macro zoom: links become thin, fine filaments, active threads are thicker
+          return 0.08 + (l.weight ?? 0.4) * 0.25 + activity * 0.42;
+        }
         return 0.15 + (l.weight ?? 0.4) * 0.5 + activity * 0.3; // active lines are slightly thicker
       }}
       linkCurvature={(l: any) => {
@@ -1124,9 +1154,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const camera = fgRef.current?.camera();
         const dist = camera ? camera.position.length() : 1200;
         
-        // At macro zoom (> 800 distance), links curve more significantly to form neuron-like fibers
-        const baseCurvature = dist > 800 ? 0.28 : 0.12;
-        return baseCurvature + activity * 0.16; // active lines wander/curve more organically
+        // At macro zoom (> 800 distance), links curve significantly with organic wavy variance per link
+        if (dist > 800) {
+          const linkSeed = l.id || 0;
+          const baseCurvature = 0.25 + (Math.abs(Math.sin(linkSeed * 1.7)) * 0.15);
+          return baseCurvature + activity * 0.18;
+        }
+        
+        return 0.12 + activity * 0.16; // active lines wander/curve more organically
       }}
       // No constant stream — connections fire like synapses only when something
       // real happens on them (Soumaya tending a memory or forging a link). The
