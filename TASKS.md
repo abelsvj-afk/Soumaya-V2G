@@ -66,7 +66,17 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ---
 
-## Deferred / Parked
+## Beta polish — "living neural web" feel (new, 2026-06-20, from user session)
+
+- [ ] 🟢 **Marquee scroll is frame-rate-bound** — node/sector label scroll uses `mq.t += 0.006` per FRAME (`Graph3D.tsx` tick), so it slows/stops on slower phones. Make it time-based (multiply by `dt`). Same for any other per-frame scroll.
+- [ ] 🟢 **Links flicker/vanish when close** — tapping/hovering a node drops unrelated links to 0.02 opacity (near-invisible), reading as a glitch up close. Raise the "unlit" link opacity to a faint-but-present value and/or smooth the transition.
+- [ ] 🟡 **Connections legible + persistent at distance (the obsidian/neuron feel)** — existing persisted links should read as a faint glowing web when zoomed out (not lost against the starfield), and "cluster lights"/ambient firing should make the brain look alive from afar even with no new memories. Visual work in `Graph3D.tsx`/links = Green; any change to what counts as a persisted/visible edge = Red (coordinate). DESIGN PENDING (see user Qs).
+- [ ] 🔴 **Confirm edges persist + return on reload** — verify `getGraph` returns all edges for a real (non-demo) brain and they show on load. Visibility logic is already correct (pending cleared on load); confirm it's not a server/persistence gap. Claude.
+- [ ] 🟡 **Fuel discoverability + keep growth ungated** — Soumaya's line-drawing is NOT fuel-gated (only research/sector charting is), but the user can't tell. Surface fuel + how it's earned on the main HUD (not just buried in Help), and decide whether fuel regenerates passively. UI surfacing = Green; economy/regen logic in `economy.ts` = Red. DESIGN PENDING (see user Qs).
+- [ ] 🟢 **Differentiate ＋ icons (add vs zoom)** — delegated to agy as issue #6.
+- [ ] 🟢 **Restore dock tab names on mobile** — delegated to agy as issue #6 (regressed by #4's wide-screen-only labels).
+
+
 
 - [ ] 🟢 **Fix UI layout overlaps** (bottom-menu / "Add thought" button / volume controls) — user said "forget it for now" on 2026-06-20.
 - [ ] **`InstancedMesh` renderer rewrite (phase-1-density-core.md)** — full spec committed and ready but hold until real devices drop below ~50fps. Not blocking anything.
