@@ -47,10 +47,15 @@ export interface OrbitSystem {
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
-/** Approximate visual radius of a body (matches the render sizing by mass). */
-const bodySize = (n: any): number => 24 + massOf(n) * 60;
+/**
+ * Spacing proxy for orbit layout (NOT the rendered size — that's set in
+ * nodeObject). A generous floor keeps the galaxy spread out even when most
+ * memories are small/young (the slow-growth model means low masses), so bodies
+ * never collapse into one tight overlapping clump.
+ */
+const bodySize = (n: any): number => 34 + massOf(n) * 54;
 
-const MARGIN = 26; // breathing room between any two bodies
+const MARGIN = 32; // breathing room between any two bodies
 const TOP_STEP = 360; // max radial spacing between top-level systems
 const TOP_MIN_STEP = 260; // min spacing — keeps systems apart when the galaxy is busy
 // Realistic gap between the Sun's surface and the innermost orbit — no body ever
