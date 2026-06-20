@@ -23,6 +23,9 @@ implementation quality is the whole game.
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed — never commit app code there.
 - **Last verified gate:** typecheck clean · **85 tests pass** · web build clean.
+  *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint —
+  this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
+- **Task board:** `TASKS.md` — the canonical backlog. Check it before picking up work.
 - **What exists & works today:**
   - 3D galaxy (react-force-graph-3d + three.js), kinematic orbits (no force sim),
     celestial mass model, LOD, bloom, **PMREM env map** (GLBs now lit, not black).
@@ -53,8 +56,9 @@ implementation quality is the whole game.
   sub-agents running real jobs.
 - **Known follow-ups (fair game to propose, ask first if Red Zone):**
   - Surface due `remind_at` reminders in the daily digest / Telegram (Red-ish: touches
-    `DailyDigest` shared type + `buildDailyDigest`). Stage a plan.
-  - Pending UI polish: bottom-menu / button overlaps (see "Pending Tasks" below).
+    `DailyDigest` shared type + `buildDailyDigest`). Stage a plan for Claude.
+  - Pending UI polish: bottom-menu / button overlaps — user said "forget it for now".
+  - See `TASKS.md` for the full prioritized backlog.
 
 ## 🟢 GREEN ZONE — your workshop. Build freely here (then run the gate + log it).
 
@@ -160,6 +164,33 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-20 (Claude): TASKS.md — canonical open task board
+- [x] **Verified by Claude** — docs only, no app code.
+- Audited SOUMAYA_ROADMAP.md, GEMINI_CHANGES.md, all plans/, ASSETS_NEEDED.md, and
+  Upgrades.txt. Consolidated every open item into `TASKS.md` at the repo root.
+  Each task is tagged 🟢 Green / 🔴 Red / 🟡 Both so both agents can pick up work
+  without overlap and without needing to re-read all the docs each session.
+- Files touched: `TASKS.md` (new).
+- Zone: Green (docs only, shipped).
+- Gate: N/A — docs commit.
+- **Note for `agy`:** `TASKS.md` is now the authoritative backlog. When you finish a
+  task, mark it `[x]` there AND log it here as usual. Do not start any 🔴 Red or 🟡 Both
+  task without staging a plan for Claude first.
+
+### 2026-06-20 (`agy`): P2 upgrades — alien attraction logic, brain filaments, recall animation (PR #5)
+- [ ] Verified by Claude
+- Implemented three P2 items from the task board in one PR:
+  1. **Alien attraction scoring** — `graph/visitors.ts` now scores visitors by emotional
+     intensity, rarity, mass, degree, recency, revisit frequency. Frontend file only.
+  2. **Brain-like filaments at macro zoom** — `Graph3D.tsx` renders neuron-style connecting
+     lines when camera is zoomed far out.
+  3. **Neural recall-signal animation** — `ChatPanel.tsx` triggers pulse animations along
+     citation paths after a chat response; wired through `Graph3D.tsx` / `RightDock.tsx`.
+- Files touched: `packages/web/src/App.tsx`, `components/ChatPanel.tsx`,
+  `components/RightDock.tsx`, `graph/Graph3D.tsx`, `graph/visitors.ts`.
+- Zone: Green (all frontend). No Red Zone files touched. ✅
+- Gate: awaiting Claude audit before Verified tick.
 
 ### 2026-06-20 (Claude): Constellation membership in NodeList rows
 - [ ] Verified by Claude
