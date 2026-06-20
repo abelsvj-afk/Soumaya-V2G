@@ -22,7 +22,7 @@ import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { isNodeProcessing, logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
-import { makeSubAgents, type SubAgentSystem } from "./subAgents.js";
+import { makeSubAgents, type SubAgentSystem, type SubAgentHazard } from "./subAgents.js";
 import { BG } from "./theme.js";
 
 /** Live status of each fleet unit, read by the Fleet panel. */
@@ -502,7 +502,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
         : null;
       satellites?.update(dt, dataRef.current.nodes as any[], stationWorld);
-      subAgents?.update(dt, dataRef.current.nodes as any[]);
+      // Defender live drifter intercept: wire visitor positions as a hazard context
+      let subAgentHazard: SubAgentHazard | undefined = undefined;
+      if (visitors) {
+        subAgentHazard = {
+          positions: visitors.getActive().map((v) => {
+            const p = new THREE.Vector3();
+            v.object.getWorldPosition(p);
+            return p;
+          }),
+        };
+      }
+      subAgents?.update(dt, dataRef.current.nodes as any[], subAgentHazard);
       // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
       visitors?.update(
         dt,
