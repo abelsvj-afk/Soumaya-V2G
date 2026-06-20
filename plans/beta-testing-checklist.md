@@ -41,12 +41,11 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ### 🧠 Memory Discovery System
 
-- 🟡 **P0 — Expand memory metadata in the List view.** (mostly shipped)
+- ✅ **P0 — Expand memory metadata in the List view.** (fully shipped)
   - *Done:* `NodeList.tsx` rows now show growth stage (`celestial` + `CELESTIAL_ICON`),
     connection count (`degree`), when (`occurredAt ?? createdAt`, relative), emotional
-    signature (warm/neutral/heavy dot), cooling (❄️ via `entropy`), and tags.
-  - *Remaining:* constellation membership (needs `/api/constellations`) + visitor indicators
-    (needs the Visitor-activity item below).
+    signature (warm/neutral/heavy dot), cooling (❄️ via `entropy`), tags, visitor count
+    (👽 N), and constellation membership (🌌 name from `/api/constellations`).
 - ✅ **P1 — Timeline context / grouping.** Shipped: a **🕰 timeline** toggle in the List
   groups memories by when they happened (`occurredAt ?? createdAt`) under date headers —
   Today / Yesterday / Earlier this week / This month / "Month Year" / Undated. Client-only

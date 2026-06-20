@@ -1119,6 +1119,15 @@ body,
   display: inline-block;
   margin-left: 2px;
 }
+.nl-constel {
+  opacity: 0.55;
+  max-width: 9ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
 .nl-tags {
   font-size: 10.5px;
   color: var(--accent);

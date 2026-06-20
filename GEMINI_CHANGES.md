@@ -161,6 +161,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Constellation membership in NodeList rows
+- [ ] Verified by Claude
+- Each memory row in the List tab now shows its ML-derived constellation name (🌌 label,
+  subdued, truncated to 9ch) sourced from the existing `/api/constellations` endpoint.
+  Fetched once on mount in a dedicated `useEffect`; skipped in demo mode. The constellation
+  map is built client-side as `Map<nodeId, name>` so no extra re-renders on each row.
+- Files touched: `packages/web/src/components/NodeList.tsx`,
+  `packages/web/src/index.css` (`.nl-constel` rule).
+- Zone: Green (shipped).
+- Gate: typecheck ✓, web build ✓. Server tests were already failing before this change
+  (pre-existing, unrelated to the web component edit).
+
 ### 2026-06-20 (Claude): Reverse MCP — `.agents/mcp_config.json` so `agy` can call out (GitHub)
 - [x] **Verified by Claude** — config-only; valid JSON; no secrets committed.
 - Added **`.agents/mcp_config.json`** (`agy`'s workspace MCP config) registering the **GitHub

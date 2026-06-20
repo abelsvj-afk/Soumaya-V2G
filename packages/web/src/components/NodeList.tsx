@@ -8,7 +8,7 @@ import {
   CELESTIAL_CLASSES,
 } from "@brain/shared";
 import { TYPE_COLORS } from "../graph/theme.js";
-import { getVisitorActivity, type VisitedMemory } from "../api/client.js";
+import { getConstellations, getVisitorActivity, type VisitedMemory } from "../api/client.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -77,6 +77,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
   const [tag, setTag] = useState<string | null>(null);
   const [timeline, setTimeline] = useState(false);
   const [visited, setVisited] = useState<VisitedMemory[]>([]);
+  const [constellationMap, setConstellationMap] = useState<Map<number, string>>(new Map());
 
   useEffect(() => {
     if (demo) return;
@@ -84,6 +85,15 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     load();
     const iv = window.setInterval(load, 15000);
     return () => window.clearInterval(iv);
+  }, [demo]);
+
+  useEffect(() => {
+    if (demo) return;
+    getConstellations().then((cs) => {
+      const map = new Map<number, string>();
+      for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
+      setConstellationMap(map);
+    });
   }, [demo]);
 
   const visitorMap = useMemo(() => {
@@ -155,6 +165,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     const emo = emotionBucket(n.emotionalWeight);
     const when = relative(n.occurredAt ?? n.createdAt);
     const v = visitorMap.get(n.id);
+    const constel = constellationMap.get(n.id);
     return (
       <li key={n.id}>
         <button onClick={() => onFocus(n.id)}>
@@ -168,6 +179,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
               <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
               {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
               {v && <span title={`visited ${v.visits}× · last ${relative(v.lastAt)}`}>· 👽 {v.visits}</span>}
+              {constel && <span className="nl-constel" title={`constellation: ${constel}`}>· 🌌 {constel}</span>}
             </span>
             {n.tags && n.tags.length > 0 && (
               <span className="nl-tags">{n.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>
