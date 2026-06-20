@@ -68,11 +68,22 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ## Beta polish — "living neural web" feel (new, 2026-06-20, from user session)
 
-- [ ] 🟢 **Marquee scroll is frame-rate-bound** — node/sector label scroll uses `mq.t += 0.006` per FRAME (`Graph3D.tsx` tick), so it slows/stops on slower phones. Make it time-based (multiply by `dt`). Same for any other per-frame scroll.
-- [ ] 🟢 **Links flicker/vanish when close** — tapping/hovering a node drops unrelated links to 0.02 opacity (near-invisible), reading as a glitch up close. Raise the "unlit" link opacity to a faint-but-present value and/or smooth the transition.
-- [ ] 🟡 **Connections legible + persistent at distance (the obsidian/neuron feel)** — existing persisted links should read as a faint glowing web when zoomed out (not lost against the starfield), and "cluster lights"/ambient firing should make the brain look alive from afar even with no new memories. Visual work in `Graph3D.tsx`/links = Green; any change to what counts as a persisted/visible edge = Red (coordinate). DESIGN PENDING (see user Qs).
-- [ ] 🔴 **Confirm edges persist + return on reload** — verify `getGraph` returns all edges for a real (non-demo) brain and they show on load. Visibility logic is already correct (pending cleared on load); confirm it's not a server/persistence gap. Claude.
-- [ ] 🟡 **Fuel discoverability + keep growth ungated** — Soumaya's line-drawing is NOT fuel-gated (only research/sector charting is), but the user can't tell. Surface fuel + how it's earned on the main HUD (not just buried in Help), and decide whether fuel regenerates passively. UI surfacing = Green; economy/regen logic in `economy.ts` = Red. DESIGN PENDING (see user Qs).
+> **Design:** [`plans/living-brain.md`](./plans/living-brain.md) — phased plan agreed with the user.
+> Phase 1 (visual web, 🟢) delegated to agy; Phases 2–4 (placement/decay/fuel) led by Claude.
+
+- [ ] 🟢 **Phase 1 — persistent glowing web + ambient firing** (agy) — legible links at distance
+  (cures "connections gone = faint"), neuron-style ambient firing/cluster lights, marquee `dt`
+  fix, link flicker-when-close fix, `NodeList` `demo` prop. Pure `Graph3D.tsx`/CSS. See design doc.
+- [ ] 🔴 **Phase 2 — Soumaya ferries & places new memories** (Claude) — escort a new node from a
+  drop-in point to its orbit slot once, then hand to the kinematic system; delete = fling to deep
+  space / into the Sun. Touches `orbits.ts` (RED) + `soumaya.ts`.
+- [ ] 🟡 **Phase 3 — links decay & she repairs them** (Claude) — edges fade/break with neglect
+  (reuse entropy signal), Soumaya re-draws degraded ones. Client-only decay first; persisted edge
+  health is RED.
+- [ ] 🟡 **Phase 4 — fuel legible + slow regen** (Claude) — HUD fuel gauge + earn hint (🟢),
+  passive regen in `economy.ts` (RED); visual growth stays ungated.
+- [x] 🟢 **Confirm edges persist + return on reload** — verified: edges persist (weight ≥0.6) and
+  the graph route returns them space-scoped; "gone" was faint rendering (→ Phase 1), not data loss.
 - [ ] 🟢 **Differentiate ＋ icons (add vs zoom)** — delegated to agy as issue #6.
 - [ ] 🟢 **Restore dock tab names on mobile** — delegated to agy as issue #6 (regressed by #4's wide-screen-only labels).
 
