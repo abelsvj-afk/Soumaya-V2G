@@ -70,8 +70,8 @@ These are the foundations already in the app (so the backlog reflects reality):
   `VisitorsRepo.top()` + `GET /api/visitors` power a **"👽 Most visited memories"** section in
   the 🚀 Fleet tab (visits × types × last-seen, click to fly). Files: `db/schema.ts`,
   `db/client.ts`, `repositories/visitors.repo.ts`, `api/routes/visitors.ts`, `graph/visitors.ts`,
-  `graph/Graph3D.tsx`, `components/FleetPanel.tsx`. *Remaining:* per-row visitor indicators
-  in the List view (needs the count map plumbed into `NodeList`).
+  `graph/Graph3D.tsx`, `components/FleetPanel.tsx`. *Done:* per-row visitor indicators
+  in the List view (count map plumbed into `NodeList`).
 - ⬜ **P2 — Define alien attraction logic.** Make *why* a visitor picks a memory explicit.
   - *Plan:* formalize target scoring in `web/src/graph/visitors.ts` from emotional intensity
     (`|emotionalWeight|`), emotional rarity (distance from brain average), importance/mass,
@@ -113,5 +113,5 @@ These are the foundations already in the app (so the backlog reflects reality):
 ## Suggested order
 1. **P0:** ✅ tab labels → ✅ expanded List metadata + ✅ visual discovery filters.
 2. **P1:** ✅ visitor activity tracking → ✅ timeline grouping → ✅ cluster context →
-   per-row visitor indicators in List (next).
+   ✅ per-row visitor indicators in List.
 3. **P2:** attraction logic → brain-at-scale + recall-signal animation → behavioral persona.

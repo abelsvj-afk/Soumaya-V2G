@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   type GraphNode,
   type CelestialClass,
@@ -8,10 +8,12 @@ import {
   CELESTIAL_CLASSES,
 } from "@brain/shared";
 import { TYPE_COLORS } from "../graph/theme.js";
+import { getVisitorActivity, type VisitedMemory } from "../api/client.js";
 
 interface Props {
   nodes: GraphNode[];
   onFocus: (id: number) => void;
+  demo?: boolean;
 }
 
 type Emotion = "all" | "positive" | "neutral" | "negative";
@@ -65,7 +67,7 @@ function bucket(t: number): { key: string; label: string; rank: number } {
  * filters, so a memory can be found WITHOUT remembering its name ("the large blue
  * planet, cooling, from a while back"). All data is already derived on each node.
  */
-export function NodeList({ nodes, onFocus }: Props) {
+export function NodeList({ nodes, onFocus, demo }: Props) {
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<CelestialClass | "all">("all");
   const [emotion, setEmotion] = useState<Emotion>("all");
@@ -74,6 +76,23 @@ export function NodeList({ nodes, onFocus }: Props) {
   const [sort, setSort] = useState<Sort>("mass");
   const [tag, setTag] = useState<string | null>(null);
   const [timeline, setTimeline] = useState(false);
+  const [visited, setVisited] = useState<VisitedMemory[]>([]);
+
+  useEffect(() => {
+    if (demo) return;
+    const load = () => getVisitorActivity().then(setVisited);
+    load();
+    const iv = window.setInterval(load, 15000);
+    return () => window.clearInterval(iv);
+  }, [demo]);
+
+  const visitorMap = useMemo(() => {
+    const map = new Map<number, VisitedMemory>();
+    for (const v of visited) {
+      map.set(v.nodeId, v);
+    }
+    return map;
+  }, [visited]);
 
   const memories = useMemo(() => nodes.filter((n) => n.kind !== "action"), [nodes]);
 
@@ -135,6 +154,7 @@ export function NodeList({ nodes, onFocus }: Props) {
     const cls = n.celestial ?? "moon";
     const emo = emotionBucket(n.emotionalWeight);
     const when = relative(n.occurredAt ?? n.createdAt);
+    const v = visitorMap.get(n.id);
     return (
       <li key={n.id}>
         <button onClick={() => onFocus(n.id)}>
@@ -147,6 +167,7 @@ export function NodeList({ nodes, onFocus }: Props) {
               {when && <span title="when">· {when}</span>}
               <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
               {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
+              {v && <span title={`visited ${v.visits}× · last ${relative(v.lastAt)}`}>· 👽 {v.visits}</span>}
             </span>
             {n.tags && n.tags.length > 0 && (
               <span className="nl-tags">{n.tags.slice(0, 4).map((t) => `#${t}`).join(" ")}</span>

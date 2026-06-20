@@ -809,5 +809,6 @@ Adopted master's full content onto the deploy branch and fixed the build:
   limits (renders black). Made `makeSpaceBackground` a real procedural nebula
   (always works); the glb only loads on desktop (innerWidth ≥ 1100).
 - **Space station now visible**: orbit radius 900 → 320 (was floating too far out).
+- **Per-row visitor indicators in NodeList (List view)**: Displays visitor activity (👽 count and tooltip details) for memories, polled every 15 seconds.
 
-Status: typecheck clean, 29 tests pass, web builds.
+Status: typecheck clean, web builds.
