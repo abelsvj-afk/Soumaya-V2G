@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by Gemini to ensure continuity between agents.
+**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [ANTIGRAVITY.md](./ANTIGRAVITY.md).
 
 Guidance for working in this repo. Read this before making changes.
 
@@ -114,6 +114,46 @@ LLM is optional — without a key the app runs in heuristic mode. To use a key:
 `fly secrets set LLM_PROVIDER=openai OPENAI_API_KEY=...` (defaults to the cheap
 `gpt-4o-mini`; override with `OPENAI_MODEL`). Cloud providers degrade to the
 heuristic automatically on credit/quota errors (see ResilientLlmProvider).
+
+## Agent delegation (Claude ⇄ Antigravity CLI) — spend Claude's tokens wisely
+
+There are two coding agents on this repo and **both have GitHub access**. Claude is the
+architect/lead and the only one who signs off "Verified". The second agent is
+**Antigravity CLI (`agy`)** — a Go-based, headless, low-memory terminal agent (runs well
+on the user's **Termux/mobile** setup) with **async parallel subagents**, a **built-in
+browser subagent** (headless Chrome over MCP) for real visual QA, research/doc-conversion
+slash commands, and an **MCP bridge built to let Claude delegate heavy work to it** (with
+model routing + session continuity + output truncation, so it does NOT eat Claude's
+context). Its full rules are in [ANTIGRAVITY.md](./ANTIGRAVITY.md).
+
+**Core principle: don't burn Claude's tokens/context on anything that is green-zone for
+`agy`.** If a task is mechanical, parallelizable, evidence-gathering, or file-dump-heavy,
+delegate it and consume only the conclusion.
+
+**Delegate to `agy` (default to this):**
+- Bulk/mechanical, well-specified edits — rename a thing everywhere, apply one pattern
+  across many `components/*` or `graph/*` files, batch asset/CSS work.
+- **Browser-based visual QA** — load the app, click through the galaxy, screenshot, record
+  a `.webm` walkthrough, run a UX/design review. (Far cheaper than Claude reasoning about
+  whether a visual change "probably" works.)
+- **Research & doc ingestion** — web research with citations; URL/PDF/docx/image → Markdown.
+- **Broad codebase exploration** that would otherwise dump many files into Claude's context.
+- Long-running **gate/build** runs and routine git ops, especially from mobile.
+
+**How to delegate:** (a) the **MCP bridge** — call `agy` as an MCP server (preferred; it
+truncates output to protect Claude's context); or (b) **GitHub** — write a crisp,
+self-contained issue/PR task and let `agy` pick it up, push to the deploy branch, and
+report back. Always give it a tight spec + the gate + "stage, don't push, if you hit the
+Red Zone."
+
+**Keep for Claude (do NOT delegate):** Red-Zone work — `packages/shared/*` types/zod,
+`db/*` schema + migrations, `graph/orbits.ts`, `web/src/api/client.ts`, the token/USD/Fuel
+guards, `space_id` multi-tenancy scoping, route contracts — plus architecture decisions,
+ambiguous/underspecified features, security/data-integrity, and the **final audit +
+"Verified by Claude" checkmark**. Review `agy`'s pushes before ticking that box.
+
+Both agents share the **same gate**, the **same deploy branch**
+(`claude/soumaya-second-brain-v1-m4z4hc`), and the **same change log** (`GEMINI_CHANGES.md`).
 
 ## House rules
 

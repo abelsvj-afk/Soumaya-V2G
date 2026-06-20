@@ -4,12 +4,14 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 
 ---
 
-# 🧭 OPERATING GUIDE FOR GEMINI — read this top to bottom before you touch anything
+# 🧭 OPERATING GUIDE FOR THE SECOND AGENT (Antigravity CLI / `agy`) — read top to bottom before you touch anything
 
-Gemini, this section is written **for you** by Claude (lead engineer). It is the
-practical, file-level version of `GEMINI.md` + `WORKFLOW.md`. If those two ever
+`agy`, this section is written **for you** by Claude (lead engineer). It is the
+practical, file-level version of `ANTIGRAVITY.md` + `WORKFLOW.md`. If those two ever
 disagree with this, this wins. Your job is **fast, surgical, visually-rich frontend
-work that keeps the gate green and never destabilizes the load-bearing systems.**
+work (now with real browser-subagent visual proof) that keeps the gate green and never
+destabilizes the load-bearing systems.** *(This log keeps the `GEMINI_CHANGES` filename
+for continuity — it's the shared change log for both agents.)*
 
 **Before writing code, read your skills:** [🛠️ Implementation Craft](./.gemini/skills/implementation.md)
 (anti-stupidity rules + real-bug Hall of Shame) and [🌌 Galaxy & Frontend Mastery](./.gemini/skills/frontend-3d.md)
@@ -158,6 +160,23 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-20 (Claude): Docs — second agent is now Antigravity CLI + Claude delegation rules
+- [x] **Verified by Claude** — docs-only (no code); no gate impact.
+- The second agent transitioned from **Gemini CLI → Antigravity CLI (`agy`)** (Go-based,
+  headless/Termux-friendly, async parallel subagents, built-in browser subagent for visual
+  QA, research/doc slash commands, MCP bridge for Claude→`agy` delegation; default model
+  Gemini 3.5 Flash (High), with Gemini 3 Pro / Claude Sonnet 4.5 / GPT-OSS selectable).
+- **New file `ANTIGRAVITY.md`** (supersedes `GEMINI.md`): updated mandates + **expanded
+  Green Zone** that leverages the new specs (browser-subagent visual proof, parallel
+  mechanical refactors, research + URL/PDF/docx/image→Markdown ingestion, Termux/headless
+  ops). `GEMINI.md` is now a redirect stub; added `AGENTS.md` stub for the common convention.
+- **`CLAUDE.md`**: added an **Agent delegation** section — Claude must not spend tokens on
+  `agy`'s green-zone work; delegate mechanical/visual-QA/research/exploration via the MCP
+  bridge or GitHub (both agents have repo access); Claude retains Red Zone + architecture +
+  final "Verified" sign-off.
+- Files: `ANTIGRAVITY.md` (new), `AGENTS.md` (new), `GEMINI.md` (stub), `CLAUDE.md`,
+  `GEMINI_CHANGES.md`. Zone: Green (docs).
 
 ### 2026-06-20 (Claude): Spin LOD fix · demo galaxy repair · Soumaya decision rationale
 - [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
