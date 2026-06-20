@@ -353,10 +353,17 @@ export async function askChat(question: string): Promise<ChatResponse> {
   );
 }
 
+export interface JobRationale {
+  objective: string;
+  why: string;
+  benefit: string;
+}
+
 export interface MaintenanceJob {
   type: "synthesis" | "calibration" | "patrol";
   targets: number[];
   description: string;
+  rationale?: JobRationale;
 }
 
 export async function getNextMaintenanceJob(): Promise<MaintenanceJob> {
@@ -380,6 +387,8 @@ export interface AgentLog {
   action: string;
   description: string;
   targets: string;
+  /** JSON-encoded JobRationale (objective/why/benefit) — her decision breakdown. */
+  result?: string | null;
   createdAt: string;
 }
 

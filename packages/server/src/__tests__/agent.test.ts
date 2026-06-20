@@ -71,4 +71,23 @@ describe("maintenance agent (server-side autonomy core)", () => {
   it("selectJob returns null for an empty brain", () => {
     expect(selectJob(ctx, "legacy")).toBeNull();
   });
+
+  it("attaches an explainable rationale to every job and persists it to the log", async () => {
+    const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "rationale alpha")).nodes[0]!.id;
+
+    const job = selectJob(ctx, "legacy"); // research OFF → a free job, still explained
+    expect(job).not.toBeNull();
+    expect(job!.rationale?.objective).toBeTruthy();
+    expect(job!.rationale?.why).toBeTruthy();
+    expect(job!.rationale?.benefit).toBeTruthy();
+
+    await executeJob(ctx, "legacy", { type: "patrol", targets: [a] });
+    const log = handle.sqlite
+      .prepare(`SELECT result FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 1`)
+      .get("legacy") as { result: string | null };
+    expect(log?.result).toBeTruthy();
+    const parsed = JSON.parse(log!.result!);
+    expect(parsed.objective).toBeTruthy();
+    expect(parsed.benefit).toBeTruthy();
+  });
 });

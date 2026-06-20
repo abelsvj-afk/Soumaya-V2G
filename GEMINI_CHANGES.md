@@ -159,6 +159,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Spin LOD fix · demo galaxy repair · Soumaya decision rationale
+- [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
+- **Planets spin at all zoom levels** (`graph/nodeObject.ts`, `graph/Graph3D.tsx`): spin ran on the
+  fidelity group, but beyond `MACRO_DIST` (1800) the LOD swapped bodies for a flat billboard sprite
+  that can't rotate — so at galaxy-overview zoom nothing looked like it spun. Replaced the macro
+  sprite with a cheap self-lit low-poly sphere (cached blotch `emissiveMap` so rotation reads) that
+  also spins. Hardened the node-group lookup to find the group by its `nodeId`-bearing children
+  instead of a fragile child-count heuristic.
+- **Demo galaxy repaired** (`graph/Graph3D.tsx`): a demo↔real dataset swap reused the incremental-
+  link path, so every demo link was flagged "pending" (hidden) and queued onto Soumaya — galaxy
+  looked empty ("just the sun") and "← Back to mine" felt broken. Now a dataset switch re-baselines
+  links as immediately visible and re-frames the camera (reuses the first-frame logic).
+- **Soumaya decision rationale** (`maintenance/agent.ts` + UI): every job now carries an explainable,
+  offline-safe **business-style breakdown** — Objective / Why now / Benefit (`buildRationale`, derived
+  from graph facts, no LLM). Persisted to the previously-unused `agent_logs.result` column and shown
+  per entry in the Soumaya tab; also returned on `next-job`. **Research is no longer a default**:
+  reordered the ladder so **synthesis (connect-the-dots) is the primary act**, and research now fires
+  only for a genuine GAP — an important but under-connected memory (a blind spot) — instead of generic
+  hub expansion. Client types `MaintenanceJob.rationale` + `AgentLog.result` added.
+
 ### 2026-06-19 (Claude): New app icon (galaxy-brain) for installed/PWA app
 - [x] **Verified by Claude** — web build clean, icons emitted to `dist/`.
 - Replaced the home-screen / install icons with the galaxy-brain artwork (resized via `sharp`

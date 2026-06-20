@@ -12,6 +12,7 @@ import {
   getSpaceId,
   type AgentLog,
   type DailyLog,
+  type JobRationale,
   type Usage,
 } from "../api/client.js";
 
@@ -270,7 +271,18 @@ export function SoumayaPanel({
             
             const rawDate = log.createdAt;
             const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
-            
+
+            // Her decision breakdown (objective / why / benefit), if recorded.
+            let rationale: JobRationale | null = null;
+            try {
+              if (log.result) {
+                const r = JSON.parse(log.result);
+                if (r && r.objective) rationale = r as JobRationale;
+              }
+            } catch {
+              /* ignore malformed rationale */
+            }
+
             return (
               <li key={log.id} style={{ 
                 marginBottom: '0.8rem', 
@@ -284,6 +296,23 @@ export function SoumayaPanel({
                   <span>{new Date(isoDate).toLocaleTimeString()}</span>
                 </div>
                 <p style={{ margin: '0.3rem 0' }}>{log.description}</p>
+                {rationale && (
+                  <div
+                    style={{
+                      margin: '0.4rem 0',
+                      padding: '0.45rem 0.55rem',
+                      borderLeft: '2px solid rgba(100,200,255,0.5)',
+                      background: 'rgba(100,200,255,0.06)',
+                      borderRadius: '3px',
+                      fontSize: '0.78rem',
+                      lineHeight: 1.45,
+                    }}
+                  >
+                    <div><span style={{ opacity: 0.55 }}>Objective · </span>{rationale.objective}</div>
+                    <div><span style={{ opacity: 0.55 }}>Why now · </span>{rationale.why}</div>
+                    <div><span style={{ opacity: 0.55 }}>Benefit · </span>{rationale.benefit}</div>
+                  </div>
+                )}
                 <div className="pills">
                   {targets.map((id) => (
                     <button
