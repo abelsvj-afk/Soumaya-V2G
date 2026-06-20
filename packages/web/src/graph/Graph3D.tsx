@@ -954,32 +954,99 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
       },
       fireRecall: (ids: number[]) => {
-        // Emit particles along all links associated with the cited nodes
         const f = fgRef.current;
         if (!f?.emitParticle) return;
-        const citedSet = new Set(ids);
+        if (ids.length === 0) return;
+
+        // Build adjacency graph
+        // Map: nodeId -> array of { neighborId, link }
+        const adj = new Map<number, Array<{ neighborId: number; link: any }>>();
         for (const l of dataRef.current.links as any[]) {
           const s = linkEnd(l.source);
           const t = linkEnd(l.target);
-          if (citedSet.has(s) || citedSet.has(t)) {
-            try {
-              // emit a couple of fast particles down the connection
-              f.emitParticle(l);
-              window.setTimeout(() => {
-                try {
-                  f.emitParticle(l);
-                } catch {}
-              }, 120);
-            } catch {
-              /* ignore */
+          
+          if (!adj.has(s)) adj.set(s, []);
+          if (!adj.has(t)) adj.set(t, []);
+          
+          adj.get(s)!.push({ neighborId: t, link: l });
+          adj.get(t)!.push({ neighborId: s, link: l });
+        }
+
+        // Determine the seed (source) node for the path.
+        // If activeId is in the graph, use it. Otherwise, use the first cited ID.
+        const allNodes = dataRef.current.nodes as any[];
+        let seed: number = ids[0]!;
+        if (activeId !== null && allNodes.some(n => n.id === activeId)) {
+          seed = activeId;
+        }
+
+        // Run BFS from seed to find shortest path parent pointers
+        const parent = new Map<number, { parentId: number; link: any }>();
+        const queue: number[] = [seed];
+        const visited = new Set<number>([seed]);
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          const neighbors = adj.get(curr) || [];
+          for (const n of neighbors) {
+            if (!visited.has(n.neighborId)) {
+              visited.add(n.neighborId);
+              parent.set(n.neighborId, { parentId: curr, link: n.link });
+              queue.push(n.neighborId);
             }
           }
         }
-        // Also spawn a subtle burst at each of the cited nodes
-        for (const id of ids) {
-          const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
-          if (n && n.x != null) {
-            burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, "synthesis");
+
+        // For each cited node, reconstruct the path from seed and fire particles sequentially
+        for (const targetId of ids) {
+          if (targetId === seed) {
+            const n = allNodes.find((x) => x.id === seed);
+            if (n && n.x != null) {
+              burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, "synthesis");
+            }
+            continue;
+          }
+
+          const pathLinks: any[] = [];
+          let curr = targetId;
+          while (parent.has(curr)) {
+            const p = parent.get(curr)!;
+            pathLinks.unshift(p.link); // trace order: seed -> ... -> targetId
+            curr = p.parentId;
+          }
+
+          if (pathLinks.length > 0) {
+            // Emit particles sequentially down the path.
+            pathLinks.forEach((link, index) => {
+              window.setTimeout(() => {
+                try {
+                  f.emitParticle(link);
+                  window.setTimeout(() => {
+                    try {
+                      f.emitParticle(link);
+                    } catch {}
+                  }, 80);
+                } catch {}
+              }, index * 220);
+            });
+
+            // After the path completes, spawn a visual burst at the target node
+            const targetNode = allNodes.find((x) => x.id === targetId);
+            if (targetNode && targetNode.x != null) {
+              window.setTimeout(() => {
+                try {
+                  if (targetNode.x != null) {
+                    burstsRef.current?.spawn(targetNode.x, targetNode.y, targetNode.z ?? 0, "synthesis");
+                  }
+                } catch {}
+              }, pathLinks.length * 220 + 350);
+            }
+          } else {
+            // Fallback: no path found, spawn a burst directly
+            const targetNode = allNodes.find((x) => x.id === targetId);
+            if (targetNode && targetNode.x != null) {
+              burstsRef.current?.spawn(targetNode.x, targetNode.y, targetNode.z ?? 0, "synthesis");
+            }
           }
         }
       },
