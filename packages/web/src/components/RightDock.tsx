@@ -35,6 +35,7 @@ interface Props {
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
 // debuggable and screen-reader friendly; `name` also maps 1:1 to the tab id/code.
+// The tab name text is responsive (hidden on narrow screens, displayed side-by-side on wide screens).
 const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "details", label: "ⓘ", name: "Details" },
   { id: "sectors", label: "🌌", name: "Sectors" },

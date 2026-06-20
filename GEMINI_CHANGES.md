@@ -822,5 +822,6 @@ Adopted master's full content onto the deploy branch and fixed the build:
   (always works); the glb only loads on desktop (innerWidth ≥ 1100).
 - **Space station now visible**: orbit radius 900 → 320 (was floating too far out).
 - **Per-row visitor indicators in NodeList (List view)**: Displays visitor activity (👽 count and tooltip details) for memories, polled every 15 seconds.
+- **Responsive dock tab labels**: Hide tab text labels by default on narrow/mobile viewports and display them side-by-side with icons on wide viewports (≥ 768px).
 
 Status: typecheck clean, web builds.

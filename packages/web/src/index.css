@@ -241,8 +241,21 @@ body,
   line-height: 1;
 }
 .dock .tabs .tab-name {
+  display: none;
   font-size: 10px;
   letter-spacing: 0.01em;
+}
+
+@media (min-width: 768px) {
+  .dock .tabs button {
+    flex-direction: row;
+    gap: 6px;
+    padding: 8px 12px;
+  }
+  .dock .tabs .tab-name {
+    display: inline-block;
+    font-size: 11px;
+  }
 }
 .dock .tabs button.on {
   color: var(--text);

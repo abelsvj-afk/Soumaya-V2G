@@ -33,11 +33,11 @@ These are the foundations already in the app (so the backlog reflects reality):
 
 ### 🗺 Navigation & Traversal
 
-- 🟡 **P0 — Label every sidebar/dock tab.** Tabs are emoji-only → hard to tell which is
+- ✅ **P0 — Label every sidebar/dock tab.** Tabs are emoji-only → hard to tell which is
   active and hard to map to code.
   - *Done:* each tab now has a human `name` used as `title` tooltip + `aria-label`, plus
     `aria-current` on the active tab (`RightDock.tsx`).
-  - *Remaining:* show the visible text label beside the icon on wide docks (responsive CSS).
+  - *Done:* show the visible text label beside the icon on wide docks (responsive CSS).
 
 ### 🧠 Memory Discovery System
 
