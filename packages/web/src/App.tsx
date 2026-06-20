@@ -64,6 +64,28 @@ export default function App() {
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
 
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const triggerInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") {
+      setInstallPrompt(null);
+    }
+  };
+
   useEffect(() => onAiActivity(setAiBusy), []);
 
   // Create the ambient audio on mount so the loop preloads/buffers before the
@@ -301,6 +323,15 @@ export default function App() {
               {(demo ? demoData : data).nodes.length} memories · {llmStatus}
             </span>
           )}
+          {installPrompt && (
+            <button
+              className="chip-btn install-btn"
+              title="Install app to your home screen"
+              onClick={triggerInstall}
+            >
+              📲 Install App
+            </button>
+          )}
           <button
             className="chip-btn"
             title={`Signed in as "${space.name}" — switch brain`}
@@ -317,7 +348,13 @@ export default function App() {
         </div>
       </header>
 
-      {help && <HelpPanel onClose={() => setHelp(false)} />}
+      {help && (
+        <HelpPanel
+          onClose={() => setHelp(false)}
+          installPrompt={installPrompt}
+          onInstall={triggerInstall}
+        />
+      )}
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}

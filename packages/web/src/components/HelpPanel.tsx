@@ -2,6 +2,8 @@ import { SATELLITE_LORE, SATELLITE_NAME } from "../graph/satellites.js";
 
 interface Props {
   onClose: () => void;
+  installPrompt?: any;
+  onInstall?: () => void;
 }
 
 const ROWS: { icon: string; title: string; body: string }[] = [
@@ -86,7 +88,7 @@ const MECHANICS: { title: string; body: string }[] = [
 ];
 
 /** A simple in-app guide explaining every control + concept. */
-export function HelpPanel({ onClose }: Props) {
+export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
   return (
     <div className="help-overlay">
       <div className="help-head">
@@ -95,6 +97,15 @@ export function HelpPanel({ onClose }: Props) {
           ×
         </button>
       </div>
+
+      {installPrompt && onInstall && (
+        <div className="help-install-container">
+          <button className="help-install-btn" onClick={onInstall}>
+            📲 Install Second Brain App
+          </button>
+        </div>
+      )}
+
       <p className="help-intro">
         Your thoughts become a living galaxy. Significant, well-connected memories grow into bright
         stars; lonely ones fade until you revisit them. Soumaya (the ship) tends it all.

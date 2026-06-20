@@ -1818,6 +1818,41 @@ body,
   font-weight: 600;
   cursor: pointer;
 }
+.chip-btn.install-btn {
+  background: rgba(122, 249, 255, 0.22);
+  border-color: var(--accent);
+  color: var(--text);
+  box-shadow: 0 0 10px rgba(122, 249, 255, 0.25);
+  animation: pulse-border 2s infinite ease-in-out;
+}
+.help-install-container {
+  margin: 16px 0;
+  display: flex;
+  justify-content: center;
+}
+.help-install-btn {
+  background: linear-gradient(135deg, rgba(122, 249, 255, 0.22) 0%, rgba(122, 249, 255, 0.08) 100%);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 99px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(122, 249, 255, 0.2);
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.help-install-btn:hover {
+  background: linear-gradient(135deg, rgba(122, 249, 255, 0.35) 0%, rgba(122, 249, 255, 0.15) 100%);
+  box-shadow: 0 6px 20px rgba(122, 249, 255, 0.35);
+  transform: translateY(-1px);
+}
+.help-install-btn:active {
+  transform: translateY(0);
+}
 
 /* Buttons */
 button {

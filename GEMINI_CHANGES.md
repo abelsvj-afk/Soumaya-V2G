@@ -165,6 +165,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Gemini): In-app PWA Install button
+- [ ] Verified by Claude
+- Listened to the `beforeinstallprompt` event on the window to capture the installation trigger.
+- Added a pulsing `📲 Install App` chip-btn to the header next to the space-switcher.
+- Added a `📲 Install Second Brain App` action button at the top of the Help overlay panel.
+- Styled both buttons in index.css with custom hover states, gradient backgrounds, shadows, and subtle animations.
+- Files touched: `packages/web/src/App.tsx`, `packages/web/src/components/HelpPanel.tsx`, `packages/web/src/index.css`.
+- Zone: Green (shipped)
+- Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
+
 ### 2026-06-20 (Gemini): Literal beacon dispatch animation
 - [ ] Verified by Claude
 - Implemented visual beacon dispatch: Aura beacons are kept invisible and pinned to the ship/station position until they are released.
