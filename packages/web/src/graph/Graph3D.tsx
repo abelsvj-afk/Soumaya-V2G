@@ -112,9 +112,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
   const dataRef = useRef(data);
+  // id → node map for O(1) lookups in the per-link accessors (see getLinkActivity).
+  const nodeByIdRef = useRef<Map<number, any>>(new Map());
   const orbitsRef = useRef(makeOrbitSystem());
   useEffect(() => {
     dataRef.current = data;
+    nodeByIdRef.current = new Map((data.nodes as any[]).map((n: any) => [n.id, n]));
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
     sunRef.current?.userData?.setBrainScale?.(data.nodes.length); // core-self size (clamped)
     // Place the station just outside the bodies (so planets never pass through it)
@@ -793,8 +796,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   };
 
   const getLinkActivity = (l: any) => {
-    const sourceNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.source));
-    const targetNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.target));
+    // O(1) id→node lookup (rebuilt on each data change) — the link color/width/
+    // curvature accessors call this per link on every refresh, so a .find() scan
+    // here was O(links × nodes) and janked larger brains on mobile.
+    const byId = nodeByIdRef.current;
+    const sourceNode = byId.get(linkEnd(l.source));
+    const targetNode = byId.get(linkEnd(l.target));
     if (!sourceNode || !targetNode) return 0;
     const timeStr = sourceNode.lastTendedAt ?? sourceNode.createdAt ?? targetNode.lastTendedAt ?? targetNode.createdAt;
     if (!timeStr) return 0;
