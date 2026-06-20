@@ -115,6 +115,31 @@ Make real changes here, no permission needed beyond the gate + log:
 - When Claude hands you a task, treat its spec as authoritative; if you hit a Red-Zone
   edge mid-task, stop and stage rather than improvising across the contract.
 
+## 🔌 MCP servers `agy` can call (reverse bridge)
+
+The repo ships [`.agents/mcp_config.json`](./.agents/mcp_config.json) — `agy`'s **workspace**
+MCP config — giving your subagents outbound tools. Currently it registers the **GitHub MCP
+server** (structured PR/issue/repo tools), since both agents have GitHub access.
+
+**Activate it (one-time, on Termux/laptop):**
+1. Install the server binary: `go install github.com/github/github-mcp-server/cmd/github-mcp-server@latest`
+   (or grab a release) so `github-mcp-server` is on `PATH`.
+2. Export a token in the shell that launches `agy` (it's inherited by the spawned server —
+   **never commit it**): `export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_…`
+3. In `agy`, run `/mcp` to confirm `github` is connected.
+
+**Known caveat ([antigravity-cli#60](https://github.com/google-antigravity/antigravity-cli/issues/60)):**
+project-local MCP config can be read-but-ignored; only the HOME-level config reliably loads.
+If `/mcp` doesn't list `github`, install it globally:
+`mkdir -p ~/.gemini/config && cp .agents/mcp_config.json ~/.gemini/config/mcp_config.json`
+
+**Add more servers** by extending the `mcpServers` object (stdio `command`/`args`, or an HTTP
+`serverUrl` + `headers`). Keep secrets in env/HOME-level config, not in the committed file.
+
+> This is the **inbound** counterpart to the **outbound** Claude→`agy` bridge in
+> [`.mcp.json`](./.mcp.json) (`agy-bridge`): `.mcp.json` lets Claude call `agy`;
+> `.agents/mcp_config.json` lets `agy` call other tools.
+
 ## 🌳 Branch & Git Mandate (CRITICAL — read before any commit)
 
 The app DEPLOYS FROM ONE BRANCH ONLY: **`claude/soumaya-second-brain-v1-m4z4hc`**.

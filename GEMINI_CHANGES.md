@@ -161,6 +161,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Reverse MCP — `.agents/mcp_config.json` so `agy` can call out (GitHub)
+- [x] **Verified by Claude** — config-only; valid JSON; no secrets committed.
+- Added **`.agents/mcp_config.json`** (`agy`'s workspace MCP config) registering the **GitHub
+  MCP server** (`github-mcp-server stdio`) so `agy`'s subagents get structured PR/issue/repo
+  tools. Token is **inherited from the shell env** (`GITHUB_PERSONAL_ACCESS_TOKEN`), never in
+  the file. Documented activation + the project-local-ignored caveat (antigravity-cli#60 →
+  copy to `~/.gemini/config/mcp_config.json`) in `AGENTS.md` → "MCP servers `agy` can call".
+- This is the inbound counterpart to the outbound `.mcp.json` (`agy-bridge`): `.mcp.json` =
+  Claude→`agy`; `.agents/mcp_config.json` = `agy`→other tools.
+
 ### 2026-06-20 (Claude): MCP bridge — `.mcp.json` so Claude can delegate to `agy`
 - [x] **Verified by Claude** — config-only (no app code); valid JSON.
 - Added repo-root **`.mcp.json`** registering the **`agy-bridge`** MCP server
