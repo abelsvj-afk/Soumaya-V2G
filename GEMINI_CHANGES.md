@@ -166,7 +166,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ## Completed Tasks
 
 ### 2026-06-20 (Gemini): Per-memory story arcs in object lore
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - Created a `findStoryArcs()` analyzer in `objectLore.ts` that detects specific patterns in the graph's memory relationships (conflict resolution/complication, muse inspiration, paradox, concept analogy).
 - Deterministically selects one active story arc and appends contextual log notes to the ship (Soumaya) and Waystation (Soumaya-Prime) lore boards.
 - Files touched: `packages/web/src/graph/objectLore.ts`.
@@ -174,7 +174,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
 
 ### 2026-06-20 (Gemini): In-app PWA Install button
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - Listened to the `beforeinstallprompt` event on the window to capture the installation trigger.
 - Added a pulsing `📲 Install App` chip-btn to the header next to the space-switcher.
 - Added a `📲 Install Second Brain App` action button at the top of the Help overlay panel.
@@ -184,7 +184,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
 
 ### 2026-06-20 (Gemini): Literal beacon dispatch animation
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - Implemented visual beacon dispatch: Aura beacons are kept invisible and pinned to the ship/station position until they are released.
 - Soumaya's ship queues pending beacon dispatches and flies directly to the cooling memory to deploy it.
 - Once she arrives, a synthesis/glow spark is spawned at the memory, the beacon is released, fades in, and starts orbiting and beaming.
@@ -193,7 +193,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
 
 ### 2026-06-20 (Gemini): Differentiate ＋ icons and restore mobile dock tab names (Issue #6)
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - Differentiated the "Add a memory" FAB icon from the on-screen zoom-in FAB icon by changing the former to 📝, and updated the help panel.
 - Restored dock tab name labels on mobile screens (under 768px wide) by setting `.tab-name` to `display: inline-block` by default. Tabs are still scrollable horizontally.
 - Files touched: `packages/web/src/App.tsx`, `packages/web/src/components/HelpPanel.tsx`, `packages/web/src/index.css`.
