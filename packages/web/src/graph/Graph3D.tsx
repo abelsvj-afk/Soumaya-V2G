@@ -126,9 +126,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // (rather than the line just popping in). The first data load is the baseline —
     // we don't make her redraw the entire pre-existing graph.
     const keys = (data.links as any[]).map(linkKey);
-    if (!linksInitedRef.current) {
+    // A wholesale dataset swap (entering/leaving the demo galaxy) is NOT incremental
+    // growth — re-baseline so the new graph shows fully wired up immediately instead
+    // of dumping every link onto Soumaya's redraw queue (which left demo looking
+    // empty and made "← Back to mine" feel broken).
+    const datasetSwitched = prevDemoRef.current !== !!demo;
+    prevDemoRef.current = !!demo;
+    if (!linksInitedRef.current || datasetSwitched) {
       knownLinksRef.current = new Set(keys);
+      pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
       linksInitedRef.current = true;
+      fgRef.current?.refresh?.();
+      // Re-frame the whole galaxy once the new positions settle (reuses the
+      // first-frame logic) so a demo<->real swap opens zoomed-out, not inside the sun.
+      if (datasetSwitched) initialFramedRef.current = false;
     } else {
       const fresh: LinkTask[] = [];
       for (const l of data.links as any[]) {
@@ -144,7 +155,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         fgRef.current?.refresh?.(); // apply the new pending-hidden visibility
       }
     }
-  }, [data]);
+  }, [data, demo]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
   // body you jumped to doesn't drift out of frame.
@@ -175,6 +186,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
   const linksInitedRef = useRef(false);
+  // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
+  const prevDemoRef = useRef(!!demo);
   // New links stay hidden until Soumaya physically flies out and connects them.
   const pendingLinksRef = useRef<Set<string>>(new Set());
   const satellitesRef = useRef<SatelliteSystem | null>(null);
@@ -541,7 +554,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Instead of traversing the WHOLE scene (including starfield/nebulae), we
       // only iterate the bodies themselves. react-force-graph keeps them in a
       // dedicated group.
-      const graphGroup = scene.children.find((c: any) => c.type === "Group" && c.children.length > dataRef.current.nodes.length * 0.5);
+      // Find the group react-force-graph keeps the node objects in. Identify it by
+      // its CONTENTS (children carrying a nodeId) rather than a fragile children-
+      // count heuristic, which could latch onto the link group and silently stop
+      // spin/pulse/LOD from ever running.
+      const graphGroup = scene.children.find(
+        (c: any) => c.type === "Group" && c.children?.some((ch: any) => ch.userData?.nodeId != null),
+      );
       if (graphGroup) {
         graphGroup.children.forEach((o: any) => {
           if (o.userData?.nodeId == null) return;

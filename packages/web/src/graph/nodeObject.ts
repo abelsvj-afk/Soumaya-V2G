@@ -128,33 +128,71 @@ function toMap(c: HTMLCanvasElement): THREE.CanvasTexture {
   return t;
 }
 
-/** 
- * A simple, extremely lightweight glowing point for "Macro View".
- * Used as Level of Detail (LOD) to keep the galaxy performing at high density.
+/**
+ * A cheap, cached surface texture (a few tonal blotches over the body colour) so
+ * that a spinning macro body actually READS as spinning — a flat-shaded sphere
+ * looks identical every frame. Cached per colour so density stays performant.
  */
-function makeMacroBody(color: string, size: number): THREE.Sprite {
+const macroTexCache = new Map<string, THREE.CanvasTexture>();
+function macroTexture(color: string): THREE.CanvasTexture {
+  const cached = macroTexCache.get(color);
+  if (cached) return cached;
   const c = document.createElement("canvas");
-  c.width = c.height = 32;
+  c.width = 128;
+  c.height = 64;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-  const rgb = rgbOf(color);
-  g.addColorStop(0, `rgba(${rgb},1)`);
-  g.addColorStop(0.4, `rgba(${rgb},0.4)`);
-  g.addColorStop(1, `rgba(${rgb},0)`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 32, 32);
-  
-  const mat = new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c),
-    transparent: true,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const sprite = new THREE.Sprite(mat);
-  sprite.scale.set(size * 1.5, size * 1.5, 1);
-  sprite.userData.isMacro = true;
-  sprite.visible = false; // Hidden by default; toggled by Graph3D tick based on distance
-  return sprite;
+  const base = new THREE.Color(color);
+  ctx.fillStyle = `#${base.getHexString()}`;
+  ctx.fillRect(0, 0, 128, 64);
+  const dark = `${rgbOf(`#${base.clone().multiplyScalar(0.5).getHexString()}`)}`;
+  const lite = `${rgbOf(`#${base.clone().lerp(new THREE.Color("#ffffff"), 0.45).getHexString()}`)}`;
+  // Deterministic-ish blotches (seeded by colour) so each tier looks distinct but
+  // the cache stays stable. A handful is enough to perceive rotation.
+  let seed = 0;
+  for (let i = 0; i < color.length; i++) seed = (seed * 31 + color.charCodeAt(i)) >>> 0;
+  const rnd = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296);
+  for (let i = 0; i < 11; i++) {
+    ctx.fillStyle = i % 2 ? `rgba(${dark},0.55)` : `rgba(${lite},0.45)`;
+    const x = rnd() * 128;
+    const y = rnd() * 64;
+    const r = 5 + rnd() * 16;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const t = toMap(c);
+  macroTexCache.set(color, t);
+  return t;
+}
+
+/**
+ * The "Macro View" level-of-detail body: a low-poly, self-lit sphere shown when
+ * the camera is far enough that the full GLSL body (with its point light, glow,
+ * rings and asteroid belt) isn't worth the cost. It still SPINS on its axis so
+ * bodies never look frozen when the whole galaxy is in view — the whole point of
+ * the LOD before was a flat sprite that couldn't rotate.
+ */
+function makeMacroBody(color: string, size: number, starLike: boolean): THREE.Mesh {
+  const tex = macroTexture(color);
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(size, 14, 14),
+    // emissiveMap = the surface texture so it's visible (and its spin is visible)
+    // even far from the sun's light, without paying for a per-body point light.
+    new THREE.MeshStandardMaterial({
+      map: tex,
+      emissive: new THREE.Color(0xffffff),
+      emissiveMap: tex,
+      emissiveIntensity: starLike ? 0.95 : 0.5,
+      roughness: 0.9,
+      metalness: 0.0,
+    }),
+  );
+  mesh.userData.isMacro = true;
+  // Self-rotation at macro distance too (the tick rotates any child with .spin).
+  mesh.userData.spin = true;
+  mesh.userData.spinSpeed = 0.003 + 0.02 / (size + 4);
+  mesh.visible = false; // Hidden by default; toggled by Graph3D tick based on distance
+  return mesh;
 }
 
 /** Pale grey, cratered moon. */
@@ -395,8 +433,8 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     fidelity.add(glow);
   }
 
-  // 2. The Macro Body (Single sprite for high-density performance)
-  const macro = makeMacroBody(color, size);
+  // 2. The Macro Body (low-poly self-lit sphere; spins so it never looks frozen)
+  const macro = makeMacroBody(color, size, isStarLike);
 
   // 3. Sector Title — every hub gets a name at macro/zoomed-out view (its poetic
   // celestialTitle if the LLM gave one, else the memory's own label).
