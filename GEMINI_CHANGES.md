@@ -165,6 +165,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Living Brain Phase 3 — links decay & Soumaya repairs them
+- [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
+- A per-link "freshness" now decays with neglect: folded a client-side last-repaired timestamp
+  (`linkHealthRef`) into `getLinkActivity`, so untended links visibly fade/go stagnant.
+- A throttled tick scan (~every 14s, demo excluded) finds the most-degraded visible links and
+  hands them to Soumaya via the existing `enqueueLinks`; she flies out and re-forges them, and
+  `fireLink` stamps them fresh again — a sustainable decay→repair loop that gives her ongoing
+  purpose with no new memories. Client-only (no schema change); `Graph3D.tsx` only.
+
 ### 2026-06-20 (Claude): Living Brain Phase 2b — deletion into the Sun
 - [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
 - On delete, Soumaya flies to the memory's last spot, grabs a glowing cargo replica, and drags it

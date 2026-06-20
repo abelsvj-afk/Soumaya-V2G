@@ -239,6 +239,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const knownLinksRef = useRef<Set<string>>(new Set());
   // Node ids we've already seen, so only BRAND-NEW memories get ferried into place.
   const knownNodesRef = useRef<Set<number>>(new Set());
+  // Per-link last-repaired time (ms). Links decay with neglect; Soumaya re-forging
+  // one refreshes it (Phase 3). Kept client-side so it needs no schema change.
+  const linkHealthRef = useRef<Map<string, number>>(new Map());
   const linksInitedRef = useRef(false);
   // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
   const prevDemoRef = useRef(!!demo);
@@ -432,6 +435,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     };
     const fireLink = (key: string) => {
       const f = fgRef.current;
+      // A freshly drawn OR repaired connection is now fully fresh (Phase 3 decay).
+      linkHealthRef.current.set(key, Date.now());
       // Reveal the freshly-drawn thread now that she's joined both ends.
       if (pendingLinksRef.current.delete(key)) f?.refresh?.();
       if (!f?.emitParticle) return;
@@ -461,6 +466,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let idlePulseT = IDLE_PULSE_EVERY_BASE;
     // Flush buffered visitor arrivals to the backend every ~20s.
     let visitFlushT = 20;
+    // Phase 3: how often to scan for decayed links to send Soumaya to repair.
+    let repairScanT = 18;
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -526,6 +533,24 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const numNodes = dataRef.current.nodes.length;
         const pulseEvery = Math.max(1, IDLE_PULSE_EVERY_BASE - Math.floor(numNodes / 20));
         idlePulseT = pulseEvery;
+      }
+
+      // Phase 3 — link decay & repair: periodically hand Soumaya the most-degraded
+      // visible connections so she flies out and re-forges them (which refreshes
+      // their freshness via fireLink). Demo galaxy is left alone.
+      repairScanT -= dt;
+      if (repairScanT <= 0) {
+        repairScanT = 14; // throttle: a calm, occasional housekeeping pass
+        if (!demoRef.current) {
+          const stale = (dataRef.current.links as any[])
+            .filter((l) => !pendingLinksRef.current.has(linkKey(l)) && getLinkActivity(l) < 0.12)
+            .slice(0, 30) // bound the work
+            .map((l) => ({ l, key: linkKey(l) }))
+            .sort((a, b) => getLinkActivity(a.l) - getLinkActivity(b.l))
+            .slice(0, 2)
+            .map(({ l, key }) => ({ source: linkEnd(l.source), target: linkEnd(l.target), key }));
+          if (stale.length > 0) soumayaHandleRef.current?.enqueueLinks(stale);
+        }
       }
 
       // Persist visitor arrivals in batches.
@@ -937,10 +962,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const targetNode = byId.get(linkEnd(l.target));
     if (!sourceNode || !targetNode) return 0;
     const timeStr = sourceNode.lastTendedAt ?? sourceNode.createdAt ?? targetNode.lastTendedAt ?? targetNode.createdAt;
-    if (!timeStr) return 0;
-    const ageMs = Date.now() - Date.parse(timeStr);
-    if (Number.isNaN(ageMs)) return 0;
-    return Math.max(0, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // decay over 3 days
+    let act = 0;
+    if (timeStr) {
+      const ageMs = Date.now() - Date.parse(timeStr);
+      if (!Number.isNaN(ageMs)) act = Math.max(0, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // 3-day decay
+    }
+    // A link Soumaya recently re-forged/repaired counts as fresh too (Phase 3:
+    // links decay with neglect, then she revives them). Decays over ~3 days.
+    const repaired = linkHealthRef.current.get(linkKey(l));
+    if (repaired) act = Math.max(act, Math.exp(-(Date.now() - repaired) / (3 * 24 * 3600 * 1000)));
+    return act;
   };
 
   useImperativeHandle(

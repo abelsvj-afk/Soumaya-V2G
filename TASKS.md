@@ -85,9 +85,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   spot, drags a cargo replica into the Sun (clamped so she never enters), and it's consumed in a
   fiery burst + corona flare. `effects.ts` (consume pool) + `sun.ts` (flare/getRadius) +
   `soumaya.ts` (removeTravel/removeCarry + cargo) + `Graph3D.tsx` (deletion detection).
-- [ ] 🟡 **Phase 3 — links decay & she repairs them** (Claude) — edges fade/break with neglect
-  (reuse entropy signal), Soumaya re-draws degraded ones. Client-only decay first; persisted edge
-  health is RED.
+- [x] 🟡 **Phase 3 — links decay & she repairs them** (Claude) — link freshness decays with neglect
+  (folded into `getLinkActivity`, so stale links fade), and a throttled scan hands the most-degraded
+  visible links to Soumaya to re-forge (refreshing them via `fireLink`). Client-only (no schema);
+  `Graph3D.tsx` only.
 - [ ] 🟡 **Phase 4 — fuel legible + slow regen** (Claude) — HUD fuel gauge + earn hint (🟢),
   passive regen in `economy.ts` (RED); visual growth stays ungated.
 - [x] 🟢 **Confirm edges persist + return on reload** — verified: edges persist (weight ≥0.6) and
