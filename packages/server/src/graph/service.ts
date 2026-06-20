@@ -49,18 +49,40 @@ export class GraphService {
       .all(...ids) as { node_id: number; deg: number }[];
     const degreeById = new Map(rows.map((r) => [r.node_id, r.deg]));
 
+    // Reinforcement: how many latent insights each memory appears in. This is the
+    // signal that "feeds" a memory's slow growth over time — the AI surfacing a
+    // hidden connection makes the memory matter more. (node ids are space-unique
+    // and insights are space-scoped, so this never crosses brains.)
+    const insightRows = this.h.sqlite
+      .prepare(
+        `SELECT node_id, COUNT(*) AS cnt FROM (
+           SELECT node_a AS node_id FROM insights WHERE space_id = ?
+           UNION ALL
+           SELECT node_b AS node_id FROM insights WHERE space_id = ?
+         ) WHERE node_id IN (${placeholders})
+         GROUP BY node_id`,
+      )
+      .all(this.spaceId, this.spaceId, ...ids) as { node_id: number; cnt: number }[];
+    const insightById = new Map(insightRows.map((r) => [r.node_id, r.cnt]));
+
     const now = Date.now();
+    const daysSince = (ts?: string): number => {
+      const ms = Date.parse(ts?.includes("T") ? ts : `${(ts ?? "").replace(" ", "T")}Z`);
+      return Number.isNaN(ms) ? 0 : Math.max(0, (now - ms) / 86_400_000);
+    };
     return nodes.map((n) => {
       const degree = degreeById.get(n.id) ?? 0;
+      const reinforcement = insightById.get(n.id) ?? 0;
+      const ageDays = daysSince(n.createdAt);
       const mass = deriveMass({
         importance: n.importance,
         degree,
         emotionalWeight: n.emotionalWeight,
+        ageDays,
+        reinforcement,
       });
       // Entropy: days since last tended (fall back to creation), resisted by degree.
-      const tended = n.lastTendedAt ?? n.createdAt;
-      const ms = Date.parse(tended?.includes("T") ? tended : `${(tended ?? "").replace(" ", "T")}Z`);
-      const days = Number.isNaN(ms) ? 0 : Math.max(0, (now - ms) / 86_400_000);
+      const days = daysSince(n.lastTendedAt ?? n.createdAt);
       const entropy = n.kind === "action" ? 0 : entropyFrom(days, degree);
       return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy };
     });

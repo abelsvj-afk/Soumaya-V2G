@@ -165,6 +165,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Slow, earned celestial growth model (Living Brain Phase 0)
+- [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
+- **Problem:** `deriveMass` was dominated by instant `importance` (`0.62*importance`), so a fresh
+  memory was already a planet and everything ballooned into ringed planets within 24h; tiers felt
+  mislabeled and progression had "no logic."
+- **Fix (`shared/celestial.ts`):** memories are now **born as asteroids** and **earn** their size.
+  Importance gives a modest base (hand-maxed ≈ planet) + raises the ceiling; real growth comes from
+  **connections, latent insights (reinforcement), survival age, and emotion** — signals that accrue
+  over weeks/months. Added `ageDays` + `reinforcement` to `MassSignals`. `classify` tiers unchanged.
+- **`graph/service.ts` `enrich`:** computes per-node age (`createdAt`) + latent-insight count
+  (space-scoped) and feeds them to `deriveMass`. Refactored date parsing into a `daysSince` helper.
+- **`nodeObject.ts`:** rings are now **gas-giant-only** (were on every giant + 1/3 of planets).
+- Updated the manual-weight-override test to the new philosophy. Pacing tunable (`AGE_SUSTAIN_DAYS`,
+  base/growth weights). Design: `plans/living-brain.md` Phase 0.
+
+### 2026-06-20 (Claude): Verified agy's Living Brain Phase 1 (visual web)
+- [x] **Verified by Claude** — gate green; green-zone only. Persistent legible links (raised opacity
+  floors), degree-weighted ambient firing, marquee made `dt`-based, link flicker fix, `NodeList demo`
+  prop. Minor follow-up: ambient-pulse tournament uses `.find()` not the `nodeByIdRef` map (infrequent).
+
 ### 2026-06-20 (Claude): TASKS.md — canonical open task board
 - [x] **Verified by Claude** — docs only, no app code.
 - Audited SOUMAYA_ROADMAP.md, GEMINI_CHANGES.md, all plans/, ASSETS_NEEDED.md, and

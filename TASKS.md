@@ -71,6 +71,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 > **Design:** [`plans/living-brain.md`](./plans/living-brain.md) — phased plan agreed with the user.
 > Phase 1 (visual web, 🟢) delegated to agy; Phases 2–4 (placement/decay/fuel) led by Claude.
 
+- [x] 🔴 **Phase 0 — slow, earned celestial growth** (Claude) — memories born as asteroids, grow
+  via connections/insights/age (not instant importance); rings gas-giant-only; tiers stay distinct.
+  Fixes "everything's a ringed planet in 24h." See design doc Phase 0.
 - [x] 🟢 **Phase 1 — persistent glowing web + ambient firing** (agy) — legible links at distance
   (cures "connections gone = faint"), neuron-style ambient firing/cluster lights, marquee `dt`
   fix, link flicker-when-close fix, `NodeList` `demo` prop. Pure `Graph3D.tsx`/CSS. See design doc.

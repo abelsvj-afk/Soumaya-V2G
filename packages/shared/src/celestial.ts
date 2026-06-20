@@ -52,26 +52,55 @@ export interface MassSignals {
   degree?: number;
   /** -1..1 — emotional charge; magnitude adds weight either way. */
   emotionalWeight?: number;
+  /** Days since the memory was created. Bodies GROW with survival, never instantly. */
+  ageDays?: number;
+  /** Reinforcement: how many latent insights this memory appears in (the AI
+   *  surfacing hidden connections is what "feeds" a memory's growth over time). */
+  reinforcement?: number;
 }
 
 /** Connections past this count add diminishing mass (saturating curve). */
 const DEGREE_SATURATION = 4;
+/** Latent insights past this count add diminishing mass. */
+const REINFORCE_SATURATION = 5;
+/** Days for survival alone to contribute "half" its growth (~8 months). */
+const AGE_SUSTAIN_DAYS = 240;
 
 const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
 
 /**
- * Blend significance, connectedness, and emotional charge into a single 0..1
- * mass. Significance dominates, structure (degree) is second, raw emotion adds
- * a little — a serious, well-connected, emotionally-charged memory is a star.
+ * Blend the signals into a single 0..1 mass — but a memory is BORN SMALL (an
+ * asteroid) and must EARN its size over time. This is the core of "a brain that
+ * grows with you for years":
+ *
+ * - **Importance** only gives a modest *base* (a profound brand-new memory is at
+ *   most a moon, never an instant planet) and raises the *ceiling* of how big it
+ *   can ever get.
+ * - The real growth is **earned**: graph connections, the **latent insights** the
+ *   AI surfaces about it, **survival age**, and emotional charge — signals that
+ *   only accrue over weeks and months. So nothing balloons into a ringed planet
+ *   in 24 hours; asteroids stay asteroids until they prove they matter.
  */
-export function deriveMass({ importance, degree, emotionalWeight }: MassSignals): number {
+export function deriveMass({
+  importance,
+  degree,
+  emotionalWeight,
+  ageDays,
+  reinforcement,
+}: MassSignals): number {
   const sig = clamp01(importance ?? 0.4);
   const d = degree ?? 0;
   const structure = d / (d + DEGREE_SATURATION); // 0..1, saturating
+  const r = reinforcement ?? 0;
+  const reinforced = r / (r + REINFORCE_SATURATION); // 0..1, saturating
+  const age = ageDays ?? 0;
+  const survived = age / (age + AGE_SUSTAIN_DAYS); // 0..1, slow
   const emotion = Math.min(1, Math.abs(emotionalWeight ?? 0));
-  // Significance weighted so a maxed importance (1.0) alone reaches star class,
-  // letting you promote a memory to a sun by hand; connections + emotion add more.
-  return clamp01(0.62 * sig + 0.28 * structure + 0.1 * emotion);
+
+  const base = 0.26 * sig + 0.04 * emotion; // a hand-maxed importance reaches ~planet; auto-rated stays asteroid/moon
+  const growth = 0.4 * structure + 0.22 * reinforced + 0.14 * survived; // 0..0.76 (earned)
+  const ceiling = 0.55 + 0.45 * sig; // trivial memories can never grow as large as profound ones
+  return clamp01(Math.min(ceiling, base + growth * (0.6 + 0.4 * sig)));
 }
 
 /**

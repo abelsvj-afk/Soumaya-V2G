@@ -386,8 +386,9 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   fidelity.userData.spinSpeed = 0.0015 + 0.05 / (size + 4);
   fidelity.add(mesh);
 
-  // Rings: always on gas giants + giants, on ~a third of planets.
-  if (cls === "gas_giant" || cls === "giant" || (cls === "planet" && node.id % 3 === 0)) {
+  // Rings are a SIGNATURE of gas giants only — kept rare/special so the galaxy
+  // doesn't read as "every memory is a ringed planet". Other tiers stay distinct.
+  if (cls === "gas_giant") {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(size * 1.5, size * 2.3, 48),
       new THREE.MeshBasicMaterial({

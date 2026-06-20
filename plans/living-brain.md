@@ -23,6 +23,19 @@ just decoration: she **physically tends** the brain.
 
 ---
 
+## Phase 0 (DONE 2026-06-20) — Slow, earned celestial growth 🔴 (Claude)
+Prerequisite fix so the brain "grows with you for years." Old `deriveMass` was dominated by
+instant `importance` (`0.62*importance`), so fresh memories were already planets and everything
+ballooned into ringed planets in 24h, with tiers feeling mislabeled.
+- Memories are now **born as asteroids** and **earn** their size: importance gives only a modest
+  base (a maxed slider ≈ planet) + raises the ceiling; real growth comes from **connections,
+  latent insights (reinforcement), survival age, and emotion** — signals that accrue over
+  weeks/months. `shared/celestial.ts` `deriveMass` rewritten (+`ageDays`,`reinforcement`);
+  `graph/service.ts` `enrich` now feeds age + per-node insight count (space-scoped).
+- **Rings are now gas-giant-only** (`nodeObject.ts`) so they're rare/special.
+- `classify` thresholds unchanged; tests updated to the new philosophy. Pacing is tunable
+  (`AGE_SUSTAIN_DAYS`, the base/growth weights).
+
 ## Phase 1 — Persistent, legible, alive web 🟢 (delegate to agy; pure visual, `Graph3D.tsx`/CSS)
 The biggest perceived win, lowest risk. No backend/contract changes.
 1. **Legible persistent links:** raise the resting link opacity/glow so the web reads at
@@ -48,10 +61,12 @@ The behavioral heart. Must cohere with the kinematic orbit system (`orbits.ts` i
     (owned by soumaya/Graph3D) animates the node from drop-in → slot while she escorts it,
     THEN hands control to the kinematic system (pin fx/fy/fz) as today. Needs a clean seam so
     placement never fights the pinning. **This is the careful red-zone part.**
-- **Deletion as spectacle:** on delete, instead of vanishing, she **flings it into deep space
-  or drags it into the Sun** and it's gone. (Ties the Sun into gameplay — the "core self"
-  consuming discarded memories.) Visual in `soumaya.ts`; the actual delete stays the existing
-  route.
+- **Deletion as spectacle (DECIDED: into the Sun):** on delete she flies to the body, **drags
+  it toward the Sun and flings it in** — she does NOT enter the Sun herself. On contact the
+  body is **consumed in a fiery burst** (a solar-flare/prominence-style eruption + flash where
+  it hits the surface), then it's gone. Ties the Sun into gameplay as the "core self" that
+  consumes discarded memories. Visual in `soumaya.ts` + `sun.ts` (flare-on-impact); the actual
+  delete stays the existing route. (User pick, 2026-06-20.)
 
 ## Phase 3 — Links live & decay; she repairs them 🟡 (Claude leads; needs an edge "health" signal)
 - Over time, untended links **fade / break / go stagnant** (mirrors entropy on nodes). When a
