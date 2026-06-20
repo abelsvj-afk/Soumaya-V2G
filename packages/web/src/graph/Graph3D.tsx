@@ -422,7 +422,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const numNodes = dataRef.current.nodes.length;
       const pulseLinksCount = Math.min(15, Math.max(2, Math.floor(numNodes / 10)));
       for (let i = 0; i < Math.min(pulseLinksCount, links.length); i++) {
-        const l = links[Math.floor(Math.random() * links.length)];
+        // Tournament selection: pick two random links and choose the one connected to
+        // higher-degree nodes (i.e. denser clusters).
+        const l1 = links[Math.floor(Math.random() * links.length)];
+        const l2 = links[Math.floor(Math.random() * links.length)];
+        const n1s = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l1.source));
+        const n1t = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l1.target));
+        const n2s = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l2.source));
+        const n2t = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l2.target));
+        
+        const deg1 = (n1s?.degree ?? 0) + (n1t?.degree ?? 0);
+        const deg2 = (n2s?.degree ?? 0) + (n2t?.degree ?? 0);
+        const l = deg1 >= deg2 ? l1 : l2;
+
         try {
           f.emitParticle(l);
         } catch {
@@ -665,7 +677,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                 mat.opacity = 0.8;
                 const mq = child.userData.marquee;
                 if (mq) {
-                  mq.t += 0.006;
+                  mq.t += dt * 0.36;
                   mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
                 }
               }
@@ -677,7 +689,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                 mat.opacity = labelVis * 0.95;
                 const mq = child.userData.marquee;
                 if (mq) {
-                  mq.t += 0.006;
+                  mq.t += dt * 0.36;
                   mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
                 }
               }
@@ -1130,7 +1142,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        if (!lit) return "rgba(120,120,150,0.02)";
+        if (!lit) return "rgba(110, 115, 140, 0.08)"; // raised unlit floor to prevent flickering/glitchy fade
         
         const activity = getLinkActivity(l);
         const camera = fgRef.current?.camera();
@@ -1138,16 +1150,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const macroFactor = Math.min(1.5, Math.max(0.6, dist / 800));
         
         if (dist > 800) {
-          // Macro zoom: cold links fade, active connections glow as vibrant cyan axons
-          const opacity = (0.07 + activity * 0.68) * macroFactor;
+          // Macro zoom: cold links remain legible (floor 0.22), active axons glow cyan
+          const opacity = (0.22 + activity * 0.55) * macroFactor;
           if (activity > 0.12) {
             return `rgba(122, 249, 255, ${Math.min(0.85, opacity)})`; // glowing cyan
           }
           return `rgba(150, 180, 255, ${Math.min(0.8, opacity)})`;
         }
         
-        const opacity = 0.18 + activity * 0.36; // base 0.18 .. 0.54 active
-        return `rgba(150, 180, 255, ${Math.min(0.8, opacity * macroFactor)})`;
+        // Standard zoom: raised opacity floor (0.32 .. 0.76) for clearer persistent connections
+        const opacity = 0.32 + activity * 0.44;
+        return `rgba(150, 180, 255, ${Math.min(0.85, opacity * macroFactor)})`;
       }}
       linkWidth={(l: any) => {
         const activity = getLinkActivity(l);

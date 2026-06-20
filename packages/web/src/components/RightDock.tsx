@@ -106,7 +106,7 @@ export function RightDock({
             demo={demo}
           />
         )}
-        {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} />}
+        {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} demo={demo} />}
         {tab === "actions" && (
           <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} readOnly={demo} />
         )}

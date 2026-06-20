@@ -71,7 +71,7 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 > **Design:** [`plans/living-brain.md`](./plans/living-brain.md) — phased plan agreed with the user.
 > Phase 1 (visual web, 🟢) delegated to agy; Phases 2–4 (placement/decay/fuel) led by Claude.
 
-- [ ] 🟢 **Phase 1 — persistent glowing web + ambient firing** (agy) — legible links at distance
+- [x] 🟢 **Phase 1 — persistent glowing web + ambient firing** (agy) — legible links at distance
   (cures "connections gone = faint"), neuron-style ambient firing/cluster lights, marquee `dt`
   fix, link flicker-when-close fix, `NodeList` `demo` prop. Pure `Graph3D.tsx`/CSS. See design doc.
 - [ ] 🔴 **Phase 2 — Soumaya ferries & places new memories** (Claude) — escort a new node from a
