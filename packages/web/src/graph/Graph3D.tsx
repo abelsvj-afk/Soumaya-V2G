@@ -347,7 +347,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
     const FADE_FAR = 540; // labels fully hidden at/over this distance
 
-    const MACRO_DIST = 1800; // swap fidelity for points-of-light beyond this
+    const MACRO_DIST = 2600; // swap fidelity for points-of-light beyond this
+    // (raised so bodies resolve into full 3D as you fly toward a cluster, not only
+    // when you're right on top of them — dots are for genuinely distant bodies).
 
     // Brightness is INVERTED with zoom: a body blooms brightest from afar (the
     // galaxy reads as points of light) and dims/concentrates up close so you can
@@ -845,13 +847,36 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (!fg) return;
         const cam = fg.camera() as THREE.PerspectiveCamera;
         const controls = fg.controls?.();
-        const target = controls?.target ?? new THREE.Vector3();
+        if (!controls) return;
+        const target = controls.target as THREE.Vector3;
         const offset = cam.position.clone().sub(target);
-        const min = controls?.minDistance ?? 8;
-        const max = controls?.maxDistance ?? maxDistRef.current;
-        const len = Math.max(min, Math.min(max, offset.length() * factor));
-        cam.position.copy(target.clone().add(offset.normalize().multiplyScalar(len)));
-        controls?.update?.();
+        const dist = offset.length();
+        const following = followRef.current != null || followObjRef.current != null;
+        const ceiling = maxDistRef.current;
+        const NEAR = 120; // closest we dolly to a pivot before we start travelling
+
+        if (following) {
+          // Locked on a body → classic dolly toward/away from it (clamped).
+          const min = controls.minDistance ?? 8;
+          const len = Math.max(min, Math.min(ceiling, dist * factor));
+          cam.position.copy(target.clone().add(offset.normalize().multiplyScalar(len)));
+        } else if (factor < 1 && dist * factor < NEAR) {
+          // Zooming in but already near the pivot → TRAVEL forward through space
+          // (move the camera AND its look-pivot together) instead of stopping dead
+          // at a wall. This is what makes free roaming feel continuous.
+          const fwd = offset.clone().multiplyScalar(-1).normalize(); // camera → pivot
+          const step = dist * (1 - factor);
+          const newCam = cam.position.clone().addScaledVector(fwd, step);
+          if (newCam.length() <= ceiling) {
+            cam.position.copy(newCam);
+            target.addScaledVector(fwd, step); // keep the pivot ahead of us
+          }
+        } else {
+          // Normal dolly toward/away from the pivot, clamped to the star-field shell.
+          const len = Math.max(NEAR, Math.min(ceiling, dist * factor));
+          cam.position.copy(target.clone().add(offset.normalize().multiplyScalar(len)));
+        }
+        controls.update?.();
       },
       toggleFollowShip: () => {
         const on = followKindRef.current !== "ship";
