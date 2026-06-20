@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "agy-bridge": {
+      "command": "npx",
+      "args": ["-y", "agy-bridge"]
+    }
+  }
+}

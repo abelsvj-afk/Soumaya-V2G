@@ -161,6 +161,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): MCP bridge — `.mcp.json` so Claude can delegate to `agy`
+- [x] **Verified by Claude** — config-only (no app code); valid JSON.
+- Added repo-root **`.mcp.json`** registering the **`agy-bridge`** MCP server
+  (`npx -y agy-bridge`) — the canonical bridge that lets Claude Code delegate heavy tasks
+  to Antigravity CLI (`agy`) with model routing + session continuity + output truncation
+  (protects Claude's context). Project-scoped so any Claude Code session in this repo picks
+  it up after approving the trust prompt. Requires `agy` installed + authenticated where
+  Claude runs (Termux/laptop); inert in a stripped remote sandbox → use the GitHub hand-off
+  there. Documented in `CLAUDE.md` → "Agent delegation".
+
 ### 2026-06-20 (Claude): Make AGENTS.md the canonical agent file (matches `agy` auto-load)
 - [x] **Verified by Claude** — docs-only; confirmed against a user `strace` of `agy` startup.
 - An `strace` showed `agy` opens **`AGENTS.md`** and **`GEMINI.md`** on startup (not

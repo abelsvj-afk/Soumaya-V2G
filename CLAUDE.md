@@ -146,6 +146,13 @@ self-contained issue/PR task and let `agy` pick it up, push to the deploy branch
 report back. Always give it a tight spec + the gate + "stage, don't push, if you hit the
 Red Zone."
 
+**MCP bridge config:** the `agy-bridge` server is committed at repo root in
+[`.mcp.json`](./.mcp.json) (runs `npx -y agy-bridge`), so any Claude Code session in this
+repo can delegate to `agy`. It only works where `agy` itself is installed + authenticated
+(e.g. the user's Termux/laptop) — in a stripped remote sandbox the bridge is inert, so fall
+back to the GitHub hand-off there. Approve the server once when Claude Code prompts to trust
+project MCP servers.
+
 **Keep for Claude (do NOT delegate):** Red-Zone work — `packages/shared/*` types/zod,
 `db/*` schema + migrations, `graph/orbits.ts`, `web/src/api/client.ts`, the token/USD/Fuel
 guards, `space_id` multi-tenancy scoping, route contracts — plus architecture decisions,
