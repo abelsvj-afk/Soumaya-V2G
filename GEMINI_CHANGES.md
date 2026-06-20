@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Living Brain Phase 2a — Soumaya ferries new memories into place
+- [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
+- Brand-new memories now **park at the waystation dock**, and Soumaya **physically flies out and
+  tows each into its orbit slot**, drops it (orbit system resumes control), and blooms it — instead
+  of memories popping into place.
+- **`graph/orbits.ts` (RED, additive seam):** added `hold(id)`/`release(id)` + a `held` set the
+  `update` loop skips, and `slotOf(id)` (live read-only orbit position). Zero behavior change when
+  nothing is held; `held.clear()` on every rebuild so a reload can never strand a memory.
+- **`graph/soumaya.ts`:** new `placePickup`→`placeCarry` modes + `enqueuePlacements`; she flies to
+  the docked memory, tows it (writing its fx/fy/fz) to the live `slotOf`, then releases + sparks.
+  Safe fallback releases the node (normal placement) if anything's missing.
+- **`graph/Graph3D.tsx`:** new-node detection (baseline like links), parks new ids at the station
+  dock, `orbitsRef.hold`s them, enqueues placements, and passes the `{slotOf, release}` seam into
+  `soumaya.update`. First load / demo-swap stay baseline (no ferrying).
+- Next: Phase 2b (delete → drag into the Sun + fiery consumption). Design: `plans/living-brain.md`.
+
 ### 2026-06-20 (Claude): Slow, earned celestial growth model (Living Brain Phase 0)
 - [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
 - **Problem:** `deriveMass` was dominated by instant `importance` (`0.62*importance`), so a fresh

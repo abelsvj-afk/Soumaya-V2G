@@ -77,9 +77,12 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [x] 🟢 **Phase 1 — persistent glowing web + ambient firing** (agy) — legible links at distance
   (cures "connections gone = faint"), neuron-style ambient firing/cluster lights, marquee `dt`
   fix, link flicker-when-close fix, `NodeList` `demo` prop. Pure `Graph3D.tsx`/CSS. See design doc.
-- [ ] 🔴 **Phase 2 — Soumaya ferries & places new memories** (Claude) — escort a new node from a
-  drop-in point to its orbit slot once, then hand to the kinematic system; delete = fling to deep
-  space / into the Sun. Touches `orbits.ts` (RED) + `soumaya.ts`.
+- [x] 🔴 **Phase 2a — Soumaya ferries & places new memories** (Claude) — new memories park at the
+  waystation dock; she flies out, tows each into its live orbit slot, drops it (orbit system resumes),
+  blooms it. Additive `hold/release/slotOf` seam in `orbits.ts`; `placePickup/placeCarry` modes in
+  `soumaya.ts`; new-node detection in `Graph3D.tsx`. Safe fallback (releases → normal placement).
+- [ ] 🔴 **Phase 2b — deletion into the Sun** (Claude) — on delete she drags the body to the Sun and
+  flings it in; fiery solar-flare consumption burst on contact. `soumaya.ts` + `sun.ts` + delete wiring.
 - [ ] 🟡 **Phase 3 — links decay & she repairs them** (Claude) — edges fade/break with neglect
   (reuse entropy signal), Soumaya re-draws degraded ones. Client-only decay first; persisted edge
   health is RED.

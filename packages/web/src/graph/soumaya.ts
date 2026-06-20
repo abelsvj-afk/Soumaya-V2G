@@ -20,9 +20,13 @@ export interface SoumayaHandle {
     onArrive: (x: number, y: number, z: number, type: string, nodeId?: number) => void,
     stationPos?: THREE.Vector3 | null,
     onLinkConnect?: (key: string) => void,
+    orbit?: { slotOf: (id: number) => THREE.Vector3 | null; release: (id: number) => void },
   ) => void;
   /** Queue new connections for her to draw herself (takes priority over patrol). */
   enqueueLinks: (tasks: LinkTask[]) => void;
+  /** Queue brand-new memories for her to physically ferry from the dock into their
+   *  orbit slot (held by the orbit system until she drops them). */
+  enqueuePlacements: (ids: number[]) => void;
   /** Floating "current task" billboard — added to the scene by Graph3D so the
    *  ship's banking never tilts it. Toggle its visibility via setTaskVisible. */
   taskLabel: THREE.Object3D;
@@ -190,7 +194,16 @@ export function makeSoumaya(): SoumayaHandle {
   let lastTaskText = "";
   let bank = 0; // current banked roll (smoothed toward target each frame)
 
-  let mode: "travel" | "orbit" | "idle" | "dockTravel" | "docking" | "linkToSource" | "linkToTarget" = "idle";
+  let mode:
+    | "travel"
+    | "orbit"
+    | "idle"
+    | "dockTravel"
+    | "docking"
+    | "linkToSource"
+    | "linkToTarget"
+    | "placePickup"
+    | "placeCarry" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
@@ -204,6 +217,12 @@ export function makeSoumaya(): SoumayaHandle {
   let activeLink: LinkTask | null = null;
   let linkTgtNode: any = null;
   let onLinkConnectCb: ((key: string) => void) | null = null;
+
+  // Placement: brand-new memories she ferries from the dock into their orbit slot.
+  // The orbit system "holds" each (won't move it) until she drops it + releases.
+  const placeQueue: number[] = [];
+  let activePlace: number | null = null;
+  let orbitApi: { slotOf: (id: number) => THREE.Vector3 | null; release: (id: number) => void } | null = null;
 
   // Station docking: after a few jobs, fly to the station to "recharge".
   const DOCK_EVERY = 4;
@@ -336,12 +355,36 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  // Begin ferrying the next brand-new memory: fly to where it waits (the dock),
+  // then carry it into its orbit slot. Falls back to releasing it (normal orbit
+  // placement) if anything's missing, so a new memory can never get stranded.
+  const startPlacement = (nodes: any[]): void => {
+    while (placeQueue.length > 0) {
+      const id = placeQueue.shift()!;
+      const node = nodes.find((n) => n.id === id);
+      const slot = orbitApi?.slotOf(id) ?? null;
+      if (!node || node.x == null || !slot) {
+        orbitApi?.release(id); // let the orbit system place it normally
+        continue;
+      }
+      if (curveTo(node)) {
+        activePlace = id;
+        target = node;
+        mode = "placePickup";
+        return;
+      }
+      orbitApi?.release(id);
+    }
+  };
+
   // Keep the floating task label in sync with whatever she's doing right now.
   // Called at a single exit point (finally) so it tracks the ship in EVERY mode —
   // including docking/idle, which return early from the main update body.
   const syncLabel = (dt: number) => {
     let taskText = "";
-    if (mode === "docking" || mode === "dockTravel") {
+    if (mode === "placePickup" || mode === "placeCarry") {
+      taskText = "Ferrying a new memory into place";
+    } else if (mode === "docking" || mode === "dockTravel") {
       taskText = "Recharging at the station";
     } else if (mode === "linkToSource" || mode === "linkToTarget") {
       taskText = "Forging a new connection";
@@ -359,8 +402,9 @@ export function makeSoumaya(): SoumayaHandle {
     taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
   };
 
-  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect) => {
+  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect, orbit) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
+    if (orbit) orbitApi = orbit;
     try {
       if (stationPos) {
         stationLoc.copy(stationPos);
@@ -368,7 +412,12 @@ export function makeSoumaya(): SoumayaHandle {
       }
 
       if (mode === "idle") {
-        // Forge any new connections she's been asked to draw before patrolling.
+        // Place any brand-new memories first (bring the body in), THEN forge the
+        // connections it formed, THEN routine patrol/maintenance.
+        if (placeQueue.length > 0 && orbitApi) {
+          startPlacement(nodes);
+          return;
+        }
         if (linkQueue.length > 0) {
           startLink(nodes);
           return;
@@ -445,6 +494,38 @@ export function makeSoumaya(): SoumayaHandle {
             mode = "idle";
           }
         }
+      } else if (mode === "placeCarry") {
+        // Carrying a new memory: nudge it (and ride alongside it) toward its live
+        // orbit slot, then drop it in and hand control back to the orbit system.
+        const slot = activePlace != null ? orbitApi?.slotOf(activePlace) ?? null : null;
+        if (!target || activePlace == null || !slot) {
+          if (activePlace != null) orbitApi?.release(activePlace);
+          activePlace = null;
+          mode = "idle";
+        } else {
+          const np = vecOf(target);
+          const toSlot = slot.clone().sub(np);
+          const dist = toSlot.length();
+          const step = Math.min(dist, (40 + dist) * dt * 0.9); // ease in: faster when far
+          if (dist < 5) {
+            // Dropped home: snap to slot, release to normal orbiting, bloom.
+            target.x = slot.x; target.y = slot.y; target.z = slot.z;
+            target.fx = slot.x; target.fy = slot.y; target.fz = slot.z;
+            orbitApi?.release(activePlace);
+            onArrive(slot.x, slot.y, slot.z, "synthesis", activePlace);
+            activePlace = null;
+            target = null;
+            mode = "idle";
+          } else {
+            const nv = np.addScaledVector(toSlot.normalize(), step);
+            target.x = nv.x; target.y = nv.y; target.z = nv.z;
+            target.fx = nv.x; target.fy = nv.y; target.fz = nv.z; // tow the body (held → orbit won't fight)
+            const shipPos = nv.clone().add(new THREE.Vector3(0, bodyRadius(target) + 6, 0));
+            group.position.copy(shipPos);
+            group.lookAt(slot);
+            currentVel = step / Math.max(dt, 0.001);
+          }
+        }
       } else {
         // TRAVEL (to a memory) / DOCKTRAVEL (to the station): cruise the Bézier.
         if (!curve) {
@@ -486,6 +567,17 @@ export function makeSoumaya(): SoumayaHandle {
           curve = null;
           currentVel = 0;
           mode = "idle";
+        } else if (t >= 1 && mode === "placePickup") {
+          // Reached the waiting new memory at the dock — pick it up and carry it home.
+          curve = null;
+          currentVel = 0;
+          if (target && activePlace != null) {
+            mode = "placeCarry";
+          } else {
+            if (activePlace != null) orbitApi?.release(activePlace);
+            activePlace = null;
+            mode = "idle";
+          }
         } else if (t >= 1) {
           // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
@@ -554,10 +646,16 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  const enqueuePlacements = (ids: number[]) => {
+    for (const id of ids) {
+      if (id !== activePlace && !placeQueue.includes(id)) placeQueue.push(id);
+    }
+  };
+
   const setTaskVisible = (v: boolean) => {
     taskEnabled = v;
     if (!v) taskLabel.sprite.visible = false;
   };
 
-  return { object: group, update, enqueueLinks, taskLabel: taskLabel.sprite, setTaskVisible };
+  return { object: group, update, enqueueLinks, enqueuePlacements, taskLabel: taskLabel.sprite, setTaskVisible };
 }

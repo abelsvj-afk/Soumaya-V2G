@@ -139,6 +139,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     prevDemoRef.current = !!demo;
     if (!linksInitedRef.current || datasetSwitched) {
       knownLinksRef.current = new Set(keys);
+      knownNodesRef.current = new Set((data.nodes as any[]).map((n) => n.id));
       pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
       linksInitedRef.current = true;
       fgRef.current?.refresh?.();
@@ -146,6 +147,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // first-frame logic) so a demo<->real swap opens zoomed-out, not inside the sun.
       if (datasetSwitched) initialFramedRef.current = false;
     } else {
+      // New CONNECTIONS: Soumaya flies out and draws them (hidden until then).
       const fresh: LinkTask[] = [];
       for (const l of data.links as any[]) {
         const k = linkKey(l);
@@ -158,6 +160,29 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (fresh.length > 0) {
         soumayaHandleRef.current?.enqueueLinks(fresh);
         fgRef.current?.refresh?.(); // apply the new pending-hidden visibility
+      }
+
+      // New MEMORIES: park each at the waystation "dock" and have Soumaya ferry it
+      // into its orbit slot (Phase 2). The orbit system holds it (won't place it)
+      // until she drops it home. Falls back to normal placement if no dock yet.
+      const dock = stationObjRef.current?.getWorldPosition(new THREE.Vector3()) ?? null;
+      if (dock) {
+        const freshNodes: number[] = [];
+        for (const n of data.nodes as any[]) {
+          if (!knownNodesRef.current.has(n.id)) {
+            knownNodesRef.current.add(n.id);
+            n.x = dock.x + (Math.random() - 0.5) * 90;
+            n.y = dock.y + (Math.random() - 0.5) * 50;
+            n.z = dock.z + (Math.random() - 0.5) * 90;
+            n.fx = n.x; n.fy = n.y; n.fz = n.z; // wait at the dock
+            orbitsRef.current.hold(n.id);
+            freshNodes.push(n.id);
+          }
+        }
+        if (freshNodes.length > 0) soumayaHandleRef.current?.enqueuePlacements(freshNodes);
+      } else {
+        // No station yet — just track them as known so they place normally.
+        for (const n of data.nodes as any[]) knownNodesRef.current.add(n.id);
       }
     }
   }, [data, demo]);
@@ -190,6 +215,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const initialFramedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
+  // Node ids we've already seen, so only BRAND-NEW memories get ferried into place.
+  const knownNodesRef = useRef<Set<number>>(new Set());
   const linksInitedRef = useRef(false);
   // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
   const prevDemoRef = useRef(!!demo);
@@ -716,6 +743,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           stationP,
           // When she fastens a new connection, fire a burst of pulses down it.
           (key) => fireLink(key),
+          // Orbit seam: lets her ferry a held new memory to its live slot, then
+          // release it back to normal orbiting once she drops it home.
+          {
+            slotOf: (id: number) => orbitsRef.current.slotOf(id),
+            release: (id: number) => orbitsRef.current.release(id),
+          },
         );
       }
 

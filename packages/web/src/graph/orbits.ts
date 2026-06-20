@@ -38,6 +38,12 @@ export interface OrbitSystem {
   getDescendants: (id: number) => Set<number>;
   /** Current extent of the galaxy from the origin (camera + starfield enclosure). */
   getRadius: () => number;
+  /** Current world position a node would occupy in its orbit (its "slot"). */
+  slotOf: (id: number) => THREE.Vector3 | null;
+  /** Temporarily stop the orbit system from controlling a node, so Soumaya can
+   *  ferry it into place. `release` hands it back to normal orbiting. */
+  hold: (id: number) => void;
+  release: (id: number) => void;
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
@@ -62,11 +68,15 @@ export function makeOrbitSystem(): OrbitSystem {
 
   // The Sun: a fixed anchor at the origin that every top-level cluster orbits.
   const SUN = { x: 0, y: 0, z: 0 };
+  // Nodes Soumaya is currently ferrying into place — the orbit system leaves these
+  // alone (she sets their position) until she drops them and calls `release`.
+  const held = new Set<number>();
 
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
     order = [];
     childIds.clear();
+    held.clear(); // never carry a stale hold across a data reload
     if (nodes.length === 0) return;
 
     const byId = new Map<number, any>(nodes.map((n) => [n.id, n]));
@@ -227,6 +237,7 @@ export function makeOrbitSystem(): OrbitSystem {
     for (const n of order) {
       const p = params.get(n.id);
       if (!p) continue;
+      if (held.has(n.id)) continue; // being ferried by Soumaya — she controls it
       if (p.top) {
         // The whole cluster revolves around the Sun (origin), gently breathing in
         // and out (comets swing wide, then return — all bounded).
@@ -271,5 +282,33 @@ export function makeOrbitSystem(): OrbitSystem {
 
   const getRadius = (): number => galaxyRadius;
 
-  return { rebuild, update, getDescendants, getRadius };
+  // Read-only: where a node sits in its orbit right now (no angle advance), so the
+  // ferry has a live destination that tracks the moving parent cluster.
+  const slotOf = (id: number): THREE.Vector3 | null => {
+    const p = params.get(id);
+    if (!p) return null;
+    const c = Math.cos(p.angle);
+    const s = Math.sin(p.angle);
+    if (p.top) {
+      const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.sin(p.radialPhase ?? 0));
+      return new THREE.Vector3(
+        SUN.x + (p.u.x * c + p.v.x * s) * r,
+        SUN.y + (p.u.y * c + p.v.y * s) * r,
+        SUN.z + (p.u.z * c + p.v.z * s) * r,
+      );
+    }
+    return new THREE.Vector3(
+      (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius,
+      (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius,
+      (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius,
+    );
+  };
+  const hold = (id: number): void => {
+    held.add(id);
+  };
+  const release = (id: number): void => {
+    held.delete(id);
+  };
+
+  return { rebuild, update, getDescendants, getRadius, slotOf, hold, release };
 }
