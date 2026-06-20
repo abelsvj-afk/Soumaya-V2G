@@ -37,7 +37,7 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [x] 🟢 **"Writing..." latency feedback on nodes during LLM processing** — show a pulsing state on a node's orb while its job is in flight. Frontend component state only.
 - [x] 🟢 **Brain-like filaments at macro zoom** — neuron-like connecting filaments visible when zoomed far out. three.js / `Graph3D.tsx`, no backend.
 - [x] 🟢 **Neural recall-signal animation** — fire synapse-style pulses along the path from seed node to each cited node during a chat response (`fireRecall(citationIds)` in `Graph3D.tsx`).
-- [ ] 🟢 **Per-memory story arcs in object lore** — space station + ship lore tied to specific memory relationships (`graph/objectLore.ts`). Explicitly Green Zone file.
+- [x] 🟢 **Per-memory story arcs in object lore** — space station + ship lore tied to specific memory relationships (`graph/objectLore.ts`). Explicitly Green Zone file.
 - [x] 🟢 **In-app PWA Install button** — capture `beforeinstallprompt` event and show an "Install" button in the UI. Frontend only.
 - [ ] 🟡 **Daily Log Onboarding / Genesis Log** — lower threshold for brand-new brains + a welcome log entry. Ingestion heuristic tweak = Red; onboarding UI screen = Green.
 - [x] 🟢 **Make link curvature/opacity zoom-bias live** — `linkColor`/`linkCurvature` read `camera.position.length()`, but react-force-graph only re-evaluates link accessors on `refresh()`/data change, so the "curve more when zoomed out" bias is currently inert during a pinch/scroll. Drive it from the tick (or periodic `refresh()`) if we want it continuous. (Claude review note, 2026-06-20.)

@@ -165,6 +165,14 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Gemini): Per-memory story arcs in object lore
+- [ ] Verified by Claude
+- Created a `findStoryArcs()` analyzer in `objectLore.ts` that detects specific patterns in the graph's memory relationships (conflict resolution/complication, muse inspiration, paradox, concept analogy).
+- Deterministically selects one active story arc and appends contextual log notes to the ship (Soumaya) and Waystation (Soumaya-Prime) lore boards.
+- Files touched: `packages/web/src/graph/objectLore.ts`.
+- Zone: Green (shipped)
+- Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
+
 ### 2026-06-20 (Gemini): In-app PWA Install button
 - [ ] Verified by Claude
 - Listened to the `beforeinstallprompt` event on the window to capture the installation trigger.
