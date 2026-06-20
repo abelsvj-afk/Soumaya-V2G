@@ -19,7 +19,12 @@ dist/
 # Logs
 *.log
 npm-debug.log*
-.gemini/
-.gemini/
+# Ignore local Gemini agent state, but version-control the curated skills so they
+# travel with the repo (GEMINI.md links to them).
+.gemini/*
+!.gemini/skills/
 .cache/
 .npm/
+
+# stray wget artifact
+.wget-hsts

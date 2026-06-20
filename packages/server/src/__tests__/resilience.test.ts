@@ -25,6 +25,15 @@ class BrokeProvider implements LlmProvider {
   async answer(): Promise<{ answer: string; citations: number[] }> {
     throw new Error("429 insufficient_quota");
   }
+  async research(): Promise<{ label: string; content: string }> {
+    throw new Error("429 insufficient_quota");
+  }
+  async summarizeSector(): Promise<string> {
+    throw new Error("429 insufficient_quota");
+  }
+  async generateDailyLog(): Promise<string> {
+    throw new Error("429 insufficient_quota");
+  }
 }
 
 describe("resilient LLM provider", () => {

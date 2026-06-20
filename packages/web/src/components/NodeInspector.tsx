@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
-import { deleteNode, setImportance } from "../api/client.js";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES } from "@brain/shared";
+import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
+import { loreFor } from "../graph/lore.js";
+import { Chronicle } from "./Chronicle.js";
 
 interface Props {
   node: GraphNode | null;
@@ -11,13 +13,56 @@ interface Props {
   onChanged?: (id: number) => void;
   /** Called after a node is deleted. */
   onDeleted?: () => void;
+  /** Show only this memory + the bodies orbiting it. */
+  onIsolate?: (id: number) => void;
+  /** Demo galaxy has no backend — hide lore/Chronicle there. */
+  demo?: boolean;
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
 
-export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Props) {
+/** Friendly absolute date + relative hint, tolerant of SQLite "YYYY-MM-DD HH:MM:SS". */
+function fmtWhen(raw: string): string {
+  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return raw;
+  const abs = new Date(t).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const days = Math.round((t - Date.now()) / 8.64e7);
+  let rel = "";
+  if (days === 0) rel = "today";
+  else if (days === -1) rel = "yesterday";
+  else if (days === 1) rel = "tomorrow";
+  else if (days < 0) rel = `${-days}d ago`;
+  else rel = `in ${days}d`;
+  return `${abs} · ${rel}`;
+}
+
+export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
+  const [insight, setInsight] = useState<string>("");
+  const [synthBusy, setSynthBusy] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clear any shown insight when switching memories.
+  useEffect(() => {
+    setInsight("");
+  }, [node?.id]);
+
+  const runSynthesis = () => {
+    if (!node) return;
+    setSynthBusy(true);
+    setInsight("");
+    synthesizeNode(node.id)
+      .then((r) => setInsight(r.text))
+      .catch((e) => setInsight(`(couldn't synthesize: ${(e as Error).message})`))
+      .finally(() => setSynthBusy(false));
+  };
 
   // Keep the slider in sync when a different node is selected.
   useEffect(() => {
@@ -60,7 +105,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
       </span>
       {node.celestial && (
         <span className="meta">
-          {CELESTIAL_ICON[node.celestial]} {node.celestial} · weight{" "}
+          {CELESTIAL_ICON[node.celestial]} {CELESTIAL_LABEL[node.celestial]} · weight{" "}
           {Math.round((node.mass ?? 0) * 100)}%
           {node.degree ? ` · ${node.degree} link${node.degree === 1 ? "" : "s"}` : ""}
         </span>
@@ -72,6 +117,57 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
         </p>
       )}
       <p className="content">{node.content}</p>
+
+      {(node.tags?.length || node.occurredAt || node.remindAt) && (
+        <div className="node-meta">
+          {node.tags && node.tags.length > 0 && (
+            <div className="node-tags">
+              {node.tags.map((t) => (
+                <span key={t} className="tag-chip readonly">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+          {node.occurredAt && (
+            <p className="node-when">🕰️ Happened {fmtWhen(node.occurredAt)}</p>
+          )}
+          {node.remindAt && <p className="node-when">⏰ Reminder {fmtWhen(node.remindAt)}</p>}
+        </div>
+      )}
+
+      {node.kind === "action" ? (
+        <div className="action-due">
+          <span>
+            ⏰{" "}
+            {(() => {
+              const rawDate = node.expiresAt ?? "";
+              const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+              const exp = Date.parse(isoDate);
+              const now = Date.now();
+              return exp > now
+                ? `due in ~${Math.max(1, Math.round((exp - now) / 3.6e6))}h`
+                : "overdue — will clear soon";
+            })()}
+          </span>
+          {onDeleted && (
+            <button
+              className="mini"
+              onClick={() => {
+                deleteNode(node.id)
+                  .then(() => onDeleted())
+                  .catch(() => {});
+              }}
+            >
+              ✓ Done
+            </button>
+          )}
+        </div>
+      ) : (
+        <p className="lore">✦ {loreFor(node)}</p>
+      )}
+
+      {node.kind !== "action" && <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />}
 
       <div className="weight">
         <div className="weight-head">
@@ -98,6 +194,18 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
           }}
         />
         <span className="weight-val">{Math.round(weight * 100)}%</span>
+        <div className="tier-legend" aria-hidden="true">
+          {CELESTIAL_CLASSES.map((c) => (
+            <span
+              key={c}
+              className={`tier-step ${node.celestial === c ? "on" : ""}`}
+              title={CELESTIAL_LABEL[c]}
+            >
+              {CELESTIAL_ICON[c]}
+            </span>
+          ))}
+        </div>
+        <div className="tier-current">{node.celestial ? CELESTIAL_LABEL[node.celestial] : ""}</div>
       </div>
 
       {onDeleted && (
@@ -111,6 +219,17 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted }: Pr
           }}
         >
           🗑 Delete memory
+        </button>
+      )}
+
+      <button className="synth-btn" onClick={runSynthesis} disabled={synthBusy}>
+        {synthBusy ? "Connecting…" : "✨ Connect the dots"}
+      </button>
+      {insight && <p className="insight-text">{insight}</p>}
+
+      {onIsolate && (
+        <button className="synth-btn" onClick={() => onIsolate(node.id)}>
+          🔭 Isolate this system
         </button>
       )}
 

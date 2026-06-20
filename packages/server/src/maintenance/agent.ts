@@ -1,0 +1,469 @@
+import { and, eq } from "drizzle-orm";
+import type { AppContext } from "../context.js";
+import { findCandidates } from "../synthesis/engine.js";
+import { NodesRepo } from "../repositories/nodes.repo.js";
+import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
+import { GraphService } from "../graph/service.js";
+import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
+import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../db/schema.js";
+import { upsertEmbedding, getEmbedding, knn } from "../db/vec.js";
+
+/**
+ * Soumaya's maintenance brain, extracted from the HTTP route so BOTH the
+ * browser-driven loop (api/routes/maintenance.ts) AND the server-side 24/7
+ * autonomy loop (index.ts) run the exact same job selection + execution. This is
+ * the single source of truth — keep all gating here.
+ *
+ * Gating (unchanged): Research Mode (global `research_enabled` setting) + the USD
+ * budget gate everything LLM-backed; Fuel is a per-brain softer throttle on the
+ * discretionary *expansion* jobs (research + sector_vibe) only. Free upkeep
+ * (pruning/harmonization/calibration/patrol) always runs.
+ */
+
+export type JobType =
+  | "synthesis"
+  | "calibration"
+  | "patrol"
+  | "pruning"
+  | "harmonization"
+  | "research"
+  | "merging"
+  | "sector_vibe"
+  | "daily_log";
+
+/**
+ * A short, business-style breakdown of WHY she chose this — derived from graph
+ * facts, never an LLM call, so every decision is explainable even offline.
+ */
+export interface JobRationale {
+  objective: string; // WHAT she's doing, in one line
+  why: string; // the signal that triggered it (the "diagnosis")
+  benefit: string; // what the user gets out of it
+}
+
+export interface AgentJob {
+  type: JobType;
+  targets: number[];
+  description: string;
+  rationale?: JobRationale;
+}
+
+/** Jobs that burn Fuel (discretionary expansion). Everything else is free. */
+const FUEL_JOBS = new Set<JobType>(["research", "sector_vibe"]);
+
+/** Best-effort label for a node id (falls back to "#id" / "a memory"). */
+function labelOf(nodesRepo: NodesRepo, id: number | undefined): string {
+  if (id == null) return "a memory";
+  try {
+    return nodesRepo.getById(id)?.label ?? `#${id}`;
+  } catch {
+    return `#${id}`;
+  }
+}
+
+/**
+ * Build the explainable rationale for a job from the graph itself (no LLM, so it
+ * always works offline). This is the single source of truth used both when a job
+ * is *selected* (for the live "what she's doing" view) and when it's *executed*
+ * (persisted to agent_logs.result), so the two never drift.
+ *
+ * The philosophy the user asked for is baked into the wording: research is NOT a
+ * default — it's reserved for genuine gaps/blind spots — and synthesis exists to
+ * connect the dots across old and new memories over time.
+ */
+export function buildRationale(
+  ctx: AppContext,
+  spaceId: string,
+  type: JobType,
+  targets: number[],
+): JobRationale {
+  const nodesRepo = new NodesRepo(ctx.handle, spaceId);
+  const a = labelOf(nodesRepo, targets[0]);
+  const b = labelOf(nodesRepo, targets[1]);
+  switch (type) {
+    case "synthesis":
+      return {
+        objective: `Connect "${a}" with "${b}"`,
+        why: `They read as semantically close yet sit far apart in your graph with no direct link — a thread you likely haven't drawn yourself.`,
+        benefit: `Joins the dots between older and newer memories so latent through-lines in your thinking surface over time.`,
+      };
+    case "research":
+      return {
+        objective: `Deep-dive research on "${a}"`,
+        why: `It clearly matters to you but sits under-connected and thinly documented — a probable blind spot in your history.`,
+        benefit: `Fills the gap around "${a}" and proposes concrete angles you may not have known to look for.`,
+      };
+    case "merging":
+      return {
+        objective: `Fuse near-duplicate memories "${a}" and "${b}"`,
+        why: `They're almost identical, splitting one idea across two bodies and diluting its weight.`,
+        benefit: `Consolidates the idea so its true gravity shows and the galaxy stays legible.`,
+      };
+    case "pruning":
+      return {
+        objective: `Prune the weak link between "${a}" and "${b}"`,
+        why: `The association is faint — more likely noise than a real relationship.`,
+        benefit: `Keeps the graph honest so the meaningful connections stand out.`,
+      };
+    case "harmonization":
+      return {
+        objective: `Balance the emotional tone of "${a}"`,
+        why: `Its emotional charge diverges sharply from the memories around it.`,
+        benefit: `Settles an outlier so a cluster's true mood reads accurately.`,
+      };
+    case "sector_vibe":
+      return {
+        objective: `Chart the vibe of the sector around "${a}"`,
+        why: `It anchors a dense cluster worth characterizing as a whole.`,
+        benefit: `Gives this region of your mind a recognizable identity at a glance.`,
+      };
+    case "calibration":
+      return {
+        objective: `Recalibrate the mass of hub "${a}"`,
+        why: `It's highly connected but under-weighted — its gravity doesn't match its real role.`,
+        benefit: `Right-sizes it so the important hubs actually look important.`,
+      };
+    case "daily_log":
+      return {
+        objective: `Write today's Captain's Log`,
+        why: `Enough has shifted in your brain today to be worth a reflective summary.`,
+        benefit: `Keeps a running narrative of how your second brain is evolving.`,
+      };
+    case "patrol":
+    default:
+      return {
+        objective: `Routine patrol & health check`,
+        why: `Nothing higher-value needs attention right now.`,
+        benefit: `Steady upkeep so nothing quietly rots.`,
+      };
+  }
+}
+
+/** Assemble a job with its explainable rationale attached. */
+function mkJob(
+  ctx: AppContext,
+  spaceId: string,
+  type: JobType,
+  targets: number[],
+  description: string,
+): AgentJob {
+  return { type, targets, description, rationale: buildRationale(ctx, spaceId, type, targets) };
+}
+
+/** Global "Research Mode" toggle (settings is deployment-wide, not space-scoped). */
+export function researchEnabled(ctx: AppContext): boolean {
+  return (
+    ctx.handle.db.select().from(settings).where(eq(settings.key, "research_enabled")).get()
+      ?.value === "true"
+  );
+}
+
+/**
+ * Choose the next meaningful job for a brain, or null if there's nothing to do.
+ * Mirrors the original next-job ladder exactly.
+ */
+export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
+  const economy = new EconomyRepo(ctx.handle, spaceId);
+  const llmOn = researchEnabled(ctx) && !ctx.usage.overBudget();
+  const expansionOn = llmOn && economy.canRunJob();
+  const nodesRepo = new NodesRepo(ctx.handle, spaceId);
+
+  // Daily Log — once per day per brain, when there's enough to summarize.
+  const today = new Date().toISOString().slice(0, 10);
+  const logExists = ctx.handle.db
+    .select()
+    .from(dailyLogs)
+    .where(and(eq(dailyLogs.spaceId, spaceId), eq(dailyLogs.date, today)))
+    .get();
+  if (llmOn && !logExists && nodesRepo.count() > 5) {
+    return mkJob(ctx, spaceId, "daily_log", [], "Captain's Log: Summarizing today's brain evolution.");
+  }
+
+  // 0. Merging — near-duplicate memories (similarity > 0.96).
+  if (llmOn) {
+    for (const node of nodesRepo.all()) {
+      const emb = getEmbedding(ctx.handle.sqlite, node.id);
+      if (!emb) continue;
+      const hits = knn(ctx.handle.sqlite, emb, 2, spaceId);
+      const redundant = hits.find((h) => h.nodeId !== node.id && h.similarity > 0.96);
+      if (redundant) {
+        return mkJob(
+          ctx,
+          spaceId,
+          "merging",
+          [node.id, redundant.nodeId],
+          "Memory Fusion: Detecting and consolidating redundant information nodes.",
+        );
+      }
+    }
+  }
+
+  // 1. Synthesis — connecting the dots is her PRIMARY intelligent act: a latent
+  // link between related-but-distant memories. Prioritized above research because
+  // weaving old + new together benefits the user more than expanding any one node.
+  const c0 = findCandidates(ctx.handle, { threshold: 0.85, k: 5, minHops: 3, maxCandidates: 1 }, spaceId)[0];
+  if (llmOn && c0) {
+    return mkJob(
+      ctx,
+      spaceId,
+      "synthesis",
+      [c0.a, c0.b],
+      "Synthesizing latent connection between semantically related memories.",
+    );
+  }
+
+  // 2. Research — NOT a default. Reserved for a genuine GAP: a memory that clearly
+  // matters to you (high importance) yet sits under-connected and undocumented — a
+  // blind spot worth filling in. If everything important is already well wired up,
+  // she does no research and lets synthesis keep connecting the dots instead.
+  if (expansionOn) {
+    const target = ctx.handle.sqlite
+      .prepare(
+        `SELECT n.id FROM nodes n
+         LEFT JOIN (
+           SELECT node_id, COUNT(*) as deg
+           FROM (
+             SELECT source as node_id FROM edges WHERE space_id = ?
+             UNION ALL SELECT target as node_id FROM edges WHERE space_id = ?
+           )
+           GROUP BY node_id
+         ) d ON d.node_id = n.id
+         WHERE n.space_id = ? AND n.deleted_at IS NULL
+         AND n.content NOT LIKE '%--- Research Deep Dive ---%'
+         AND n.importance >= 0.45 AND COALESCE(d.deg, 0) <= 1
+         ORDER BY n.importance DESC LIMIT 1`,
+      )
+      .get(spaceId, spaceId, spaceId) as { id: number } | undefined;
+    if (target) {
+      return mkJob(
+        ctx,
+        spaceId,
+        "research",
+        [target.id],
+        "Gap-filling: deep-dive research on an important but under-connected memory.",
+      );
+    }
+  }
+
+  // 3. Pruning — a weak associative link.
+  const weakEdge = ctx.handle.sqlite
+    .prepare(`SELECT id, source, target FROM edges WHERE space_id = ? AND weight < 0.25 ORDER BY weight ASC LIMIT 1`)
+    .get(spaceId) as { id: number; source: number; target: number } | undefined;
+  if (weakEdge) {
+    return mkJob(
+      ctx,
+      spaceId,
+      "pruning",
+      [weakEdge.source, weakEdge.target],
+      "Pruning weak or redundant associative link to maintain graph clarity.",
+    );
+  }
+
+  // 4. Harmonization — a node whose emotion deviates from its neighbors'.
+  const erraticNode = ctx.handle.sqlite
+    .prepare(
+      `SELECT n.id FROM nodes n
+       JOIN (
+         SELECT e.node_id, AVG(nb.emotional_weight) AS cluster_avg
+         FROM (
+           SELECT source AS node_id, target AS other FROM edges
+           UNION ALL SELECT target AS node_id, source AS other FROM edges
+         ) e
+         JOIN nodes nb ON nb.id = e.other AND nb.emotional_weight IS NOT NULL
+         GROUP BY e.node_id
+       ) c ON c.node_id = n.id
+       WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.emotional_weight IS NOT NULL
+         AND ABS(n.emotional_weight - c.cluster_avg) > 0.4 LIMIT 1`,
+    )
+    .get(spaceId) as { id: number } | undefined;
+  if (erraticNode) {
+    return mkJob(ctx, spaceId, "harmonization", [erraticNode.id], "Harmonizing emotional resonance across memory cluster.");
+  }
+
+  // 5. Sector Vibe — chart a dense cluster (costs fuel).
+  const cluster = ctx.handle.sqlite
+    .prepare(
+      `SELECT n.id FROM nodes n
+       JOIN (
+         SELECT node_id, COUNT(*) as deg
+         FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
+         GROUP BY node_id
+       ) d ON d.node_id = n.id
+       WHERE n.space_id = ? AND n.deleted_at IS NULL
+       AND n.content NOT LIKE '%--- Sector Vibe ---%' AND d.deg >= 3
+       ORDER BY RANDOM() LIMIT 1`,
+    )
+    .get(spaceId) as { id: number } | undefined;
+  if (expansionOn && cluster) {
+    return mkJob(ctx, spaceId, "sector_vibe", [cluster.id], "Atmospheric scan: Charting the vibe of a local memory sector.");
+  }
+
+  // 6. Calibration — recompute mass for an under-weighted hub.
+  const hub = ctx.handle.sqlite
+    .prepare(
+      `SELECT n.id FROM nodes n
+       JOIN (
+         SELECT node_id, COUNT(*) as deg
+         FROM (SELECT source as node_id FROM edges UNION ALL SELECT target as node_id FROM edges)
+         GROUP BY node_id
+       ) d ON d.node_id = n.id
+       WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.importance < 0.5 AND d.deg > 5
+       ORDER BY d.deg DESC LIMIT 1`,
+    )
+    .get(spaceId) as { id: number } | undefined;
+  if (hub) {
+    return mkJob(ctx, spaceId, "calibration", [hub.id], "Recalibrating gravitational mass for highly-connected memory hub.");
+  }
+
+  // 7. Patrol — fallback health check on a random node.
+  const all = nodesRepo.all();
+  const randomNode = all[Math.floor(Math.random() * all.length)];
+  if (randomNode) {
+    return mkJob(ctx, spaceId, "patrol", [randomNode.id], "Routine maintenance patrol and health check.");
+  }
+
+  return null;
+}
+
+/**
+ * Execute a job: perform its mutations, log it, and spend Fuel if it's an
+ * expansion job. Returns a human description on success, or null for a no-op
+ * (e.g. a target went missing). Mirrors the original complete-job branches.
+ */
+export async function executeJob(
+  ctx: AppContext,
+  spaceId: string,
+  job: { type: JobType; targets: number[]; description?: string },
+): Promise<string | null> {
+  const { type, targets } = job;
+  const [t0, t1] = targets as [number, number];
+  const graph = new GraphService(ctx.handle, spaceId);
+  const nodesRepo = new NodesRepo(ctx.handle, spaceId);
+  // Capture the explainable rationale BEFORE any mutation (merging soft-deletes a
+  // target, so labels must be read up-front). Stored on agent_logs.result.
+  const rationale = buildRationale(ctx, spaceId, type, targets);
+  let description: string | null = null;
+
+  if (type === "synthesis" && targets.length === 2) {
+    const a = nodesRepo.getById(t0);
+    const b = nodesRepo.getById(t1);
+    if (a && b) {
+      const { text, score } = await ctx.llm.synthesize(
+        { label: a.label, content: a.content },
+        { label: b.label, content: b.content },
+        0.9,
+      );
+      ctx.handle.db.insert(insights).values({ spaceId, nodeA: t0, nodeB: t1, text, score }).run();
+      nodesRepo.tend(t0);
+      nodesRepo.tend(t1);
+      description = `Synthesized latent connection between "${a.label}" and "${b.label}".`;
+    }
+  } else if (type === "calibration" && targets.length === 1) {
+    graph.setImportance(t0, null);
+    description = `Recalibrated importance for "${graph.getNode(t0)?.label || t0}".`;
+  } else if (type === "pruning" && targets.length === 2) {
+    ctx.handle.sqlite
+      .prepare(
+        `DELETE FROM edges WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?)) AND weight < 0.25`,
+      )
+      .run(spaceId, t0, t1, t1, t0);
+    description = `Pruned weak connection between node ${t0} and ${t1}.`;
+  } else if (type === "harmonization" && targets.length === 1) {
+    ctx.handle.sqlite
+      .prepare(
+        `UPDATE nodes SET emotional_weight = (
+           SELECT AVG(n2.emotional_weight) FROM nodes n2
+           JOIN edges e ON (e.source = n2.id OR e.target = n2.id)
+           WHERE (e.source = ? OR e.target = ?)
+         ) WHERE id = ? AND space_id = ?`,
+      )
+      .run(t0, t0, t0, spaceId);
+    description = `Harmonized emotional resonance for "${graph.getNode(t0)?.label || t0}".`;
+  } else if (type === "research" && targets.length === 1) {
+    const original = nodesRepo.getById(t0);
+    if (original) {
+      const research = await ctx.llm.research({ label: original.label, content: original.content });
+      const expandedContent = `${original.content}\n\n--- Research Deep Dive ---\n${research.content}`;
+      const newImp = Math.min(1.0, (original.importance ?? 0.5) + 0.2);
+      ctx.handle.db
+        .update(nodes)
+        .set({ content: expandedContent, importance: newImp })
+        .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
+        .run();
+      upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
+      nodesRepo.tend(original.id);
+      description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
+    }
+  } else if (type === "merging" && targets.length === 2) {
+    const a = nodesRepo.getById(t0);
+    const b = nodesRepo.getById(t1);
+    if (a && b) {
+      const { text } = await ctx.llm.synthesize(
+        { label: a.label, content: a.content },
+        { label: b.label, content: b.content },
+        1.0,
+      );
+      const newImp = Math.min(1.0, Math.max(a.importance ?? 0, b.importance ?? 0) + 0.05);
+      ctx.handle.db
+        .update(nodes)
+        .set({ content: text, importance: newImp })
+        .where(and(eq(nodes.id, a.id), eq(nodes.spaceId, spaceId)))
+        .run();
+      upsertEmbedding(ctx.handle.sqlite, a.id, await ctx.embeddings.embed(text));
+      ctx.handle.db.update(edges).set({ source: a.id }).where(and(eq(edges.source, b.id), eq(edges.spaceId, spaceId))).run();
+      ctx.handle.db.update(edges).set({ target: a.id }).where(and(eq(edges.target, b.id), eq(edges.spaceId, spaceId))).run();
+      nodesRepo.softDelete(b.id, a.id);
+      description = `Fused redundant memory "${b.label}" into "${a.label}". Connections re-routed.`;
+    }
+  } else if (type === "sector_vibe" && targets.length === 1) {
+    const center = nodesRepo.getById(t0);
+    if (center) {
+      const neighbors = ctx.handle.sqlite
+        .prepare(
+          `SELECT n.id, n.label, n.content FROM nodes n
+           JOIN edges e ON (e.source = n.id OR e.target = n.id)
+           WHERE n.space_id = ? AND (e.source = ? OR e.target = ?) AND n.id != ? LIMIT 5`,
+        )
+        .all(spaceId, center.id, center.id, center.id) as { id: number; label: string; content: string }[];
+      const vibe = await ctx.llm.summarizeSector(
+        [center, ...neighbors].map((n) => ({ label: n.label, content: n.content })),
+      );
+      ctx.handle.db
+        .update(nodes)
+        .set({ content: `${center.content}\n\n--- Sector Vibe ---\n${vibe}` })
+        .where(and(eq(nodes.id, center.id), eq(nodes.spaceId, spaceId)))
+        .run();
+      nodesRepo.tend(center.id);
+      description = `Charted sector vibe around "${center.label}": ${vibe}`;
+    }
+  } else if (type === "daily_log") {
+    const recentNodes = nodesRepo.recent(10);
+    const recentLogs = ctx.handle.sqlite
+      .prepare(`SELECT action, description FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 10`)
+      .all(spaceId) as { action: string; description: string }[];
+    // Persona awareness: her autonomous log is tailored to who you are (she's
+    // aware of you, never becomes you).
+    const persona = new UserPersonaRepo(ctx.handle, spaceId).get() ?? undefined;
+    const logText = await ctx.llm.generateDailyLog(
+      recentNodes.map((n) => ({ label: n.label, content: n.content })),
+      recentLogs.map((l) => l.description),
+      persona,
+    );
+    ctx.handle.db
+      .insert(dailyLogs)
+      .values({ spaceId, content: logText, date: new Date().toISOString().slice(0, 10) })
+      .run();
+    description = `Captain's Log recorded: ${logText.slice(0, 50)}...`;
+  } else if (type === "patrol") {
+    description = `Performed routine patrol on node ${t0}.`;
+  }
+
+  if (description) {
+    if (FUEL_JOBS.has(type)) new EconomyRepo(ctx.handle, spaceId).spend(FUEL_JOB_COST);
+    ctx.handle.db
+      .insert(agentLogs)
+      .values({ spaceId, action: type, description, targets: JSON.stringify(targets), result: JSON.stringify(rationale) })
+      .run();
+  }
+  return description;
+}

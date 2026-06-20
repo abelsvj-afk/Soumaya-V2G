@@ -8,6 +8,7 @@ export type CelestialClass =
   | "asteroid"
   | "moon"
   | "planet"
+  | "gas_giant"
   | "giant"
   | "star"
   | "supergiant";
@@ -16,6 +17,7 @@ export const CELESTIAL_CLASSES: readonly CelestialClass[] = [
   "asteroid",
   "moon",
   "planet",
+  "gas_giant",
   "giant",
   "star",
   "supergiant",
@@ -26,9 +28,21 @@ export const CELESTIAL_ICON: Record<CelestialClass, string> = {
   asteroid: "▪",
   moon: "○",
   planet: "◍",
+  gas_giant: "🪐",
   giant: "◉",
   star: "★",
   supergiant: "✸",
+};
+
+/** Human-facing label per class (the id `gas_giant` reads as "gas giant"). */
+export const CELESTIAL_LABEL: Record<CelestialClass, string> = {
+  asteroid: "asteroid",
+  moon: "moon",
+  planet: "planet",
+  gas_giant: "gas giant",
+  giant: "giant",
+  star: "star",
+  supergiant: "supergiant",
 };
 
 export interface MassSignals {
@@ -67,9 +81,26 @@ export function deriveMass({ importance, degree, emotionalWeight }: MassSignals)
  */
 export function classify(mass: number): CelestialClass {
   if (mass >= 0.8) return "supergiant";
-  if (mass >= 0.6) return "star";
-  if (mass >= 0.44) return "giant";
-  if (mass >= 0.26) return "planet";
+  if (mass >= 0.6) return "star"; // a hand-maxed importance (1 ≈ 0.62) reaches star
+  if (mass >= 0.48) return "giant";
+  if (mass >= 0.36) return "gas_giant";
+  if (mass >= 0.24) return "planet";
   if (mass >= 0.12) return "moon";
   return "asteroid";
 }
+
+/**
+ * "Entropy" 0..1 — how cold/neglected a memory has grown. It ramps up with days
+ * since it was last tended (created/visited/edited/linked) and is resisted by
+ * connectedness (well-linked hubs cool far slower). Never destroys anything; it's
+ * a visual + nudge signal that fully resets to 0 the moment you tend the memory.
+ */
+export function entropyFrom(daysSinceTended: number, degree = 0): number {
+  if (!(daysSinceTended > 0)) return 0;
+  // Hubs are anchored: each connection slows the cooling.
+  const resistance = 1 + degree * 0.6;
+  const reaches1At = 21 * resistance; // ~3 weeks untended for a lone memory to fully cool
+  const x = daysSinceTended / reaches1At;
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+

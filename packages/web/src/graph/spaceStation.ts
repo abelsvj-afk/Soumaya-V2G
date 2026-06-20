@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { gltfLoader } from "./gltf.js";
 
 /**
  * A large space station that orbits the center of the galaxy.
@@ -21,47 +21,56 @@ export function makeSpaceStation(): THREE.Object3D {
   fallback.rotation.x = Math.PI / 2;
   group.add(fallback);
 
-  new GLTFLoader().load(
+  // Subtle glow accent (keeps the model's original textures untouched): a soft
+  // additive aura + a gentle light so the station reads against deep space.
+  const glowCanvas = document.createElement("canvas");
+  glowCanvas.width = glowCanvas.height = 128;
+  const gctx = glowCanvas.getContext("2d")!;
+  const gg = gctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gg.addColorStop(0, "rgba(150,190,255,0.5)");
+  gg.addColorStop(0.4, "rgba(110,150,255,0.18)");
+  gg.addColorStop(1, "rgba(90,120,255,0)");
+  gctx.fillStyle = gg;
+  gctx.fillRect(0, 0, 128, 128);
+  const aura = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: new THREE.CanvasTexture(glowCanvas),
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      opacity: 0.5,
+    }),
+  );
+  aura.scale.set(700, 700, 1);
+  group.add(aura);
+  group.add(new THREE.PointLight(new THREE.Color("#9fc0ff"), 1.0, 1400, 2));
+
+  let mixer: THREE.AnimationMixer | null = null;
+  let lastTime = 0;
+  let selfSpin = 0;
+
+  gltfLoader().load(
     "/space_station_3.glb",
     (gltf) => {
       const model = gltf.scene;
-      
-      // Add some emissive glow to the station's materials if they don't have it
-      model.traverse((o: any) => {
-        if (o.isMesh && o.material) {
-          if (Array.isArray(o.material)) {
-            o.material.forEach((m: any) => {
-              m.metalness = 0.8;
-              m.roughness = 0.2;
-              if (m.emissive) {
-                m.emissive.set("#3a4a8a");
-                m.emissiveIntensity = 0.4;
-              }
-            });
-          } else {
-            o.material.metalness = 0.8;
-            o.material.roughness = 0.2;
-            if (o.material.emissive) {
-              o.material.emissive.set("#3a4a8a");
-              o.material.emissiveIntensity = 0.4;
-            }
-          }
-        }
-      });
 
+      // Keep the model's ORIGINAL materials/colors/textures (do NOT override them).
       const box = new THREE.Box3().setFromObject(model);
       const dim = new THREE.Vector3();
       box.getSize(dim);
       const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
-      
-      // Make the station significantly larger than a ship.
-      const k = 55 / maxDim;
+      const k = 460 / maxDim; // colossal — a looming celestial megastructure
       model.scale.setScalar(k);
-      
       const center = new THREE.Vector3();
       box.getCenter(center);
       model.position.copy(center.multiplyScalar(-k)); // recenter
-      
+
+      // Play any animation clips baked into the model (rotating rings, lights…).
+      if (gltf.animations && gltf.animations.length > 0) {
+        mixer = new THREE.AnimationMixer(model);
+        for (const clip of gltf.animations) mixer.clipAction(clip).play();
+      }
+
       fallback.visible = false;
       group.add(model);
     },
@@ -69,25 +78,38 @@ export function makeSpaceStation(): THREE.Object3D {
     (err) => console.warn("[space-station] model failed to load", err),
   );
 
-  // Orbit parameters: pulled in slightly for better visibility from the main cluster
-  const orbitRadius = 900;
-  const orbitSpeed = 0.035;
+  // Orbit just beyond the memory cluster so planets can never pass through it.
+  // The radius is set live from the current galaxy size (setOrbit, below) so the
+  // station always rides outside the bodies — and inside the surrounding stars.
+  let orbitRadius = 1700;
+  const orbitSpeed = 0.012;
   const orbitPhase = Math.random() * Math.PI * 2;
+  let planeLift = 420; // keep the station above the plane the bodies orbit in
+
+  // Graph3D feeds the live galaxy radius so the station sits just outside it.
+  group.userData.setOrbit = (r: number) => {
+    orbitRadius = r;
+    planeLift = Math.max(180, r * 0.22);
+  };
 
   group.userData.update = (time: number) => {
+    const dt = lastTime ? Math.min(0.05, time - lastTime) : 0;
+    lastTime = time;
+    mixer?.update(dt); // drive the model's built-in animations
+
     const angle = time * orbitSpeed + orbitPhase;
     group.position.set(
       Math.cos(angle) * orbitRadius,
-      Math.sin(angle * 0.7) * 150, // slow vertical oscillation
-      Math.sin(angle) * orbitRadius
+      planeLift + Math.sin(angle * 0.7) * 90, // ride high, gentle vertical drift
+      Math.sin(angle) * orbitRadius,
     );
-    // Orient it towards the direction of travel + some slow self-rotation
     group.lookAt(
       Math.cos(angle + 0.01) * orbitRadius,
-      Math.sin((angle + 0.01) * 0.7) * 150,
-      Math.sin(angle + 0.01) * orbitRadius
+      planeLift + Math.sin((angle + 0.01) * 0.7) * 90,
+      Math.sin(angle + 0.01) * orbitRadius,
     );
-    group.rotateX(time * 0.05);
+    selfSpin += dt * 0.08; // slow, smooth barrel roll (was an erratic fast spin)
+    group.rotateZ(selfSpin);
   };
 
   return group;

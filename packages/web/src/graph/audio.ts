@@ -1,81 +1,65 @@
 /**
- * Generated ambient "deep space" pad — no audio file, no loop (so it never seams).
- * A detuned low chord through a slowly-sweeping low-pass filter with gentle
- * amplitude shimmer. Created lazily on first user toggle (mobile blocks autoplay).
+ * Ambient space soundtrack — plays the bundled loop file (`/ambient-loop.mp3`)
+ * infinitely. Created lazily on the first user toggle (mobile blocks autoplay
+ * until a gesture). Fades in/out so toggling isn't abrupt. Best-effort: if the
+ * file can't load/play it simply no-ops.
  */
 export interface AmbientAudio {
   toggle: () => boolean; // returns new playing state
   readonly playing: boolean;
 }
 
+const TARGET_VOLUME = 0.7;
+
 export function makeAmbientAudio(): AmbientAudio {
-  let ctx: AudioContext | null = null;
-  let master: GainNode | null = null;
+  let el: HTMLAudioElement | null = null;
   let playing = false;
+  let fadeTimer: number | null = null;
 
-  const build = () => {
-    const AC = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = 0.0001;
-    master.connect(ctx.destination);
+  const ensure = (): HTMLAudioElement => {
+    if (el) return el;
+    el = new Audio("/ambient-loop.mp3");
+    el.loop = true; // infinite loop
+    el.preload = "auto";
+    el.volume = 0;
+    return el;
+  };
 
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = 600;
-    filter.Q.value = 0.7;
-    filter.connect(master);
-
-    // Detuned low chord (A2 / E3 / A3 / C#4 / E4) — warm, slightly beating.
-    for (const f of [55, 82.5, 110, 138.6, 164.8]) {
-      for (const det of [-4, 4]) {
-        const o = ctx.createOscillator();
-        o.type = "sine";
-        o.frequency.value = f;
-        o.detune.value = det;
-        const g = ctx.createGain();
-        g.gain.value = 0.1;
-        o.connect(g);
-        g.connect(filter);
-        o.start();
+  const fadeTo = (target: number, ms: number, onDone?: () => void) => {
+    const a = el;
+    if (!a) return;
+    if (fadeTimer) window.clearInterval(fadeTimer);
+    const start = a.volume;
+    const steps = Math.max(1, Math.round(ms / 50));
+    let i = 0;
+    fadeTimer = window.setInterval(() => {
+      i++;
+      a.volume = Math.max(0, Math.min(1, start + (target - start) * (i / steps)));
+      if (i >= steps) {
+        if (fadeTimer) window.clearInterval(fadeTimer);
+        fadeTimer = null;
+        onDone?.();
       }
-    }
-
-    // Slow filter sweep for movement (the "infinite, no obvious loop" feel).
-    const lfo = ctx.createOscillator();
-    lfo.frequency.value = 0.025;
-    const lfoGain = ctx.createGain();
-    lfoGain.gain.value = 340;
-    lfo.connect(lfoGain);
-    lfoGain.connect(filter.frequency);
-    lfo.start();
-
-    // Gentle breathing on the master volume.
-    const amp = ctx.createOscillator();
-    amp.frequency.value = 0.06;
-    const ampGain = ctx.createGain();
-    ampGain.gain.value = 0.02;
-    amp.connect(ampGain);
-    ampGain.connect(master.gain);
-    amp.start();
+    }, 50);
   };
 
   const toggle = (): boolean => {
-    if (!ctx) build();
-    if (!ctx || !master) return false;
-    if (ctx.state === "suspended") void ctx.resume();
-    const t = ctx.currentTime;
-    master.gain.cancelScheduledValues(t);
-    master.gain.setValueAtTime(Math.max(0.0001, master.gain.value), t);
+    const a = ensure();
     if (playing) {
-      master.gain.linearRampToValueAtTime(0.0001, t + 0.8);
+      fadeTo(0, 800, () => a.pause());
       playing = false;
     } else {
-      master.gain.linearRampToValueAtTime(0.22, t + 1.4);
+      void a.play().catch(() => {}); // gesture-driven; ignore autoplay rejections
+      fadeTo(TARGET_VOLUME, 1500);
       playing = true;
     }
     return playing;
   };
+
+  // Create the element up front so the (large) file buffers before the first
+  // toggle — avoids the "music takes a while to start" lag. Loading without
+  // playing is allowed on mobile (no gesture needed to preload).
+  ensure();
 
   return {
     toggle,

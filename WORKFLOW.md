@@ -34,21 +34,18 @@ This is the **MANDATORY** development cycle for the Soumaya repository. It is de
 
 ### 🟦 For the IDE (VS Code / Cursor)
 - **Structure**: Respect the 3-tier monorepo (`shared` -> `server` -> `web`).
-- **Context**: Use `@GEMINI.md` and `@CLAUDE.md` as permanent context pins.
+- **Context**: Use `@AGENTS.md` and `@CLAUDE.md` as permanent context pins (`agy` auto-loads `AGENTS.md`).
 
 ### 🟧 For Claude (The Lead Engineer)
 - **Role**: Auditor and Architect.
-- **Rule**: Never trust Gemini's implementation without checking for "Red Zone" pitfalls (logic errors, schema desync).
-- **Action**: Only check the `Verified` box once the **Test Plan** from the Spec passes.
+- **Rule**: Never trust the second agent's (`agy`) implementation without checking for "Red Zone" pitfalls (logic errors, schema desync).
+- **Action**: Only check the `Verified` box once the **Test Plan** from the Spec passes. Delegate green-zone/mechanical/visual-QA/research work to `agy` (MCP bridge or GitHub) instead of spending Claude's tokens on it — see `CLAUDE.md` → "Agent delegation".
 
-### 🟨 For Gemini (The Conductor / Conductress)
-- **Role**: Researcher and Executor.
-- **Rule**: Follow the "Over-the-Shoulder" protocol for all Red Zone tasks.
-- **Action**: Always generate the **Technical Spec** before touching `packages/shared`.
-
-### 🌌 For Antigravity CLI (Upcoming)
-- **Role**: The Workflow Enforcer.
-- **Workflow**: Antigravity will serve as the "Continuous Verification" layer, preventing commits that haven't been logged in `GEMINI_CHANGES.md` or that break the shared-type contracts.
+### 🌌 For Antigravity CLI (`agy`, the second agent — replaces Gemini CLI)
+- **Role**: Researcher + Executor + Continuous-Verification layer.
+- **Rule**: Follow the "Over-the-Shoulder" protocol for all Red Zone tasks; always generate the **Technical Spec** before touching `packages/shared`.
+- **Superpowers**: parallel subagents for mechanical refactors/research, and the browser subagent for real visual QA (screenshots / `.webm` walkthroughs) — see `AGENTS.md`.
+- **Action**: Block/flag commits that aren't logged in `GEMINI_CHANGES.md` or that break the shared-type contracts.
 
 ---
 

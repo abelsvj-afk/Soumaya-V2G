@@ -1,5 +1,6 @@
 import type { GraphEdge, GraphNode } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import type { LlmProvider } from "../llm/adapter.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -31,9 +32,22 @@ export interface IngestResult {
  * Pure orchestration over the injected providers, so it is provider-agnostic and
  * testable with fakes.
  */
-export async function ingest(h: DbHandle, deps: IngestDeps, rawText: string): Promise<IngestResult> {
-  const nodesRepo = new NodesRepo(h);
-  const edgesRepo = new EdgesRepo(h);
+/** Optional user-supplied temporal/context metadata stamped on every created node. */
+export interface IngestMeta {
+  occurredAt?: string;
+  remindAt?: string;
+  tags?: string[];
+}
+
+export async function ingest(
+  h: DbHandle,
+  deps: IngestDeps,
+  rawText: string,
+  spaceId: string = DEFAULT_SPACE,
+  meta?: IngestMeta,
+): Promise<IngestResult> {
+  const nodesRepo = new NodesRepo(h, spaceId);
+  const edgesRepo = new EdgesRepo(h, spaceId);
 
   // 1. Extract typed nodes + edges, grounded in recent context.
   const context = nodesRepo.recent(deps.contextSize ?? 20).map((n) => ({
@@ -51,7 +65,11 @@ export async function ingest(h: DbHandle, deps: IngestDeps, rawText: string): Pr
   const labelToId = new Map<string, number>();
   for (let i = 0; i < extraction.nodes.length; i++) {
     const n = extraction.nodes[i]!;
-    const node = nodesRepo.create(n, vectors[i]!);
+    // Stamp the user's event date / reminder / tags on each node from this dump.
+    const node = nodesRepo.create(
+      { ...n, occurredAt: meta?.occurredAt, remindAt: meta?.remindAt, tags: meta?.tags },
+      vectors[i]!,
+    );
     createdNodes.push(node);
     labelToId.set(n.label, node.id);
   }
@@ -75,6 +93,7 @@ export async function ingest(h: DbHandle, deps: IngestDeps, rawText: string): Pr
       createdNodes[i]!,
       vectors[i]!,
       deps.linkOptions ?? DEFAULT_LINK_OPTIONS,
+      spaceId,
     );
     associativeEdges.push(...links);
   }

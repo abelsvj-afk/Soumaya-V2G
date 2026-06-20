@@ -1,5 +1,5 @@
 import type { ExtractionResult } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
 /** Out-of-credit / quota / auth / hang errors — retrying just wastes time. */
@@ -35,22 +35,24 @@ export class ResilientLlmProvider implements LlmProvider {
     private readonly primary: LlmProvider,
     private readonly cooldownMs = Number(process.env.LLM_COOLDOWN_MS ?? 10 * 60_000),
     private readonly timeoutMs = Number(process.env.LLM_TIMEOUT_MS ?? 20_000),
+    private readonly isOverBudget?: () => boolean,
   ) {
     this.model = primary.model;
   }
 
-  private get tripped(): boolean {
-    return Date.now() < this.disabledUntil;
+  /** Skip the cloud (use heuristic) on cooldown OR when the spend budget is hit. */
+  private get blocked(): boolean {
+    return Date.now() < this.disabledUntil || !!this.isOverBudget?.();
   }
 
-  /** True while we're in cloud mode; false once tripped (so callers/health can show it). */
+  /** True while we're in cloud mode; false once blocked (so callers/health can show it). */
   get available(): boolean {
-    return this.primary.available && !this.tripped;
+    return this.primary.available && !this.blocked;
   }
 
   /** Surfaced in /api/health so the UI can say "offline mode (saving credit)". */
   get degraded(): boolean {
-    return this.primary.available && this.tripped;
+    return this.primary.available && this.blocked;
   }
 
   private note(err: unknown, op: string): void {
@@ -67,7 +69,7 @@ export class ResilientLlmProvider implements LlmProvider {
   }
 
   async extract(text: string, context: ContextNode[]): Promise<ExtractionResult> {
-    if (this.tripped) return this.fallback.extract(text, context);
+    if (this.blocked) return this.fallback.extract(text, context);
     try {
       return await withTimeout(this.primary.extract(text, context), this.timeoutMs, "extract");
     } catch (err) {
@@ -81,7 +83,7 @@ export class ResilientLlmProvider implements LlmProvider {
     target: LinkCandidate,
     similarity: number,
   ): Promise<LinkValidation> {
-    if (this.tripped) return this.fallback.validateLink(source, target, similarity);
+    if (this.blocked) return this.fallback.validateLink(source, target, similarity);
     try {
       return await withTimeout(
         this.primary.validateLink(source, target, similarity),
@@ -99,7 +101,7 @@ export class ResilientLlmProvider implements LlmProvider {
     b: LinkCandidate,
     similarity: number,
   ): Promise<{ text: string; score: number }> {
-    if (this.tripped) return this.fallback.synthesize(a, b, similarity);
+    if (this.blocked) return this.fallback.synthesize(a, b, similarity);
     try {
       return await withTimeout(
         this.primary.synthesize(a, b, similarity),
@@ -115,18 +117,19 @@ export class ResilientLlmProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
-    if (this.tripped) return this.fallback.answer(question, context);
+    if (this.blocked) return this.fallback.answer(question, context, opts);
     try {
-      return await withTimeout(this.primary.answer(question, context), this.timeoutMs, "answer");
+      return await withTimeout(this.primary.answer(question, context, opts), this.timeoutMs, "answer");
     } catch (err) {
       this.note(err, "answer");
-      return this.fallback.answer(question, context);
+      return this.fallback.answer(question, context, opts);
     }
   }
 
   async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
-    if (this.tripped) return this.fallback.research(node);
+    if (this.blocked) return this.fallback.research(node);
     try {
       return await withTimeout(this.primary.research(node), this.timeoutMs, "research");
     } catch (err) {
@@ -136,7 +139,7 @@ export class ResilientLlmProvider implements LlmProvider {
   }
 
   async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
-    if (this.tripped) return this.fallback.summarizeSector(nodes);
+    if (this.blocked) return this.fallback.summarizeSector(nodes);
     try {
       return await withTimeout(this.primary.summarizeSector(nodes), this.timeoutMs, "summarizeSector");
     } catch (err) {
@@ -145,13 +148,13 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
-    if (this.tripped) return this.fallback.generateDailyLog(newNodes, actions);
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
+    if (this.blocked) return this.fallback.generateDailyLog(newNodes, actions, persona);
     try {
-      return await withTimeout(this.primary.generateDailyLog(newNodes, actions), this.timeoutMs, "generateDailyLog");
+      return await withTimeout(this.primary.generateDailyLog(newNodes, actions, persona), this.timeoutMs, "generateDailyLog");
     } catch (err) {
       this.note(err, "generateDailyLog");
-      return this.fallback.generateDailyLog(newNodes, actions);
+      return this.fallback.generateDailyLog(newNodes, actions, persona);
     }
   }
 }

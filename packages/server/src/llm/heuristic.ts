@@ -1,5 +1,32 @@
-import type { ExtractionResult, NodeType } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+
+/** Common words that carry no topical signal, so we don't "link" on them. */
+const STOPWORDS = new Set(
+  "the a an and or but if then so of to in on at for with from by about as is are was were be been being i me my we our you your he she it they them this that these those have has had do does did will would can could should not no yes just like about into over under again more most some any all".split(
+    " ",
+  ),
+);
+
+/** Meaningful lowercased word stems (len>=4, non-stopword) for overlap checks. */
+function keywords(text: string): Set<string> {
+  const out = new Set<string>();
+  for (const raw of text.toLowerCase().split(/[^a-z0-9]+/)) {
+    if (raw.length < 4 || STOPWORDS.has(raw)) continue;
+    out.add(raw.length > 6 ? raw.slice(0, 6) : raw); // crude stem so plurals/tenses match
+  }
+  return out;
+}
+
+/** Choose a relationship that fits the offline signal (default: relates_to). */
+function pickRelationship(source: LinkCandidate, target: LinkCandidate): RelationshipType {
+  const blob = `${source.label} ${source.content} ${target.label} ${target.content}`.toLowerCase();
+  if (/\b(but|however|instead|versus|vs|contradic|conflict|opposite)\b/.test(blob)) return "contradicts";
+  if (/\b(because|caused|due to|reason|led to|result)\b/.test(blob)) return "caused_by";
+  if (/\b(like|similar|analog|reminds|same as)\b/.test(blob)) return "is_analogous_to";
+  if (/\b(build|extend|continue|next step|expand|develop)\b/.test(blob)) return "builds_on";
+  return "relates_to";
+}
 
 /**
  * Heuristic gravitational mass without an LLM: weighty life/identity/emotional
@@ -49,6 +76,10 @@ export class HeuristicProvider implements LlmProvider {
   }
 
   async extract(text: string, _context: ContextNode[]): Promise<ExtractionResult> {
+    // Offline emotion: derive a -1..1 charge from the wording so the galaxy still
+    // colours by feeling, harmonization works, visitors pick a variant, and the
+    // chat voice has a tone — all without a cloud key (reuses the shared filter).
+    const { valence } = analyzeSentiment(text);
     return {
       nodes: [
         {
@@ -56,6 +87,7 @@ export class HeuristicProvider implements LlmProvider {
           type: this.guessType(text),
           content: text.trim(),
           importance: heuristicImportance(text),
+          emotionalWeight: Math.round(valence * 100) / 100,
         },
       ],
       edges: [],
@@ -63,11 +95,29 @@ export class HeuristicProvider implements LlmProvider {
   }
 
   async validateLink(
-    _source: LinkCandidate,
-    _target: LinkCandidate,
+    source: LinkCandidate,
+    target: LinkCandidate,
     similarity: number,
   ): Promise<LinkValidation> {
-    return { linked: true, relationship: "relates_to", weight: similarity };
+    // Smarter offline linking: embeddings alone occasionally pull together
+    // superficially-similar-but-unrelated thoughts. Without an LLM to reason
+    // about it, we confirm with a cheap lexical signal — a very strong cosine
+    // match links on its own, otherwise we require some shared meaningful
+    // vocabulary. This cuts the "linked to things with no real relation" noise.
+    const a = keywords(`${source.label} ${source.content}`);
+    const b = keywords(`${target.label} ${target.content}`);
+    let shared = 0;
+    for (const w of a) if (b.has(w)) shared++;
+    const overlap = shared / Math.max(1, Math.min(a.size, b.size)); // 0..1 Szymkiewicz–Simpson
+
+    const strong = similarity >= 0.9; // semantics are unambiguous
+    const confirmed = shared >= 1 && overlap >= 0.12; // topical common ground
+    if (!strong && !confirmed) return { linked: false };
+
+    // Blend cosine with lexical overlap so confidently-related pairs weigh more.
+    const weight = Math.min(1, similarity * 0.7 + overlap * 0.3);
+    const relationship = pickRelationship(source, target);
+    return { linked: true, relationship, weight };
   }
 
   async synthesize(
@@ -86,15 +136,27 @@ export class HeuristicProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
+    // In-character (Soumaya) even offline — never impersonate the user.
+    const chitchat = /\b(how are you|how's it going|what'?s up|you doing|hi|hello|hey)\b/i.test(
+      question,
+    );
+    // Offline, we can't truly reason over the persona/instructions, but we surface
+    // any retrieved knowledge so doc-RAG is observably working without a key.
+    const kb = opts?.knowledge ? `\n\nFrom your documents:\n${firstLines(opts.knowledge, 4)}` : "";
     if (context.length === 0) {
-      return { answer: "I don't have any memories related to that yet.", citations: [] };
+      const line = chitchat
+        ? "Cruising the quiet outer reaches of your galaxy — calm out here, just starlight and a little drift. Ask me about a memory and I'll plot a course to it."
+        : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
+      return { answer: line + kb, citations: [] };
     }
     const top = context.slice(0, 5);
     const answer =
-      `Related memories for "${question}":\n` +
+      `From up here I can see a cluster on that heading:\n` +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
-      `\n\n(Offline mode — connect an OpenAI or Gemini key for synthesized answers.)`;
+      kb +
+      `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.)`;
     return { answer, citations: top.map((c) => c.id) };
   }
 
@@ -109,7 +171,16 @@ export class HeuristicProvider implements LlmProvider {
     return `This sector contains ${nodes.length} closely related memories, humming with un-synthesized potential.`;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], _persona?: string): Promise<string> {
     return `Stardate: ${new Date().toLocaleDateString()}. Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
   }
+}
+
+/** First N non-empty lines of a block (for the offline knowledge excerpt). */
+function firstLines(text: string, n: number): string {
+  return text
+    .split("\n")
+    .filter((l) => l.trim())
+    .slice(0, n)
+    .join("\n");
 }

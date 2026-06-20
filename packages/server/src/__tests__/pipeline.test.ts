@@ -42,6 +42,15 @@ class FakeLlm implements LlmProvider {
   ): Promise<{ answer: string; citations: number[] }> {
     return { answer: "ok", citations: context.map((c) => c.id) };
   }
+  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+    return { label: node.label, content: node.content };
+  }
+  async summarizeSector(_nodes: LinkCandidate[]): Promise<string> {
+    return "calm";
+  }
+  async generateDailyLog(_n: LinkCandidate[], _a: string[]): Promise<string> {
+    return "log";
+  }
 }
 
 let handle: DbHandle;
@@ -68,6 +77,25 @@ describe("ingestion pipeline", () => {
       c: number;
     };
     expect(vecCount.c).toBe(1);
+  });
+
+  it("stamps user temporal metadata (occurredAt, remindAt, tags) onto created nodes", async () => {
+    const occurredAt = "2026-06-12T14:30:00.000Z";
+    const remindAt = "2026-07-01T09:00:00.000Z";
+    const res = await ingest(
+      handle,
+      { embeddings, llm: new FakeLlm() },
+      "Closed the Acme deal",
+      undefined,
+      { occurredAt, remindAt, tags: ["Work", "Excited"] },
+    );
+    const stored = new NodesRepo(handle).getById(res.nodes[0]!.id)!;
+    expect(stored.occurredAt).toBe(occurredAt);
+    expect(stored.remindAt).toBe(remindAt);
+    expect(stored.tags).toEqual(["Work", "Excited"]);
+    // Round-trips through the JSON column (no metadata = undefined, not empty array).
+    const plain = await ingest(handle, { embeddings, llm: new FakeLlm() }, "no tags here");
+    expect(new NodesRepo(handle).getById(plain.nodes[0]!.id)!.tags).toBeUndefined();
   });
 
   it("persists LLM-extracted edges between nodes in the same input", async () => {

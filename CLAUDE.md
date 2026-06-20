@@ -1,8 +1,6 @@
 # CLAUDE.md
 
-**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications and [SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md) for system gaps and planned evolution.
-
-**CRITICAL**: Claude (Lead Engineer) must rigorously review all **new and unverified** Gemini-implemented code (listed in [GEMINI_CHANGES.md](./GEMINI_CHANGES.md)) for pitfalls or sub-optimal patterns. Once a feature is audited and approved/fixed by Claude, it should be marked with a checkmark `[x] Verified by Claude` in the changelog to avoid redundant reviews.
+**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
 
@@ -60,16 +58,34 @@ Always run `npm test` and `npm run typecheck` before committing. The web app mus
   heuristic provider scores it from weighty vocabulary + length).
 - `deriveMass({ importance, degree, emotionalWeight })` blends significance,
   connectedness, and emotional charge into a **0..1 mass**.
-- `classify(mass)` → `star | planet | moon`.
+- `classify(mass)` → 6 tiers: `asteroid | moon | planet | giant | star | supergiant`.
 - The **graph service enriches nodes on read** with `degree`, `mass`, `val`, and
   `celestial` — never denormalize these into the table.
-- Frontend: `forces.ts` applies N-body gravity (heavy bodies pull light ones in),
-  bodies render per class with pulsing emissive + coronas, links are particle
-  "space dust". The simulation never fully cools (`d3AlphaDecay(0)` +
-  `cooldownTicks=Infinity`) so the galaxy keeps drifting.
+- Frontend motion is **kinematic** (`graph/orbits.ts`), not a force sim: each body
+  orbits its heaviest connected neighbor on a fixed path (pinned via fx/fy/fz), so
+  it never collapses. `orbits.getDescendants(id)` powers the "isolate system" view.
+- Agents/assets (`graph/soumaya.ts` ship, `graph/spaceStation.ts`) are glTF models
+  in `packages/web/public/*.glb` with procedural fallbacks; the autonomous agent
+  loop hits `/api/maintenance/*` and is **token-gated behind Research Mode**.
 
 When adding signals that should affect gravity, fold them into `deriveMass` so
 both rendering and physics stay consistent.
+
+## Multi-tenancy (private brains)
+
+One deployment hosts many private "spaces" (brains). Every per-user table
+(`nodes`, `edges`, `insights`, `agent_logs`, `daily_logs`) carries a `space_id`;
+`settings` stays global (the shared deployment API budget). Auth is a lightweight
+name + passcode (`auth/spaces.ts`, scrypt-hashed) — the returned random space id
+is the client's bearer key, stored in localStorage and sent as the `x-space-id`
+header. `requireSpace` (api/middleware.ts) validates it and stashes it on
+`res.locals`; routes read it via `spaceOf(res)` and pass it to **space-scoped
+repositories** (`new NodesRepo(handle, spaceId)`) and helpers — every repo/service
+takes a `spaceId` defaulting to `DEFAULT_SPACE` ("legacy") so internal/test callers
+still work. `knn(..., spaceId)` over-fetches then filters by space so vector search
+never crosses brains. Pre-existing data lives under `legacy` and is claimed by the
+**first** account to register. When adding a data table or query, scope it by
+`space_id` the same way.
 
 ## Guardrails / middleware (server)
 
@@ -85,14 +101,66 @@ both rendering and physics stay consistent.
 
 Single container (Fly.io): `Dockerfile` builds the web app, bakes the MiniLM
 embedding model into the image, and the Express server serves both the API and the
-static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. CI in
-`.github/workflows/fly-deploy.yml` tests then deploys (needs `FLY_API_TOKEN`).
+static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. **Deploys are
+push-triggered by Fly's GitHub integration** (Fly builds the Dockerfile on push —
+no GitHub Actions involved). See `DEPLOYMENT.md`. There is intentionally no CI
+workflow: this account's Actions runners don't provision, so a workflow only added
+red noise; `DEPLOYMENT.md` carries a ready-to-restore `ci.yml` for when Actions
+works. Migrations must be additive + idempotent so a push can never crash boot on
+the existing volume (`migrateSchema`; covered by `migration.test.ts`).
 
 LLM is optional — without a key the app runs in heuristic mode. To use a key:
 `fly secrets set LLM_PROVIDER=gemini GEMINI_API_KEY=...` or
 `fly secrets set LLM_PROVIDER=openai OPENAI_API_KEY=...` (defaults to the cheap
 `gpt-4o-mini`; override with `OPENAI_MODEL`). Cloud providers degrade to the
 heuristic automatically on credit/quota errors (see ResilientLlmProvider).
+
+## Agent delegation (Claude ⇄ Antigravity CLI) — spend Claude's tokens wisely
+
+There are two coding agents on this repo and **both have GitHub access**. Claude is the
+architect/lead and the only one who signs off "Verified". The second agent is
+**Antigravity CLI (`agy`)** — a Go-based, headless, low-memory terminal agent (runs well
+on the user's **Termux/mobile** setup) with **async parallel subagents**, a **built-in
+browser subagent** (headless Chrome over MCP) for real visual QA, research/doc-conversion
+slash commands, and an **MCP bridge built to let Claude delegate heavy work to it** (with
+model routing + session continuity + output truncation, so it does NOT eat Claude's
+context). Its full rules are in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
+
+**Core principle: don't burn Claude's tokens/context on anything that is green-zone for
+`agy`.** If a task is mechanical, parallelizable, evidence-gathering, or file-dump-heavy,
+delegate it and consume only the conclusion.
+
+**Delegate to `agy` (default to this):**
+- Bulk/mechanical, well-specified edits — rename a thing everywhere, apply one pattern
+  across many `components/*` or `graph/*` files, batch asset/CSS work.
+- **Browser-based visual QA** — load the app, click through the galaxy, screenshot, record
+  a `.webm` walkthrough, run a UX/design review. (Far cheaper than Claude reasoning about
+  whether a visual change "probably" works.)
+- **Research & doc ingestion** — web research with citations; URL/PDF/docx/image → Markdown.
+- **Broad codebase exploration** that would otherwise dump many files into Claude's context.
+- Long-running **gate/build** runs and routine git ops, especially from mobile.
+
+**How to delegate:** (a) the **MCP bridge** — call `agy` as an MCP server (preferred; it
+truncates output to protect Claude's context); or (b) **GitHub** — write a crisp,
+self-contained issue/PR task and let `agy` pick it up, push to the deploy branch, and
+report back. Always give it a tight spec + the gate + "stage, don't push, if you hit the
+Red Zone."
+
+**MCP bridge config:** the `agy-bridge` server is committed at repo root in
+[`.mcp.json`](./.mcp.json) (runs `npx -y agy-bridge`), so any Claude Code session in this
+repo can delegate to `agy`. It only works where `agy` itself is installed + authenticated
+(e.g. the user's Termux/laptop) — in a stripped remote sandbox the bridge is inert, so fall
+back to the GitHub hand-off there. Approve the server once when Claude Code prompts to trust
+project MCP servers.
+
+**Keep for Claude (do NOT delegate):** Red-Zone work — `packages/shared/*` types/zod,
+`db/*` schema + migrations, `graph/orbits.ts`, `web/src/api/client.ts`, the token/USD/Fuel
+guards, `space_id` multi-tenancy scoping, route contracts — plus architecture decisions,
+ambiguous/underspecified features, security/data-integrity, and the **final audit +
+"Verified by Claude" checkmark**. Review `agy`'s pushes before ticking that box.
+
+Both agents share the **same gate**, the **same deploy branch**
+(`claude/soumaya-second-brain-v1-m4z4hc`), and the **same change log** (`GEMINI_CHANGES.md`).
 
 ## House rules
 

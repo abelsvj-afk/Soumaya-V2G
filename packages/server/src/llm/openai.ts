@@ -1,10 +1,10 @@
 import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
-import type { ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
-  ANSWER_SYSTEM,
+  composeSystem,
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
   LOG_SYSTEM,
@@ -44,7 +44,10 @@ export function normalizeExtraction(raw: unknown): unknown {
 export class OpenAiProvider implements LlmProvider {
   readonly available = true;
   readonly model = MODEL;
-  constructor(private apiKey: string) {}
+  constructor(
+    private apiKey: string,
+    private recordUsage?: (model: string, inputTokens: number, outputTokens: number) => void,
+  ) {}
 
   private async json<T>(system: string, user: string, schema: object, name: string): Promise<T> {
     const res = await fetch(ENDPOINT, {
@@ -67,7 +70,13 @@ export class OpenAiProvider implements LlmProvider {
       }),
     });
     if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-    const body = (await res.json()) as { choices: { message: { content: string } }[] };
+    const body = (await res.json()) as {
+      choices: { message: { content: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    if (this.recordUsage && body.usage) {
+      this.recordUsage(MODEL, body.usage.prompt_tokens ?? 0, body.usage.completion_tokens ?? 0);
+    }
     return JSON.parse(body.choices[0]!.message.content) as T;
   }
 
@@ -169,6 +178,7 @@ export class OpenAiProvider implements LlmProvider {
   async answer(
     question: string,
     context: ContextNode[],
+    opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }> {
     const schema = {
       type: "object",
@@ -180,8 +190,8 @@ export class OpenAiProvider implements LlmProvider {
       required: ["answer", "citations"],
     };
     const raw = await this.json<{ answer: string; citations: number[] }>(
-      ANSWER_SYSTEM,
-      buildAnswerPrompt(question, context),
+      composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
+      buildAnswerPrompt(question, context, opts?.knowledge),
       schema,
       "answer",
     );
@@ -195,7 +205,6 @@ export class OpenAiProvider implements LlmProvider {
     return await this.json<{ label: string; content: string }>(
       RESEARCH_SYSTEM,
       buildResearchPrompt(node),
-      "research",
       {
         type: "object",
         properties: {
@@ -205,6 +214,7 @@ export class OpenAiProvider implements LlmProvider {
         required: ["label", "content"],
         additionalProperties: false,
       },
+      "research",
     );
   }
 
@@ -212,28 +222,28 @@ export class OpenAiProvider implements LlmProvider {
     const raw = await this.json<{ vibe: string }>(
       SECTOR_SYSTEM,
       buildSectorPrompt(nodes),
-      "sector",
       {
         type: "object",
         properties: { vibe: { type: "string" } },
         required: ["vibe"],
         additionalProperties: false,
       },
+      "sector",
     );
     return raw.vibe;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[]): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
     const raw = await this.json<{ log: string }>(
-      LOG_SYSTEM,
+      persona ? `${LOG_SYSTEM}\n\nABOUT THE USER (be aware of who you serve, never become them):\n${persona}` : LOG_SYSTEM,
       buildLogPrompt(newNodes, actions),
-      "log",
       {
         type: "object",
         properties: { log: { type: "string" } },
         required: ["log"],
         additionalProperties: false,
       },
+      "log",
     );
     return raw.log;
   }

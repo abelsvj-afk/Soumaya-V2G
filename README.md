@@ -56,14 +56,15 @@ fly deploy
 
 `fly.toml` + `Dockerfile` are at the repo root. The build downloads the MiniLM
 model into the image (`warm.ts`), so the container starts fast and works offline.
-The previous deploy failed because the repo had **no Dockerfile** — that's fixed.
 
-### Auto-deploy via GitHub Actions
+### Auto-deploy
 
-`.github/workflows/fly-deploy.yml` runs typecheck + tests + web build, then
-`flyctl deploy` on every push to this branch. Add a repo secret named
-`FLY_API_TOKEN` (Settings → Secrets and variables → Actions). Generate a fresh
-token with `fly tokens create deploy` — do **not** reuse a token shared in chat.
+Fly's GitHub integration builds the `Dockerfile` and deploys on every push to the
+deploy branch — no terminal or `flyctl` needed (committing from the phone/web is
+enough). See [DEPLOYMENT.md](./DEPLOYMENT.md) for the full flow, the "Suspended"
+recovery tap, and how to add a GitHub Actions CI check later. (The old
+`fly-deploy.yml` workflow was removed: this account's Actions runners don't
+provision, so it only produced red noise and never deployed anything.)
 
 ## Status
 

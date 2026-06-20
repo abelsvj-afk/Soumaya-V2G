@@ -1,7 +1,11 @@
 import * as THREE from "three";
 
-/** A static stellar backdrop: thousands of colored points scattered far out. */
-export function makeStarfield(count = 3000, spread = 6000): THREE.Points {
+/**
+ * A living stellar backdrop: thousands of colored points scattered far out, on a
+ * spherical shell (so it reads as a sky, never a cube) that slowly drifts and
+ * twinkles instead of sitting dead-still.
+ */
+export function makeStarfield(count = 4000, spread = 7000): THREE.Points {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
@@ -12,10 +16,22 @@ export function makeStarfield(count = 3000, spread = 6000): THREE.Points {
     new THREE.Color("#cabfff"),
   ];
 
+  // Begin close enough that the galaxy AND the space station's orbit (which sits
+  // just outside the bodies) are both wrapped in stars, not floating in a void.
+  const inner = spread * 0.18;
   for (let i = 0; i < count; i++) {
-    positions[i * 3] = (Math.random() - 0.5) * spread;
-    positions[i * 3 + 1] = (Math.random() - 0.5) * spread;
-    positions[i * 3 + 2] = (Math.random() - 0.5) * spread;
+    // Distribute on a thick spherical shell (uniform direction + radius in a band)
+    // so there are no visible cube edges/corners to "see the box".
+    const dir = new THREE.Vector3(
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+      Math.random() * 2 - 1,
+    );
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    dir.normalize().multiplyScalar(inner + Math.random() * (spread - inner));
+    positions[i * 3] = dir.x;
+    positions[i * 3 + 1] = dir.y;
+    positions[i * 3 + 2] = dir.z;
     const c = palette[Math.floor(Math.random() * palette.length)]!;
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
@@ -34,7 +50,15 @@ export function makeStarfield(count = 3000, spread = 6000): THREE.Points {
     depthWrite: false,
   });
 
-  return new THREE.Points(geometry, material);
+  const stars = new THREE.Points(geometry, material);
+  // Gentle parallax drift + a soft collective twinkle so the sky feels alive.
+  stars.userData.update = (t: number) => {
+    stars.rotation.y = t * 0.004;
+    stars.rotation.x = Math.sin(t * 0.02) * 0.03;
+    material.opacity = 0.78 + Math.sin(t * 0.8) * 0.12;
+    material.size = 2.2 + Math.sin(t * 1.3) * 0.35;
+  };
+  return stars;
 }
 
 /** A drifting, slowly-rotating nebula cloud sprite (additive, far out). */

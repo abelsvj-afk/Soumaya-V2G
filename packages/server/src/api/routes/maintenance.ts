@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
+import { EconomyRepo } from "../../economy.js";
 import { agentLogs, settings, dailyLogs } from "../../db/schema.js";
-import { desc } from "drizzle-orm";
+import { spaceOf } from "../middleware.js";
+import { eq, desc } from "drizzle-orm";
+import { selectJob, executeJob } from "../../maintenance/agent.js";
 
 const CompleteJobSchema = z.object({
   type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
@@ -14,19 +17,17 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
   /**
    * GET /api/maintenance/next-job
-   * Returns the next "meaningful" task for the Soumaya agent.
+   * Returns the next "meaningful" task for the Soumaya agent. The selection
+   * ladder + all token/fuel gating live in maintenance/agent.ts so the browser
+   * loop and the server-side 24/7 loop choose jobs identically.
    */
-  r.get("/next-job", async (req, res) => {
-    try {
-      const job = await ctx.maintenance.getNextJob();
-      if (job) {
-        res.json(job);
-      } else {
-        res.status(404).json({ error: "No nodes available for maintenance." });
-      }
-    } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+  r.get("/next-job", (req, res) => {
+    const job = selectJob(ctx, spaceOf(res));
+    if (!job) {
+      res.status(404).json({ error: "No nodes available for maintenance." });
+      return;
     }
+    res.json(job);
   });
 
   /**
@@ -39,12 +40,10 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Invalid job completion data" });
       return;
     }
-
-    const { type, targets } = parsed.data;
-
     try {
-      const detail = await ctx.maintenance.completeJob(type as any, targets);
-      res.json({ ok: true, detail });
+      // Execution + logging + fuel all live in the shared agent service.
+      const detail = await executeJob(ctx, spaceOf(res), parsed.data);
+      res.json({ ok: detail != null, detail: detail ?? "No-op (target unavailable)." });
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
     }
@@ -58,6 +57,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     const logs = await ctx.handle.db
       .select()
       .from(agentLogs)
+      .where(eq(agentLogs.spaceId, spaceOf(res)))
       .orderBy(desc(agentLogs.id))
       .limit(50)
       .all();
@@ -72,6 +72,7 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     const log = await ctx.handle.db
       .select()
       .from(dailyLogs)
+      .where(eq(dailyLogs.spaceId, spaceOf(res)))
       .orderBy(desc(dailyLogs.id))
       .limit(1)
       .get();
@@ -81,6 +82,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
     } else {
       res.status(404).json({ error: "No daily log found" });
     }
+  });
+
+  /**
+   * GET /api/maintenance/fuel -> this brain's Celestial Economy fuel.
+   */
+  r.get("/fuel", (_req, res) => {
+    res.json(new EconomyRepo(ctx.handle, spaceOf(res)).toFuel());
   });
 
   /**

@@ -18,9 +18,9 @@ export function addBloom(
     renderer: () => THREE.WebGLRenderer;
   },
   opts: BloomOptions = {},
-): void {
+): UnrealBloomPass | null {
   const composer = fg.postProcessingComposer();
-  if (!composer) return;
+  if (!composer) return null;
   const size = fg.renderer().getSize(new THREE.Vector2());
   const bloom = new UnrealBloomPass(
     size,
@@ -29,4 +29,5 @@ export function addBloom(
     opts.threshold ?? 0.7,
   );
   composer.addPass(bloom);
+  return bloom; // returned so callers can ramp .strength (e.g. focus-dim)
 }

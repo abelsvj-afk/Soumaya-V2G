@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { chat } from "../../chat/graphrag.js";
+import { chat, DEFAULT_CHAT } from "../../chat/graphrag.js";
+import { spaceOf } from "../middleware.js";
 
 const ChatBody = z.object({ question: z.string().min(1).max(2000) });
 
@@ -18,6 +19,8 @@ export function chatRoutes(ctx: AppContext): Router {
       ctx.handle,
       { embeddings: ctx.embeddings, llm: ctx.llm },
       parsed.data.question,
+      DEFAULT_CHAT,
+      spaceOf(res),
     );
     res.json(result);
   });

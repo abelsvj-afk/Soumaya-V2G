@@ -1,0 +1,76 @@
+# Soumaya Task Board
+
+Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone and current state.
+
+**Zone key:**
+- 🟢 Green — `agy` can build freely
+- 🔴 Red — Claude only (shared types, DB schema, provider seams, route contracts, multi-tenancy)
+- 🟡 Both — split across the boundary; coordinate before starting
+
+**Status key:** `[ ]` open · `[~]` in progress · `[x]` done · `[!]` blocked
+
+---
+
+## Autonomy & Agent Hardening
+
+- [ ] 🔴 **Performance fix: `last_maintained_at` filter in `/next-job`** — Critical Gap #4, never resolved. Every maintenance cycle does a full table scan. Fix belongs in the maintenance repo SQL query.
+- [ ] 🔴 **Job claiming / idempotency (`claimed_at` lock)** — prevent double-execution when server loop + browser tab both run. Requires new nullable column in `db/schema.ts` → `migrateSchema` additive migration.
+- [ ] 🔴 **LLM planning agent: replace fixed job-selection ladder** — swap the if/else chain in `maintenance/agent.ts` with a tools-based LLM planner; keep the deterministic ladder as a fallback. Touches LlmProvider seam.
+- [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
+- [ ] 🟡 **Request-Maintenance high-priority queue** — `POST /api/nodes/:id/tend` is partial. Route contract / priority field = Red; UI trigger button = Green.
+- [ ] 🟡 **Surface `remind_at` reminders in daily digest + Telegram** — `DailyDigest` service touch = Red-ish; Telegram message formatting = Green. Noted in GEMINI_CHANGES.md as a known follow-up.
+
+---
+
+## Fleet & Visitor Visuals
+
+- [ ] 🟡 **Defender sub-agent 3D model (`defense-ship.glb`)** — logic exists, no visual. Asset must be provided by user; wiring into `graph/subAgents` procedural fallback → GLB swap is Green.
+- [ ] 🟡 **Visitor craft models (`visitor-traveler.glb` / `visitor-wanderer.glb`)** — procedural saucers are placeholders. Asset = user provides; GLB loader swap = Green.
+- [ ] 🟢 **Literal beacon dispatch animation** — Soumaya flies to position and releases a beacon visually. Pure `graph/soumaya.ts` animation work, no backend touch.
+- [ ] 🟢 **Defender live drifter intercept** — wire real visitor positions from `visitors.ts` into `subAgents.update` so the Defender actually flies to intercept drifters. `graph/subAgents` only.
+- [ ] 🟡 **Formalize alien attraction scoring function** — `visitors.ts` scoring logic (emotional intensity, rarity, mass, degree, recency, revisit frequency). Server service = Red-adjacent; visual feedback on hover / in List = Green.
+
+---
+
+## Memory & UX
+
+- [ ] 🟢 **"Writing..." latency feedback on nodes during LLM processing** — show a pulsing state on a node's orb while its job is in flight. Frontend component state only.
+- [ ] 🟢 **Brain-like filaments at macro zoom** — neuron-like connecting filaments visible when zoomed far out. three.js / `Graph3D.tsx`, no backend.
+- [ ] 🟢 **Neural recall-signal animation** — fire synapse-style pulses along the path from seed node to each cited node during a chat response (`fireRecall(citationIds)` in `Graph3D.tsx`).
+- [ ] 🟢 **Per-memory story arcs in object lore** — space station + ship lore tied to specific memory relationships (`graph/objectLore.ts`). Explicitly Green Zone file.
+- [ ] 🟢 **In-app PWA Install button** — capture `beforeinstallprompt` event and show an "Install" button in the UI. Frontend only.
+- [ ] 🟡 **Daily Log Onboarding / Genesis Log** — lower threshold for brand-new brains + a welcome log entry. Ingestion heuristic tweak = Red; onboarding UI screen = Green.
+
+---
+
+## AI Companion & Persona
+
+- [ ] 🟡 **Behavioral "Knows Me" persona deepening** — fold conversation history + interaction patterns into the auto-derived persona (`persona/derive.ts`). Server service = Red; any UI display of persona depth = Green.
+- [ ] 🔴 **LLM-authored lore prose** — optional `chronicle?` method on the `LlmProvider` seam so cloud providers can generate richer narrative lore text. Provider seam extension = Claude only.
+
+---
+
+## Telegram
+
+- [ ] 🔴 **Phase D: Voice notes via cloud TTS** — OGG/MP3 replies reusing `dramatize.ts` prosody, gated behind `TELEGRAM_TTS_*` env var. Requires new provider seam extension + secrets wiring.
+
+---
+
+## Infrastructure
+
+- [ ] 🟢 **Restore CI (`ci.yml`)** — typecheck → test → build, no deploy step. Template documented in `DEPLOYMENT.md`. Green Zone infra/YAML work; only unblock when GitHub Actions runners are available on this account.
+- [ ] 🟡 **Richer offline ingestion queue** — queue ingests while offline, sync to server when back online. Service worker + client queue = Green; server sync endpoint = Red.
+- [ ] 🟡 **PDF/DOCX parsing for knowledge docs** — server-side parser addition = Red; upload UI = Green. Currently deferred per original roadmap.
+
+---
+
+## Deferred / Parked
+
+- [ ] 🟢 **Fix UI layout overlaps** (bottom-menu / "Add thought" button / volume controls) — user said "forget it for now" on 2026-06-20.
+- [ ] **`InstancedMesh` renderer rewrite (phase-1-density-core.md)** — full spec committed and ready but hold until real devices drop below ~50fps. Not blocking anything.
+
+---
+
+## Done (for reference)
+
+All Phase 1–4 milestones, Celestial Economy, Telegram A/B/C, lore engine, Fleet v1, AI Companion, visitor tracking, constellation membership, PWA, MCP bridge. See `GEMINI_CHANGES.md` for the full log.

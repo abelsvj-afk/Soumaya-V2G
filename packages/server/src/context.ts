@@ -2,7 +2,7 @@ import { createDb, type DbHandle } from "./db/client.js";
 import { createEmbeddingProvider, type EmbeddingProvider } from "./embeddings/adapter.js";
 import { createLlmProvider, type LlmProvider } from "./llm/adapter.js";
 import { GraphService } from "./graph/service.js";
-import { MaintenanceService } from "./maintenance/service.js";
+import { UsageTracker } from "./usage.js";
 
 /** Shared application singletons, injected into the API routes. */
 export interface AppContext {
@@ -10,7 +10,7 @@ export interface AppContext {
   embeddings: EmbeddingProvider;
   llm: LlmProvider;
   graph: GraphService;
-  maintenance: MaintenanceService;
+  usage: UsageTracker;
 }
 
 export interface BuildContextOptions {
@@ -22,9 +22,13 @@ export interface BuildContextOptions {
 
 export async function buildContext(opts: BuildContextOptions = {}): Promise<AppContext> {
   const handle = createDb(opts.dbPath);
+  const usage = new UsageTracker(handle);
   const embeddings = opts.embeddings ?? (await createEmbeddingProvider());
-  const llm = opts.llm ?? (await createLlmProvider());
-  const ctx: any = { handle, embeddings, llm, graph: new GraphService(handle) };
-  ctx.maintenance = new MaintenanceService(ctx as AppContext);
-  return ctx as AppContext;
+  const llm =
+    opts.llm ??
+    (await createLlmProvider({
+      recordUsage: (model, inTok, outTok) => usage.record(model, inTok, outTok),
+      isOverBudget: () => usage.overBudget(),
+    }));
+  return { handle, embeddings, llm, graph: new GraphService(handle), usage };
 }

@@ -8,50 +8,106 @@ import {
 } from "react";
 import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfield.js";
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
-import { makeSoumaya, type SoumayaHandle } from "./soumaya.js";
+import { makeSoumaya, type SoumayaHandle, type LinkTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
+import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
+import { makeVisitors, type VisitorSystem } from "./visitors.js";
+import { logVisits } from "../api/client.js";
+import { makeSatellites, type SatelliteSystem } from "./satellites.js";
+import { makeSubAgents, type SubAgentSystem } from "./subAgents.js";
 import { BG } from "./theme.js";
+
+/** Live status of each fleet unit, read by the Fleet panel. */
+export type FleetStatus = Record<string, { active: boolean; detail: string }>;
 
 export interface Graph3DHandle {
   focusNode: (id: number) => void;
   /** Frame the whole galaxy back in view (fixes drift / "stuck on one side"). */
   recenter: () => void;
-  /** Toggle the camera chasing Soumaya's ship; returns the new state. */
+  /** On-screen zoom: factor < 1 zooms in, > 1 zooms out (for the +/- buttons). */
+  zoomBy: (factor: number) => void;
+  /** Toggle the camera focusing Soumaya's ship; returns the new state. */
   toggleFollowShip: () => boolean;
+  /** Toggle the camera focusing the space station; returns the new state. */
+  toggleFollowStation: () => boolean;
+  /** Jump to the next active Aura beacon (cycles through them). False if none. */
+  cycleFollowSatellite: () => boolean;
+  /** Jump to the next visitor craft (cycles through them). False if none. */
+  cycleFollowVisitor: () => boolean;
+  /** Isolate a memory's system: show only it + the bodies orbiting it. */
+  isolateSystem: (id: number) => void;
+  /** Exit the isolated system view (show the whole galaxy again). */
+  exitCluster: () => void;
+  /** Trigger a visual burst at a node (e.g., for user action rewards). */
+  spawnBurst: (nodeId: number, type?: string) => void;
+  /** Fire visual recall signals along synapses for cited node IDs. */
+  fireRecall: (citationIds: number[]) => void;
+  /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
+  getFleetStatus: () => FleetStatus;
 }
 
 interface Props {
   data: GraphData;
   onSelect: (node: GraphNode) => void;
   onSoumayaClick?: () => void;
+  /** Fires when the number of active beacons changes (drives the pulsing FAB). */
+  onSatelliteCount?: (count: number) => void;
+  /** Fires when the number of visitors in the sandbox changes (drives the FAB). */
+  onVisitorCount?: (count: number) => void;
   /** Currently-selected node — when set, only it + its links stay lit (tap-to-isolate). */
   selectedId?: number | null;
   /** True when the bottom sheet is open — shifts the followed body up so it clears it. */
   bottomInset?: boolean;
+  /** Demo galaxy — don't report visitor activity to the real backend. */
+  demo?: boolean;
+  /** Show the floating "current task" label above Soumaya's ship. */
+  showShipTask?: boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const linkEnd = (v: any): number => (typeof v === "object" && v !== null ? v.id : v);
+/** Stable key for a connection (undirected) so we can track which are already drawn. */
+const linkKey = (l: any): string => {
+  const a = linkEnd(l.source);
+  const b = linkEnd(l.target);
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
+};
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, selectedId, bottomInset },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask },
   ref,
 ) {
   const fgRef = useRef<any>(null);
   const [hoverId, setHoverId] = useState<number | null>(null);
+  // When set, only these node ids (a memory + its orbiting system) are shown.
+  const [cluster, setCluster] = useState<Set<number> | null>(null);
   // Hover wins; otherwise the selected node drives the highlight (mobile = no hover).
   const activeId = hoverId ?? selectedId ?? null;
   const insetRef = useRef(false);
   useEffect(() => {
     insetRef.current = !!bottomInset;
   }, [bottomInset]);
+  // Buffer visitor arrivals and flush them to the backend periodically (not in demo).
+  const visitBufRef = useRef<{ nodeId: number; type: string }[]>([]);
+  const demoRef = useRef(false);
+  useEffect(() => {
+    demoRef.current = !!demo;
+  }, [demo]);
+  // Floating ship task label preference — kept in a ref for the engine loop, and
+  // pushed to the live handle whenever the user toggles it.
+  const showShipTaskRef = useRef(true);
+  useEffect(() => {
+    showShipTaskRef.current = !!showShipTask;
+    soumayaHandleRef.current?.setTaskVisible(!!showShipTask);
+  }, [showShipTask]);
 
   // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
@@ -60,13 +116,89 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     dataRef.current = data;
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
-  }, [data]);
+    sunRef.current?.userData?.setBrainScale?.(data.nodes.length); // core-self size (clamped)
+    // Place the station just outside the bodies (so planets never pass through it)
+    // and size the zoom ceiling so you can frame the station — wrapped in stars —
+    // but never zoom far enough to exit the surrounding star field.
+    const reff = Math.max(orbitsRef.current.getRadius(), 1000);
+    stationOrbitRef.current = reff + 800;
+    maxDistRef.current = Math.min(6200, Math.max(3200, stationOrbitRef.current + 1400));
+
+    // Detect freshly-formed connections so SOUMAYA flies out and draws them herself
+    // (rather than the line just popping in). The first data load is the baseline —
+    // we don't make her redraw the entire pre-existing graph.
+    const keys = (data.links as any[]).map(linkKey);
+    // A wholesale dataset swap (entering/leaving the demo galaxy) is NOT incremental
+    // growth — re-baseline so the new graph shows fully wired up immediately instead
+    // of dumping every link onto Soumaya's redraw queue (which left demo looking
+    // empty and made "← Back to mine" feel broken).
+    const datasetSwitched = prevDemoRef.current !== !!demo;
+    prevDemoRef.current = !!demo;
+    if (!linksInitedRef.current || datasetSwitched) {
+      knownLinksRef.current = new Set(keys);
+      pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
+      linksInitedRef.current = true;
+      fgRef.current?.refresh?.();
+      // Re-frame the whole galaxy once the new positions settle (reuses the
+      // first-frame logic) so a demo<->real swap opens zoomed-out, not inside the sun.
+      if (datasetSwitched) initialFramedRef.current = false;
+    } else {
+      const fresh: LinkTask[] = [];
+      for (const l of data.links as any[]) {
+        const k = linkKey(l);
+        if (!knownLinksRef.current.has(k)) {
+          knownLinksRef.current.add(k);
+          pendingLinksRef.current.add(k); // hide it until Soumaya draws it
+          fresh.push({ source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+        }
+      }
+      if (fresh.length > 0) {
+        soumayaHandleRef.current?.enqueueLinks(fresh);
+        fgRef.current?.refresh?.(); // apply the new pending-hidden visibility
+      }
+    }
+  }, [data, demo]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
   // body you jumped to doesn't drift out of frame.
   const followRef = useRef<number | null>(null);
-  // When true, the camera chases Soumaya's ship instead.
-  const followShipRef = useRef(false);
+  // Generic "focus on a non-memory object" (ship / station). On enable we snap to
+  // the front of it once, then just track it so the user can orbit freely.
+  const followObjRef = useRef<THREE.Object3D | null>(null);
+  const followDistRef = useRef(30);
+  const followSnapRef = useRef(false);
+  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | null>(null);
+  // Which active beacon we're cycling through with the satellite focus button.
+  const satFollowIndexRef = useRef(0);
+  // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
+  const followObjAnchor = useRef(new THREE.Vector3());
+  const followObjAnchored = useRef(false);
+  // Camera zoom-out ceiling, kept just beyond the galaxy so you can never zoom so
+  // far that the bodies leave the star field / you see its edge.
+  const maxDistRef = useRef(5200);
+  // Desired station orbit radius (sized to sit just outside the galaxy bodies).
+  const stationOrbitRef = useRef(1700);
+
+  const soumayaObjRef = useRef<THREE.Object3D | null>(null);
+  const soumayaHandleRef = useRef<SoumayaHandle | null>(null);
+  const stationObjRef = useRef<THREE.Object3D | null>(null);
+  const sunRef = useRef<THREE.Object3D | null>(null);
+  const bloomRef = useRef<{ strength: number } | null>(null);
+  const initialFramedRef = useRef(false);
+  // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
+  const knownLinksRef = useRef<Set<string>>(new Set());
+  const linksInitedRef = useRef(false);
+  // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
+  const prevDemoRef = useRef(!!demo);
+  // New links stay hidden until Soumaya physically flies out and connects them.
+  const pendingLinksRef = useRef<Set<string>>(new Set());
+  const satellitesRef = useRef<SatelliteSystem | null>(null);
+  const subAgentsRef = useRef<SubAgentSystem | null>(null);
+  const visitorsRef = useRef<VisitorSystem | null>(null);
+  const visFollowIndexRef = useRef(0);
+  const lastSatCountRef = useRef(-1);
+  const lastVisCountRef = useRef(-1);
+  const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -104,10 +236,24 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     dir.position.set(1, 1, 1);
     scene.add(dir);
 
-    // Scene embellishments + physics are best-effort: if any imperative call
-    // fails we still render the graph rather than blanking the whole screen.
-    let bursts: ReturnType<typeof makeCollisionBursts> | null = null;
+    // Image-based lighting: a PMREM environment so the glTF models (ship, station,
+    // Aura satellites) — which use metallic PBR materials — actually catch light and
+    // reflections instead of rendering as black silhouettes. Also gives every body a
+    // subtle premium sheen. Generated once from a neutral procedural room.
+    try {
+      const renderer = fg.renderer() as THREE.WebGLRenderer;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    } catch (err) {
+      console.warn("[graph] environment map unavailable:", err);
+    }
+
+    // Declared outside try-catch so spawnBurst can access it
     let soumaya: SoumayaHandle | null = null;
+    let visitors: VisitorSystem | null = null;
+    let satellites: SatelliteSystem | null = null;
+    let subAgents: SubAgentSystem | null = null;
+    
     try {
       scene.background = makeSpaceBackground();
       loadNebulaSkybox(scene);
@@ -116,12 +262,35 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(makeGalaxies());
       scene.add(makeConstellations());
       scene.add(makeComets());
-      bursts = makeCollisionBursts();
+      const bursts = makeCollisionBursts();
+      burstsRef.current = bursts;
       scene.add(bursts.group);
       soumaya = makeSoumaya();
+      soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
-      scene.add(makeSpaceStation());
-      addBloom(fg, {});
+      scene.add(soumaya.taskLabel);
+      soumaya.setTaskVisible(!!showShipTaskRef.current);
+      soumayaObjRef.current = soumaya.object;
+      // The Sun: the gigantic central body every cluster revolves around.
+      const sun = makeSun();
+      sunRef.current = sun;
+      sun.userData.setBrainScale?.(dataRef.current.nodes.length);
+      scene.add(sun);
+      const station = makeSpaceStation();
+      scene.add(station);
+      stationObjRef.current = station;
+      visitors = makeVisitors(3, (nodeId, type) => {
+        if (!demoRef.current) visitBufRef.current.push({ nodeId, type });
+      });
+      visitorsRef.current = visitors;
+      scene.add(visitors.group);
+      satellites = makeSatellites();
+      satellitesRef.current = satellites;
+      scene.add(satellites.group);
+      subAgents = makeSubAgents();
+      subAgentsRef.current = subAgents;
+      scene.add(subAgents.group);
+      bloomRef.current = addBloom(fg, {});
 
       // Click detection for Soumaya's ship
       const canvas = fg.renderer().domElement;
@@ -149,11 +318,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       fg.d3Force("center", null);
       fg.d3Force("link")?.strength(0);
 
-      // Generous zoom-out (to admire it all) but stay well inside the nebula
-      // skybox shell so you never exit it.
+      // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
+      // so you can admire it all but never zoom past the star field. Smooth,
+      // weighty controls (inertial damping + zoom-toward-cursor) for a premium,
+      // non-jittery feel when flying around and zooming in on planets.
       if (controls) {
-        controls.maxDistance = 7000;
-        controls.minDistance = 12;
+        controls.maxDistance = maxDistRef.current;
+        controls.minDistance = 8;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.075;
+        controls.rotateSpeed = 0.55;
+        controls.zoomSpeed = 0.9;
+        controls.panSpeed = 0.6;
+        controls.zoomToCursor = true; // dolly toward whatever you point at
+        controls.screenSpacePanning = true;
       }
     } catch (err) {
       console.error("[graph] scene setup failed:", err);
@@ -166,6 +344,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
     const FADE_FAR = 540; // labels fully hidden at/over this distance
 
+    const MACRO_DIST = 1800; // swap fidelity for points-of-light beyond this
+
     // Brightness is INVERTED with zoom: a body blooms brightest from afar (the
     // galaxy reads as points of light) and dims/concentrates up close so you can
     // read its label and see the surface texture.
@@ -174,6 +354,76 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const brightness = (d: number): number => {
       const t = Math.min(1, Math.max(0, (d - DIM_NEAR) / (BRIGHT_FAR - DIM_NEAR)));
       return 0.25 + 0.35 * t; // 0.25x up close .. 0.6x far away
+    };
+
+    // Nerve firing: emit single particles down links ON ACTIVITY (Soumaya tending a
+    // memory, or fastening a new connection) instead of a constant random stream.
+    // `emitParticle` fires one dot along a link using the particle accessors below.
+    const fireAlongNode = (nodeId: number) => {
+      const f = fgRef.current;
+      if (!f?.emitParticle) return;
+      let fired = 0;
+      for (const l of dataRef.current.links as any[]) {
+        if (fired >= 5) break;
+        if (linkEnd(l.source) === nodeId || linkEnd(l.target) === nodeId) {
+          try {
+            f.emitParticle(l);
+          } catch {
+            /* link not mounted yet */
+          }
+          fired++;
+        }
+      }
+    };
+    const fireLink = (key: string) => {
+      const f = fgRef.current;
+      // Reveal the freshly-drawn thread now that she's joined both ends.
+      if (pendingLinksRef.current.delete(key)) f?.refresh?.();
+      if (!f?.emitParticle) return;
+      const l = (dataRef.current.links as any[]).find((x) => linkKey(x) === key);
+      if (!l) return;
+      // A short burst of dots so the new connection visibly "lights up".
+      for (let i = 0; i < 4; i++) {
+        window.setTimeout(() => {
+          try {
+            f.emitParticle(l);
+          } catch {
+            /* ignore */
+          }
+        }, i * 160);
+      }
+      // Spark at both endpoints to read as "connected".
+      const s = (dataRef.current.nodes as any[]).find((n) => n.id === linkEnd(l.source));
+      const t2 = (dataRef.current.nodes as any[]).find((n) => n.id === linkEnd(l.target));
+      if (s?.x != null) burstsRef.current?.spawn(s.x, s.y, s.z ?? 0, "synthesis");
+      if (t2?.x != null) burstsRef.current?.spawn(t2.x, t2.y, t2.z ?? 0, "synthesis");
+    };
+
+    // Faint idle pulse: so dormant threads aren't lifeless, occasionally send a
+    // single slow dot down a few random visible links (much quieter than the
+    // activity firing).
+    const IDLE_PULSE_EVERY_BASE = 4; // base seconds between ambient pulses
+    let idlePulseT = IDLE_PULSE_EVERY_BASE;
+    // Flush buffered visitor arrivals to the backend every ~20s.
+    let visitFlushT = 20;
+    const idlePulse = () => {
+      const f = fgRef.current;
+      if (!f?.emitParticle) return;
+      const links = (dataRef.current.links as any[]).filter(
+        (l) => !pendingLinksRef.current.has(linkKey(l)),
+      );
+      if (links.length === 0) return;
+      // Intensify pulse density with node count: more links shimmer for larger brains
+      const numNodes = dataRef.current.nodes.length;
+      const pulseLinksCount = Math.max(2, Math.floor(numNodes / 10));
+      for (let i = 0; i < Math.min(pulseLinksCount, links.length); i++) {
+        const l = links[Math.floor(Math.random() * links.length)];
+        try {
+          f.emitParticle(l);
+        } catch {
+          /* link not mounted */
+        }
+      }
     };
 
     let raf = 0;
@@ -186,9 +436,98 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const dt = Math.min(0.05, now - last);
       last = now;
 
+      // Ambient "alive" shimmer on idle threads.
+      idlePulseT -= dt;
+      if (idlePulseT <= 0) {
+        idlePulse();
+        // Intensify idle pulse frequency with node count (down to every 1 second)
+        const numNodes = dataRef.current.nodes.length;
+        const pulseEvery = Math.max(1, IDLE_PULSE_EVERY_BASE - Math.floor(numNodes / 20));
+        idlePulseT = pulseEvery;
+      }
+
+      // Persist visitor arrivals in batches.
+      visitFlushT -= dt;
+      if (visitFlushT <= 0) {
+        visitFlushT = 20;
+        if (visitBufRef.current.length > 0) {
+          logVisits(visitBufRef.current.splice(0, visitBufRef.current.length));
+        }
+      }
+
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
+
+      // First frame with real positions → open zoomed-out (not inside the sun).
+      if (!initialFramedRef.current) {
+        const ns = dataRef.current.nodes as any[];
+        if (ns.length === 0 || ns.some((n) => n.x != null)) {
+          initialFramedRef.current = true;
+          frameGalaxy(0);
+        }
+      }
+
+      // Focus dim: when the camera is locked onto a body, fade the sun's glare +
+      // soften bloom so the body reads clearly; restore when free/recentered.
+      const focused = followRef.current != null || followObjRef.current != null;
+      sunRef.current?.userData?.setFocusDim?.(focused);
+      if (bloomRef.current) {
+        const target = focused ? 0.16 : 0.35;
+        bloomRef.current.strength += (target - bloomRef.current.strength) * Math.min(1, dt * 3);
+      }
+
+      // Beacons launch from the station, so hand the satellites its world position.
+      const stationWorld = stationObjRef.current
+        ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+        : null;
+      satellites?.update(dt, dataRef.current.nodes as any[], stationWorld);
+      subAgents?.update(dt, dataRef.current.nodes as any[]);
+      // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
+      visitors?.update(
+        dt,
+        dataRef.current.nodes as any[],
+        satellites
+          ? { beaconedIds: satellites.getBeaconedIds(), positions: satellites.getPositions() }
+          : undefined,
+      );
+      // Tell React how many beacons are live, so the focus button can pulse.
+      if (satellites) {
+        const active = satellites.getActive();
+        if (active.length !== lastSatCountRef.current) {
+          lastSatCountRef.current = active.length;
+          onSatelliteCount?.(active.length);
+        }
+        // If the beacon we're following went dark, release the camera.
+        if (followKindRef.current === "satellite") {
+          const stillActive = active.some((a) => a.object === followObjRef.current);
+          if (!stillActive) {
+            followObjRef.current = null;
+            followKindRef.current = null;
+          }
+        }
+      }
+      // Tell React how many visitors are around (drives the "jump to visitor" FAB).
+      if (visitors) {
+        const vActive = visitors.getActive();
+        if (vActive.length !== lastVisCountRef.current) {
+          lastVisCountRef.current = vActive.length;
+          onVisitorCount?.(vActive.length);
+        }
+        // Release the camera if the visitor we were following has left.
+        if (followKindRef.current === "visitor") {
+          const stillHere = vActive.some((a) => a.object === followObjRef.current);
+          if (!stillHere) {
+            followObjRef.current = null;
+            followKindRef.current = null;
+          }
+        }
+      }
+
+      // Keep the zoom ceiling matched to the current galaxy size.
+      if (controls) controls.maxDistance = maxDistRef.current;
+      // Keep the station orbiting just outside the bodies (scales with the galaxy).
+      stationObjRef.current?.userData?.setOrbit?.(stationOrbitRef.current);
 
       // Follow-lock: keep the jumped-to body centered as it orbits/drifts.
       const fid = followRef.current;
@@ -206,7 +545,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
             controls.target.addScaledVector(down, camera.position.distanceTo(followPos) * 0.18);
           }
-          controls.update();
           followAnchor.copy(followPos);
           followAnchorId = fid;
         }
@@ -214,66 +552,141 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followAnchorId = null;
       }
 
+      // 1. Update background / global objects
       scene.traverse((o: any) => {
-        // Self-animating background objects (comets, nebulae).
         if (typeof o.userData?.update === "function") o.userData.update(now);
-        if (o.userData?.spin) {
-          o.rotation.y += 0.008; // bodies turn on their axis, calmly
-        }
-        // Pulsing emissive light, scaled DOWN as the camera nears (so close-ups
-        // are readable instead of blinding) and UP when far (bright galaxy).
-        if (o.userData?.pulse) {
-          o.getWorldPosition(tmp);
-          const bf = brightness(tmp.distanceTo(camera.position));
-          const p = o.userData.pulse;
-          const s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
-          const intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
-          const mat = o.material as any;
-          if (mat?.isShaderMaterial) {
-            mat.uniforms.uBrightness.value = intensity;
-            mat.uniforms.uTime.value = now;
-          } else if (mat && mat.emissiveIntensity != null) {
-            mat.emissiveIntensity = intensity;
-          }
-        }
-        // Breathing corona / atmosphere — also dims up close.
-        if (o.userData?.corona) {
-          o.getWorldPosition(tmp);
-          const bf = brightness(tmp.distanceTo(camera.position));
-          const c = o.userData.corona;
-          const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
-          o.scale.set(k, k, 1);
-          (o.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
-        }
-        if (o.userData?.isLabel) {
+      });
+
+      // 2. Optimized node updates (LOD + Pulse + Corona)
+      // Instead of traversing the WHOLE scene (including starfield/nebulae), we
+      // only iterate the bodies themselves. react-force-graph keeps them in a
+      // dedicated group.
+      // Find the group react-force-graph keeps the node objects in. Identify it by
+      // its CONTENTS (children carrying a nodeId) rather than a fragile children-
+      // count heuristic, which could latch onto the link group and silently stop
+      // spin/pulse/LOD from ever running.
+      const graphGroup = scene.children.find(
+        (c: any) => c.type === "Group" && c.children?.some((ch: any) => ch.userData?.nodeId != null),
+      );
+      if (graphGroup) {
+        graphGroup.children.forEach((o: any) => {
+          if (o.userData?.nodeId == null) return;
+          const id = o.userData.nodeId;
           o.getWorldPosition(tmp);
           const dist = tmp.distanceTo(camera.position);
-          const vis = Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
-          o.visible = vis > 0.02;
-          const mat = o.material as THREE.SpriteMaterial;
-          mat.opacity = vis * 0.95;
-          const mq = o.userData.marquee;
-          if (mq && o.visible) {
-            mq.t += 0.006;
-            // Ease at the ends so the name is readable, not a constant blur.
-            mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
-          }
-        }
-      });
+          const isSelected = id === activeId;
+          const isMacroView = dist > MACRO_DIST && !isSelected;
+
+          o.children.forEach((child: any) => {
+            // Self-rotation: the body (+ rings) spins on its own axis while the
+            // orbit system carries it around its neighbor. (Lives on the fidelity
+            // group so labels don't rotate.)
+            if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
+            // Pulse/Brightness
+            if (child.userData?.pulse) {
+              const bf = brightness(dist);
+              const p = child.userData.pulse;
+              const s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
+              const intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
+              const mat = child.material as any;
+              if (mat?.isShaderMaterial) {
+                mat.uniforms.uBrightness.value = intensity;
+                mat.uniforms.uTime.value = now;
+              } else if (mat && mat.emissiveIntensity != null) {
+                mat.emissiveIntensity = intensity;
+              }
+            }
+            // Corona
+            if (child.userData?.corona) {
+              const bf = brightness(dist);
+              const c = child.userData.corona;
+              const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
+              child.scale.set(k, k, 1);
+              (child.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
+            }
+
+            // LOD Swapping
+            if (child.userData?.isFidelity) child.visible = !isMacroView;
+            if (child.userData?.isMacro) child.visible = isMacroView;
+            if (child.userData?.isSectorTitle) {
+              child.visible = isMacroView;
+              if (child.visible) {
+                const mat = child.material as THREE.SpriteMaterial;
+                mat.opacity = 0.8;
+                const mq = child.userData.marquee;
+                if (mq) {
+                  mq.t += 0.006;
+                  mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
+                }
+              }
+            } else if (child.userData?.isLabel) {
+              const labelVis = (isMacroView && !isSelected) ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
+              child.visible = labelVis > 0.02;
+              if (child.visible) {
+                const mat = child.material as THREE.SpriteMaterial;
+                mat.opacity = labelVis * 0.95;
+                const mq = child.userData.marquee;
+                if (mq) {
+                  mq.t += 0.006;
+                  mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
+                }
+              }
+            }
+          });
+        });
+      }
 
       // Drive Soumaya along the live graph; spark a maintenance burst on arrival.
       if (soumaya) {
         const d = dataRef.current;
-        soumaya.update(dt, d.nodes as any[], d.links as any[], (x, y, z, type) => bursts?.spawn(x, y, z, type));
-
-        // Zoom-to-ship: smoothly chase Soumaya from just behind/above.
-        if (followShipRef.current && controls && soumaya.object.visible) {
-          const sp = soumaya.object.position;
-          controls.target.lerp(sp, 0.12);
-          camera.position.lerp(sp.clone().add(new THREE.Vector3(0, 16, 52)), 0.06);
-          controls.update();
-        }
+        const stationP = stationObjRef.current
+          ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+          : null;
+        soumaya.update(
+          dt,
+          d.nodes as any[],
+          d.links as any[],
+          (x, y, z, type, nodeId) => {
+            burstsRef.current?.spawn(x, y, z, type);
+            // Nerve firing: when she tends a memory, pulse signal down its synapses.
+            if (nodeId != null) fireAlongNode(nodeId);
+          },
+          stationP,
+          // When she fastens a new connection, fire a burst of pulses down it.
+          (key) => fireLink(key),
+        );
       }
+
+      // Focus on a non-memory object (ship/station): snap to its FRONT once, then
+      // just track it so the body stays centered while you orbit the camera freely.
+      const fo = followObjRef.current;
+      if (fo && controls) {
+        const sp = new THREE.Vector3();
+        fo.getWorldPosition(sp);
+        if (followSnapRef.current) {
+          // Snap once to the front of the object, then anchor.
+          const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
+          const d = followDistRef.current;
+          camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
+          followObjAnchor.current.copy(sp);
+          followObjAnchored.current = true;
+          followSnapRef.current = false;
+        } else if (followObjAnchored.current) {
+          // Ride along with the moving body: translate the camera by the body's
+          // delta so the view stays locked instead of swinging to chase it.
+          camera.position.add(sp.clone().sub(followObjAnchor.current));
+          followObjAnchor.current.copy(sp);
+        }
+        const target = sp.clone();
+        if (insetRef.current && window.innerWidth <= 720) {
+          const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+          target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+        }
+        controls.target.copy(target); // locked; user can still orbit around it
+      }
+
+      // Single damped update per frame (required for inertia + zoom-to-cursor).
+      controls?.update();
 
       raf = requestAnimationFrame(tick);
     };
@@ -330,11 +743,64 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     // Don't fight the fly tween; lock the follow-cam on once it lands.
     followRef.current = null;
-    followShipRef.current = false; // jumping to a node releases ship-follow
+    followObjRef.current = null; // jumping to a node releases object-follow
+    followKindRef.current = null;
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 1000);
     window.setTimeout(() => {
       followRef.current = n.id;
     }, 1050);
+  };
+
+  // Snap to a flattering "best view" of the whole galaxy: a consistent cinematic
+  // 3/4 angle (slightly above + to the side) framed to the galaxy's bounding
+  // sphere, rather than zoomToFit's lock to whatever angle the camera drifted to.
+  const frameGalaxy = (ms = 900, filter?: (n: any) => boolean) => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const pts = (dataRef.current.nodes as any[]).filter(
+      (n) => n.x != null && (!filter || filter(n)),
+    );
+    if (pts.length === 0) {
+      fg.zoomToFit(ms, 80, filter);
+      return;
+    }
+    const center = new THREE.Vector3();
+    for (const n of pts) center.add(new THREE.Vector3(n.x, n.y, n.z ?? 0));
+    center.multiplyScalar(1 / pts.length);
+    let radius = 1;
+    for (const n of pts) {
+      radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
+    }
+    // Always enclose the (gigantic) sun at the origin too, plus headroom.
+    radius = Math.max(radius, center.length() + SUN_RADIUS_MAX) * 1.12;
+    const cam = fg.camera() as THREE.PerspectiveCamera;
+    const fov = ((cam.fov ?? 60) * Math.PI) / 180;
+    const aspect = cam.aspect ?? 1;
+    // Fit by the tighter of vertical/horizontal FOV, with margin for labels/orbits.
+    const vFit = radius / Math.sin(fov / 2);
+    const hFit = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
+    let dist = Math.max(vFit, hFit) * 1.25;
+    dist = Math.min(dist, maxDistRef.current * 0.95);
+    const az = Math.PI * 0.22; // gentle yaw so it doesn't look dead-on
+    const el = Math.PI * 0.2; // lift above the orbital plane for depth
+    const dirv = new THREE.Vector3(
+      Math.cos(el) * Math.sin(az),
+      Math.sin(el),
+      Math.cos(el) * Math.cos(az),
+    );
+    const camPos = center.clone().addScaledVector(dirv, dist);
+    fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
+  };
+
+  const getLinkActivity = (l: any) => {
+    const sourceNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.source));
+    const targetNode = (dataRef.current.nodes as any[]).find((n: any) => n.id === linkEnd(l.target));
+    if (!sourceNode || !targetNode) return 0;
+    const timeStr = sourceNode.lastTendedAt ?? sourceNode.createdAt ?? targetNode.lastTendedAt ?? targetNode.createdAt;
+    if (!timeStr) return 0;
+    const ageMs = Date.now() - Date.parse(timeStr);
+    if (Number.isNaN(ageMs)) return 0;
+    return Math.max(0, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // decay over 3 days
   };
 
   useImperativeHandle(
@@ -342,14 +808,148 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     () => ({
       focusNode: (id: number) => flyTo((data.nodes as any[]).find((x) => x.id === id)),
       recenter: () => {
-        followRef.current = null; // release the follow-locks so we can frame everything
-        followShipRef.current = false;
-        fgRef.current?.zoomToFit(800, 70);
+        followRef.current = null; // release every follow-lock so we can frame all
+        followObjRef.current = null;
+        followKindRef.current = null;
+        setCluster(null); // exit any isolated system view
+        frameGalaxy(900);
+      },
+      zoomBy: (factor: number) => {
+        const fg = fgRef.current;
+        if (!fg) return;
+        const cam = fg.camera() as THREE.PerspectiveCamera;
+        const controls = fg.controls?.();
+        const target = controls?.target ?? new THREE.Vector3();
+        const offset = cam.position.clone().sub(target);
+        const min = controls?.minDistance ?? 8;
+        const max = controls?.maxDistance ?? maxDistRef.current;
+        const len = Math.max(min, Math.min(max, offset.length() * factor));
+        cam.position.copy(target.clone().add(offset.normalize().multiplyScalar(len)));
+        controls?.update?.();
       },
       toggleFollowShip: () => {
-        followShipRef.current = !followShipRef.current;
-        if (followShipRef.current) followRef.current = null;
-        return followShipRef.current;
+        const on = followKindRef.current !== "ship";
+        followKindRef.current = on ? "ship" : null;
+        followObjRef.current = on ? soumayaObjRef.current : null;
+        followDistRef.current = 26;
+        followSnapRef.current = on;
+        followObjAnchored.current = false;
+        if (on) followRef.current = null;
+        return on;
+      },
+      toggleFollowStation: () => {
+        const on = followKindRef.current !== "station";
+        followKindRef.current = on ? "station" : null;
+        followObjRef.current = on ? stationObjRef.current : null;
+        followDistRef.current = 700; // station is colossal — stand well back
+        followSnapRef.current = on;
+        followObjAnchored.current = false;
+        if (on) followRef.current = null;
+        return on;
+      },
+      cycleFollowSatellite: () => {
+        const active = satellitesRef.current?.getActive() ?? [];
+        if (active.length === 0) return false;
+        // Advance to the next beacon each press (wraps around the fleet).
+        const i = satFollowIndexRef.current % active.length;
+        satFollowIndexRef.current = (i + 1) % active.length;
+        followKindRef.current = "satellite";
+        followObjRef.current = active[i]!.object;
+        followDistRef.current = 30; // probes are small — sit in close
+        followSnapRef.current = true;
+        followObjAnchored.current = false;
+        followRef.current = null;
+        return true;
+      },
+      cycleFollowVisitor: () => {
+        const active = visitorsRef.current?.getActive() ?? [];
+        if (active.length === 0) return false;
+        const i = visFollowIndexRef.current % active.length;
+        visFollowIndexRef.current = (i + 1) % active.length;
+        followKindRef.current = "visitor";
+        followObjRef.current = active[i]!.object;
+        followDistRef.current = 34; // craft are small — sit in fairly close
+        followSnapRef.current = true;
+        followObjAnchored.current = false;
+        followRef.current = null;
+        return true;
+      },
+      isolateSystem: (id: number) => {
+        // Show only this memory + everything orbiting it, then frame the WHOLE
+        // system in view (not a close-up of the central star).
+        const sys = orbitsRef.current.getDescendants(id);
+        setCluster(sys);
+        followRef.current = null;
+        followObjRef.current = null;
+        followKindRef.current = null;
+        // Let the visibility filter apply, then fit the camera to the system, and
+        // once framed, gently track its centre so it doesn't drift out of view.
+        window.setTimeout(() => {
+          frameGalaxy(900, (n: any) => sys.has(n.id));
+        }, 80);
+        window.setTimeout(() => {
+          followRef.current = id;
+        }, 1050);
+      },
+      exitCluster: () => {
+        setCluster(null);
+        followRef.current = null;
+        frameGalaxy(800);
+      },
+      spawnBurst: (id: number, type = "user") => {
+        const n = (data.nodes as any[]).find((x) => x.id === id);
+        if (n && n.x != null) {
+          burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
+        }
+      },
+      fireRecall: (ids: number[]) => {
+        // Emit particles along all links associated with the cited nodes
+        const f = fgRef.current;
+        if (!f?.emitParticle) return;
+        const citedSet = new Set(ids);
+        for (const l of dataRef.current.links as any[]) {
+          const s = linkEnd(l.source);
+          const t = linkEnd(l.target);
+          if (citedSet.has(s) || citedSet.has(t)) {
+            try {
+              // emit a couple of fast particles down the connection
+              f.emitParticle(l);
+              window.setTimeout(() => {
+                try {
+                  f.emitParticle(l);
+                } catch {}
+              }, 120);
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+        // Also spawn a subtle burst at each of the cited nodes
+        for (const id of ids) {
+          const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
+          if (n && n.x != null) {
+            burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, "synthesis");
+          }
+        }
+      },
+      getFleetStatus: (): FleetStatus => {
+        const labelOf = (nid: number) =>
+          (dataRef.current.nodes as any[]).find((n) => n.id === nid)?.label ?? `#${nid}`;
+        const active = satellitesRef.current?.getActive() ?? [];
+        const sub = subAgentsRef.current?.getStatus() ?? [];
+        const status: FleetStatus = {
+          ship: { active: true, detail: "On her rounds" },
+          station: { active: true, detail: "Holding orbit" },
+          beacon: {
+            active: active.length > 0,
+            detail:
+              active.length > 0
+                ? `${active.length} deployed → ${active.map((a) => labelOf(a.targetId)).join(", ")}`
+                : "None deployed",
+          },
+        };
+        for (const s of sub) status[s.id] = { active: s.active, detail: s.detail };
+        return status;
       },
     }),
     [data],
@@ -364,6 +964,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       warmupTicks={30}
       cooldownTicks={Infinity}
       cooldownTime={Infinity}
+      nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
+      linkVisibility={(l: any) =>
+        // Hidden while pending (Soumaya hasn't drawn it yet), and respects the
+        // isolate-system cluster filter.
+        !pendingLinksRef.current.has(linkKey(l)) &&
+        (!cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))))
+      }
       nodeThreeObject={(node: any) => makeNodeObject(node)}
       nodeLabel={(n: any) => `${n.label} · ${String(n.type).replace(/_/g, " ")}`}
       onNodeClick={(n: any) => {
@@ -373,15 +980,39 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       onNodeHover={(n: any) => setHoverId(n ? n.id : null)}
       // Connections read as faint gravitational filaments; the relationship is
       // carried by streams of drifting "space dust" rather than solid lines.
+      // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        return lit ? "rgba(150,180,255,0.22)" : "rgba(120,120,150,0.02)";
+        if (!lit) return "rgba(120,120,150,0.02)";
+        
+        const activity = getLinkActivity(l);
+        const opacity = 0.18 + activity * 0.36; // base 0.18 .. 0.54 active
+        
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        const macroFactor = Math.min(1.5, Math.max(0.6, dist / 800));
+        
+        return `rgba(150, 180, 255, ${Math.min(0.8, opacity * macroFactor)})`;
       }}
-      linkWidth={(l: any) => 0.15 + (l.weight ?? 0.4) * 0.5}
-      linkCurvature={0.18}
-      linkDirectionalParticles={(l: any) => Math.round(2 + (l.weight ?? 0.4) * 4)}
-      linkDirectionalParticleSpeed={(l: any) => 0.0006 + (l.weight ?? 0.4) * 0.0022}
-      linkDirectionalParticleWidth={(l: any) => 1.0 + (l.weight ?? 0.4) * 1.6}
+      linkWidth={(l: any) => {
+        const activity = getLinkActivity(l);
+        return 0.15 + (l.weight ?? 0.4) * 0.5 + activity * 0.3; // active lines are slightly thicker
+      }}
+      linkCurvature={(l: any) => {
+        const activity = getLinkActivity(l);
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        
+        // At macro zoom (> 800 distance), links curve more significantly to form neuron-like fibers
+        const baseCurvature = dist > 800 ? 0.28 : 0.12;
+        return baseCurvature + activity * 0.16; // active lines wander/curve more organically
+      }}
+      // No constant stream — connections fire like synapses only when something
+      // real happens on them (Soumaya tending a memory or forging a link). The
+      // pulses are emitted imperatively via fg.emitParticle (fireAlongNode/fireLink).
+      linkDirectionalParticles={0}
+      linkDirectionalParticleSpeed={(l: any) => 0.004 + (l.weight ?? 0.4) * 0.004}
+      linkDirectionalParticleWidth={(l: any) => 1.6 + (l.weight ?? 0.4) * 2.0}
       linkDirectionalParticleColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
         return lit ? "rgba(205,215,255,0.95)" : "rgba(150,160,200,0.06)";

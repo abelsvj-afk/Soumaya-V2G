@@ -14,6 +14,9 @@ primary_region = 'iad'
   EMBED_CACHE_DIR = '/app/.model-cache'
   PORT = '8080'
   WEB_DIR = '/app/packages/web/dist'
+  # 24/7 autonomy: Soumaya evolves every brain server-side on a timer. Free upkeep
+  # runs always; LLM work stays gated by Research Mode + the USD budget + Fuel.
+  AUTONOMY = 'on'
 
 [[mounts]]
   source = 'brain_data'
@@ -22,7 +25,9 @@ primary_region = 'iad'
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'stop'
+  # Never sleep the machine — the 24/7 autonomy + heartbeat loops must keep running
+  # even with no open browser. (This is the always-on cost trade-off, accepted.)
+  auto_stop_machines = 'off'
   auto_start_machines = true
   min_machines_running = 1
 
