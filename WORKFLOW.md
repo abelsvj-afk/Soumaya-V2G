@@ -34,7 +34,7 @@ This is the **MANDATORY** development cycle for the Soumaya repository. It is de
 
 ### 🟦 For the IDE (VS Code / Cursor)
 - **Structure**: Respect the 3-tier monorepo (`shared` -> `server` -> `web`).
-- **Context**: Use `@ANTIGRAVITY.md` and `@CLAUDE.md` as permanent context pins.
+- **Context**: Use `@AGENTS.md` and `@CLAUDE.md` as permanent context pins (`agy` auto-loads `AGENTS.md`).
 
 ### 🟧 For Claude (The Lead Engineer)
 - **Role**: Auditor and Architect.
@@ -44,7 +44,7 @@ This is the **MANDATORY** development cycle for the Soumaya repository. It is de
 ### 🌌 For Antigravity CLI (`agy`, the second agent — replaces Gemini CLI)
 - **Role**: Researcher + Executor + Continuous-Verification layer.
 - **Rule**: Follow the "Over-the-Shoulder" protocol for all Red Zone tasks; always generate the **Technical Spec** before touching `packages/shared`.
-- **Superpowers**: parallel subagents for mechanical refactors/research, and the browser subagent for real visual QA (screenshots / `.webm` walkthroughs) — see `ANTIGRAVITY.md`.
+- **Superpowers**: parallel subagents for mechanical refactors/research, and the browser subagent for real visual QA (screenshots / `.webm` walkthroughs) — see `AGENTS.md`.
 - **Action**: Block/flag commits that aren't logged in `GEMINI_CHANGES.md` or that break the shared-type contracts.
 
 ---

@@ -1,8 +1,8 @@
-# Moved → ANTIGRAVITY.md
+# See AGENTS.md
 
-Gemini CLI was transitioned to **Antigravity CLI (`agy`)**. The agent instructions
-that used to live here now live in **[ANTIGRAVITY.md](./ANTIGRAVITY.md)** — read that.
+Gemini CLI was transitioned to **Antigravity CLI (`agy`)**. `agy` auto-loads both this
+file and `AGENTS.md` on startup — the **canonical agent instructions live in
+[AGENTS.md](./AGENTS.md)** (mandates, green/red zones, git rules). Read that.
 
-This stub remains only so any tool or human that still opens `GEMINI.md` is redirected.
-The shared change log is still **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)** (kept under
-that name for continuity).
+The shared change log is **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)** (kept under that
+name for continuity); Claude's guidance is in **[CLAUDE.md](./CLAUDE.md)**.

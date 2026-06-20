@@ -7,7 +7,7 @@ This document tracks all changes made by Gemini to the Soumaya Brain repository.
 # 🧭 OPERATING GUIDE FOR THE SECOND AGENT (Antigravity CLI / `agy`) — read top to bottom before you touch anything
 
 `agy`, this section is written **for you** by Claude (lead engineer). It is the
-practical, file-level version of `ANTIGRAVITY.md` + `WORKFLOW.md`. If those two ever
+practical, file-level version of `AGENTS.md` + `WORKFLOW.md`. If those two ever
 disagree with this, this wins. Your job is **fast, surgical, visually-rich frontend
 work (now with real browser-subagent visual proof) that keeps the gate green and never
 destabilizes the load-bearing systems.** *(This log keeps the `GEMINI_CHANGES` filename
@@ -160,6 +160,13 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-06-20 (Claude): Make AGENTS.md the canonical agent file (matches `agy` auto-load)
+- [x] **Verified by Claude** — docs-only; confirmed against a user `strace` of `agy` startup.
+- An `strace` showed `agy` opens **`AGENTS.md`** and **`GEMINI.md`** on startup (not
+  `ANTIGRAVITY.md`). Moved the full canonical instructions into **`AGENTS.md`**; `GEMINI.md`
+  and `ANTIGRAVITY.md` are now redirect stubs pointing to it. Updated all cross-references
+  (`CLAUDE.md`, `WORKFLOW.md`, this guide's header) from `ANTIGRAVITY.md` → `AGENTS.md`.
 
 ### 2026-06-20 (Claude): Docs — second agent is now Antigravity CLI + Claude delegation rules
 - [x] **Verified by Claude** — docs-only (no code); no gate impact.

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [ANTIGRAVITY.md](./ANTIGRAVITY.md).
+**MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
 
@@ -124,7 +124,7 @@ on the user's **Termux/mobile** setup) with **async parallel subagents**, a **bu
 browser subagent** (headless Chrome over MCP) for real visual QA, research/doc-conversion
 slash commands, and an **MCP bridge built to let Claude delegate heavy work to it** (with
 model routing + session continuity + output truncation, so it does NOT eat Claude's
-context). Its full rules are in [ANTIGRAVITY.md](./ANTIGRAVITY.md).
+context). Its full rules are in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 **Core principle: don't burn Claude's tokens/context on anything that is green-zone for
 `agy`.** If a task is mechanical, parallelizable, evidence-gathering, or file-dump-heavy,
