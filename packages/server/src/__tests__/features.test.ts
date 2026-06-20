@@ -8,7 +8,7 @@ import { findCandidates, runSynthesis } from "../synthesis/engine.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { findConstellations } from "../ml/cluster.js";
 import { chat } from "../chat/graphrag.js";
-import { EconomyRepo, FUEL_START, FUEL_JOB_COST } from "../economy.js";
+import { EconomyRepo, FUEL_START, FUEL_JOB_COST, FUEL_CAP } from "../economy.js";
 import { GraphService } from "../graph/service.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { analyzeSentiment, moodFromTone, prosodyFor, toneFrom } from "@brain/shared";
@@ -173,6 +173,18 @@ describe("celestial economy — fuel", () => {
     a.add(20);
     expect(a.get()).toBe(FUEL_START + 20);
     expect(b.get()).toBe(FUEL_START); // untouched
+  });
+
+  it("passively regenerates fuel over elapsed time (lazy, on read)", () => {
+    const econ = new EconomyRepo(handle, "spaceR");
+    expect(econ.get()).toBe(FUEL_START); // no time elapsed yet → no regen
+    // Backdate the last update by 5 hours, then read: ~5 * FUEL_REGEN_PER_HOUR credited.
+    handle.sqlite
+      .prepare(`UPDATE space_meta SET updated_at = datetime('now','-5 hours') WHERE space_id = ?`)
+      .run("spaceR");
+    const after = econ.get();
+    expect(after).toBeGreaterThan(FUEL_START + 5); // ≈ +10 at 2/hour
+    expect(after).toBeLessThanOrEqual(FUEL_CAP);
   });
 });
 

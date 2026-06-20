@@ -15,6 +15,10 @@ export const FUEL_JOB_COST = 2; // per autonomous LLM job
 export const EARN_MEMORY = 3; // logging a real memory
 export const EARN_LINK = 0.5; // each associative link formed
 export const EARN_ACTION_DONE = 1.5; // clearing a day-to-day action item
+// Slow passive trickle so Soumaya keeps doing her ambitious work over time even
+// if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
+// USD budget is still the hard cap — this only refills the in-app Fuel.
+export const FUEL_REGEN_PER_HOUR = 2;
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 
@@ -31,8 +35,33 @@ export class EconomyRepo {
       .run(this.spaceId, FUEL_START);
   }
 
+  /**
+   * Lazily credit passive regen based on time elapsed since the last update.
+   * Computed on read (no background timer). Only persists once a meaningful chunk
+   * (≥0.1) has accrued, so `updated_at` isn't thrashed and fractions never get
+   * rounded away between frequent reads.
+   */
+  private applyRegen(): void {
+    const row = this.h.sqlite
+      .prepare(`SELECT fuel, updated_at FROM space_meta WHERE space_id = ?`)
+      .get(this.spaceId) as { fuel: number; updated_at: string } | undefined;
+    if (!row || row.fuel >= FUEL_CAP) return; // already full — nothing to accrue
+    const ts = row.updated_at;
+    const ms = Date.parse(ts?.includes("T") ? ts : `${(ts ?? "").replace(" ", "T")}Z`);
+    if (Number.isNaN(ms)) return;
+    const hours = (Date.now() - ms) / 3_600_000;
+    if (hours <= 0) return;
+    const regen = hours * FUEL_REGEN_PER_HOUR;
+    if (regen < 0.1) return; // wait for a meaningful chunk; updated_at stays so it keeps accruing
+    const next = clamp(row.fuel + regen, 0, FUEL_CAP);
+    this.h.sqlite
+      .prepare(`UPDATE space_meta SET fuel = ?, updated_at = CURRENT_TIMESTAMP WHERE space_id = ?`)
+      .run(next, this.spaceId);
+  }
+
   get(): number {
     this.ensure();
+    this.applyRegen();
     const row = this.h.sqlite
       .prepare(`SELECT fuel FROM space_meta WHERE space_id = ?`)
       .get(this.spaceId) as { fuel: number } | undefined;

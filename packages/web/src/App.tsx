@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { GraphData, GraphNode } from "@brain/shared";
+import type { GraphData, GraphNode, Fuel } from "@brain/shared";
 
 /** Pop-up offset for an item in the focus cluster (stacks upward when open). */
 function focusItemStyle(index: number, open: boolean): CSSProperties {
@@ -20,6 +20,7 @@ import {
   currentSpace,
   getGraph,
   getHealth,
+  getFuel,
   logoutSpace,
   onAiActivity,
   tendNode,
@@ -34,8 +35,22 @@ export default function App() {
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
+  const [fuel, setFuel] = useState<Fuel | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
   const [demo, setDemo] = useState(false);
+  // Poll fuel for the main-HUD gauge while signed in (skips the demo galaxy).
+  useEffect(() => {
+    if (!space || demo) return;
+    let alive = true;
+    const load = () => getFuel().then((f) => alive && setFuel(f));
+    load();
+    const iv = window.setInterval(load, 30000);
+    return () => {
+      alive = false;
+      window.clearInterval(iv);
+    };
+  }, [space, demo]);
   const [panel, setPanel] = useState<Panel>(null);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
@@ -321,6 +336,14 @@ export default function App() {
           {health && (
             <span className="status">
               {(demo ? demoData : data).nodes.length} memories · {llmStatus}
+            </span>
+          )}
+          {fuel && !demo && (
+            <span
+              className="status fuel-chip"
+              title={`⛽ Fuel ${fuel.fuel}/${fuel.capacity} — Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). EARN it by logging memories, forging links & clearing action items; it also slowly refills on its own. Her core upkeep + the living galaxy never need fuel.`}
+            >
+              ⛽ {Math.round(fuel.fuel)}/{fuel.capacity}
             </span>
           )}
           {installPrompt && (

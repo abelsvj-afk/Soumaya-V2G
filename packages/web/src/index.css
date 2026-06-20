@@ -1966,3 +1966,10 @@ button {
   right: 74px; /* Placed next to ingest */
   font-size: 22px;
 }
+
+/* Main-HUD fuel gauge chip (Phase 4): amber so it reads as energy at a glance. */
+.fuel-chip {
+  color: #ffcf6b;
+  border-color: rgba(255, 200, 90, 0.35);
+  cursor: help;
+}

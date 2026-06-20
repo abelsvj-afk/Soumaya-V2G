@@ -165,6 +165,17 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Claude): Living Brain Phase 4 — fuel legible on the HUD + slow passive regen
+- [x] **Verified by Claude** — typecheck clean, 87 tests pass, web build clean.
+- **Surfaced fuel** on the main HUD: an ⛽ gauge (`fuel/capacity`) in the brand row with a tooltip
+  explaining what she spends it on and how it's earned — no longer buried in the Soumaya tab.
+  `App.tsx` polls `getFuel` every 30s (skips demo); amber `.fuel-chip` style in `index.css`.
+- **Passive regen** (`economy.ts`, RED): lazy time-based trickle (~2/hr) credited on read (no
+  background timer), persisted only once ≥0.1 has accrued so frequent reads never thrash
+  `updated_at` or round fractions away. The USD budget stays the hard cap; all visual growth
+  stays ungated. New regen test added.
+- This completes the Living Brain arc (Phases 0–4).
+
 ### 2026-06-20 (Claude): Living Brain Phase 3 — links decay & Soumaya repairs them
 - [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
 - A per-link "freshness" now decays with neglect: folded a client-side last-repaired timestamp

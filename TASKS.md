@@ -89,8 +89,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   (folded into `getLinkActivity`, so stale links fade), and a throttled scan hands the most-degraded
   visible links to Soumaya to re-forge (refreshing them via `fireLink`). Client-only (no schema);
   `Graph3D.tsx` only.
-- [ ] 🟡 **Phase 4 — fuel legible + slow regen** (Claude) — HUD fuel gauge + earn hint (🟢),
-  passive regen in `economy.ts` (RED); visual growth stays ungated.
+- [x] 🟡 **Phase 4 — fuel legible + slow regen** (Claude) — ⛽ fuel gauge on the main HUD with an
+  earn/spend tooltip (`App.tsx`/`index.css`); lazy passive regen (~2/hr, on read) in `economy.ts`
+  (RED). Visual growth (placement/web/firing/repair/deletion) stays fully ungated.
 - [x] 🟢 **Confirm edges persist + return on reload** — verified: edges persist (weight ≥0.6) and
   the graph route returns them space-scoped; "gone" was faint rendering (→ Phase 1), not data loss.
 - [x] 🟢 **Differentiate ＋ icons (add vs zoom)** — delegated to agy as issue #6.
