@@ -5,6 +5,7 @@ interface Props {
 }
 
 const ROWS: { icon: string; title: string; body: string }[] = [
+  { icon: "🖐️", title: "Move around", body: "Drag to look and orbit. The on-screen ＋ / − buttons FLY you forward and back through space (not a fixed zoom-to-center), so you can cruise straight into any cluster without getting stuck. Best of all: tap any body to fly right up to it. Lost? Hit ⊙ to reframe everything." },
   { icon: "＋", title: "Add a memory", body: "Dump any thought. It's turned into a celestial body, weighted by how significant + connected it is." },
   { icon: "🔍", title: "Search", body: "Find a memory by meaning and fly straight to it." },
   { icon: "🌌", title: "Sectors", body: "Navigate the galaxy by major hubs. High-level index for high-density clusters." },
@@ -19,7 +20,10 @@ const ROWS: { icon: string; title: string; body: string }[] = [
 
 const CONCEPTS: { title: string; body: string }[] = [
   { title: "Tap a star", body: "Opens its Details and dims everything except its connections, so you can see what links to what." },
-  { title: "Macro View", body: "Zoom out to see the galaxy as a field of light (Obsidian-style). Nodes swap to low-poly sprites for max performance." },
+  { title: "Macro View", body: "Far-off bodies render as small, spinning low-poly spheres (a field of light, Obsidian-style) for performance; fly closer and they resolve into full, textured worlds. Every body spins on its own axis while it orbits." },
+  { title: "👽 + 🌌 in the List", body: "Each memory row shows how many alien visitors it has drawn (👽) and which constellation it belongs to (🌌) — so the List doubles as a map of what's alive and how things cluster." },
+  { title: "Recall pulses", body: "When Chat answers cite memories, synapse-like pulses fire along their links and a soft burst marks each cited body — so you can SEE where the answer came from." },
+  { title: "Writing…", body: "A memory's orb pulses while Soumaya is actively working on it (synthesizing, maintaining), so you know something's happening." },
   { title: "Emerald Ripples", body: "Manual user actions (like updating weights) trigger a green ripple — a sign of user energy flowing into the brain." },
   { title: "Star Age Tints", body: "New memories burn hot white. Older, unconnected memories gradually redshift into a weathered glow, creating a visual fossil record." },
   { title: "Flashback Comet ☄️", body: "Tap the comet icon to randomly fly to a high-importance memory from the past. Serendipity in action." },
@@ -44,8 +48,8 @@ const MECHANICS: { title: string; body: string }[] = [
     body: "When you add a thought, it's embedded and automatically linked to the memories closest to it in meaning — no manual tagging. Those associative links are what grow constellations and let the galaxy reveal structure you didn't know was there.",
   },
   {
-    title: "Soumaya is autonomous",
-    body: "The ship isn't decoration — she works on her own: surfacing latent connections (Insights ✨), tidying and merging duplicates, researching your biggest hubs, and writing a daily log. Her ambitious work is gated by Research Mode + ⛽ Fuel; her core upkeep always runs. The API budget is the hard ceiling.",
+    title: "Soumaya is autonomous — and explains herself",
+    body: "The ship isn't decoration — she works on her own: connecting the dots between related-but-distant memories (her primary job), tidying and merging duplicates, harmonizing emotion, and writing a daily log. She does NOT research everything — research is reserved for genuine gaps (an important memory left under-connected, a blind spot). Every action she takes is logged in her panel with a plain-English breakdown — Objective / Why now / Benefit — and a floating label over her ship shows what she's doing right now (toggle it in the Soumaya tab). Her ambitious work is gated by Research Mode + ⛽ Fuel; her core upkeep always runs. The API budget is the hard ceiling.",
   },
   {
     title: "Heat & cold (Entropy)",
