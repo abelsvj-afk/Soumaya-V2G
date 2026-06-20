@@ -198,7 +198,13 @@ interface Slot {
 
 export interface SatelliteSystem {
   group: THREE.Group;
-  update: (dt: number, nodes: any[], stationPos?: THREE.Vector3 | null) => void;
+  update: (
+    dt: number,
+    nodes: any[],
+    stationPos?: THREE.Vector3 | null,
+    soumayaPos?: THREE.Vector3 | null,
+    onLaunch?: (pos: THREE.Vector3) => void
+  ) => void;
   /** Active beacons (currently beaming a memory) — for the focus button. */
   getActive: () => { object: THREE.Object3D; targetId: number }[];
   /** Ids of memories currently under a beam (drifters avoid these). */
@@ -260,7 +266,13 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
     }
   };
 
-  const update = (dt: number, nodes: any[], stationPos?: THREE.Vector3 | null) => {
+  const update = (
+    dt: number,
+    nodes: any[],
+    stationPos?: THREE.Vector3 | null,
+    soumayaPos?: THREE.Vector3 | null,
+    onLaunch?: (pos: THREE.Vector3) => void
+  ) => {
     try {
       retarget -= dt;
       if (retarget <= 0) {
@@ -272,11 +284,17 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 
-        // Dispatched FROM the station: when a probe is newly assigned a target, it
-        // launches from the station position and flies out to the cold memory.
+        // Dispatched FROM Soumaya's ship: when a probe is newly assigned a target, it
+        // launches from her ship position and flies out to the cold memory.
         if (target && s.targetId != null && s.launchedFor !== s.targetId) {
           s.launchedFor = s.targetId;
-          if (stationPos && s.fade < 0.05) g.position.copy(stationPos);
+          if (s.fade < 0.05) {
+            const launchPos = soumayaPos || stationPos;
+            if (launchPos) {
+              g.position.copy(launchPos);
+              onLaunch?.(launchPos);
+            }
+          }
         }
 
         const wantVisible = tp != null;

@@ -476,7 +476,7 @@ export default function App() {
             {music ? "🔊" : "🔈"}
           </button>
           <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
-            ＋
+            📝
           </button>
         </>
       )}

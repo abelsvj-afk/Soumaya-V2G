@@ -6,7 +6,7 @@ interface Props {
 
 const ROWS: { icon: string; title: string; body: string }[] = [
   { icon: "🖐️", title: "Move around", body: "Drag to look and orbit. The on-screen ＋ / − buttons FLY you forward and back through space (not a fixed zoom-to-center), so you can cruise straight into any cluster without getting stuck. Best of all: tap any body to fly right up to it. Lost? Hit ⊙ to reframe everything." },
-  { icon: "＋", title: "Add a memory", body: "Dump any thought. It's turned into a celestial body, weighted by how significant + connected it is." },
+  { icon: "📝", title: "Add a memory", body: "Dump any thought. It's turned into a celestial body, weighted by how significant + connected it is." },
   { icon: "🔍", title: "Search", body: "Find a memory by meaning and fly straight to it." },
   { icon: "🌌", title: "Sectors", body: "Navigate the galaxy by major hubs. High-level index for high-density clusters." },
   { icon: "☰", title: "Panels", body: "Details, Sectors (🌌), List (📋), Agenda (✅), Insights (✨), Chat (💬), Soumaya (🛰️), and Fleet (🚀)." },

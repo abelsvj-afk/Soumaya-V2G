@@ -165,6 +165,14 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Gemini): Differentiate ＋ icons and restore mobile dock tab names (Issue #6)
+- [ ] Verified by Claude
+- Differentiated the "Add a memory" FAB icon from the on-screen zoom-in FAB icon by changing the former to 📝, and updated the help panel.
+- Restored dock tab name labels on mobile screens (under 768px wide) by setting `.tab-name` to `display: inline-block` by default. Tabs are still scrollable horizontally.
+- Files touched: `packages/web/src/App.tsx`, `packages/web/src/components/HelpPanel.tsx`, `packages/web/src/index.css`.
+- Zone: Green (shipped)
+- Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
+
 ### 2026-06-20 (Claude): Living Brain Phase 2a — Soumaya ferries new memories into place
 - [x] **Verified by Claude** — typecheck clean, 86 tests pass, web build clean.
 - Brand-new memories now **park at the waystation dock**, and Soumaya **physically flies out and

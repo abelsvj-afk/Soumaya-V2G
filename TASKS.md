@@ -90,8 +90,8 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   passive regen in `economy.ts` (RED); visual growth stays ungated.
 - [x] 🟢 **Confirm edges persist + return on reload** — verified: edges persist (weight ≥0.6) and
   the graph route returns them space-scoped; "gone" was faint rendering (→ Phase 1), not data loss.
-- [ ] 🟢 **Differentiate ＋ icons (add vs zoom)** — delegated to agy as issue #6.
-- [ ] 🟢 **Restore dock tab names on mobile** — delegated to agy as issue #6 (regressed by #4's wide-screen-only labels).
+- [x] 🟢 **Differentiate ＋ icons (add vs zoom)** — delegated to agy as issue #6.
+- [x] 🟢 **Restore dock tab names on mobile** — delegated to agy as issue #6 (regressed by #4's wide-screen-only labels).
 
 ---
 
