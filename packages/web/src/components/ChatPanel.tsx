@@ -34,7 +34,13 @@ function playTick() {
   }
 }
 
-export function ChatPanel({ onFocus }: { onFocus: (id: number) => void }) {
+export function ChatPanel({
+  onFocus,
+  onRecall,
+}: {
+  onFocus: (id: number) => void;
+  onRecall?: (ids: number[]) => void;
+}) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [resp, setResp] = useState<ChatResponse | null>(null);
@@ -97,7 +103,12 @@ export function ChatPanel({ onFocus }: { onFocus: (id: number) => void }) {
     if (!q.trim()) return;
     setBusy(true);
     try {
-      setResp(await askChat(q));
+      const response = await askChat(q);
+      setResp(response);
+      if (response.citations && response.citations.length > 0) {
+        const ids = response.citations.map((c) => c.id);
+        onRecall?.(ids);
+      }
     } finally {
       setBusy(false);
     }
