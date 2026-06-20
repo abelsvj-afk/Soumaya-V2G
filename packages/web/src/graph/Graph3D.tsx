@@ -536,11 +536,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         bloomRef.current.strength += (target - bloomRef.current.strength) * Math.min(1, dt * 3);
       }
 
-      // Beacons launch from the station, so hand the satellites its world position.
+      // Beacons launch from the station/ship, so hand the satellites their world positions.
       const stationWorld = stationObjRef.current
         ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
         : null;
-      satellites?.update(dt, dataRef.current.nodes as any[], stationWorld);
+      const soumayaPos = soumayaObjRef.current
+        ? soumayaObjRef.current.position.clone()
+        : null;
+      satellites?.update(dt, dataRef.current.nodes as any[], stationWorld, soumayaPos);
+      if (satellites && soumayaHandleRef.current) {
+        const pending = satellites.getPendingDispatches();
+        if (pending.length > 0) {
+          soumayaHandleRef.current.enqueueBeacons(pending);
+        }
+      }
       // Defender live drifter intercept: wire visitor positions as a hazard context
       let subAgentHazard: SubAgentHazard | undefined = undefined;
       if (visitors) {
@@ -736,7 +745,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           d.nodes as any[],
           d.links as any[],
           (x, y, z, type, nodeId) => {
-            burstsRef.current?.spawn(x, y, z, type);
+            if (type === "beacon_dispatch" && nodeId != null) {
+              satellitesRef.current?.release(nodeId);
+              burstsRef.current?.spawn(x, y, z, "synthesis");
+            } else {
+              burstsRef.current?.spawn(x, y, z, type);
+            }
             // Nerve firing: when she tends a memory, pulse signal down its synapses.
             if (nodeId != null) fireAlongNode(nodeId);
           },

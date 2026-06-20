@@ -27,6 +27,8 @@ export interface SoumayaHandle {
   /** Queue brand-new memories for her to physically ferry from the dock into their
    *  orbit slot (held by the orbit system until she drops them). */
   enqueuePlacements: (ids: number[]) => void;
+  /** Queue beacon targets for her to fly to and dispatch (takes priority over patrol). */
+  enqueueBeacons: (ids: number[]) => void;
   /** Floating "current task" billboard — added to the scene by Graph3D so the
    *  ship's banking never tilts it. Toggle its visibility via setTaskVisible. */
   taskLabel: THREE.Object3D;
@@ -203,13 +205,18 @@ export function makeSoumaya(): SoumayaHandle {
     | "linkToSource"
     | "linkToTarget"
     | "placePickup"
-    | "placeCarry" = "idle";
+    | "placeCarry"
+    | "beaconTravel" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
+
+  // Beacons she needs to dispatch (fly to target memory and deploy)
+  const beaconQueue: number[] = [];
+  let activeBeacon: number | null = null;
 
   // Connections she's been asked to forge herself (fly to A, grab the thread, fly
   // to B, connect). Drained before patrol so new memories get linked on-screen.
@@ -377,6 +384,20 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  // Start beacon dispatch: fly directly to the target memory to deploy the beacon.
+  const startBeaconDispatch = (nodes: any[]): void => {
+    while (beaconQueue.length > 0) {
+      const id = beaconQueue.shift()!;
+      const node = nodes.find((n) => n.id === id);
+      if (node?.x != null && curveTo(node)) {
+        activeBeacon = id;
+        target = node;
+        mode = "beaconTravel";
+        return;
+      }
+    }
+  };
+
   // Keep the floating task label in sync with whatever she's doing right now.
   // Called at a single exit point (finally) so it tracks the ship in EVERY mode —
   // including docking/idle, which return early from the main update body.
@@ -384,6 +405,8 @@ export function makeSoumaya(): SoumayaHandle {
     let taskText = "";
     if (mode === "placePickup" || mode === "placeCarry") {
       taskText = "Ferrying a new memory into place";
+    } else if (mode === "beaconTravel") {
+      taskText = "Deploying an Aura beacon";
     } else if (mode === "docking" || mode === "dockTravel") {
       taskText = "Recharging at the station";
     } else if (mode === "linkToSource" || mode === "linkToTarget") {
@@ -412,10 +435,14 @@ export function makeSoumaya(): SoumayaHandle {
       }
 
       if (mode === "idle") {
-        // Place any brand-new memories first (bring the body in), THEN forge the
-        // connections it formed, THEN routine patrol/maintenance.
+        // Place any brand-new memories first (bring the body in), THEN dispatch any
+        // new beacons, THEN forge the connections, THEN routine patrol/maintenance.
         if (placeQueue.length > 0 && orbitApi) {
           startPlacement(nodes);
+          return;
+        }
+        if (beaconQueue.length > 0) {
+          startBeaconDispatch(nodes);
           return;
         }
         if (linkQueue.length > 0) {
@@ -578,6 +605,14 @@ export function makeSoumaya(): SoumayaHandle {
             activePlace = null;
             mode = "idle";
           }
+        } else if (t >= 1 && mode === "beaconTravel") {
+          // Reached the target memory — deploy the beacon and return to idle.
+          const p = vecOf(target);
+          onArrive(p.x, p.y, p.z, "beacon_dispatch", target?.id);
+          activeBeacon = null;
+          curve = null;
+          currentVel = 0;
+          mode = "idle";
         } else if (t >= 1) {
           // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
@@ -652,10 +687,16 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
+  const enqueueBeacons = (ids: number[]) => {
+    for (const id of ids) {
+      if (id !== activeBeacon && !beaconQueue.includes(id)) beaconQueue.push(id);
+    }
+  };
+
   const setTaskVisible = (v: boolean) => {
     taskEnabled = v;
     if (!v) taskLabel.sprite.visible = false;
   };
 
-  return { object: group, update, enqueueLinks, enqueuePlacements, taskLabel: taskLabel.sprite, setTaskVisible };
+  return { object: group, update, enqueueLinks, enqueuePlacements, enqueueBeacons, taskLabel: taskLabel.sprite, setTaskVisible };
 }

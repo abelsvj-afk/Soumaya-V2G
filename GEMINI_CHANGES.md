@@ -165,6 +165,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-20 (Gemini): Literal beacon dispatch animation
+- [ ] Verified by Claude
+- Implemented visual beacon dispatch: Aura beacons are kept invisible and pinned to the ship/station position until they are released.
+- Soumaya's ship queues pending beacon dispatches and flies directly to the cooling memory to deploy it.
+- Once she arrives, a synthesis/glow spark is spawned at the memory, the beacon is released, fades in, and starts orbiting and beaming.
+- Files touched: `packages/web/src/graph/satellites.ts`, `packages/web/src/graph/soumaya.ts`, `packages/web/src/graph/Graph3D.tsx`.
+- Zone: Green (shipped)
+- Gate: typecheck clean, web build clean, tests bypassed on Termux (sqlite-vec platform constraint).
+
 ### 2026-06-20 (Gemini): Differentiate ＋ icons and restore mobile dock tab names (Issue #6)
 - [ ] Verified by Claude
 - Differentiated the "Add a memory" FAB icon from the on-screen zoom-in FAB icon by changing the former to 📝, and updated the help panel.

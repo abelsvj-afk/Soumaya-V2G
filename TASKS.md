@@ -26,7 +26,7 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 - [ ] 🟡 **Defender sub-agent 3D model (`defense-ship.glb`)** — logic exists, no visual. Asset must be provided by user; wiring into `graph/subAgents` procedural fallback → GLB swap is Green.
 - [ ] 🟡 **Visitor craft models (`visitor-traveler.glb` / `visitor-wanderer.glb`)** — procedural saucers are placeholders. Asset = user provides; GLB loader swap = Green.
-- [ ] 🟢 **Literal beacon dispatch animation** — Soumaya flies to position and releases a beacon visually. Pure `graph/soumaya.ts` animation work, no backend touch.
+- [x] 🟢 **Literal beacon dispatch animation** — Soumaya flies to position and releases a beacon visually. Pure `graph/soumaya.ts` animation work, no backend touch.
 - [x] 🟢 **Defender live drifter intercept** — wire real visitor positions from `visitors.ts` into `subAgents.update` so the Defender actually flies to intercept drifters. `graph/subAgents` only.
 - [ ] 🟡 **Formalize alien attraction scoring function** — `visitors.ts` scoring logic (emotional intensity, rarity, mass, degree, recency, revisit frequency). Server service = Red-adjacent; visual feedback on hover / in List = Green.
 
