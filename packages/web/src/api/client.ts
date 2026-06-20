@@ -1,8 +1,44 @@
 import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType } from "@brain/shared";
+import { useState, useEffect } from "react";
 
 const API = "/api";
 
-// --- Per-brain identity (multi-tenancy) ---
+// --- Node processing state tracking ("Writing..." latency feedback) ---
+const processingNodes = new Set<number>();
+const nodeProcessingListeners = new Set<(nodes: Set<number>) => void>();
+
+export function isNodeProcessing(id: number): boolean {
+  return processingNodes.has(id);
+}
+
+export function onNodeProcessingChange(cb: (nodes: Set<number>) => void): () => void {
+  nodeProcessingListeners.add(cb);
+  cb(new Set(processingNodes));
+  return () => nodeProcessingListeners.delete(cb);
+}
+
+export function useProcessingNodes(): Set<number> {
+  const [processing, setProcessing] = useState<Set<number>>(new Set(processingNodes));
+  useEffect(() => {
+    return onNodeProcessingChange(setProcessing);
+  }, []);
+  return processing;
+}
+
+function setNodeProcessing(ids: number[], active: boolean): void {
+  for (const id of ids) {
+    if (active) processingNodes.add(id);
+    else processingNodes.delete(id);
+  }
+  for (const l of nodeProcessingListeners) {
+    try {
+      l(new Set(processingNodes));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
 // The space id is the secret key to a private brain. We keep it in localStorage
 // so it persists on this device, and send it on every API call.
 const SPACE_KEY = "brain.spaceId";
@@ -178,16 +214,21 @@ export async function search(q: string): Promise<SearchHit[]> {
 
 /** Ask the AI to piece a memory + its connections into a fresh insight. */
 export async function synthesizeNode(id: number): Promise<{ text: string; connected: number }> {
-  return tracked(
-    (async () => {
-      const res = await afetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Synthesis failed (${res.status})`);
-      }
-      return res.json() as Promise<{ text: string; connected: number }>;
-    })(),
-  );
+  setNodeProcessing([id], true);
+  try {
+    return await tracked(
+      (async () => {
+        const res = await afetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `Synthesis failed (${res.status})`);
+        }
+        return res.json() as Promise<{ text: string; connected: number }>;
+      })(),
+    );
+  } finally {
+    setNodeProcessing([id], false);
+  }
 }
 
 /** Manually set a memory's weight (0..1), or null to reset to the auto rating. */
@@ -373,12 +414,17 @@ export async function getNextMaintenanceJob(): Promise<MaintenanceJob> {
 }
 
 export async function completeMaintenanceJob(type: string, targets: number[]): Promise<{ ok: boolean }> {
-  const res = await afetch(`${API}/maintenance/complete-job`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type, targets }),
-  });
-  return res.json() as Promise<{ ok: boolean }>;
+  setNodeProcessing(targets, true);
+  try {
+    const res = await afetch(`${API}/maintenance/complete-job`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, targets }),
+    });
+    return await res.json() as Promise<{ ok: boolean }>;
+  } finally {
+    setNodeProcessing(targets, false);
+  }
 }
 
 export interface AgentLog {

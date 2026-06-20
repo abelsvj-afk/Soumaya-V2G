@@ -20,7 +20,7 @@ import { makeSpaceStation } from "./spaceStation.js";
 import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
-import { logVisits } from "../api/client.js";
+import { isNodeProcessing, logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { makeSubAgents, type SubAgentSystem } from "./subAgents.js";
 import { BG } from "./theme.js";
@@ -580,6 +580,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const isSelected = id === activeId;
           const isMacroView = dist > MACRO_DIST && !isSelected;
 
+          const processing = isNodeProcessing(id);
+          if (processing) {
+            // Strong size pulse during processing/LLM activity
+            const scalePulse = 1.0 + 0.28 * (Math.sin(now * 8.0) * 0.5 + 0.5);
+            o.scale.setScalar(scalePulse);
+          } else {
+            o.scale.setScalar(1.0);
+          }
+
           o.children.forEach((child: any) => {
             // Self-rotation: the body (+ rings) spins on its own axis while the
             // orbit system carries it around its neighbor. (Lives on the fidelity
@@ -589,8 +598,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             if (child.userData?.pulse) {
               const bf = brightness(dist);
               const p = child.userData.pulse;
-              const s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
-              const intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
+              
+              let s;
+              let intensity;
+              if (processing) {
+                // Faster, stronger pulse during processing
+                s = Math.sin(now * 8.0) * 0.5 + 0.5;
+                intensity = (p.base * 1.5 + 0.65 * s) * bf;
+              } else {
+                s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
+                intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
+              }
+
               const mat = child.material as any;
               if (mat?.isShaderMaterial) {
                 mat.uniforms.uBrightness.value = intensity;
@@ -979,7 +998,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         (!cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))))
       }
       nodeThreeObject={(node: any) => makeNodeObject(node)}
-      nodeLabel={(n: any) => `${n.label} · ${String(n.type).replace(/_/g, " ")}`}
+      nodeLabel={(n: any) => {
+        const proc = isNodeProcessing(n.id) ? " ⚙️ (Writing...)" : "";
+        return `${n.label}${proc} · ${String(n.type).replace(/_/g, " ")}`;
+      }}
       onNodeClick={(n: any) => {
         onSelect(n);
         flyTo(n);

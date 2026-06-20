@@ -34,7 +34,7 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ## Memory & UX
 
-- [ ] 🟢 **"Writing..." latency feedback on nodes during LLM processing** — show a pulsing state on a node's orb while its job is in flight. Frontend component state only.
+- [x] 🟢 **"Writing..." latency feedback on nodes during LLM processing** — show a pulsing state on a node's orb while its job is in flight. Frontend component state only.
 - [ ] 🟢 **Brain-like filaments at macro zoom** — neuron-like connecting filaments visible when zoomed far out. three.js / `Graph3D.tsx`, no backend.
 - [ ] 🟢 **Neural recall-signal animation** — fire synapse-style pulses along the path from seed node to each cited node during a chat response (`fireRecall(citationIds)` in `Graph3D.tsx`).
 - [ ] 🟢 **Per-memory story arcs in object lore** — space station + ship lore tied to specific memory relationships (`graph/objectLore.ts`). Explicitly Green Zone file.

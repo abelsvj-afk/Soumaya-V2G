@@ -1157,6 +1157,38 @@ body,
   flex: none;
 }
 
+/* Pulsing loader styles for nodes undergoing LLM processing */
+.node-list li.processing button {
+  animation: pulse-border 1.5s infinite ease-in-out;
+  border-color: rgba(122, 249, 255, 0.4);
+}
+@keyframes pulse-border {
+  0%, 100% {
+    box-shadow: 0 0 2px rgba(122, 249, 255, 0.1);
+    background: rgba(122, 249, 255, 0.02);
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(122, 249, 255, 0.35);
+    background: rgba(122, 249, 255, 0.07);
+  }
+}
+.nl-writing {
+  font-size: 9.5px;
+  color: var(--accent);
+  margin-left: 6px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  animation: pulse-opacity 1.2s infinite ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1.0; }
+}
+
 /* Panel close (×) + headers */
 .panel-head {
   display: flex;
