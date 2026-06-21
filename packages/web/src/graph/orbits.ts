@@ -223,17 +223,24 @@ export function makeOrbitSystem(): OrbitSystem {
       }
     }
 
-    // Measure the galaxy extent (using the max comet-swing radius) so the camera +
-    // star field always enclose it.
+    // Measure the galaxy extent (using the 85th percentile of body extents) so the camera +
+    // star field frame the core cluster and ignore outliers.
     const extent = new Map<number, number>();
-    galaxyRadius = 0;
+    const extents: number[] = [];
     for (const n of order) {
       const p = params.get(n.id)!;
       const own = p.top ? (p.baseRadius ?? 0) * (1 + (p.radialAmp ?? 0)) : p.radius;
       const parentExtent = p.top || !p.parent ? 0 : (extent.get(p.parent.id) ?? 0);
       const dist = parentExtent + own;
       extent.set(n.id, dist);
-      galaxyRadius = Math.max(galaxyRadius, dist + bodySize(n));
+      extents.push(dist + bodySize(n));
+    }
+    if (extents.length > 0) {
+      extents.sort((a, b) => a - b);
+      const pctIndex = Math.min(extents.length - 1, Math.floor(extents.length * 0.85));
+      galaxyRadius = extents[pctIndex] ?? 0;
+    } else {
+      galaxyRadius = 0;
     }
   };
 
