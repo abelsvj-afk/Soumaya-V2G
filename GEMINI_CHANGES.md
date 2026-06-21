@@ -165,6 +165,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-21 (Gemini): Deploy and verify visual fix for clumping (Issue #10)
+- [ ] Verified by Claude
+- **Deployment**: Deployed current HEAD (including commit `fa7f6c6`) via `flyctl deploy --remote-only` from the Termux environment.
+- **Cache Busting**: Confirmed the new build's service worker cache ID is `soumaya-bmqna5qeo` (which successfully busts the stale `soumaya-bmqmzfzxf`).
+- **Live Assets Verification**: Checked `index.html` on the live application `https://brain-soumaya-v1.fly.dev/` and verified it serves the new bundle `/assets/index-Dvmb91jb.js`.
+- **Verdict**: The fresh render is correct. The user's installed PWA cache was stale, holding `soumaya-bmqmzfzxf`.
+- Files touched: None (deploy + verification only).
+- Zone: Green (shipped)
+- Gate: web build and deploy clean.
+
 ### 2026-06-20 (Gemini): Enable visual QA with ?demo=1 URL query parameter
 - [ ] Verified by Claude
 - Implemented a query parameter check `?demo=1` on load in `packages/web/src/App.tsx`.
