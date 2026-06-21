@@ -1024,11 +1024,17 @@ Status: typecheck clean, web builds.
 ### 2026-06-21: Gated Galaxy Initial Loading for Ferrying & Camera
 - **Ferrying Bug Fix**: Passed the `loaded` state down from [App.tsx](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/App.tsx#L322) to [Graph3D.tsx](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/graph/Graph3D.tsx#L81) to prevent Soumaya's ship from immediately ferrying all existing memories on page reload. The initial nodes/links baseline is now only set once the real galaxy data is fetched and loaded (i.e. `loaded` becomes true or `data.nodes` is populated), resolving a race condition where the empty initial state (`[]`) was treated as the baseline and all subsequent loaded nodes were queued as "new placements".
 - **Camera Zoom-Out/Centering Fix**: Declared a React ref `loadedRef` in `Graph3D.tsx` to safely access the live `loaded` state inside the animation tick loop closure. Gated the initial camera framing check (`frameGalaxy(0)`) so that it waits until `loadedRef.current` is `true`. This prevents the camera from triggering on the initial empty graph `[]` (which previously trapped the camera target inside the Sun at `0, 0, 0` and required the user to manually click the recenter/focus button).
+- **Soumaya Task Queue & Mobile Reordering**: Exposed the live flight queues (placements, link forge, beacon dispatch, removals) inside [soumaya.ts](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/graph/soumaya.ts#L852) to the React layout. Integrated a new collapsible **Soumaya's Active Flight Tasks** queue at the bottom of the Chat panel ([ChatPanel.tsx](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/components/ChatPanel.tsx#L161)), complete with status indicators (pulsing cyan for doing, grey checkmark for done, circle for planned). Added mobile-friendly `▲`/`▼` controls to reorder planned tasks in the queue.
+- **Camera Cockpit Lock**: Added a camera follow mode switcher (`🎥 Lock` vs `🎥 Free` inside ChatPanel) that toggles between free Orbit follow and **Cockpit Lock** (which locks the camera position and orientation right in front of the ship looking back at the nose, keeping the ship and its marquee task label dead-centered at the top of the viewport as she banking-steers through space).
+- **Task Prioritization & Interruption**: Programmed Soumaya to prioritize newly added memories or deletions immediately: if she is patrolling or recharging and a priority placement or removal task arrives, she immediately aborts her current routine job/recharge and flies home to ferry/discard the memory right away.
+- **Marquee Clumping & Offsets**: Solved task label marquee clumping by appending a 140px blank space loop gap to the sprite canvas when scrolling is active. Added camera offsets in `Graph3D.tsx` on desktop viewport sizes to push focused nodes/ships leftwards, preventing sidebar panels from covering them.
 - **Compile and Typecheck**: Successfully verified with `npm run typecheck` and `npm run build -w @brain/web`.
 - **Deployment**: Pushed changes to `claude/soumaya-second-brain-v1-m4z4hc` and deployed to Fly.io.
 
 ## Git Commits
 - `aaafe5f`: Fix race condition causing pre-existing memories to be queued for ferrying on startup
 - `320e15e`: Fix camera framing triggering before graph is loaded, preventing camera starting inside the sun
+- `54345c4`: Support ship task list, task queue reordering ▲/▼, cockpit lock mode toggle, and prioritize new memory placements
+
 
 
