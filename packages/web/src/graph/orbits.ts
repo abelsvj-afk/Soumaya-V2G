@@ -237,9 +237,12 @@ export function makeOrbitSystem(): OrbitSystem {
     }
   };
 
-  const update = (dt: number, _nodes: any[]) => {
+  const update = (dt: number, nodes: any[]) => {
     if (params.size === 0) return;
-    for (const n of order) {
+    const currentById = new Map<number, any>(nodes.map((n) => [n.id, n]));
+    for (const orderNode of order) {
+      const n = currentById.get(orderNode.id);
+      if (!n) continue;
       const p = params.get(n.id);
       if (!p) continue;
       if (held.has(n.id)) continue; // being ferried by Soumaya — she controls it
@@ -259,9 +262,13 @@ export function makeOrbitSystem(): OrbitSystem {
         p.angle += p.speed * dt;
         const c = Math.cos(p.angle);
         const s = Math.sin(p.angle);
-        n.x = (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius;
-        n.y = (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius;
-        n.z = (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius;
+        const currParent = p.parent ? currentById.get(p.parent.id) : null;
+        const parentX = currParent ? (currParent.x ?? 0) : 0;
+        const parentY = currParent ? (currParent.y ?? 0) : 0;
+        const parentZ = currParent ? (currParent.z ?? 0) : 0;
+        n.x = parentX + (p.u.x * c + p.v.x * s) * p.radius;
+        n.y = parentY + (p.u.y * c + p.v.y * s) * p.radius;
+        n.z = parentZ + (p.u.z * c + p.v.z * s) * p.radius;
       }
       // Pin so the force engine can't move (or collapse) them.
       n.fx = n.x;

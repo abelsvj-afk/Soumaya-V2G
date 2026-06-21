@@ -1232,7 +1232,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         !pendingLinksRef.current.has(linkKey(l)) &&
         (!cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))))
       }
-      nodeThreeObject={(node: any) => makeNodeObject(node)}
+      nodeThreeObject={(node: any) => {
+        const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
+        if (!node.__threeObj || node.__threeKey !== cacheKey) {
+          node.__threeObj = makeNodeObject(node);
+          node.__threeKey = cacheKey;
+        }
+        return node.__threeObj;
+      }}
       nodeLabel={(n: any) => {
         const proc = isNodeProcessing(n.id) ? " ⚙️ (Writing...)" : "";
         return `${n.label}${proc} · ${String(n.type).replace(/_/g, " ")}`;

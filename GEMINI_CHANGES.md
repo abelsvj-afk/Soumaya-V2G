@@ -165,15 +165,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
-### 2026-06-21 (Gemini): Deploy and verify visual fix for clumping (Issue #10)
+### 2026-06-21 (Gemini): Fix orbit reference mismatch (clumping) + cache Three.js objects (lag) (Issue #10)
 - [ ] Verified by Claude
-- **Deployment**: Deployed current HEAD (including commit `fa7f6c6`) via `flyctl deploy --remote-only` from the Termux environment.
-- **Cache Busting**: Confirmed the new build's service worker cache ID is `soumaya-bmqna5qeo` (which successfully busts the stale `soumaya-bmqmzfzxf`).
-- **Live Assets Verification**: Checked `index.html` on the live application `https://brain-soumaya-v1.fly.dev/` and verified it serves the new bundle `/assets/index-Dvmb91jb.js`.
-- **Verdict**: The fresh render is correct. The user's installed PWA cache was stale, holding `soumaya-bmqmzfzxf`.
-- Files touched: None (deploy + verification only).
+- **Root Cause & Orbits Fix**: Identified that the kinematic orbit update loop in `orbits.ts` was mutating stale node references from the time `rebuild` was called. Under React re-renders or database updates, `react-force-graph-3d` updates/clones node references, meaning the active nodes in the scene had undefined coordinates and collapsed clumped at the center `0, 0, 0` while the force simulation tick loop ran endlessly in a struggle. Fixed this in `orbits.ts` by mapping the layout iteration order to the incoming active `nodes` references on every frame via an ID-to-Node `Map` lookup.
+- **Performance / Lag Optimization**:
+  - **Node Object caching**: Added a property-based caching mechanism to `nodeThreeObject` in `Graph3D.tsx`. Stores the compiled Three.js `Object3D` on `node.__threeObj` and invalidates it using a composite key of properties that affect the body's rendering (label, importance, degree, entropy, color, kind), preventing expensive mesh/material/CanvasTexture recreation on every frame hover/render.
+  - **Moon Texture caching**: Cached the generated moon surface canvas texture globally in `nodeObject.ts` to prevent recreation.
+- **Deployment**: Re-built and deployed the optimized code to Fly.io. Live SW cache ID is `soumaya-bmqnb49f0`, serving new bundle `/assets/index-OCB4Yi9x.js`.
+- Files touched: `packages/web/src/graph/orbits.ts`, `packages/web/src/graph/nodeObject.ts`, `packages/web/src/graph/Graph3D.tsx`.
 - Zone: Green (shipped)
-- Gate: web build and deploy clean.
+- Gate: typecheck clean, web build clean, deployed.
 
 ### 2026-06-20 (Gemini): Enable visual QA with ?demo=1 URL query parameter
 - [ ] Verified by Claude

@@ -219,6 +219,14 @@ function makeMoonSurface(): THREE.CanvasTexture {
   return toMap(c);
 }
 
+let cachedMoonTexture: THREE.CanvasTexture | null = null;
+function getMoonTexture(): THREE.CanvasTexture {
+  if (!cachedMoonTexture) {
+    cachedMoonTexture = makeMoonSurface();
+  }
+  return cachedMoonTexture;
+}
+
 /**
  * Build a node as a celestial body. Mass (derived server-side from importance +
  * connections + emotion) sets size and class. Bodies are textured spheres so a
@@ -346,7 +354,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
         metalness: 0.05,
       });
       try {
-        m.map = makeMoonSurface();
+        m.map = getMoonTexture();
       } catch {
         /* solid rock */
       }
