@@ -935,10 +935,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const center = new THREE.Vector3();
     for (const n of pts) center.add(new THREE.Vector3(n.x, n.y, n.z ?? 0));
     center.multiplyScalar(1 / pts.length);
-    let radius = 1;
-    for (const n of pts) {
-      radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
-    }
+    const distances = pts.map((n) =>
+      center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0))
+    );
+    distances.sort((a, b) => a - b);
+    const pctIndex = Math.min(distances.length - 1, Math.floor(distances.length * 0.85));
+    let radius = distances[pctIndex] || 1;
     // Always enclose the (gigantic) sun at the origin too, plus headroom.
     radius = Math.max(radius, center.length() + SUN_RADIUS_MAX) * 1.12;
     const cam = fg.camera() as THREE.PerspectiveCamera;
