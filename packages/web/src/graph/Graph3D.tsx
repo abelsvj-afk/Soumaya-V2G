@@ -70,6 +70,8 @@ interface Props {
   demo?: boolean;
   /** Show the floating "current task" label above Soumaya's ship. */
   showShipTask?: boolean;
+  /** True when the initial API fetch of the real galaxy is done. */
+  loaded?: boolean;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -82,7 +84,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -146,14 +148,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const datasetSwitched = prevDemoRef.current !== !!demo;
     prevDemoRef.current = !!demo;
     if (!linksInitedRef.current || datasetSwitched) {
-      knownLinksRef.current = new Set(keys);
-      knownNodesRef.current = new Set((data.nodes as any[]).map((n) => n.id));
-      pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
-      linksInitedRef.current = true;
-      fgRef.current?.refresh?.();
-      // Re-frame the whole galaxy once the new positions settle (reuses the
-      // first-frame logic) so a demo<->real swap opens zoomed-out, not inside the sun.
-      if (datasetSwitched) initialFramedRef.current = false;
+      if (loaded || data.nodes.length > 0 || datasetSwitched) {
+        knownLinksRef.current = new Set(keys);
+        knownNodesRef.current = new Set((data.nodes as any[]).map((n) => n.id));
+        pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
+        linksInitedRef.current = true;
+        fgRef.current?.refresh?.();
+        // Re-frame the whole galaxy once the new positions settle (reuses the
+        // first-frame logic) so a demo<->real swap opens zoomed-out, not inside the sun.
+        if (datasetSwitched) initialFramedRef.current = false;
+      }
     } else {
       // New CONNECTIONS: Soumaya flies out and draws them (hidden until then).
       const fresh: LinkTask[] = [];
@@ -214,7 +218,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
       if (removals.length > 0) soumayaHandleRef.current?.enqueueRemovals(removals);
     }
-  }, [data, demo]);
+  }, [data, demo, loaded]);
 
   // When set, the camera locks onto this node and rides along as it orbits, so a
   // body you jumped to doesn't drift out of frame.

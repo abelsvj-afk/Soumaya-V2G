@@ -319,6 +319,7 @@ export default function App() {
         bottomInset={panel === "dock"}
         demo={demo}
         showShipTask={showShipTask}
+        loaded={loaded}
       />
 
       {!loaded && (
