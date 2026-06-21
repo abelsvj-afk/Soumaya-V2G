@@ -571,10 +571,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Advance every body along its orbit first, so the camera + Soumaya read
       // up-to-date positions this frame.
-      const fg = fgRef.current;
-      if (fg) {
-        const liveNodes = fg.graphData().nodes as any[];
-        const liveById = new Map<number, any>(liveNodes.map((n) => [n.id, n]));
+      const scene = fgRef.current?.scene();
+      const liveGraphGroup = scene?.children.find(
+        (c: any) => c.type === "Group" && c.children?.some((ch: any) => ch.userData?.nodeId != null),
+      );
+
+      if (liveGraphGroup) {
+        const liveById = new Map<number, any>();
+        liveGraphGroup.children.forEach((o: any) => {
+          if (o.userData?.nodeId != null && o.userData.nodeRef) {
+            liveById.set(o.userData.nodeId, o.userData.nodeRef);
+          }
+        });
         for (const n of dataRef.current.nodes as any[]) {
           const live = liveById.get(n.id);
           if (live) {
@@ -593,20 +601,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
 
-      if (fg) {
-        const liveNodes = fg.graphData().nodes as any[];
-        const liveById = new Map<number, any>(liveNodes.map((n) => [n.id, n]));
-        for (const n of dataRef.current.nodes as any[]) {
-          const live = liveById.get(n.id);
-          if (live) {
-            live.x = n.x;
-            live.y = n.y;
-            live.z = n.z;
-            live.fx = n.fx;
-            live.fy = n.fy;
-            live.fz = n.fz;
+      if (liveGraphGroup) {
+        liveGraphGroup.children.forEach((o: any) => {
+          if (o.userData?.nodeId != null && o.userData.nodeRef) {
+            const live = o.userData.nodeRef;
+            const n = (dataRef.current.nodes as any[]).find((x) => x.id === o.userData.nodeId);
+            if (n) {
+              live.x = n.x;
+              live.y = n.y;
+              live.z = n.z;
+              live.fx = n.fx;
+              live.fy = n.fy;
+              live.fz = n.fz;
+            }
           }
-        }
+        });
       }
 
       // First frame with real positions → open zoomed-out (not inside the sun).
@@ -1280,11 +1289,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       nodeThreeObject={(node: any) => {
         const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
         const cached = nodeThreeObjCacheRef.current.get(node.id);
+        let obj;
         if (cached && cached.key === cacheKey) {
-          return cached.obj;
+          obj = cached.obj;
+        } else {
+          obj = makeNodeObject(node);
+          nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
         }
-        const obj = makeNodeObject(node);
-        nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
+        obj.userData.nodeRef = node; // Stash the live simulation node reference!
         return obj;
       }}
       nodeLabel={(n: any) => {
