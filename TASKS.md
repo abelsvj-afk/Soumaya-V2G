@@ -99,6 +99,53 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ---
 
+## 🎮 Gamification / Immersion (make the brain-galaxy *fun*, not just useful)
+
+> Goal: reward returning + exploring, give Soumaya real warmth, and make growth feel earned and
+> celebrated — without breaking the Obsidian-grade utility or the offline path. Sequenced quick-wins →
+> deeper. Builds on systems we already have: **Fuel/economy**, **entropy** (cooling), **insights**
+> (latent links), **constellations**, **daily_logs**, the **lore engine**, and **Soumaya** herself.
+> Rewards are always ADDITIVE — they must never gate core utility. Keep the gate green + offline-safe.
+
+### Wave 1 — quick wins (cheap, high delight; mostly 🟢 frontend)
+- [ ] 🟢 **Return greeting** — on open, Soumaya greets you by space name + references the last daily log /
+  what changed while away ("Welcome back — 3 memories cooled, I found 1 new connection"). Uses
+  `daily_logs` + `getGraph`. UI in `App`/`SoumayaPanel`.
+- [ ] 🟢 **Discovery toasts** — transient celebratory banner on notable events: "✦ New constellation: <name>",
+  "Soumaya linked '<a>' ↔ '<b>'", "'<label>' grew into a planet". Diff `insights`/`constellations`/mass-tier
+  on refresh; pure client.
+- [ ] 🟢 **Milestone bodies** — your Nth memory (10/50/100/365) gets a one-time celebration + a permanent
+  badge/glow. Client-side from node count + creation order.
+- [ ] 🟢 **First-run / genesis moment** — empty brain shows a warm "drop your first thought" prompt; first
+  memory gets a big bloom + Soumaya's first words. (Pairs with the Daily-Log onboarding item above.)
+- [ ] 🟢 **Fuel feedback** — the ⛽ HUD chip shows progress to the next "tank" + a tiny "+N" pop when you
+  log/link/clear an action. (Fuel is already surfaced; add the juice.)
+
+### Wave 2 — engagement loop (🟡 light server)
+- [ ] 🟡 **Streaks** — consecutive days you tended the galaxy; streak flame + small fuel bonus to keep it.
+  Counter = additive `space_meta` field (🔴 migration) + UI (🟢).
+- [ ] 🟡 **Daily quests / tend list** — 1–3 concrete nudges ("warm 2 cooling memories", "review Soumaya's
+  newest insight"); completing earns fuel. Built from `entropy` + `insights` (server read) + UI.
+- [ ] 🟡 **Achievements** — unlockable badges ("First constellation", "100 memories", "Connector: 50 links",
+  "Night owl"). Definitions client-side; persistence via `space_meta` JSON (🔴) or localStorage (🟢 v1).
+
+### Wave 3 — companion warmth + progression (🟡/🔴)
+- [ ] 🔴 **Behavioral persona deepening** — Soumaya's tone adapts to your patterns/history (also under AI
+  Companion). Makes her feel like she *knows* you. `persona/derive.ts`.
+- [ ] 🟢 **Soumaya reactions** — she emotes to events (excited on a new link, concerned when many memories
+  cool, celebratory at a milestone) via her task label / a speech bubble + the existing voice.
+- [ ] 🟢 **Galaxy "rank" / level-up** — visible progression: sun grows a touch at milestones (exists,
+  clamped), sectors auto-name as they densify (`celestialTitle`), a subtle brain rank (Nebula → Cluster →
+  Galaxy) from size/connectivity.
+- [ ] 🟢 **Cinematic intro** — on load, a brief camera flythrough that settles into the framed galaxy (now
+  that framing is fixed), so opening *feels* like arriving somewhere.
+
+### Guardrails
+Offline-safe (no reward hard-requires the LLM), bounded, gate stays green. Server bits (streak/achievement
+persistence) are 🔴 additive `space_meta`/migration; all the feedback/visual juice is 🟢.
+
+---
+
 ## Deferred / Parked
 
 - [ ] 🟢 **Audit follow-ups from agy's clumping batch (minor, non-blocking)** — (1) `Graph3D` does a
