@@ -165,8 +165,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-21 (Claude): Audited agy's clumping-fix batch — VERIFIED solid
+- [x] Verified by Claude — gate green (typecheck · 87 tests · web build); reviewed via 3 read-only passes.
+- **Root cause (agy found it):** the clump was a **React-reference mismatch** — react-force-graph keeps
+  its own internal node objects, so `orbits.ts` was positioning detached `data.nodes` while the rendered
+  nodes stayed at the force-sim origin. Fix = sync coords to the LIVE sim nodes (from the scene group) +
+  directly position meshes each frame + keep the sim ticking with all forces zeroed; camera frames the
+  85th percentile (ignores comet outliers) while galaxyRadius stays true-max for station/starfield.
+- **Server (`agent.ts`, `graphrag.ts`):** duplicate-synthesis dedup is correct + space-scoped; chat
+  "system telemetry" context is space-scoped, offline-safe (try/caught, heuristic path intact), ~680
+  tokens, response contract unchanged, no schema change. Within contracts — acceptable.
+- **soumaya.ts (+652) + Chat→Soumaya panel merge:** task queue/reorder safe (stable ids, only reorders
+  *planned*, active task untouched, bounded); cockpit-lock camera has no double-write / no stranded cam;
+  deleted ChatPanel left no dangling wiring (defensive tab fallback). Existing modes intact.
+- **Minor follow-ups logged (not bugs):** see TASKS.md — per-frame O(n) `.find()` for mesh positioning
+  (reuse the id→node map), repeated `graphData()` calls, and a `moveTask()` null-guard.
+
 ### 2026-06-21 (Gemini): Direct Three.js mesh positioning and continuous D3 animation ticks to fix clumping
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - **Root Cause & Fix**: Even after mapping coordinates to active simulation nodes, D3's internal force simulation could enter cooldown and pause/stop ticking (especially since default forces were set to 0), which prevented the React-Force-Graph renderer from updating Three.js mesh positions and link lines. This resulted in nodes freezing at their initial clumped positions, and allowed users to drag nodes away without them snapping back because coordinate updates were no longer being read.
 - **Direct mesh sync**: Added a direct coordinate write to the Three.js mesh `o.position` inside the `graphGroup.children` loop on every frame. This ensures meshes are immediately and reliably placed on their correct kinematic orbit paths regardless of the D3 engine status.
 - **Continuous simulation ticks**: Initialized `fg.d3AlphaTarget(0.05)` during scene setup to keep the simulation ticking forever so that link lines are continuously re-drawn at the correct coordinates. Changed `cooldownTicks` and `cooldownTime` props from `Infinity` (which could be fallback-reset by force-graph if not finite) to a finite large number `9999999`.
@@ -175,7 +191,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean.
 
 ### 2026-06-21 (Gemini): Direct coordinate sync to active simulation nodes to prevent clumping and camera NaN locks
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - **Root Cause & Fix**: Identified that the cached Three.js objects (returned by `nodeThreeObject`) retained stale references to old simulated nodes from previous renders. Syncing coordinates by traversing the Three.js scene and reading `userData.nodeRef` meant writing values to these stale simulation node references, which had no effect on the active D3 simulation nodes. As a result, the active simulated nodes remained clumped at `0, 0, 0` and the camera target became `NaN` on initial load (locking the view to the center Sun).
 - **Direct coordinate sync**: Replaced the complex Three.js scene traversal/coordinate copy logic in the tick loop with a direct lookup and update of the active simulated nodes using `fg.graphData()?.nodes`. This guarantees that the kinematic orbit coordinates and Soumaya's ferrying movements are written directly to the active D3 simulated objects, completely bypassing Three.js object cache lifecycle issues.
 - **Camera NaN Safeguard**: Added `!isNaN(n.x) && !isNaN(n.y)` filtering in `frameGalaxy` to prevent `NaN` viewport locks when coordinates are not fully initialized or are in transition on first frame.
@@ -184,7 +200,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean.
 
 ### 2026-06-21 (Gemini): Fix orbit reference mismatch (clumping) + cache Three.js objects (lag) (Issue #10)
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - **Root Cause & Orbits Fix**: Identified that the kinematic orbit update loop in `orbits.ts` was mutating stale node references from the time `rebuild` was called. Under React re-renders or database updates, `react-force-graph-3d` updates/clones node references, meaning the active nodes in the scene had undefined coordinates and collapsed clumped at the center `0, 0, 0` while the force simulation tick loop ran endlessly in a struggle. Fixed this in `orbits.ts` by mapping the layout iteration order to the incoming active `nodes` references on every frame via an ID-to-Node `Map` lookup.
 - **Performance / Lag Optimization**:
   - **Node Object caching**: Added a property-based caching mechanism to `nodeThreeObject` in `Graph3D.tsx`. Stores the compiled Three.js `Object3D` on `node.__threeObj` and invalidates it using a composite key of properties that affect the body's rendering (label, importance, degree, entropy, color, kind), preventing expensive mesh/material/CanvasTexture recreation on every frame hover/render.
@@ -195,7 +211,7 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Gate: typecheck clean, web build clean, deployed.
 
 ### 2026-06-20 (Gemini): Enable visual QA with ?demo=1 URL query parameter
-- [ ] Verified by Claude
+- [x] Verified by Claude
 - Implemented a query parameter check `?demo=1` on load in `packages/web/src/App.tsx`.
 - Automatically logs into a mock demo space (`demo-space` / `Demo Pilot`) and toggles the `demo` state to `true` instantly, bypassing the LoginScreen.
 - Updated the `refresh` callback to skip graph network fetches when `demo` is active.

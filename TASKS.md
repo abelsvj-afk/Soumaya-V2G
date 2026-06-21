@@ -101,6 +101,11 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ## Deferred / Parked
 
+- [ ] 🟢 **Audit follow-ups from agy's clumping batch (minor, non-blocking)** — (1) `Graph3D` does a
+  per-frame `O(n)` `.find()` to position each mesh; reuse the existing `nodeByIdRef` map. (2) repeated
+  `fg.graphData()` calls per frame — cache once per tick. (3) `SoumayaPanel.moveTask()` should null-guard
+  `tasks[index]`. All cosmetic/defensive; verified not to cause current bugs (2026-06-21 audit).
+
 - [ ] 🟢 **Fix UI layout overlaps** (bottom-menu / "Add thought" button / volume controls) — user said "forget it for now" on 2026-06-20.
 - [ ] **`InstancedMesh` renderer rewrite (phase-1-density-core.md)** — full spec committed and ready but hold until real devices drop below ~50fps. Not blocking anything.
 
