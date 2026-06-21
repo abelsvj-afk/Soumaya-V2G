@@ -103,6 +103,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     demoRef.current = !!demo;
   }, [demo]);
+  const loadedRef = useRef(false);
+  useEffect(() => {
+    loadedRef.current = !!loaded;
+  }, [loaded]);
   // Floating ship task label preference — kept in a ref for the engine loop, and
   // pushed to the live handle whenever the user toggles it.
   const showShipTaskRef = useRef(true);
@@ -580,10 +584,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // First frame with real positions → open zoomed-out (not inside the sun).
       if (!initialFramedRef.current) {
-        const ns = dataRef.current.nodes as any[];
-        if (ns.length === 0 || ns.some((n) => n.x != null)) {
-          initialFramedRef.current = true;
-          frameGalaxy(0);
+        if (loadedRef.current) {
+          const ns = dataRef.current.nodes as any[];
+          if (ns.length === 0 || ns.some((n) => n.x != null && !isNaN(n.x))) {
+            initialFramedRef.current = true;
+            frameGalaxy(0);
+          }
         }
       }
 
