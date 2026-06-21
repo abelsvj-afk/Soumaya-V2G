@@ -17,6 +17,7 @@ import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast } from "./components/Toasts.js";
+import { ACHIEVEMENTS, unlockedIds } from "./components/achievements.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import {
   currentSpace,
@@ -279,6 +280,41 @@ export default function App() {
       pushToast(`"${label}" grew into a ${CELESTIAL_LABEL[n.celestial ?? "planet"]}`, "✦", 6000);
     }
   }, [data.nodes, demo, loaded]);
+
+  // Gamification (Wave 2): achievements — qualitative feats unlocked once each,
+  // per brain, remembered on this device. Offline-safe (pure over loaded state).
+  // The first pass after sign-in is silent (seeds already-earned ones) so we
+  // don't spam a returning user with a backlog of toasts on every launch.
+  const achvInitedRef = useRef(false);
+  useEffect(() => {
+    if (demo || !space || !loaded) return;
+    const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
+    const now = unlockedIds({ memories, links: data.links.length, fuel });
+    const key = `brain.achv.${space.id}`;
+    let seen = new Set<string>();
+    try {
+      seen = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
+    } catch {
+      /* storage unavailable */
+    }
+    const fresh = now.filter((id) => !seen.has(id));
+    if (fresh.length === 0) return;
+    try {
+      localStorage.setItem(key, JSON.stringify([...seen, ...fresh]));
+    } catch {
+      /* ignore */
+    }
+    // Seed silently the first time we ever evaluate this brain on this device.
+    if (!achvInitedRef.current && seen.size === 0) {
+      achvInitedRef.current = true;
+      return;
+    }
+    achvInitedRef.current = true;
+    for (const id of fresh.slice(0, 3)) {
+      const a = ACHIEVEMENTS.find((x) => x.id === id);
+      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 7000);
+    }
+  }, [data.nodes, data.links, fuel, space, demo, loaded]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(

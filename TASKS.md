@@ -126,8 +126,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   Counter = additive `space_meta` field (🔴 migration) + UI (🟢).
 - [ ] 🟡 **Daily quests / tend list** — 1–3 concrete nudges ("warm 2 cooling memories", "review Soumaya's
   newest insight"); completing earns fuel. Built from `entropy` + `insights` (server read) + UI.
-- [ ] 🟡 **Achievements** — unlockable badges ("First constellation", "100 memories", "Connector: 50 links",
-  "Night owl"). Definitions client-side; persistence via `space_meta` JSON (🔴) or localStorage (🟢 v1).
+- [x] 🟢 **Achievements** — ✅ done (Wave 2). 7 qualitative feats (First Light, Synapse, Connector, Nexus,
+  Star Born, Gardener, Fully Fueled) in `components/achievements.ts`; unlock-detect effect in `App.tsx`
+  persists per-brain in localStorage (`brain.achv.${space.id}`), seeds silently on first eval, toasts new
+  unlocks. Offline-safe, no migration. (localStorage v1; `space_meta` JSON sync is a future 🔴 upgrade.)
 
 ### Wave 3 — companion warmth + progression (🟡/🔴)
 - [ ] 🔴 **Behavioral persona deepening** — Soumaya's tone adapts to your patterns/history (also under AI
