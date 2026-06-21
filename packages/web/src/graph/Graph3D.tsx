@@ -752,9 +752,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           if (o.userData?.nodeId == null) return;
           const id = o.userData.nodeId;
 
-          // Directly sync Three.js mesh position from our kinematic coordinates
-          // so they remain positioned correctly even during engine updates or drag events.
-          const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
+          const n = nodeByIdRef.current.get(id);
           if (n && n.x != null && !isNaN(n.x)) {
             o.position.set(n.x, n.y, n.z ?? 0);
           }
@@ -902,7 +900,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const camPos = sp.clone().addScaledVector(fwd, dist).addScaledVector(up, 8);
           camera.position.copy(camPos);
           
-          const target = sp.clone(); // dead center, no panel offset
+          const target = sp.clone();
+          if (insetRef.current) {
+            if (window.innerWidth <= 720) {
+              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+            } else {
+              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(right, camera.position.distanceTo(sp) * 0.095);
+            }
+          }
           controls.target.copy(target);
           followObjAnchored.current = false;
         } else {
@@ -921,8 +928,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             followObjAnchor.current.copy(sp);
           }
           const target = sp.clone();
-          // Offset the target only for non-ship targets when panel is open
-          if (insetRef.current && followKindRef.current !== "ship") {
+          // Offset the target when panel is open
+          if (insetRef.current) {
             if (window.innerWidth <= 720) {
               const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
               target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);

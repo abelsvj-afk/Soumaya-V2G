@@ -19,6 +19,7 @@ import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
+import { NotificationsBar } from "./components/NotificationsBar.js";
 import {
   currentSpace,
   getGraph,
@@ -507,6 +508,20 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {space && (
+        <NotificationsBar
+          fuel={fuel}
+          nodes={view.nodes as GraphNode[]}
+          health={health}
+          onFocusNode={goTo}
+          onOpenTab={(t) => {
+            setTab(t);
+            setPanel("dock");
+          }}
+          demo={demo}
+        />
+      )}
 
       {help && (
         <HelpPanel

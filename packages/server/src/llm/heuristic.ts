@@ -160,10 +160,15 @@ export class HeuristicProvider implements LlmProvider {
     return { answer, citations: top.map((c) => c.id) };
   }
 
-  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
+  async research(
+    node: LinkCandidate,
+    userAnswers?: string,
+  ): Promise<{ label: string; content: string; questions?: string[] }> {
     return {
       label: `Draft Research: ${node.label}`,
-      content: `Preliminary observations on ${node.label}: ${node.content.slice(0, 100)}... (Research mode requires an active LLM key for full deep-dives.)`,
+      content: `Preliminary observations on ${node.label}: ${node.content.slice(0, 100)}... (Research mode requires an active LLM key for full deep-dives.)${
+        userAnswers ? `\n\nUser Answers: ${userAnswers}` : ""
+      }`,
     };
   }
 

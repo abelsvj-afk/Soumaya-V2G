@@ -418,16 +418,27 @@ export async function executeJob(
     const original = nodesRepo.getById(t0);
     if (original) {
       const research = await ctx.llm.research({ label: original.label, content: original.content });
-      const expandedContent = `${original.content}\n\n--- Research Deep Dive ---\n${research.content}`;
-      const newImp = Math.min(1.0, (original.importance ?? 0.5) + 0.2);
-      ctx.handle.db
-        .update(nodes)
-        .set({ content: expandedContent, importance: newImp })
-        .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
-        .run();
-      upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
-      nodesRepo.tend(original.id);
-      description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
+      if (research.questions && research.questions.length > 0) {
+        nodesRepo.updateResearch(original.id, research.questions, {});
+        description = `Researched "${original.label}" and found information gaps. Generated ${research.questions.length} clarifying questions for the pilot.`;
+      } else {
+        const expandedContent = `${original.content}\n\n--- Research Deep Dive ---\n${research.content}`;
+        const newImp = Math.min(1.0, (original.importance ?? 0.5) + 0.2);
+        ctx.handle.db
+          .update(nodes)
+          .set({
+            content: expandedContent,
+            importance: newImp,
+            label: research.label || original.label,
+            researchQuestions: null,
+            researchAnswers: null
+          })
+          .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
+          .run();
+        upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
+        nodesRepo.tend(original.id);
+        description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
+      }
     }
   } else if (type === "merging" && targets.length === 2) {
     const a = nodesRepo.getById(t0);

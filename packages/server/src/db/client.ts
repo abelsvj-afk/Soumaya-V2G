@@ -32,6 +32,8 @@ export function bootstrapSchema(sqlite: RawDb): void {
       occurred_at TEXT,
       remind_at TEXT,
       tags TEXT,
+      research_questions TEXT,
+      research_answers TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS edges (
@@ -200,6 +202,12 @@ function migrateSchema(sqlite: RawDb): void {
   }
   if (!cols.some((c) => c.name === "tags")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN tags TEXT`);
+  }
+  if (!cols.some((c) => c.name === "research_questions")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN research_questions TEXT`);
+  }
+  if (!cols.some((c) => c.name === "research_answers")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN research_answers TEXT`);
   }
 
   // Multi-tenancy: add space_id to every per-user table on existing volumes.

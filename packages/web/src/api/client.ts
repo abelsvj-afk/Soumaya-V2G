@@ -687,3 +687,21 @@ export async function getVisitorActivity(): Promise<VisitedMemory[]> {
     return [];
   }
 }
+
+/** Submit answers to clarifying research questions. */
+export async function answerResearch(id: number, answers: Record<string, string>): Promise<{ node: GraphNode }> {
+  return tracked(
+    (async () => {
+      const res = await afetch(`${API}/nodes/${id}/answer-research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Answering research failed (${res.status})`);
+      }
+      return res.json() as Promise<{ node: GraphNode }>;
+    })()
+  );
+}

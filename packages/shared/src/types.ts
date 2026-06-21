@@ -77,6 +77,8 @@ export interface GraphNode {
   remindAt?: string;
   /** Free + curated labels for filtering/context (e.g. "Work", "Idea", "Anxious"). */
   tags?: string[];
+  researchQuestions?: string[];
+  researchAnswers?: Record<string, string>;
   createdAt: string;
 }
 

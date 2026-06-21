@@ -152,7 +152,7 @@ persistence) are 🔴 additive `space_meta`/migration; all the feedback/visual j
 
 ## Deferred / Parked
 
-- [ ] 🟢 **Audit follow-ups from agy's clumping batch (minor, non-blocking)** — (1) `Graph3D` does a
+- [x] 🟢 **Audit follow-ups from agy's clumping batch (minor, non-blocking)** — (1) `Graph3D` does a
   per-frame `O(n)` `.find()` to position each mesh; reuse the existing `nodeByIdRef` map. (2) repeated
   `fg.graphData()` calls per frame — cache once per tick. (3) `SoumayaPanel.moveTask()` should null-guard
   `tasks[index]`. All cosmetic/defensive; verified not to cause current bugs (2026-06-21 audit).

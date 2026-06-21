@@ -201,17 +201,24 @@ export class OpenAiProvider implements LlmProvider {
     };
   }
 
-  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
-    return await this.json<{ label: string; content: string }>(
+  async research(
+    node: LinkCandidate,
+    userAnswers?: string,
+  ): Promise<{ label: string; content: string; questions?: string[] }> {
+    return await this.json<{ label: string; content: string; questions?: string[] }>(
       RESEARCH_SYSTEM,
-      buildResearchPrompt(node),
+      buildResearchPrompt(node, userAnswers),
       {
         type: "object",
         properties: {
           label: { type: "string" },
           content: { type: "string" },
+          questions: {
+            type: "array",
+            items: { type: "string" },
+          },
         },
-        required: ["label", "content"],
+        required: ["label", "content", "questions"],
         additionalProperties: false,
       },
       "research",

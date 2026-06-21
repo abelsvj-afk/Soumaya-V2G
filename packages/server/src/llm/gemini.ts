@@ -89,8 +89,9 @@ const researchSchema = {
   properties: {
     label: { type: Type.STRING },
     content: { type: Type.STRING },
+    questions: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
-  required: ["label", "content"],
+  required: ["label", "content", "questions"],
 };
 
 const sectorSchema = {
@@ -196,10 +197,13 @@ export class GeminiProvider implements LlmProvider {
     };
   }
 
-  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
-    return await this.json<{ label: string; content: string }>(
+  async research(
+    node: LinkCandidate,
+    userAnswers?: string,
+  ): Promise<{ label: string; content: string; questions?: string[] }> {
+    return await this.json<{ label: string; content: string; questions?: string[] }>(
       RESEARCH_SYSTEM,
-      buildResearchPrompt(node),
+      buildResearchPrompt(node, userAnswers),
       researchSchema,
     );
   }

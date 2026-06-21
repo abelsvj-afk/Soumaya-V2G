@@ -89,9 +89,9 @@ export function SoumayaPanel({
   const voiceSupported = isVoiceSupported();
 
   const moveTask = (index: number, direction: "up" | "down") => {
-    if (!tasks || !onReorderTasks) return;
+    if (!tasks || !onReorderTasks || !tasks[index]) return;
     const plannedTasks = tasks.filter((t) => t.status === "planned");
-    const targetPlannedIndex = plannedTasks.findIndex(t => t.id === tasks[index].id);
+    const targetPlannedIndex = plannedTasks.findIndex(t => t.id === tasks[index]!.id);
     if (targetPlannedIndex === -1) return;
     
     const nextPlannedIndex = direction === "up" ? targetPlannedIndex - 1 : targetPlannedIndex + 1;

@@ -34,6 +34,8 @@ export const nodes = sqliteTable("nodes", {
   remindAt: text("remind_at"),
   // JSON array of tag strings (curated + free-form).
   tags: text("tags"),
+  researchQuestions: text("research_questions"),
+  researchAnswers: text("research_answers"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
