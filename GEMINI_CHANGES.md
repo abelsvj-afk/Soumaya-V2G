@@ -165,6 +165,16 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-21 (Claude): Gamification Wave 1 (core) — toasts, return greeting, milestones, fuel pops
+- [x] **Verified by Claude** — typecheck clean, 87 tests, web build clean.
+- New dependency-free toast system (`components/Toasts.tsx` + `pushToast`), rendered in `App`.
+- **Return greeting:** on first load Soumaya greets you by space name + what changed ("Welcome back,
+  X � N memories � K cooling"), or a "drop your first thought" prompt for an empty brain.
+- **Milestone celebration:** crossing 10/25/50/100/250/365/500/1000 memories fires a one-time toast
+  (per-brain, remembered in localStorage).
+- **Fuel-earned pop:** logging/linking shows "+N fuel earned". All offline-safe + additive; CSS in index.css.
+- Remaining Wave 1 (discovery toasts for new insights/constellations/tier-ups, genesis bloom) + Waves 2/3 next.
+
 ### 2026-06-21 (Claude): Audited agy's clumping-fix batch — VERIFIED solid
 - [x] Verified by Claude — gate green (typecheck · 87 tests · web build); reviewed via 3 read-only passes.
 - **Root cause (agy found it):** the clump was a **React-reference mismatch** — react-force-graph keeps

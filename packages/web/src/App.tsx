@@ -15,6 +15,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
+import { Toasts, pushToast } from "./components/Toasts.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import {
   currentSpace,
@@ -146,6 +147,9 @@ export default function App() {
           if (fuelEarned && fuelEarned > 0)
             for (const id of newIds) graphRef.current?.spawnBurst(id, "fuel");
         }, 150);
+        // Gamification: celebrate the fuel earned with a toast (Wave 1).
+        if (fuelEarned && fuelEarned > 0)
+          pushToast(`+${Math.round(fuelEarned * 10) / 10} fuel earned`, "⛽");
         // Then fly the camera to the new memory so you can SEE where it populated.
         setTimeout(() => {
           graphRef.current?.focusNode(newIds[0]!);
@@ -206,6 +210,47 @@ export default function App() {
   useEffect(() => {
     if (space) refresh();
   }, [space]);
+
+  // Gamification (Wave 1): greet the pilot once per session when their galaxy
+  // first loads — by name, with what changed while they were away.
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (greetedRef.current || demo || !space || !loaded) return;
+    greetedRef.current = true;
+    const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
+    if (memories.length === 0) {
+      pushToast(`Welcome, ${space.name}. Drop your first thought to begin.`, "🛰️", 6500);
+      return;
+    }
+    const cooling = memories.filter((n) => (n.entropy ?? 0) >= 0.45).length;
+    const tail = cooling > 0 ? ` · ${cooling} cooling` : "";
+    const word = memories.length === 1 ? "memory" : "memories";
+    pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 6500);
+  }, [space, loaded, demo, data.nodes]);
+
+  // Gamification (Wave 1): celebrate crossing a memory-count milestone (once each,
+  // per brain, remembered on this device).
+  useEffect(() => {
+    if (demo || !space || !loaded) return;
+    const count = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action").length;
+    const MILES = [10, 25, 50, 100, 250, 365, 500, 1000];
+    const key = `brain.milestone.${space.id}`;
+    let last = 0;
+    try {
+      last = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+    } catch {
+      /* storage unavailable */
+    }
+    const crossed = MILES.filter((m) => m <= count && m > last);
+    if (crossed.length === 0) return;
+    const top = crossed[crossed.length - 1]!;
+    try {
+      localStorage.setItem(key, String(top));
+    } catch {
+      /* ignore */
+    }
+    pushToast(`${top} memories — your galaxy is growing.`, "🎉", 6500);
+  }, [space, loaded, demo, data.nodes]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -311,6 +356,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Toasts />
       <Graph3D
         ref={graphRef}
         data={view}
