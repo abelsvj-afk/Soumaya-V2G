@@ -56,6 +56,7 @@ export interface SoumayaHandle {
   getTasks: (nodes: any[]) => { id: string; type: string; label: string; status: "doing" | "planned" | "done" }[];
   reorderTasks: (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => void;
   setShipSkin?: (skin: string) => void;
+  setTrailColor?: (color: string) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -187,7 +188,35 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     }
     
     // Determine path based on skin
-    const modelPath = skin === "organic" ? "/organic-spaceship.glb" : "/soumaya-ship.glb";
+    let modelPath = "/soumaya-ship.glb";
+    if (skin === "organic") {
+      modelPath = "/organic-spaceship.glb";
+    } else if (skin === "fusion_core") {
+      modelPath = "/spaceship_with_fusion_core.glb";
+    }
+    
+    // Procedural fallback styling
+    const mat = hull.material as THREE.MeshStandardMaterial;
+    if (skin === "holographic") {
+      mat.wireframe = true;
+      mat.color.set("#00f5ff");
+      mat.emissive.set("#00aeff");
+      mat.transparent = true;
+      mat.opacity = 0.6;
+    } else if (skin === "fusion_core") {
+      mat.wireframe = false;
+      mat.color.set("#ff4500");
+      mat.emissive.set("#ff8c00");
+      mat.transparent = false;
+      mat.opacity = 1.0;
+    } else {
+      mat.wireframe = false;
+      mat.color.set("#e6edff");
+      mat.emissive.set("#7af9ff");
+      mat.transparent = false;
+      mat.opacity = 1.0;
+    }
+    mat.needsUpdate = true;
     
     // Show the procedural fallback first in case GLB fails or while loading
     hull.visible = true;
@@ -201,6 +230,21 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         }
         
         const model = gltf.scene;
+        
+        // If holographic, make all meshes transparent wireframes
+        if (skin === "holographic") {
+          model.traverse((o: any) => {
+            if (o.isMesh) {
+              o.material = new THREE.MeshBasicMaterial({
+                color: 0x00f5ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.45
+              });
+            }
+          });
+        }
+        
         const box = new THREE.Box3().setFromObject(model);
         const dim = new THREE.Vector3();
         box.getSize(dim);
@@ -230,20 +274,47 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   // Engine glow trailing behind the nose.
   const glowCanvas = document.createElement("canvas");
   glowCanvas.width = glowCanvas.height = 64;
-  const gctx = glowCanvas.getContext("2d")!;
-  const grad = gctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  grad.addColorStop(0, "rgba(180,220,255,0.95)");
-  grad.addColorStop(1, "rgba(122,249,255,0)");
-  gctx.fillStyle = grad;
-  gctx.fillRect(0, 0, 64, 64);
+  const glowTex = new THREE.CanvasTexture(glowCanvas);
   const glow = new THREE.Sprite(
     new THREE.SpriteMaterial({
-      map: new THREE.CanvasTexture(glowCanvas),
+      map: glowTex,
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     }),
   );
+  
+  const setTrailColor = (color: string) => {
+    const ctx = glowCanvas.getContext("2d")!;
+    ctx.clearRect(0, 0, 64, 64);
+    const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    
+    if (color === "neon") {
+      // Hot pink / cyan neon
+      grad.addColorStop(0, "rgba(255, 20, 147, 0.95)");
+      grad.addColorStop(1, "rgba(0, 245, 255, 0)");
+    } else if (color === "gold") {
+      // Solar Gold
+      grad.addColorStop(0, "rgba(255, 215, 0, 0.95)");
+      grad.addColorStop(1, "rgba(255, 69, 0, 0)");
+    } else if (color === "purple") {
+      // Void Purple
+      grad.addColorStop(0, "rgba(147, 112, 219, 0.95)");
+      grad.addColorStop(1, "rgba(75, 0, 130, 0)");
+    } else {
+      // Standard Blue
+      grad.addColorStop(0, "rgba(180, 220, 255, 0.95)");
+      grad.addColorStop(1, "rgba(122, 249, 255, 0)");
+    }
+    
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 64, 64);
+    glowTex.needsUpdate = true;
+  };
+
+  // Draw initial trail
+  setTrailColor("blue");
+
   glow.scale.set(9, 9, 1);
   glow.position.set(0, 0, -2.5);
   group.add(glow);
@@ -1325,5 +1396,6 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     getTasks,
     reorderTasks,
     setShipSkin,
+    setTrailColor,
   };
 }
