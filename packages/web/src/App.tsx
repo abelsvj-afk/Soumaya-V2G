@@ -49,7 +49,12 @@ export default function App() {
   const [equippedFig1, setEquippedFig1] = useState<string>("none");
   const [equippedFig2, setEquippedFig2] = useState<string>("none");
 
-  // Load equipped customizations when the space changes
+  // Simulated stats for testing achievements progression in demo mode
+  const [simulatedMemoriesCount, setSimulatedMemoriesCount] = useState<number>(0);
+  const [simulatedLinksCount, setSimulatedLinksCount] = useState<number>(0);
+  const [demoBypass, setDemoBypass] = useState<boolean>(true);
+
+  // Load equipped customizations and demo stats when the space changes
   useEffect(() => {
     if (!space) return;
     localStorage.setItem("current_space_id", space.id);
@@ -57,18 +62,20 @@ export default function App() {
     const trailKey = `brain.hangar.trail.${space.id}`;
     const fig1Key = `brain.hangar.fig1.${space.id}`;
     const fig2Key = `brain.hangar.fig2.${space.id}`;
+    const simMemKey = `brain.demo.sim_memories.${space.id}`;
+    const simLinkKey = `brain.demo.sim_links.${space.id}`;
+    const bypassKey = `brain.demo.bypass.${space.id}`;
+
     setEquippedShip(localStorage.getItem(shipKey) || "default");
     setEquippedTrail(localStorage.getItem(trailKey) || "blue");
     setEquippedFig1(localStorage.getItem(fig1Key) || "none");
     setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+    setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
+    setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
+    setDemoBypass(localStorage.getItem(bypassKey) !== "0");
   }, [space]);
-  const [demo, setDemo] = useState(() => {
-    try {
-      return new URLSearchParams(window.location.search).get("demo") === "1";
-    } catch {
-      return false;
-    }
-  });
+
+  const [demo, setDemo] = useState(false);
   // Poll fuel for the main-HUD gauge while signed in (skips the demo galaxy).
   useEffect(() => {
     if (!space || demo) return;
@@ -217,16 +224,19 @@ export default function App() {
 
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("demo") === "1") {
-      setSpace({ id: "demo-space", name: "Demo Pilot" });
-      setAuthChecked(true);
-      setLoaded(true);
-    } else {
-      currentSpace()
-        .then(setSpace)
-        .finally(() => setAuthChecked(true));
-    }
+    currentSpace()
+      .then((sp) => {
+        setSpace(sp);
+        const params = new URLSearchParams(window.location.search);
+        // Only allow demo mode if logged in as "somia" (case-insensitive)
+        if (sp && sp.name.toLowerCase() === "somia" && params.get("demo") === "1") {
+          setDemo(true);
+        } else {
+          setDemo(false);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setAuthChecked(true));
   }, []);
 
   // Load the galaxy once a brain is open.
@@ -308,9 +318,24 @@ export default function App() {
   // don't spam a returning user with a backlog of toasts on every launch.
   const achvInitedRef = useRef(false);
   useEffect(() => {
-    if (demo || !space || !loaded) return;
-    const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
-    const now = unlockedIds({ memories, links: data.links.length, fuel, linkObjects: data.links });
+    if (!space || !loaded) return;
+    
+    // Evaluate achievements either using real data or simulated data
+    let memories: GraphNode[];
+    let linksCount: number;
+    let linkObjects: any[] = [];
+    
+    if (demo) {
+      if (demoBypass) return; // skip checking if everything is already unlocked
+      memories = Array.from({ length: simulatedMemoriesCount }).map((_, i) => ({ id: i, kind: "memory" } as GraphNode));
+      linksCount = simulatedLinksCount;
+    } else {
+      memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
+      linksCount = data.links.length;
+      linkObjects = data.links;
+    }
+
+    const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects });
     const key = achvKey(space.id);
     const seen = loadUnlocked(space.id);
     const fresh = now.filter((id) => !seen.has(id));
@@ -330,7 +355,7 @@ export default function App() {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
       if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 7000);
     }
-  }, [data.nodes, data.links, fuel, space, demo, loaded]);
+  }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -407,10 +432,17 @@ export default function App() {
         const trailKey = `brain.hangar.trail.${space.id}`;
         const fig1Key = `brain.hangar.fig1.${space.id}`;
         const fig2Key = `brain.hangar.fig2.${space.id}`;
+        const simMemKey = `brain.demo.sim_memories.${space.id}`;
+        const simLinkKey = `brain.demo.sim_links.${space.id}`;
+        const bypassKey = `brain.demo.bypass.${space.id}`;
+
         setEquippedShip(localStorage.getItem(shipKey) || "default");
         setEquippedTrail(localStorage.getItem(trailKey) || "blue");
         setEquippedFig1(localStorage.getItem(fig1Key) || "none");
         setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+        setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
+        setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
+        setDemoBypass(localStorage.getItem(bypassKey) !== "0");
       }
       return;
     }
@@ -505,17 +537,19 @@ export default function App() {
           Soumaya <span className="sep">·</span> Second Brain
         </h1>
         <div className="brand-row">
-          <button
-            className="chip-btn"
-            onClick={() => {
-              setSelected(null);
-              setClustered(false);
-              graphRef.current?.exitCluster();
-              setDemo((d) => !d);
-            }}
-          >
-            {demo ? "← Back to mine" : "✨ Demo galaxy"}
-          </button>
+          {space && space.name.toLowerCase() === "somia" && (
+            <button
+              className="chip-btn"
+              onClick={() => {
+                setSelected(null);
+                setClustered(false);
+                graphRef.current?.exitCluster();
+                setDemo((d) => !d);
+              }}
+            >
+              {demo ? "← Back to mine" : "✨ Demo galaxy"}
+            </button>
+          )}
           {health && (
             <span className="status">
               {(demo ? demoData : data).nodes.length} memories · {llmStatus}

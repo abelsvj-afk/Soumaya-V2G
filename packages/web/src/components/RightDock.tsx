@@ -156,6 +156,7 @@ export function RightDock({
             spaceId={spaceId ?? ""}
             memoriesCount={graph.nodes.filter((n) => n.kind !== "action").length}
             onEquipChanged={() => onChanged?.(-1)}
+            demo={demo}
           />
         )}
       </div>

@@ -4,26 +4,19 @@ interface HangarPanelProps {
   spaceId: string;
   memoriesCount: number;
   onEquipChanged: () => void;
+  demo?: boolean;
 }
 
-export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPanelProps) {
+export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: HangarPanelProps) {
   // Load unlocked achievements from localStorage to determine which items are available
   const unlocked = loadUnlocked(spaceId);
 
-  // Unlocked predicates (milestones & custom achievements)
-  const isStarUnlocked = unlocked.has("star_center_figurine") || memoriesCount >= 100;
-  const isOrganicUnlocked = unlocked.has("organic_ship_skin") || memoriesCount >= 150;
-  const isDysonUnlocked = unlocked.has("dyson_sphere_figurine") || memoriesCount >= 250;
+  const bypassKey = `brain.demo.bypass.${spaceId}`;
+  const simMemKey = `brain.demo.sim_memories.${spaceId}`;
+  const simLinkKey = `brain.demo.sim_links.${spaceId}`;
 
-  // New gamification unlock predicates
-  const hasPathfinder = unlocked.has("pathfinder_quest");
-  const hasConsistent = unlocked.has("consistent_pilot");
-  const hasSectorPioneer = unlocked.has("sector_pioneer");
-  const hasSentinel = unlocked.has("sentinel_command");
-  const hasDeepCluster = unlocked.has("deep_cluster");
-  const hasCosmicVoyager = unlocked.has("cosmic_voyager");
-  const hasMegastructure = unlocked.has("galactic_megastructure");
-  const hasGrandRestorer = unlocked.has("grand_restorer");
+  // Demo bypass defaults to true in demo mode to unlock everything, unless explicitly toggled off to test progression
+  const demoBypass = demo ? (localStorage.getItem(bypassKey) !== "0") : false;
 
   // Active selections (from localStorage)
   const shipKey = `brain.hangar.ship.${spaceId}`;
@@ -35,6 +28,27 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
   const currentTrail = localStorage.getItem(trailKey) || "blue";
   const currentFig1 = localStorage.getItem(fig1Key) || "none";
   const currentFig2 = localStorage.getItem(fig2Key) || "none";
+
+  // Simulated or actual counts
+  let activeMemoriesCount = memoriesCount;
+  if (demo && !demoBypass) {
+    activeMemoriesCount = parseInt(localStorage.getItem(simMemKey) || "0", 10);
+  }
+
+  // Unlocked predicates (milestones & custom achievements)
+  const isStarUnlocked = demoBypass || unlocked.has("star_center_figurine") || activeMemoriesCount >= 100;
+  const isOrganicUnlocked = demoBypass || unlocked.has("organic_ship_skin") || activeMemoriesCount >= 150;
+  const isDysonUnlocked = demoBypass || unlocked.has("dyson_sphere_figurine") || activeMemoriesCount >= 250;
+
+  // New gamification unlock predicates
+  const hasPathfinder = demoBypass || unlocked.has("pathfinder_quest");
+  const hasConsistent = demoBypass || unlocked.has("consistent_pilot");
+  const hasSectorPioneer = demoBypass || unlocked.has("sector_pioneer");
+  const hasSentinel = demoBypass || unlocked.has("sentinel_command");
+  const hasDeepCluster = demoBypass || unlocked.has("deep_cluster");
+  const hasCosmicVoyager = demoBypass || unlocked.has("cosmic_voyager");
+  const hasMegastructure = demoBypass || unlocked.has("galactic_megastructure");
+  const hasGrandRestorer = demoBypass || unlocked.has("grand_restorer");
 
   const setShip = (val: string) => {
     localStorage.setItem(shipKey, val);
@@ -64,6 +78,91 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
       <p style={{ fontSize: "0.82rem", opacity: 0.8, margin: "0 0 1.25rem 0" }}>
         Customize Soumaya's spaceship hull, adjust her cosmic engine trail, and mount colossal, civilization-scale monuments in the deep space background.
       </p>
+
+      {/* DEMO SIMULATION CONTROLS */}
+      {demo && (
+        <div style={{
+          background: "rgba(255, 122, 249, 0.08)",
+          border: "1px dashed rgba(255, 122, 249, 0.35)",
+          borderRadius: "8px",
+          padding: "0.85rem",
+          marginBottom: "1.5rem"
+        }}>
+          <h4 style={{ margin: "0 0 0.6rem 0", color: "#ff7af9", fontSize: "0.86rem", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+            🛠️ Demo Simulation Sandbox
+          </h4>
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8rem", marginBottom: "0.85rem", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={demoBypass}
+              onChange={(e) => {
+                localStorage.setItem(bypassKey, e.target.checked ? "1" : "0");
+                onEquipChanged();
+              }}
+            />
+            Bypass Locks (Unlock All Instantly)
+          </label>
+
+          {!demoBypass && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.76rem", marginBottom: "0.25rem" }}>
+                  <span>Simulated Memories:</span>
+                  <span style={{ fontWeight: "bold" }}>{activeMemoriesCount}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="300"
+                  value={activeMemoriesCount}
+                  onChange={(e) => {
+                    localStorage.setItem(simMemKey, e.target.value);
+                    onEquipChanged();
+                  }}
+                  style={{ width: "100%", accentColor: "#ff7af9" }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.76rem", marginBottom: "0.25rem" }}>
+                  <span>Simulated Connections:</span>
+                  <span style={{ fontWeight: "bold" }}>{parseInt(localStorage.getItem(simLinkKey) || "0", 10)}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="60"
+                  value={parseInt(localStorage.getItem(simLinkKey) || "0", 10)}
+                  onChange={(e) => {
+                    localStorage.setItem(simLinkKey, e.target.value);
+                    onEquipChanged();
+                  }}
+                  style={{ width: "100%", accentColor: "#ff7af9" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.25rem" }}>
+                <button
+                  className="mini"
+                  style={{ flex: 1, padding: "0.25rem 0.5rem", fontSize: "0.74rem" }}
+                  onClick={() => {
+                    // Reset achievements to test from scratch
+                    localStorage.setItem(`brain.achv.${spaceId}`, "[]");
+                    localStorage.setItem(`stat.beacons_deployed.${spaceId}`, "0");
+                    localStorage.setItem(`stat.travel_hops.${spaceId}`, "0");
+                    localStorage.setItem(`stat.memories_tended.${spaceId}`, "0");
+                    localStorage.setItem(simMemKey, "0");
+                    localStorage.setItem(simLinkKey, "0");
+                    onEquipChanged();
+                  }}
+                >
+                  Reset Sandbox
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* SECTION: Ship Skins */}
       <h4 style={{ margin: "1rem 0 0.5rem 0", color: "var(--accent)" }}>🛸 Spaceship Hull</h4>
