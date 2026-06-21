@@ -1020,3 +1020,12 @@ Adopted master's full content onto the deploy branch and fixed the build:
 - **Responsive dock tab labels**: Hide tab text labels by default on narrow/mobile viewports and display them side-by-side with icons on wide viewports (≥ 768px).
 
 Status: typecheck clean, web builds.
+
+### 2026-06-21: Gated Galaxy Initial Loading for Ferrying Logic
+- **Ferrying Bug Fix**: Passed the `loaded` state down from [App.tsx](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/App.tsx#L322) to [Graph3D.tsx](file:///data/data/com.termux/files/home/Brain-Soumaya-V1/packages/web/src/graph/Graph3D.tsx#L81) to prevent Soumaya's ship from immediately ferrying all existing memories on page reload. The initial nodes/links baseline is now only set once the real galaxy data is fetched and loaded (i.e. `loaded` becomes true or `data.nodes` is populated), resolving a race condition where the empty initial state (`[]`) was treated as the baseline and all subsequent loaded nodes were queued as "new placements".
+- **Compile and Typecheck**: Successfully verified with `npm run typecheck` and `npm run build -w @brain/web`.
+- **Deployment**: Pushed changes to `claude/soumaya-second-brain-v1-m4z4hc` and deployed to Fly.io.
+
+## Git Commits
+- `aaafe5f`: Fix race condition causing pre-existing memories to be queued for ferrying on startup
+
