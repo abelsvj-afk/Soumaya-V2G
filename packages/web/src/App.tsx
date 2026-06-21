@@ -17,7 +17,7 @@ import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast } from "./components/Toasts.js";
-import { ACHIEVEMENTS, unlockedIds } from "./components/achievements.js";
+import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import {
   currentSpace,
@@ -235,7 +235,7 @@ export default function App() {
   useEffect(() => {
     if (demo || !space || !loaded) return;
     const count = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action").length;
-    const MILES = [10, 25, 50, 100, 250, 365, 500, 1000];
+    const MILES = MEMORY_MILESTONES;
     const key = `brain.milestone.${space.id}`;
     let last = 0;
     try {
@@ -290,13 +290,8 @@ export default function App() {
     if (demo || !space || !loaded) return;
     const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
     const now = unlockedIds({ memories, links: data.links.length, fuel });
-    const key = `brain.achv.${space.id}`;
-    let seen = new Set<string>();
-    try {
-      seen = new Set(JSON.parse(localStorage.getItem(key) || "[]"));
-    } catch {
-      /* storage unavailable */
-    }
+    const key = achvKey(space.id);
+    const seen = loadUnlocked(space.id);
     const fresh = now.filter((id) => !seen.has(id));
     if (fresh.length === 0) return;
     try {
@@ -713,6 +708,8 @@ export default function App() {
           setShipViewMode={setShipViewMode}
           tasks={tasks}
           onReorderTasks={handleReorderTasks}
+          fuel={fuel}
+          spaceId={space?.id ?? ""}
         />
       )}
     </div>

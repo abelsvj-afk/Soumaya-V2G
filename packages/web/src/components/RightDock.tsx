@@ -7,9 +7,11 @@ import { DigestPanel } from "./DigestPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 import { FleetPanel } from "./FleetPanel.js";
 import { CompanionPanel } from "./CompanionPanel.js";
+import { AchievementsPanel } from "./AchievementsPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
+import type { Fuel } from "@brain/shared";
 
-export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion";
+export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion" | "awards";
 
 interface Props {
   tab: DockTab;
@@ -35,6 +37,9 @@ interface Props {
   setShipViewMode?: (v: "orbit" | "cockpit") => void;
   tasks?: any[];
   onReorderTasks?: (newOrder: any[]) => void;
+  /** Live fuel + brain id for the Awards (achievements) tab. */
+  fuel?: Fuel | null;
+  spaceId?: string;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -49,6 +54,7 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
   { id: "fleet", label: "🚀", name: "Fleet" },
   { id: "companion", label: "🧠", name: "Companion" },
+  { id: "awards", label: "🏆", name: "Awards" },
 ];
 
 export function RightDock({
@@ -72,6 +78,8 @@ export function RightDock({
   setShipViewMode,
   tasks,
   onReorderTasks,
+  fuel,
+  spaceId,
 }: Props) {
   return (
     <div className="panel dock">
@@ -140,6 +148,7 @@ export function RightDock({
           <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
         )}
         {tab === "companion" && <CompanionPanel demo={demo} />}
+        {tab === "awards" && <AchievementsPanel graph={graph} fuel={fuel ?? null} spaceId={spaceId ?? ""} />}
       </div>
     </div>
   );

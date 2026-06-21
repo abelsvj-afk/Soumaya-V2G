@@ -129,7 +129,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [x] 🟢 **Achievements** — ✅ done (Wave 2). 7 qualitative feats (First Light, Synapse, Connector, Nexus,
   Star Born, Gardener, Fully Fueled) in `components/achievements.ts`; unlock-detect effect in `App.tsx`
   persists per-brain in localStorage (`brain.achv.${space.id}`), seeds silently on first eval, toasts new
-  unlocks. Offline-safe, no migration. (localStorage v1; `space_meta` JSON sync is a future 🔴 upgrade.)
+  unlocks. **Awards tab (🏆)** in the dock (`components/AchievementsPanel.tsx`) is the persistent trophy
+  case: unlocked + locked cards with progress hints, an X/7 bar, and a memory-count milestone tracker.
+  Offline-safe, no migration. (localStorage v1; `space_meta` JSON sync is a future 🔴 upgrade.)
 
 ### Wave 3 — companion warmth + progression (🟡/🔴)
 - [ ] 🔴 **Behavioral persona deepening** — Soumaya's tone adapts to your patterns/history (also under AI
