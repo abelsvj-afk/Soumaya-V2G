@@ -380,6 +380,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       fg.d3Force("charge")?.strength(0);
       fg.d3Force("center", null);
       fg.d3Force("link")?.strength(0);
+      fg.d3AlphaTarget(0.05); // Keep the simulation ticking forever so kinematic updates render correctly
 
       // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
       // so you can admire it all but never zoom past the star field. Smooth,
@@ -706,6 +707,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         graphGroup.children.forEach((o: any) => {
           if (o.userData?.nodeId == null) return;
           const id = o.userData.nodeId;
+
+          // Directly sync Three.js mesh position from our kinematic coordinates
+          // so they remain positioned correctly even during engine updates or drag events.
+          const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
+          if (n && n.x != null && !isNaN(n.x)) {
+            o.position.set(n.x, n.y, n.z ?? 0);
+          }
+
           o.getWorldPosition(tmp);
           const dist = tmp.distanceTo(camera.position);
           const isSelected = id === activeId;
@@ -1251,8 +1260,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       backgroundColor={BG}
       showNavInfo={false}
       warmupTicks={30}
-      cooldownTicks={Infinity}
-      cooldownTime={Infinity}
+      cooldownTicks={9999999}
+      cooldownTime={9999999}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) =>
         // Hidden while pending (Soumaya hasn't drawn it yet), and respects the

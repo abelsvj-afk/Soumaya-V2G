@@ -165,6 +165,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-21 (Gemini): Direct Three.js mesh positioning and continuous D3 animation ticks to fix clumping
+- [ ] Verified by Claude
+- **Root Cause & Fix**: Even after mapping coordinates to active simulation nodes, D3's internal force simulation could enter cooldown and pause/stop ticking (especially since default forces were set to 0), which prevented the React-Force-Graph renderer from updating Three.js mesh positions and link lines. This resulted in nodes freezing at their initial clumped positions, and allowed users to drag nodes away without them snapping back because coordinate updates were no longer being read.
+- **Direct mesh sync**: Added a direct coordinate write to the Three.js mesh `o.position` inside the `graphGroup.children` loop on every frame. This ensures meshes are immediately and reliably placed on their correct kinematic orbit paths regardless of the D3 engine status.
+- **Continuous simulation ticks**: Initialized `fg.d3AlphaTarget(0.05)` during scene setup to keep the simulation ticking forever so that link lines are continuously re-drawn at the correct coordinates. Changed `cooldownTicks` and `cooldownTime` props from `Infinity` (which could be fallback-reset by force-graph if not finite) to a finite large number `9999999`.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`.
+- Zone: Green (shipped).
+- Gate: typecheck clean, web build clean.
+
 ### 2026-06-21 (Gemini): Direct coordinate sync to active simulation nodes to prevent clumping and camera NaN locks
 - [ ] Verified by Claude
 - **Root Cause & Fix**: Identified that the cached Three.js objects (returned by `nodeThreeObject`) retained stale references to old simulated nodes from previous renders. Syncing coordinates by traversing the Three.js scene and reading `userData.nodeRef` meant writing values to these stale simulation node references, which had no effect on the active D3 simulation nodes. As a result, the active simulated nodes remained clumped at `0, 0, 0` and the camera target became `NaN` on initial load (locking the view to the center Sun).
