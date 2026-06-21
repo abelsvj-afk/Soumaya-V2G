@@ -167,6 +167,23 @@ ambiguous/underspecified features, security/data-integrity, and the **final audi
 Both agents share the **same gate**, the **same deploy branch**
 (`claude/soumaya-second-brain-v1-m4z4hc`), and the **same change log** (`GEMINI_CHANGES.md`).
 
+## Verify before you build (and before you claim it works)
+
+The gate (`typecheck && test && build`) proves code *compiles*, not that it *behaves*. Two
+standards, learned the hard way (shipping "the code should spread the bodies" fixes that didn't):
+
+1. **Prove behavior by reproduction/measurement, not assertion.** Before changing logic — especially
+   visual/spatial/numeric code you can't see rendered from here (`graph/orbits.ts`, `shared/celestial.ts`,
+   layout/mass math) — first *reproduce and measure* it: `npx tsx` a throwaway script that feeds real or
+   synthetic data through the actual functions and prints the numbers (e.g. run `makeOrbitSystem` over
+   `makeDemoGalaxy` + a single-cluster graph and assert min nearest-neighbour distance / 0 overlaps), or
+   add a unit test. Decide the fix from the measured output, not from reading the code. State the
+   measurement in your summary.
+2. **Rule out delivery (stale deploy / PWA service-worker / cache) before re-editing correct code.** When
+   "it didn't change," first confirm the new build is what's actually rendering (Actions is blocked → a
+   `fly deploy` must run; the service worker can serve old cached JS even on a fresh server). Never "fix"
+   code that measurement shows is already correct to chase a deploy/cache problem.
+
 ## House rules
 
 - Match the surrounding code's style and comment density (comments explain *why*).
