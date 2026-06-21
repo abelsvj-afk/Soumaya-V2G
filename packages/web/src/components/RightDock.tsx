@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { NodeInspector } from "./NodeInspector.js";
 import { NodeList } from "./NodeList.js";
@@ -9,10 +10,23 @@ import { FleetPanel } from "./FleetPanel.js";
 import { CompanionPanel } from "./CompanionPanel.js";
 import { AchievementsPanel } from "./AchievementsPanel.js";
 import { HangarPanel } from "./HangarPanel.js";
+import { InboxPanel } from "./InboxPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel } from "@brain/shared";
 
-export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion" | "awards" | "hangar";
+export type DockTab =
+  | "details"
+  | "list"
+  | "actions"
+  | "sectors"
+  | "insights"
+  | "chat"
+  | "soumaya"
+  | "fleet"
+  | "companion"
+  | "inbox"
+  | "awards"
+  | "hangar";
 
 interface Props {
   tab: DockTab;
@@ -56,6 +70,7 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
   { id: "fleet", label: "🚀", name: "Fleet" },
   { id: "companion", label: "🧠", name: "Companion" },
+  { id: "inbox", label: "🔔", name: "Inbox" },
   { id: "awards", label: "🏆", name: "Awards" },
   { id: "hangar", label: "🛠️", name: "Hangar" },
 ];
@@ -85,9 +100,34 @@ export function RightDock({
   spaceId,
   spaceName = "Soumaya",
 }: Props) {
-  const dynamicTabs = TABS.map((t) =>
-    t.id === "soumaya" ? { ...t, name: spaceName } : t
-  );
+  const [unseenCount, setUnseenCount] = useState(0);
+
+  useEffect(() => {
+    const updateCount = () => {
+      const key = `brain.notifications.${spaceId || "default"}`;
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const list = JSON.parse(raw);
+          const count = list.filter((n: any) => !n.seen).length;
+          setUnseenCount(count);
+        } else {
+          setUnseenCount(0);
+        }
+      } catch {
+        setUnseenCount(0);
+      }
+    };
+    updateCount();
+    window.addEventListener("brain-notifications-updated", updateCount);
+    return () => window.removeEventListener("brain-notifications-updated", updateCount);
+  }, [spaceId]);
+
+  const dynamicTabs = TABS.map((t) => {
+    if (t.id === "soumaya") return { ...t, name: spaceName, badge: 0 };
+    if (t.id === "inbox") return { ...t, badge: unseenCount };
+    return { ...t, badge: 0 };
+  });
 
   return (
     <div className="panel dock">
@@ -105,8 +145,30 @@ export function RightDock({
             title={t.name}
             aria-label={t.name}
             aria-current={tab === t.id ? "page" : undefined}
+            style={{ position: "relative" }}
           >
-            <span className="tab-ic">{t.label}</span>
+            <span className="tab-ic" style={{ position: "relative" }}>
+              {t.label}
+              {t.badge > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-6px",
+                    right: "-8px",
+                    background: "#ef4444",
+                    color: "white",
+                    borderRadius: "50%",
+                    fontSize: "8px",
+                    padding: "1px 4px",
+                    lineHeight: 1,
+                    fontWeight: "bold",
+                    pointerEvents: "none"
+                  }}
+                >
+                  {t.badge}
+                </span>
+              )}
+            </span>
             <span className="tab-name">{t.name}</span>
           </button>
         ))}
@@ -157,6 +219,7 @@ export function RightDock({
           <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
         )}
         {tab === "companion" && <CompanionPanel demo={demo} />}
+        {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
         {tab === "awards" && <AchievementsPanel graph={graph} fuel={fuel ?? null} spaceId={spaceId ?? ""} />}
         {tab === "hangar" && (
           <HangarPanel

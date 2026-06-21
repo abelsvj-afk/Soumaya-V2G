@@ -42,7 +42,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
-import { Toasts, pushToast } from "./components/Toasts.js";
+import { Toasts, pushToast, cleanupNotifications } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
@@ -105,6 +105,9 @@ export default function App() {
     setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
     setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
     setDemoBypass(localStorage.getItem(bypassKey) !== "0");
+
+    // Clean up expired notifications on space load
+    cleanupNotifications(space.id);
   }, [space]);
 
   const [demo, setDemo] = useState(false);
@@ -387,7 +390,7 @@ export default function App() {
     achvInitedRef.current = true;
     for (const id of fresh.slice(0, 3)) {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
-      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000);
+      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000, "high");
     }
   }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
