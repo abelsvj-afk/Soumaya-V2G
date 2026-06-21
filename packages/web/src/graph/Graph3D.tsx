@@ -39,6 +39,10 @@ export interface Graph3DHandle {
   toggleFollowShip: (forceState?: boolean) => boolean;
   /** Toggle the camera focusing the space station; returns the new state. */
   toggleFollowStation: () => boolean;
+  /** Toggle camera focusing slot 1 figurine; returns the new state. */
+  toggleFollowFig1: () => boolean;
+  /** Toggle camera focusing slot 2 figurine; returns the new state. */
+  toggleFollowFig2: () => boolean;
   /** Jump to the next active Aura beacon (cycles through them). False if none. */
   cycleFollowSatellite: () => boolean;
   /** Jump to the next visitor craft (cycles through them). False if none. */
@@ -498,7 +502,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followObjRef = useRef<THREE.Object3D | null>(null);
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
-  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | null>(null);
+  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | "fig1" | "fig2" | null>(null);
   // Which active beacon we're cycling through with the satellite focus button.
   const satFollowIndexRef = useRef(0);
   // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
@@ -1207,6 +1211,28 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
           controls.target.copy(target);
           followObjAnchored.current = false;
+        } else if (followKindRef.current === "fig1" || followKindRef.current === "fig2") {
+          // Figurine Focus: place camera in front of it and slightly below, looking up.
+          if (followSnapRef.current) {
+            const dir = sp.clone().normalize();
+            const camPos = sp.clone().addScaledVector(dir, -4000);
+            camPos.y -= 800; // Looking up from below
+            camera.position.copy(camPos);
+            followObjAnchor.current.copy(sp);
+            followObjAnchored.current = true;
+            followSnapRef.current = false;
+          }
+          const target = sp.clone();
+          if (insetRef.current) {
+            if (window.innerWidth <= 720) {
+              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+            } else {
+              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(right, camera.position.distanceTo(sp) * 0.095);
+            }
+          }
+          controls.target.copy(target);
         } else {
           // Standard Orbit Follow: snap once, then ride along.
           if (followSnapRef.current) {
@@ -1454,6 +1480,26 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followKindRef.current = on ? "station" : null;
         followObjRef.current = on ? stationObjRef.current : null;
         followDistRef.current = 700; // station is colossal — stand well back
+        followSnapRef.current = on;
+        followObjAnchored.current = false;
+        if (on) followRef.current = null;
+        return on;
+      },
+      toggleFollowFig1: () => {
+        const on = followKindRef.current !== "fig1";
+        followKindRef.current = on ? "fig1" : null;
+        followObjRef.current = on ? fig1GroupRef.current : null;
+        followDistRef.current = 4500;
+        followSnapRef.current = on;
+        followObjAnchored.current = false;
+        if (on) followRef.current = null;
+        return on;
+      },
+      toggleFollowFig2: () => {
+        const on = followKindRef.current !== "fig2";
+        followKindRef.current = on ? "fig2" : null;
+        followObjRef.current = on ? fig2GroupRef.current : null;
+        followDistRef.current = 4500;
         followSnapRef.current = on;
         followObjAnchored.current = false;
         if (on) followRef.current = null;

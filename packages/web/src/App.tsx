@@ -8,6 +8,32 @@ function focusItemStyle(index: number, open: boolean): CSSProperties {
     ? { transform: `translateY(${-(index + 1) * 54}px)`, opacity: 1, pointerEvents: "auto" }
     : { transform: "translateY(0) scale(0.4)", opacity: 0, pointerEvents: "none" };
 }
+
+function getFigurineIcon(type: string): string {
+  switch (type) {
+    case "station": return "🌐";
+    case "satellite": return "🛰️";
+    case "star_center": return "🌟";
+    case "dyson_sphere": return "🪐";
+    case "quantum_core": return "🌌";
+    case "hyper_array": return "📡";
+    case "shield_spire": return "🛡️";
+    default: return "🗿";
+  }
+}
+
+function getFigurineLabel(type: string): string {
+  switch (type) {
+    case "station": return "Waystation Figurine";
+    case "satellite": return "Aura Beacon Figurine";
+    case "star_center": return "Solar Monument";
+    case "dyson_sphere": return "Dyson Megastructure";
+    case "quantum_core": return "Quantum Singularity Core";
+    case "hyper_array": return "Synapse Hyper-Array";
+    case "shield_spire": return "Aegis Shield Spire";
+    default: return type;
+  }
+}
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
@@ -48,6 +74,8 @@ export default function App() {
   const [equippedTrail, setEquippedTrail] = useState<string>("blue");
   const [equippedFig1, setEquippedFig1] = useState<string>("none");
   const [equippedFig2, setEquippedFig2] = useState<string>("none");
+  const [showFocusFig1, setShowFocusFig1] = useState<boolean>(true);
+  const [showFocusFig2, setShowFocusFig2] = useState<boolean>(true);
 
   // Simulated stats for testing achievements progression in demo mode
   const [simulatedMemoriesCount, setSimulatedMemoriesCount] = useState<number>(0);
@@ -62,6 +90,8 @@ export default function App() {
     const trailKey = `brain.hangar.trail.${space.id}`;
     const fig1Key = `brain.hangar.fig1.${space.id}`;
     const fig2Key = `brain.hangar.fig2.${space.id}`;
+    const focusFig1Key = `brain.hangar.focusFig1.${space.id}`;
+    const focusFig2Key = `brain.hangar.focusFig2.${space.id}`;
     const simMemKey = `brain.demo.sim_memories.${space.id}`;
     const simLinkKey = `brain.demo.sim_links.${space.id}`;
     const bypassKey = `brain.demo.bypass.${space.id}`;
@@ -70,6 +100,8 @@ export default function App() {
     setEquippedTrail(localStorage.getItem(trailKey) || "blue");
     setEquippedFig1(localStorage.getItem(fig1Key) || "none");
     setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+    setShowFocusFig1(localStorage.getItem(focusFig1Key) !== "false");
+    setShowFocusFig2(localStorage.getItem(focusFig2Key) !== "false");
     setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
     setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
     setDemoBypass(localStorage.getItem(bypassKey) !== "0");
@@ -99,6 +131,8 @@ export default function App() {
   const [satelliteCount, setSatelliteCount] = useState(0);
   const [visitorCount, setVisitorCount] = useState(0);
   const [followVisitor, setFollowVisitor] = useState(false);
+  const [followFig1, setFollowFig1] = useState(false);
+  const [followFig2, setFollowFig2] = useState(false);
   // Lore card dismissed independently of the camera follow (× closes the card but
   // keeps focus). Reset to false whenever a new focus target is chosen.
   const [loreDismissed, setLoreDismissed] = useState(false);
@@ -252,13 +286,13 @@ export default function App() {
     greetedRef.current = true;
     const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
     if (memories.length === 0) {
-      pushToast(`Welcome, ${space.name}. Drop your first thought to begin.`, "🛰️", 6500);
+      pushToast(`Welcome, ${space.name}. Drop your first thought to begin.`, "🛰️", 10000);
       return;
     }
     const cooling = memories.filter((n) => (n.entropy ?? 0) >= 0.45).length;
     const tail = cooling > 0 ? ` · ${cooling} cooling` : "";
     const word = memories.length === 1 ? "memory" : "memories";
-    pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 6500);
+    pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 10000);
   }, [space, loaded, demo, data.nodes]);
 
   // Gamification (Wave 1): celebrate crossing a memory-count milestone (once each,
@@ -282,7 +316,7 @@ export default function App() {
     } catch {
       /* ignore */
     }
-    pushToast(`${top} memories — your galaxy is growing.`, "🎉", 6500);
+    pushToast(`${top} memories — your galaxy is growing.`, "🎉", 10000);
   }, [space, loaded, demo, data.nodes]);
 
   // Gamification (Wave 1): celebrate when a memory GROWS a tier (asteroid→…→star)
@@ -308,7 +342,7 @@ export default function App() {
     tierInitedRef.current = true;
     for (const n of ups.slice(0, 2)) {
       const label = n.label.length > 30 ? `${n.label.slice(0, 30)}…` : n.label;
-      pushToast(`"${label}" grew into a ${CELESTIAL_LABEL[n.celestial ?? "planet"]}`, "✦", 6000);
+      pushToast(`"${label}" grew into a ${CELESTIAL_LABEL[n.celestial ?? "planet"]}`, "✦", 10000);
     }
   }, [data.nodes, demo, loaded]);
 
@@ -353,7 +387,7 @@ export default function App() {
     achvInitedRef.current = true;
     for (const id of fresh.slice(0, 3)) {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
-      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 7000);
+      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000);
     }
   }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
@@ -432,6 +466,8 @@ export default function App() {
         const trailKey = `brain.hangar.trail.${space.id}`;
         const fig1Key = `brain.hangar.fig1.${space.id}`;
         const fig2Key = `brain.hangar.fig2.${space.id}`;
+        const focusFig1Key = `brain.hangar.focusFig1.${space.id}`;
+        const focusFig2Key = `brain.hangar.focusFig2.${space.id}`;
         const simMemKey = `brain.demo.sim_memories.${space.id}`;
         const simLinkKey = `brain.demo.sim_links.${space.id}`;
         const bypassKey = `brain.demo.bypass.${space.id}`;
@@ -440,6 +476,8 @@ export default function App() {
         setEquippedTrail(localStorage.getItem(trailKey) || "blue");
         setEquippedFig1(localStorage.getItem(fig1Key) || "none");
         setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+        setShowFocusFig1(localStorage.getItem(focusFig1Key) !== "false");
+        setShowFocusFig2(localStorage.getItem(focusFig2Key) !== "false");
         setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
         setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
         setDemoBypass(localStorage.getItem(bypassKey) !== "0");
@@ -500,6 +538,8 @@ export default function App() {
           setFollowStation(false);
           setFollowSatellite(false);
           setFollowVisitor(false);
+          setFollowFig1(false);
+          setFollowFig2(false);
           graphRef.current?.toggleFollowShip(true);
         }}
         onSatelliteCount={setSatelliteCount}
@@ -654,6 +694,9 @@ export default function App() {
               setFollowShip(false);
               setFollowStation(false);
               setFollowSatellite(false);
+              setFollowVisitor(false);
+              setFollowFig1(false);
+              setFollowFig2(false);
               setFocusMenuOpen(false);
               setClustered(false);
             }}
@@ -680,84 +723,147 @@ export default function App() {
             －
           </button>
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
-          <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
-            <button
-              className={`fab focus-item ${followShip ? "on" : ""}`}
-              style={focusItemStyle(0, focusMenuOpen)}
-              onClick={() => {
-                setLoreDismissed(false);
-                setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
-                setFollowStation(false);
-                setFollowSatellite(false);
-                setFocusMenuOpen(false);
-              }}
-              aria-label="Focus Soumaya"
-              title="Focus Soumaya's ship"
-            >
-              🛸
-            </button>
-            <button
-              className={`fab focus-item ${followStation ? "on" : ""}`}
-              style={focusItemStyle(1, focusMenuOpen)}
-              onClick={() => {
-                setLoreDismissed(false);
-                setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
-                setFollowShip(false);
-                setFollowSatellite(false);
-                setFocusMenuOpen(false);
-              }}
-              aria-label="Focus space station"
-              title="Focus the space station"
-            >
-              🌐
-            </button>
-            {satelliteCount > 0 && (
-              <button
-                className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
-                style={focusItemStyle(2, focusMenuOpen)}
-                onClick={() => {
-                  setLoreDismissed(false);
-                  const on = graphRef.current?.cycleFollowSatellite() ?? false;
-                  setFollowSatellite(on);
-                  setFollowShip(false);
-                  setFollowStation(false);
-                  setFollowVisitor(false);
-                  // keep menu open so you can cycle through multiple beacons
-                }}
-                aria-label="Jump to an Aura beacon"
-                title={`Jump to a beacon (${satelliteCount} deployed over cooling memories)`}
-              >
-                🛰️
-              </button>
-            )}
-            {visitorCount > 0 && (
-              <button
-                className={`fab focus-item visitor-item ${followVisitor ? "on" : ""}`}
-                style={focusItemStyle(satelliteCount > 0 ? 3 : 2, focusMenuOpen)}
-                onClick={() => {
-                  const on = graphRef.current?.cycleFollowVisitor() ?? false;
-                  setFollowVisitor(on);
-                  setFollowShip(false);
-                  setFollowStation(false);
-                  setFollowSatellite(false);
-                }}
-                aria-label="Jump to a visitor"
-                title={`Jump to a visitor (${visitorCount} drifting in)`}
-              >
-                👽
-              </button>
-            )}
-            <button
-              className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
-                (followShip || followStation || followSatellite || followVisitor) && !focusMenuOpen ? "on" : ""
-              } ${beaconPulse ? "pulse" : ""}`}
-              onClick={() => setFocusMenuOpen((o) => !o)}
-              aria-label="Camera focus targets"
-              title="Focus targets (ship · station · beacons)"
-            >
-              {focusMenuOpen ? "✕" : "🎯"}
-            </button>
-          </div>
+          {(() => {
+            let focusIdx = 0;
+            const shipIdx = focusIdx++;
+            const stationIdx = focusIdx++;
+            const satelliteIdx = satelliteCount > 0 ? focusIdx++ : -1;
+            const visitorIdx = visitorCount > 0 ? focusIdx++ : -1;
+            const fig1Idx = (showFocusFig1 && equippedFig1 !== "none") ? focusIdx++ : -1;
+            const fig2Idx = (showFocusFig2 && equippedFig2 !== "none") ? focusIdx++ : -1;
+
+            return (
+              <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
+                <button
+                  className={`fab focus-item ${followShip ? "on" : ""}`}
+                  style={focusItemStyle(shipIdx, focusMenuOpen)}
+                  onClick={() => {
+                    setLoreDismissed(false);
+                    setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
+                    setFollowStation(false);
+                    setFollowSatellite(false);
+                    setFollowVisitor(false);
+                    setFollowFig1(false);
+                    setFollowFig2(false);
+                    setFocusMenuOpen(false);
+                  }}
+                  aria-label={`Focus ${space?.name ?? "Soumaya"}`}
+                  title={`Focus ${space?.name ?? "Soumaya"}'s ship`}
+                >
+                  🛸
+                </button>
+                <button
+                  className={`fab focus-item ${followStation ? "on" : ""}`}
+                  style={focusItemStyle(stationIdx, focusMenuOpen)}
+                  onClick={() => {
+                    setLoreDismissed(false);
+                    setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
+                    setFollowShip(false);
+                    setFollowSatellite(false);
+                    setFollowVisitor(false);
+                    setFollowFig1(false);
+                    setFollowFig2(false);
+                    setFocusMenuOpen(false);
+                  }}
+                  aria-label="Focus space station"
+                  title="Focus the space station"
+                >
+                  🌐
+                </button>
+                {satelliteIdx >= 0 && (
+                  <button
+                    className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
+                    style={focusItemStyle(satelliteIdx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.cycleFollowSatellite() ?? false;
+                      setFollowSatellite(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowVisitor(false);
+                      setFollowFig1(false);
+                      setFollowFig2(false);
+                    }}
+                    aria-label="Jump to an Aura beacon"
+                    title={`Jump to a beacon (${satelliteCount} deployed over cooling memories)`}
+                  >
+                    🛰️
+                  </button>
+                )}
+                {visitorIdx >= 0 && (
+                  <button
+                    className={`fab focus-item visitor-item ${followVisitor ? "on" : ""}`}
+                    style={focusItemStyle(visitorIdx, focusMenuOpen)}
+                    onClick={() => {
+                      const on = graphRef.current?.cycleFollowVisitor() ?? false;
+                      setFollowVisitor(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowFig1(false);
+                      setFollowFig2(false);
+                    }}
+                    aria-label="Jump to a visitor"
+                    title={`Jump to a visitor (${visitorCount} drifting in)`}
+                  >
+                    👽
+                  </button>
+                )}
+                {fig1Idx >= 0 && (
+                  <button
+                    className={`fab focus-item ${followFig1 ? "on" : ""}`}
+                    style={focusItemStyle(fig1Idx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.toggleFollowFig1() ?? false;
+                      setFollowFig1(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowVisitor(false);
+                      setFollowFig2(false);
+                      setFocusMenuOpen(false);
+                    }}
+                    aria-label={`Focus ${getFigurineLabel(equippedFig1)}`}
+                    title={`Focus ${getFigurineLabel(equippedFig1)}`}
+                  >
+                    {getFigurineIcon(equippedFig1)}
+                  </button>
+                )}
+                {fig2Idx >= 0 && (
+                  <button
+                    className={`fab focus-item ${followFig2 ? "on" : ""}`}
+                    style={focusItemStyle(fig2Idx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.toggleFollowFig2() ?? false;
+                      setFollowFig2(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowVisitor(false);
+                      setFollowFig1(false);
+                      setFocusMenuOpen(false);
+                    }}
+                    aria-label={`Focus ${getFigurineLabel(equippedFig2)}`}
+                    title={`Focus ${getFigurineLabel(equippedFig2)}`}
+                  >
+                    {getFigurineIcon(equippedFig2)}
+                  </button>
+                )}
+                <button
+                  className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
+                    (followShip || followStation || followSatellite || followVisitor || followFig1 || followFig2) && !focusMenuOpen ? "on" : ""
+                  } ${beaconPulse ? "pulse" : ""}`}
+                  onClick={() => setFocusMenuOpen((o) => !o)}
+                  aria-label="Camera focus targets"
+                  title="Focus targets (ship · station · beacons · figurines)"
+                >
+                  {focusMenuOpen ? "✕" : "🎯"}
+                </button>
+              </div>
+            );
+          })()}
           <button
             className={`fab fab-music ${music ? "on" : ""}`}
             onClick={toggleMusic}

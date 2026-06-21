@@ -23,11 +23,15 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
   const trailKey = `brain.hangar.trail.${spaceId}`;
   const fig1Key = `brain.hangar.fig1.${spaceId}`;
   const fig2Key = `brain.hangar.fig2.${spaceId}`;
+  const focusFig1Key = `brain.hangar.focusFig1.${spaceId}`;
+  const focusFig2Key = `brain.hangar.focusFig2.${spaceId}`;
 
   const currentShip = localStorage.getItem(shipKey) || "default";
   const currentTrail = localStorage.getItem(trailKey) || "blue";
   const currentFig1 = localStorage.getItem(fig1Key) || "none";
   const currentFig2 = localStorage.getItem(fig2Key) || "none";
+  const currentFocusFig1 = localStorage.getItem(focusFig1Key) !== "false";
+  const currentFocusFig2 = localStorage.getItem(focusFig2Key) !== "false";
 
   // Simulated or actual counts
   let activeMemoriesCount = memoriesCount;
@@ -342,6 +346,18 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
             {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
           </option>
         </select>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.78rem", marginTop: "0.45rem", cursor: "pointer", opacity: currentFig1 === "none" ? 0.5 : 1 }}>
+          <input
+            type="checkbox"
+            disabled={currentFig1 === "none"}
+            checked={currentFocusFig1}
+            onChange={(e) => {
+              localStorage.setItem(focusFig1Key, e.target.checked ? "true" : "false");
+              onEquipChanged();
+            }}
+          />
+          Show camera focus button on HUD
+        </label>
       </div>
 
       {/* SLOT 2 SELECTION */}
@@ -381,6 +397,18 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
             {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
           </option>
         </select>
+        <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.78rem", marginTop: "0.45rem", cursor: "pointer", opacity: currentFig2 === "none" ? 0.5 : 1 }}>
+          <input
+            type="checkbox"
+            disabled={currentFig2 === "none"}
+            checked={currentFocusFig2}
+            onChange={(e) => {
+              localStorage.setItem(focusFig2Key, e.target.checked ? "true" : "false");
+              onEquipChanged();
+            }}
+          />
+          Show camera focus button on HUD
+        </label>
       </div>
     </div>
   );
