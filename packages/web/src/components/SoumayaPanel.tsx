@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { Fuel } from "@brain/shared";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { type ChatResponse, type Fuel, NEUTRAL_TONE } from "@brain/shared";
 import {
   getAgentLogs,
   getDailyLog,
@@ -10,21 +10,65 @@ import {
   setBudget as apiSetBudget,
   resetUsage,
   getSpaceId,
+  askChat,
   type AgentLog,
   type DailyLog,
   type JobRationale,
   type Usage,
 } from "../api/client.js";
+import { TYPE_COLORS } from "../graph/theme.js";
+import {
+  isVoiceEnabled,
+  isVoiceSupported,
+  setVoiceEnabled as persistVoice,
+  speak,
+  stopSpeaking,
+} from "../voice.js";
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Tiny, very quiet "terminal key" tick for the typewriter effect.
+let actx: AudioContext | null = null;
+function playTick() {
+  try {
+    const AC = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    if (!actx) actx = new AC();
+    const t = actx.currentTime;
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = "square";
+    o.frequency.value = 1400 + Math.random() * 500;
+    g.gain.setValueAtTime(0.0009, t);
+    g.gain.exponentialRampToValueAtTime(0.00001, t + 0.03);
+    o.connect(g);
+    g.connect(actx.destination);
+    o.start(t);
+    o.stop(t + 0.035);
+  } catch {
+    /* audio not available */
+  }
+}
 
 export function SoumayaPanel({
   onFocus,
+  onRecall,
   showShipTask,
   setShowShipTask,
+  shipViewMode,
+  setShipViewMode,
+  tasks,
+  onReorderTasks,
 }: {
   onFocus: (id: number) => void;
+  onRecall?: (ids: number[]) => void;
   showShipTask?: boolean;
   setShowShipTask?: (v: boolean) => void;
+  shipViewMode?: "orbit" | "cockpit";
+  setShipViewMode?: (v: "orbit" | "cockpit") => void;
+  tasks?: any[];
+  onReorderTasks?: (newOrder: any[]) => void;
 }) {
+  // Telemetry & Logs state
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [researchEnabled, setResearchEnabled] = useState(false);
@@ -33,13 +77,46 @@ export function SoumayaPanel({
   const [budgetInput, setBudgetInput] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // Chat state
+  const [q, setQ] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resp, setResp] = useState<ChatResponse | null>(null);
+  const [displayed, setDisplayed] = useState("");
+  const [typing, setTyping] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(isVoiceEnabled());
+  const [speaking, setSpeaking] = useState(false);
+  const soundRef = useRef(true);
+  const voiceSupported = isVoiceSupported();
+
+  const moveTask = (index: number, direction: "up" | "down") => {
+    if (!tasks || !onReorderTasks) return;
+    const plannedTasks = tasks.filter((t) => t.status === "planned");
+    const targetPlannedIndex = plannedTasks.findIndex(t => t.id === tasks[index].id);
+    if (targetPlannedIndex === -1) return;
+    
+    const nextPlannedIndex = direction === "up" ? targetPlannedIndex - 1 : targetPlannedIndex + 1;
+    if (nextPlannedIndex < 0 || nextPlannedIndex >= plannedTasks.length) return;
+    
+    const newPlanned = [...plannedTasks];
+    const temp = newPlanned[targetPlannedIndex]!;
+    newPlanned[targetPlannedIndex] = newPlanned[nextPlannedIndex]!;
+    newPlanned[nextPlannedIndex] = temp;
+    
+    const doing = tasks.filter((t) => t.status === "doing");
+    const done = tasks.filter((t) => t.status === "done");
+    
+    const newOrder = [...doing, ...newPlanned, ...done];
+    onReorderTasks(newOrder);
+  };
+
+  // Fetch telemetry/logs
   const fetchData = async () => {
     try {
       const [logsData, settings, usageData, dl, fuelData] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
-        getDailyLog(), // space-scoped via the client (sends x-space-id)
+        getDailyLog(),
         getFuel(),
       ]);
       setLogs(logsData);
@@ -60,182 +137,281 @@ export function SoumayaPanel({
     return () => clearInterval(timer);
   }, []);
 
+  // Speech and voice hooks
+  useEffect(() => () => stopSpeaking(), []);
+
+  useEffect(() => {
+    if (!resp?.answer || !voiceOn) return;
+    speak(resp.answer, resp.tone ?? NEUTRAL_TONE, {
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    });
+  }, [resp]);
+
+  const toggleVoice = () => {
+    const next = !voiceOn;
+    setVoiceOn(next);
+    persistVoice(next);
+    if (!next) setSpeaking(false);
+    else if (resp?.answer)
+      speak(resp.answer, resp.tone ?? NEUTRAL_TONE, {
+        onStart: () => setSpeaking(true),
+        onEnd: () => setSpeaking(false),
+      });
+  };
+
+  // Typewriter effect
+  useEffect(() => {
+    const full = resp?.answer ?? "";
+    if (!full) {
+      setDisplayed("");
+      return;
+    }
+    let i = 0;
+    setDisplayed("");
+    setTyping(true);
+    const id = setInterval(() => {
+      i += 2;
+      setDisplayed(full.slice(0, i));
+      if (soundRef.current && i % 4 === 0) playTick();
+      if (i >= full.length) {
+        clearInterval(id);
+        setTyping(false);
+      }
+    }, 16);
+    return () => clearInterval(id);
+  }, [resp]);
+
   const toggleResearch = async () => {
     const newVal = !researchEnabled;
     setResearchEnabled(newVal);
     await updateSetting("research_enabled", String(newVal));
   };
 
-  if (loading) return <div className="dock-body"><p className="empty">Initializing Soumaya link...</p></div>;
+  async function ask(e: FormEvent) {
+    e.preventDefault();
+    if (!q.trim()) return;
+    setBusy(true);
+    try {
+      const response = await askChat(q);
+      setResp(response);
+      if (response.citations && response.citations.length > 0) {
+        const ids = response.citations.map((c) => c.id);
+        onRecall?.(ids);
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="dock-body">
+        <p className="empty">Initializing Soumaya link...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dock-body">
       <div className="dock-head">
-        <h3>Soumaya Command Center</h3>
-        <div className="toggle-box">
-          <span className="mini-label">Research Mode</span>
-          <button 
-            className={`mini ${researchEnabled ? 'active' : ''}`} 
-            onClick={toggleResearch}
-            style={{ 
-              backgroundColor: researchEnabled ? 'rgba(100,200,255,0.2)' : 'transparent',
-              borderColor: researchEnabled ? '#64c8ff' : 'rgba(255,255,255,0.2)'
-            }}
+        <h3>Soumaya {speaking && <span className="speaking-dot" title="Speaking…">◗</span>}</h3>
+        <div className="head-tools">
+          {setShipViewMode && (
+            <button
+              className={`link-btn ${shipViewMode === "cockpit" ? "active" : ""}`}
+              title={shipViewMode === "cockpit" ? "Camera Mode: Cockpit Lock" : "Camera Mode: Orbit Follow"}
+              onClick={() => setShipViewMode(shipViewMode === "cockpit" ? "orbit" : "cockpit")}
+              style={{ fontSize: "1.1rem" }}
+            >
+              {shipViewMode === "cockpit" ? "🎥 Lock" : "🎥 Free"}
+            </button>
+          )}
+          {setShowShipTask && (
+            <button
+              className={`link-btn ${showShipTask ? "active" : ""}`}
+              title={showShipTask ? "Hide ship task label" : "Show ship task label"}
+              onClick={() => setShowShipTask(!showShipTask)}
+              style={{ fontSize: "1.1rem" }}
+            >
+              🏷️
+            </button>
+          )}
+          {voiceSupported && (
+            <button
+              className={`link-btn ${voiceOn ? "active" : ""}`}
+              title={voiceOn ? "Soumaya's voice: ON" : "Soumaya's voice: OFF"}
+              onClick={toggleVoice}
+            >
+              {voiceOn ? "🗣️" : "🔇"}
+            </button>
+          )}
+          <button
+            className="link-btn"
+            title="Toggle typing sound"
+            onClick={() => (soundRef.current = !soundRef.current)}
           >
-            {researchEnabled ? "ON" : "OFF"}
+            ⌨️
           </button>
         </div>
       </div>
 
-      <p className="description" style={{ fontSize: '0.8rem', opacity: 0.7, marginBottom: '1rem' }}>
-        Autonomous agent for graph maintenance and knowledge expansion. Research consumes tokens.
-      </p>
-
-      {setShowShipTask && (
-        <div className="toggle-box" style={{ marginBottom: '1rem' }}>
-          <span className="mini-label">Show her current task above the ship</span>
-          <button
-            className={`mini ${showShipTask ? 'active' : ''}`}
-            onClick={() => setShowShipTask(!showShipTask)}
-            style={{
-              backgroundColor: showShipTask ? 'rgba(100,200,255,0.2)' : 'transparent',
-              borderColor: showShipTask ? '#64c8ff' : 'rgba(255,255,255,0.2)',
-            }}
-          >
-            {showShipTask ? "ON" : "OFF"}
-          </button>
-        </div>
-      )}
-
-      {fuel && (
-        <div className="budget-box">
-          <div className="budget-head">
-            <span>⛽ Fuel (earned by tending)</span>
-            <span className={fuel.fuel < fuel.jobCost ? "budget-over" : ""}>
-              {fuel.fuel.toFixed(1)} / {fuel.capacity}
-            </span>
-          </div>
-          <div className="budget-bar">
-            <div
-              className="budget-fill"
-              style={{
-                width: `${Math.round(Math.min(1, fuel.fuel / fuel.capacity) * 100)}%`,
-                background: fuel.fuel < fuel.jobCost ? "#ff6b6b" : "#8be9a0",
-              }}
-            />
-          </div>
-          <p className="budget-note">
-            {fuel.fuel < fuel.jobCost
-              ? "Out of fuel — her core duties (connections, tidying, daily log) still run; only deep-dive expansion pauses. Add memories, forge links, or clear action items to refuel."
-              : "Powers Soumaya's ambitious deep-dive research + sector charting. Earn it by adding memories, forging links, and clearing action items."}
+      {/* 1. Active Flight Tasks (At the top) */}
+      <div className="ship-tasks-section" style={{ marginTop: "10px", paddingTop: "5px", borderTop: "none" }}>
+        <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Active Flight Tasks
+        </h4>
+        {tasks && tasks.length > 0 ? (
+          <ul className="ship-tasks-list">
+            {tasks.map((task, idx) => {
+              const isPlanned = task.status === "planned";
+              const isDoing = task.status === "doing";
+              const isDone = task.status === "done";
+              
+              const plannedTasks = tasks.filter((t) => t.status === "planned");
+              const pIdx = plannedTasks.findIndex(t => t.id === task.id);
+              
+              return (
+                <li key={task.id} className={`ship-task-item ${task.status}`}>
+                  <span className={`status-indicator ${task.status}`}>
+                    {isDoing && <span className="pulse-dot" />}
+                    {isDone && "✓"}
+                    {isPlanned && "○"}
+                  </span>
+                  <span className="task-label">{task.label}</span>
+                  {isPlanned && (
+                    <div className="task-controls">
+                      <button
+                        className="task-btn"
+                        disabled={pIdx === 0}
+                        onClick={() => moveTask(idx, "up")}
+                        title="Move task up in priority"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        className="task-btn"
+                        disabled={pIdx === plannedTasks.length - 1}
+                        onClick={() => moveTask(idx, "down")}
+                        title="Move task down in priority"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="empty" style={{ margin: "5px 0", fontSize: "0.8rem", opacity: 0.6 }}>
+            Idle at space station — no active flight tasks.
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
-      {getSpaceId() && (
-        <div className="budget-box">
-          <div className="budget-head">
-            <span>🛰️ Talk to me on Telegram</span>
-          </div>
-          <p className="budget-note">
-            Message the bot, then connect this brain with your login:
-          </p>
-          <code
-            className="brain-id"
-            title="Tap to copy"
-            onClick={() => navigator.clipboard?.writeText("/link <name> <passcode>")}
-          >
-            /link &lt;name&gt; &lt;passcode&gt;
-          </code>
-          <p className="budget-note">
-            Use the same name + passcode you signed in with. After that I'll answer
-            from this brain, log what you send, and bring you a daily digest.
-          </p>
-        </div>
-      )}
-
-      {usage && (
-        <div className="budget-box">
-          <div className="budget-head">
-            <span>API budget (estimated)</span>
-            <span className={usage.overBudget ? "budget-over" : usage.low ? "budget-low" : ""}>
-              ${usage.estCostUsd.toFixed(3)} / ${usage.budgetUsd.toFixed(2)}
-            </span>
-          </div>
-          <div className="budget-bar">
-            <div
-              className="budget-fill"
-              style={{
-                width: `${Math.round(usage.fractionUsed * 100)}%`,
-                background: usage.overBudget ? "#ff6b6b" : usage.low ? "#ffd166" : "var(--accent)",
-              }}
-            />
-          </div>
-          {usage.overBudget ? (
-            <p className="budget-note budget-over">
-              Budget reached — AI is paused (offline mode). Recharge at platform.openai.com, then
-              raise the budget or reset below.
+      {/* 2. Chat Interface */}
+      <div className="chat-section" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
+        <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Talk to Soumaya
+        </h4>
+        <form onSubmit={ask} className="chat-form">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Soumaya…" />
+          <button disabled={busy}>{busy ? "…" : "Ask"}</button>
+        </form>
+        {resp && (
+          <div className="chat-answer" style={{ marginBottom: "12px" }}>
+            <p style={{ margin: "4px 0 8px" }}>
+              {displayed}
+              {typing && <span className="type-caret">▋</span>}
             </p>
-          ) : usage.low ? (
-            <p className="budget-note budget-low">Running low — ~${usage.remainingUsd.toFixed(2)} left.</p>
-          ) : (
-            <p className="budget-note">
-              ~${usage.remainingUsd.toFixed(2)} of estimated spend left. (Real balance can't be read
-              from an API key — this is a token-based estimate.)
-            </p>
-          )}
-          <div className="budget-actions">
-            <input
-              type="number"
-              min={0}
-              step={1}
-              placeholder={`$${usage.budgetUsd}`}
-              value={budgetInput}
-              onChange={(e) => setBudgetInput(e.target.value)}
-            />
-            <button
-              className="mini"
-              onClick={async () => {
-                const v = Number(budgetInput);
-                if (!Number.isFinite(v) || v < 0) return;
-                const u = await apiSetBudget(v);
-                if (u) setUsage(u);
-                setBudgetInput("");
+            {!typing && resp.citations.length > 0 && (
+              <div className="pills">
+                {resp.citations.map((c) => (
+                  <button
+                    key={c.id}
+                    className="pill"
+                    style={{ borderColor: TYPE_COLORS[c.type] }}
+                    onClick={() => onFocus(c.id)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. Operations & Telemetry */}
+      <div className="operations-section" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <h4 style={{ margin: 0, fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Operations & Telemetry
+          </h4>
+          <div className="toggle-box" style={{ margin: 0 }}>
+            <span className="mini-label" style={{ fontSize: "11px", opacity: 0.7 }}>Research Mode</span>
+            <button 
+              className={`mini ${researchEnabled ? 'active' : ''}`} 
+              onClick={toggleResearch}
+              style={{ 
+                backgroundColor: researchEnabled ? 'rgba(100,200,255,0.2)' : 'transparent',
+                borderColor: researchEnabled ? '#64c8ff' : 'rgba(255,255,255,0.2)',
+                fontSize: "10px",
+                padding: "2px 6px"
               }}
             >
-              Set budget
-            </button>
-            <button
-              className="mini"
-              onClick={async () => {
-                const u = await resetUsage();
-                if (u) setUsage(u);
-              }}
-            >
-              Reset
+              {researchEnabled ? "ON" : "OFF"}
             </button>
           </div>
         </div>
-      )}
 
+        {fuel && (
+          <div className="budget-box" style={{ marginTop: "10px" }}>
+            <div className="budget-head">
+              <span>⛽ Fuel (earned by tending)</span>
+              <span className={fuel.fuel < fuel.jobCost ? "budget-over" : ""}>
+                {fuel.fuel.toFixed(1)} / {fuel.capacity}
+              </span>
+            </div>
+            <div className="budget-bar">
+              <div
+                className="budget-fill"
+                style={{
+                  width: `${Math.round(Math.min(1, fuel.fuel / fuel.capacity) * 100)}%`,
+                  background: fuel.fuel < fuel.jobCost ? "#ff6b6b" : "#8be9a0",
+                }}
+              />
+            </div>
+            <p className="budget-note" style={{ fontSize: "11px", marginTop: "6px" }}>
+              {fuel.fuel < fuel.jobCost
+                ? "Out of fuel — deep-dive expansion paused. Add memories, forge links, or clear action items to refuel."
+                : "Powers deep-dive research + sector charting. Earn it by adding memories or forging links."}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Captain's Log */}
       {dailyLog && (
-        <div className="daily-log" style={{ marginBottom: '1.5rem', padding: '1rem', backgroundColor: 'rgba(100, 200, 255, 0.05)', borderLeft: '3px solid rgba(100, 200, 255, 0.5)', borderRadius: '0 4px 4px 0' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: 'rgba(100, 200, 255, 0.9)' }}>Captain's Log ({dailyLog.date})</h4>
+        <div className="daily-log" style={{ marginTop: "20px", padding: '1rem', backgroundColor: 'rgba(100, 200, 255, 0.05)', borderLeft: '3px solid rgba(100, 200, 255, 0.5)', borderRadius: '0 4px 4px 0' }}>
+          <h4 style={{ margin: '0 0 0.5rem 0', color: 'rgba(100, 200, 255, 0.9)', fontSize: "13px" }}>
+            Captain's Log ({dailyLog.date})
+          </h4>
           <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.4, opacity: 0.9 }}>{dailyLog.content}</p>
         </div>
       )}
 
-      {/* Consistency Constellation (Habit Grid) */}
-      <div className="constellation-grid" style={{ marginBottom: '1.5rem' }}>
-        <h4 style={{ marginBottom: '0.5rem', fontSize: '0.8rem', color: 'var(--muted)' }}>Consistency Constellation (Recent Activity)</h4>
+      {/* 5. Consistency Constellation */}
+      <div className="constellation-grid" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
+        <h4 style={{ marginBottom: '8px', fontSize: '13px', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          Consistency Constellation
+        </h4>
         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-          {/* Mocking a 14-day trailing activity grid based on logs */}
           {Array.from({ length: 14 }).map((_, i) => {
             const date = new Date();
             date.setDate(date.getDate() - (13 - i));
             const dateStr = date.toISOString().split('T')[0]!;
-            
-            // Check if any log occurred on this day
             const hasActivity = logs.some(l => l.createdAt.startsWith(dateStr));
             
             return (
@@ -256,10 +432,13 @@ export function SoumayaPanel({
         </div>
       </div>
 
-      <div className="log-container">
-        <h4>Recent Activity</h4>
+      {/* 6. Recent Activity */}
+      <div className="log-container" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
+        <h4 style={{ marginBottom: "10px", fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+          Recent Activity
+        </h4>
         {logs.length === 0 && <p className="empty">No recent logs recorded.</p>}
-        <ul className="agent-logs" style={{ listStyle: 'none', padding: 0 }}>
+        <ul className="agent-logs" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
           {logs.map((log) => {
             let targets: number[] = [];
             try {
@@ -272,7 +451,6 @@ export function SoumayaPanel({
             const rawDate = log.createdAt;
             const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
 
-            // Her decision breakdown (objective / why / benefit), if recorded.
             let rationale: JobRationale | null = null;
             try {
               if (log.result) {
@@ -329,6 +507,111 @@ export function SoumayaPanel({
           })}
         </ul>
       </div>
+
+      {/* 7. Expandable Advanced Settings (Telegram Bot + API Budget) */}
+      <details className="advanced-settings" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "12px" }}>
+        <summary style={{ cursor: "pointer", color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", padding: "4px 0" }}>
+          Advanced connection & budget
+        </summary>
+        <div style={{ padding: "10px 0 0 0" }}>
+          {getSpaceId() && (
+            <div className="budget-box" style={{ marginBottom: "14px" }}>
+              <div className="budget-head">
+                <span>🛰️ Talk to me on Telegram</span>
+              </div>
+              <p className="budget-note" style={{ fontSize: "11px" }}>
+                Message the bot, then connect this brain with your login:
+              </p>
+              <code
+                className="brain-id"
+                title="Tap to copy"
+                onClick={() => navigator.clipboard?.writeText("/link <name> <passcode>")}
+                style={{ cursor: "pointer", display: "block", margin: "6px 0", padding: "4.5px", background: "rgba(0,0,0,0.35)", borderRadius: "4px", fontSize: "11px" }}
+              >
+                /link &lt;name&gt; &lt;passcode&gt;
+              </code>
+              <p className="budget-note" style={{ fontSize: "11px" }}>
+                Use the same name + passcode you signed in with. After that I'll answer
+                from this brain, log what you send, and bring you a daily digest.
+              </p>
+            </div>
+          )}
+
+          {usage && (
+            <div className="budget-box">
+              <div className="budget-head">
+                <span>API budget (estimated)</span>
+                <span className={usage.overBudget ? "budget-over" : usage.low ? "budget-low" : ""}>
+                  ${usage.estCostUsd.toFixed(3)} / ${usage.budgetUsd.toFixed(2)}
+                </span>
+              </div>
+              <div className="budget-bar">
+                <div
+                  className="budget-fill"
+                  style={{
+                    width: `${Math.round(usage.fractionUsed * 100)}%`,
+                    background: usage.overBudget ? "#ff6b6b" : usage.low ? "#ffd166" : "var(--accent)",
+                  }}
+                />
+              </div>
+              {usage.overBudget ? (
+                <p className="budget-note budget-over">
+                  Budget reached — AI is paused. Recharge at platform.openai.com, then raise budget.
+                </p>
+              ) : usage.low ? (
+                <p className="budget-note budget-low">Running low — ~${usage.remainingUsd.toFixed(2)} left.</p>
+              ) : (
+                <p className="budget-note">
+                  ~${usage.remainingUsd.toFixed(2)} of estimated spend left.
+                </p>
+              )}
+              <div className="budget-actions" style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  placeholder={`$${usage.budgetUsd}`}
+                  value={budgetInput}
+                  onChange={(e) => setBudgetInput(e.target.value)}
+                  style={{
+                    width: "60px",
+                    background: "rgba(0,0,0,0.3)",
+                    border: "1px solid var(--glass-border)",
+                    color: "var(--text)",
+                    padding: "4px 6px",
+                    borderRadius: "4px",
+                    font: "inherit",
+                    fontSize: "11px"
+                  }}
+                />
+                <button
+                  className="mini"
+                  onClick={async () => {
+                    const v = Number(budgetInput);
+                    if (!Number.isFinite(v) || v < 0) return;
+                    const u = await apiSetBudget(v);
+                    if (u) setUsage(u);
+                    setBudgetInput("");
+                  }}
+                  style={{ padding: "4px 8px", fontSize: "11px" }}
+                >
+                  Set budget
+                </button>
+                <button
+                  className="mini"
+                  onClick={async () => {
+                    const u = await resetUsage();
+                    if (u) setUsage(u);
+                  }}
+                  style={{ padding: "4px 8px", fontSize: "11px" }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </details>
     </div>
   );
 }

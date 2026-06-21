@@ -884,6 +884,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const sp = new THREE.Vector3();
         fo.getWorldPosition(sp);
         
+        // Disable damping when following her ship to prevent aggravating lag/trailing.
+        if (followKindRef.current === "ship") {
+          controls.enableDamping = false;
+        } else {
+          controls.enableDamping = true;
+        }
+
         if (followKindRef.current === "ship" && shipViewModeRef.current === "cockpit") {
           // Cockpit Lock: camera is locked in front of the ship, looking back at the nose.
           const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
@@ -892,16 +899,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const camPos = sp.clone().addScaledVector(fwd, dist).addScaledVector(up, 8);
           camera.position.copy(camPos);
           
-          const target = sp.clone();
-          if (insetRef.current) {
-            if (window.innerWidth <= 720) {
-              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
-              target.addScaledVector(down, dist * 0.18);
-            } else {
-              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-              target.addScaledVector(right, dist * 0.095);
-            }
-          }
+          const target = sp.clone(); // dead center, no panel offset
           controls.target.copy(target);
           followObjAnchored.current = false;
         } else {
@@ -920,7 +918,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             followObjAnchor.current.copy(sp);
           }
           const target = sp.clone();
-          if (insetRef.current) {
+          // Offset the target only for non-ship targets when panel is open
+          if (insetRef.current && followKindRef.current !== "ship") {
             if (window.innerWidth <= 720) {
               const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
               target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
@@ -931,6 +930,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
           controls.target.copy(target);
         }
+      } else if (controls) {
+        // Ensure damping is enabled when not following any object
+        controls.enableDamping = true;
       }
 
       // Sync computed coordinates from dataRef.current.nodes back to the active simulated nodes

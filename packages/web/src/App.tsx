@@ -316,7 +316,7 @@ export default function App() {
         data={view}
         onSelect={(node) => focus(node.id)}
         onSoumayaClick={() => {
-          setTab("chat"); // tapping her ship = talk to Soumaya
+          setTab("soumaya"); // tapping her ship = talk to Soumaya
           setPanel("dock");
           setFollowShip(true);
           setFollowStation(false);

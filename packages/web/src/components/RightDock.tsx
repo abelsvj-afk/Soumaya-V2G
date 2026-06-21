@@ -4,7 +4,6 @@ import { NodeList } from "./NodeList.js";
 import { ActionsPanel } from "./ActionsPanel.js";
 import { SectorView } from "./SectorView.js";
 import { DigestPanel } from "./DigestPanel.js";
-import { ChatPanel } from "./ChatPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 import { FleetPanel } from "./FleetPanel.js";
 import { CompanionPanel } from "./CompanionPanel.js";
@@ -47,7 +46,6 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "list", label: "📋", name: "List" },
   { id: "actions", label: "✅", name: "Agenda" },
   { id: "insights", label: "✨", name: "Insights" },
-  { id: "chat", label: "💬", name: "Chat" },
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
   { id: "fleet", label: "🚀", name: "Fleet" },
   { id: "companion", label: "🧠", name: "Companion" },
@@ -126,8 +124,8 @@ export function RightDock({
           />
         )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
-        {tab === "chat" && (
-          <ChatPanel
+        {(tab === "soumaya" || tab === "chat") && (
+          <SoumayaPanel
             onFocus={onFocus}
             onRecall={onRecall}
             showShipTask={showShipTask}
@@ -136,13 +134,6 @@ export function RightDock({
             setShipViewMode={setShipViewMode}
             tasks={tasks}
             onReorderTasks={onReorderTasks}
-          />
-        )}
-        {tab === "soumaya" && (
-          <SoumayaPanel
-            onFocus={onFocus}
-            showShipTask={showShipTask}
-            setShowShipTask={setShowShipTask}
           />
         )}
         {tab === "fleet" && (
