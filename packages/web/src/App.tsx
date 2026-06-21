@@ -42,6 +42,22 @@ export default function App() {
   // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
+
+  // Hangar system equipped states
+  const [equippedShip, setEquippedShip] = useState<string>("default");
+  const [equippedFig1, setEquippedFig1] = useState<string>("none");
+  const [equippedFig2, setEquippedFig2] = useState<string>("none");
+
+  // Load equipped customizations when the space changes
+  useEffect(() => {
+    if (!space) return;
+    const shipKey = `brain.hangar.ship.${space.id}`;
+    const fig1Key = `brain.hangar.fig1.${space.id}`;
+    const fig2Key = `brain.hangar.fig2.${space.id}`;
+    setEquippedShip(localStorage.getItem(shipKey) || "default");
+    setEquippedFig1(localStorage.getItem(fig1Key) || "none");
+    setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+  }, [space]);
   const [demo, setDemo] = useState(() => {
     try {
       return new URLSearchParams(window.location.search).get("demo") === "1";
@@ -375,6 +391,18 @@ export default function App() {
   // After a weight edit: re-pull the graph (mass/celestial recompute), keep
   // the node selected, no camera move.
   const handleChanged = useCallback(async (id: number) => {
+    if (id === -1) {
+      if (space) {
+        const shipKey = `brain.hangar.ship.${space.id}`;
+        const fig1Key = `brain.hangar.fig1.${space.id}`;
+        const fig2Key = `brain.hangar.fig2.${space.id}`;
+        setEquippedShip(localStorage.getItem(shipKey) || "default");
+        setEquippedFig1(localStorage.getItem(fig1Key) || "none");
+        setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+      }
+      return;
+    }
+    if (demo) return;
     const g = await getGraph();
     setData(g);
     const n = g.nodes.find((x) => x.id === id);
@@ -382,7 +410,7 @@ export default function App() {
       setSelected(n);
       graphRef.current?.spawnBurst(id, "user");
     }
-  }, []);
+  }, [space, demo]);
 
   const handleDeleted = useCallback(() => {
     setSelected(null);
@@ -440,6 +468,9 @@ export default function App() {
         onTasksChange={setTasks}
         shipViewMode={shipViewMode}
         fuel={fuel}
+        equippedShip={equippedShip}
+        equippedFig1={equippedFig1}
+        equippedFig2={equippedFig2}
       />
 
       {!loaded && (
@@ -704,7 +735,7 @@ export default function App() {
           selected={selected}
           graph={view}
           onFocus={focus}
-          onChanged={demo ? undefined : handleChanged}
+          onChanged={handleChanged}
           onDeleted={demo ? undefined : handleDeleted}
           onIsolate={(id) => {
             graphRef.current?.isolateSystem(id);

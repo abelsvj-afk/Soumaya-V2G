@@ -8,10 +8,11 @@ import { SoumayaPanel } from "./SoumayaPanel.js";
 import { FleetPanel } from "./FleetPanel.js";
 import { CompanionPanel } from "./CompanionPanel.js";
 import { AchievementsPanel } from "./AchievementsPanel.js";
+import { HangarPanel } from "./HangarPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel } from "@brain/shared";
 
-export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion" | "awards";
+export type DockTab = "details" | "list" | "actions" | "sectors" | "insights" | "chat" | "soumaya" | "fleet" | "companion" | "awards" | "hangar";
 
 interface Props {
   tab: DockTab;
@@ -55,6 +56,7 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "fleet", label: "🚀", name: "Fleet" },
   { id: "companion", label: "🧠", name: "Companion" },
   { id: "awards", label: "🏆", name: "Awards" },
+  { id: "hangar", label: "🛠️", name: "Hangar" },
 ];
 
 export function RightDock({
@@ -149,6 +151,13 @@ export function RightDock({
         )}
         {tab === "companion" && <CompanionPanel demo={demo} />}
         {tab === "awards" && <AchievementsPanel graph={graph} fuel={fuel ?? null} spaceId={spaceId ?? ""} />}
+        {tab === "hangar" && (
+          <HangarPanel
+            spaceId={spaceId ?? ""}
+            memoriesCount={graph.nodes.filter((n) => n.kind !== "action").length}
+            onEquipChanged={() => onChanged?.(-1)}
+          />
+        )}
       </div>
     </div>
   );

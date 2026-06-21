@@ -17,6 +17,7 @@ import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeSpaceStation } from "./spaceStation.js";
+import { gltfLoader } from "./gltf.js";
 import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
@@ -76,6 +77,9 @@ interface Props {
   onTasksChange?: (tasks: any[]) => void;
   shipViewMode?: "orbit" | "cockpit";
   fuel?: any;
+  equippedShip?: string;
+  equippedFig1?: string;
+  equippedFig2?: string;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -87,8 +91,150 @@ const linkKey = (l: any): string => {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
 };
 
+function updateFigurine(
+  group: THREE.Group,
+  type: string,
+  position: THREE.Vector3,
+  getEnv: () => THREE.Texture | null
+) {
+  // Clear previous children
+  while (group.children.length > 0) {
+    const child = group.children[0]!;
+    group.remove(child);
+  }
+
+  if (type === "none") {
+    group.visible = false;
+    return;
+  }
+
+  group.visible = true;
+  group.position.copy(position);
+
+  let fallbackMesh: THREE.Object3D;
+  let modelPath = "";
+  let targetSize = 1000; // desired scale size in world units
+
+  if (type === "station") {
+    modelPath = "/space_station_3.glb";
+    targetSize = 1300;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x7af9ff,
+      roughness: 0.2,
+      metalness: 0.8,
+      emissive: 0x003355,
+      emissiveIntensity: 0.5
+    });
+    fallbackMesh = new THREE.Mesh(new THREE.TorusGeometry(600, 100, 16, 48), mat);
+  } else if (type === "satellite") {
+    modelPath = "/aura-satellite.glb";
+    targetSize = 1000;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffd700,
+      roughness: 0.3,
+      metalness: 0.9,
+      emissive: 0x443300,
+      emissiveIntensity: 0.3
+    });
+    fallbackMesh = new THREE.Mesh(new THREE.CylinderGeometry(150, 150, 800, 16), mat);
+  } else if (type === "star_center") {
+    modelPath = "/star-center.glb";
+    targetSize = 1500;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xffbb44,
+      emissive: 0xff8800,
+      emissiveIntensity: 2.0,
+      roughness: 0.1,
+      metalness: 0.9
+    });
+    fallbackMesh = new THREE.Mesh(new THREE.SphereGeometry(600, 32, 32), mat);
+  } else if (type === "dyson_sphere") {
+    modelPath = "/dyson-sphere.glb";
+    targetSize = 1800;
+    const innerMat = new THREE.MeshStandardMaterial({
+      color: 0xff3300,
+      emissive: 0xff0000,
+      emissiveIntensity: 1.8
+    });
+    const outerMat = new THREE.MeshStandardMaterial({
+      color: 0x334466,
+      roughness: 0.4,
+      metalness: 0.8
+    });
+    const subGroup = new THREE.Group();
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(450, 32, 32), innerMat);
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(750, 50, 8, 48), outerMat);
+    outer.rotation.x = Math.PI / 4;
+    subGroup.add(inner);
+    subGroup.add(outer);
+    fallbackMesh = subGroup;
+  } else {
+    return;
+  }
+
+  // Add procedural fallback first
+  group.add(fallbackMesh);
+
+  // Load GLB
+  gltfLoader().load(
+    modelPath,
+    (gltf) => {
+      // Remove fallback
+      group.remove(fallbackMesh);
+      const model = gltf.scene;
+
+      // Compute bounding box to normalize scale
+      const box = new THREE.Box3().setFromObject(model);
+      const dim = new THREE.Vector3();
+      box.getSize(dim);
+      const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
+      const k = targetSize / maxDim;
+      model.scale.setScalar(k);
+
+      // Recenter model
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+      model.position.copy(center.multiplyScalar(-k));
+
+      // Enable environment maps on loaded model if available
+      const env = getEnv();
+      if (env) {
+        model.traverse((o: any) => {
+          if (o.isMesh) {
+            o.material.envMap = env;
+            o.material.needsUpdate = true;
+          }
+        });
+      }
+
+      group.add(model);
+    },
+    undefined,
+    (err) => {
+      console.warn(`[figurine] failed to load '${modelPath}'; using procedural fallback`, err);
+    }
+  );
+}
+
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded, onTasksChange, shipViewMode, fuel },
+  {
+    data,
+    onSelect,
+    onSoumayaClick,
+    onSatelliteCount,
+    onVisitorCount,
+    selectedId,
+    bottomInset,
+    demo,
+    showShipTask,
+    loaded,
+    onTasksChange,
+    shipViewMode,
+    fuel,
+    equippedShip = "default",
+    equippedFig1 = "none",
+    equippedFig2 = "none",
+  },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -118,6 +264,45 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     showShipTaskRef.current = !!showShipTask;
     soumayaHandleRef.current?.setTaskVisible(!!showShipTask);
   }, [showShipTask]);
+
+  // Hangar customization states and refs
+  const fig1GroupRef = useRef<THREE.Group | null>(null);
+  const fig2GroupRef = useRef<THREE.Group | null>(null);
+
+  const equippedShipRef = useRef(equippedShip);
+  const equippedFig1Ref = useRef(equippedFig1);
+  const equippedFig2Ref = useRef(equippedFig2);
+
+  useEffect(() => {
+    equippedShipRef.current = equippedShip;
+    if (soumayaHandleRef.current?.setShipSkin) {
+      soumayaHandleRef.current.setShipSkin(equippedShip);
+    }
+  }, [equippedShip]);
+
+  useEffect(() => {
+    equippedFig1Ref.current = equippedFig1;
+    if (fig1GroupRef.current) {
+      updateFigurine(
+        fig1GroupRef.current,
+        equippedFig1,
+        new THREE.Vector3(8000, 3000, -9500),
+        () => fgRef.current?.scene?.()?.environment ?? null
+      );
+    }
+  }, [equippedFig1]);
+
+  useEffect(() => {
+    equippedFig2Ref.current = equippedFig2;
+    if (fig2GroupRef.current) {
+      updateFigurine(
+        fig2GroupRef.current,
+        equippedFig2,
+        new THREE.Vector3(-9000, -2000, -9500),
+        () => fgRef.current?.scene?.()?.environment ?? null
+      );
+    }
+  }, [equippedFig2]);
 
   // Live graph data for the Soumaya agent (react-force-graph mutates x/y/z on
   // these node objects each tick, so the agent always has current positions).
@@ -353,7 +538,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const bursts = makeCollisionBursts();
       burstsRef.current = bursts;
       scene.add(bursts.group);
-      soumaya = makeSoumaya();
+
+      // Create background figurine groups and register them
+      const fig1Group = new THREE.Group();
+      const fig2Group = new THREE.Group();
+      fig1GroupRef.current = fig1Group;
+      fig2GroupRef.current = fig2Group;
+      scene.add(fig1Group);
+      scene.add(fig2Group);
+
+      // Initialize background figurines with current values
+      updateFigurine(fig1Group, equippedFig1Ref.current, new THREE.Vector3(8000, 3000, -9500), () => scene.environment);
+      updateFigurine(fig2Group, equippedFig2Ref.current, new THREE.Vector3(-9000, -2000, -9500), () => scene.environment);
+
+      soumaya = makeSoumaya(equippedShipRef.current);
       soumayaHandleRef.current = soumaya;
       scene.add(soumaya.object);
       scene.add(soumaya.taskLabel);
@@ -729,6 +927,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
       } else {
         followAnchorId = null;
+      }
+
+      // Slowly rotate the deep space background figurines
+      if (fig1GroupRef.current) {
+        fig1GroupRef.current.rotation.y += 0.001;
+      }
+      if (fig2GroupRef.current) {
+        fig2GroupRef.current.rotation.y += 0.0008;
       }
 
       // 1. Update background / global objects

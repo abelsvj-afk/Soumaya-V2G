@@ -55,6 +55,7 @@ export interface SoumayaHandle {
   setTaskVisible: (v: boolean) => void;
   getTasks: (nodes: any[]) => { id: string; type: string; label: string; status: "doing" | "planned" | "done" }[];
   reorderTasks: (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => void;
+  setShipSkin?: (skin: string) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -160,7 +161,7 @@ const bodyRadius = (n: any): number => {
  * continuously hops between connected memories, performing maintenance tasks
  * (synthesis, calibration, patrol) fetched from the backend.
  */
-export function makeSoumaya(): SoumayaHandle {
+export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   const group = new THREE.Group();
 
   const hull = new THREE.Mesh(
@@ -176,26 +177,55 @@ export function makeSoumaya(): SoumayaHandle {
   hull.rotation.x = Math.PI / 2; // nose points +Z (direction of travel)
   group.add(hull);
 
-  // Swap in the real glTF ship once it loads; the procedural hull is the fallback.
-  gltfLoader().load(
-    "/soumaya-ship.glb",
-    (gltf) => {
-      const model = gltf.scene;
-      const box = new THREE.Box3().setFromObject(model);
-      const dim = new THREE.Vector3();
-      box.getSize(dim);
-      const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
-      const k = 9 / maxDim;
-      model.scale.setScalar(k);
-      const center = new THREE.Vector3();
-      box.getCenter(center);
-      model.position.copy(center.multiplyScalar(-k)); // recenter on origin
-      hull.visible = false;
-      group.add(model);
-    },
-    undefined,
-    (err) => console.warn("[soumaya] ship model failed to load; using procedural hull", err),
-  );
+  let currentLoadedModel: THREE.Object3D | null = null;
+
+  const setShipSkin = (skin: string) => {
+    // Remove the previously loaded glTF model from group
+    if (currentLoadedModel) {
+      group.remove(currentLoadedModel);
+      currentLoadedModel = null;
+    }
+    
+    // Determine path based on skin
+    const modelPath = skin === "organic" ? "/organic-spaceship.glb" : "/soumaya-ship.glb";
+    
+    // Show the procedural fallback first in case GLB fails or while loading
+    hull.visible = true;
+
+    gltfLoader().load(
+      modelPath,
+      (gltf) => {
+        // If we loaded another model in the meantime, discard this one
+        if (currentLoadedModel) {
+          group.remove(currentLoadedModel);
+        }
+        
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const dim = new THREE.Vector3();
+        box.getSize(dim);
+        const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
+        const k = 9 / maxDim;
+        model.scale.setScalar(k);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.copy(center.multiplyScalar(-k)); // recenter on origin
+        
+        hull.visible = false;
+        currentLoadedModel = model;
+        group.add(model);
+      },
+      undefined,
+      (err) => {
+        console.warn(`[soumaya] ship skin '${skin}' failed to load; using procedural hull`, err);
+        // Ensure procedural fallback remains visible
+        hull.visible = true;
+      }
+    );
+  };
+
+  // Load the initial ship skin
+  setShipSkin(initialSkin);
 
   // Engine glow trailing behind the nose.
   const glowCanvas = document.createElement("canvas");
@@ -1294,5 +1324,6 @@ export function makeSoumaya(): SoumayaHandle {
     setTaskVisible,
     getTasks,
     reorderTasks,
+    setShipSkin,
   };
 }
