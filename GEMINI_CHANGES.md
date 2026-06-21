@@ -165,6 +165,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-21 (Gemini): Direct coordinate sync to active simulation nodes to prevent clumping and camera NaN locks
+- [ ] Verified by Claude
+- **Root Cause & Fix**: Identified that the cached Three.js objects (returned by `nodeThreeObject`) retained stale references to old simulated nodes from previous renders. Syncing coordinates by traversing the Three.js scene and reading `userData.nodeRef` meant writing values to these stale simulation node references, which had no effect on the active D3 simulation nodes. As a result, the active simulated nodes remained clumped at `0, 0, 0` and the camera target became `NaN` on initial load (locking the view to the center Sun).
+- **Direct coordinate sync**: Replaced the complex Three.js scene traversal/coordinate copy logic in the tick loop with a direct lookup and update of the active simulated nodes using `fg.graphData()?.nodes`. This guarantees that the kinematic orbit coordinates and Soumaya's ferrying movements are written directly to the active D3 simulated objects, completely bypassing Three.js object cache lifecycle issues.
+- **Camera NaN Safeguard**: Added `!isNaN(n.x) && !isNaN(n.y)` filtering in `frameGalaxy` to prevent `NaN` viewport locks when coordinates are not fully initialized or are in transition on first frame.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`.
+- Zone: Green (shipped).
+- Gate: typecheck clean, web build clean.
+
 ### 2026-06-21 (Gemini): Fix orbit reference mismatch (clumping) + cache Three.js objects (lag) (Issue #10)
 - [ ] Verified by Claude
 - **Root Cause & Orbits Fix**: Identified that the kinematic orbit update loop in `orbits.ts` was mutating stale node references from the time `rebuild` was called. Under React re-renders or database updates, `react-force-graph-3d` updates/clones node references, meaning the active nodes in the scene had undefined coordinates and collapsed clumped at the center `0, 0, 0` while the force simulation tick loop ran endlessly in a struggle. Fixed this in `orbits.ts` by mapping the layout iteration order to the incoming active `nodes` references on every frame via an ID-to-Node `Map` lookup.
