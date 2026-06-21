@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SATELLITE_LORE, SATELLITE_NAME } from "../graph/satellites.js";
 
 interface Props {
@@ -6,148 +7,430 @@ interface Props {
   onInstall?: () => void;
 }
 
-const ROWS: { icon: string; title: string; body: string }[] = [
-  { icon: "🖐️", title: "Move around", body: "Drag to look and orbit. The on-screen ＋ / − buttons FLY you forward and back through space (not a fixed zoom-to-center), so you can cruise straight into any cluster without getting stuck. Best of all: tap any body to fly right up to it. Lost? Hit ⊙ to reframe everything." },
-  { icon: "📝", title: "Add a memory", body: "Dump any thought. It's turned into a celestial body, weighted by how significant + connected it is." },
-  { icon: "🔍", title: "Search", body: "Find a memory by meaning and fly straight to it." },
-  { icon: "🌌", title: "Sectors", body: "Navigate the galaxy by major hubs. High-level index for high-density clusters." },
-  { icon: "☰", title: "Panels", body: "Details, Sectors (🌌), List (📋), Agenda (✅), Insights (✨), Chat (💬), Soumaya (🛰️), and Fleet (🚀)." },
-  { icon: "⊙", title: "Recenter", body: "Re-frame the whole galaxy and release any focus lock." },
-  { icon: "🛸", title: "Focus Soumaya", body: "Lock the camera onto her ship (snaps to the front); orbit freely while she works." },
-  { icon: "🌐", title: "Focus the station", body: "Lock onto Waystation Soumaya-Prime, the megastructure orbiting your galaxy." },
-  { icon: "🛰️", title: "Jump to a beacon", body: "Only appears — and pulses — when Aura beacons are deployed over cooling memories. Tap to fly between them; each is parked on a memory going cold, so it doubles as a shortcut to what needs tending." },
-  { icon: "🔈", title: "Music", body: "Toggle the ambient space drone." },
-  { icon: "🗣️", title: "Soumaya's voice", body: "(in Chat) Toggle her speaking voice on/off. When on, she reads her answers aloud, shaping her tone to the emotional weather of what you're discussing — never a flat robot. The choice is remembered on this device." },
+interface HelpItem {
+  icon?: string;
+  title: string;
+  body: string;
+  tags?: string[];
+}
+
+const CATEGORIES: {
+  id: string;
+  title: string;
+  icon: string;
+  desc: string;
+  items: HelpItem[];
+}[] = [
+  {
+    id: "navigation",
+    title: "Controls & Flight",
+    icon: "🛸",
+    desc: "How to steer your camera, orbit clusters, lock targets, and fly through space.",
+    items: [
+      { icon: "🖐️", title: "Move and Orbit", body: "Click and drag (or drag with touch) anywhere on the background space to orbit the camera around the active focal point, allowing you to view your thought constellations from any angle.", tags: ["camera", "drag", "orbit", "steer", "navigation"] },
+      { icon: "＋/－", title: "Flight Zoom", body: "Click the ＋ or − zoom buttons on the HUD to FLY your camera forward and backward in 3D space, rather than just scaling. This allows you to fly directly into high-density sectors.", tags: ["zoom", "fly", "hud", "buttons"] },
+      { icon: "⊙", title: "Recenter focal lock", body: "Click the recenter icon to release any active focus targets, re-frame the entire galaxy at the center of your screen, and restore default camera distances.", tags: ["recenter", "focus", "focal", "reset"] },
+      { icon: "🛸", title: "Focus Companion's ship", body: "Click the focus ship button (or select the companion ship in space) to lock the camera directly onto her flight path. The camera will follow her automatically, allowing you to inspect her tending tasks.", tags: ["ship", "camera", "follow", "focal"] },
+      { icon: "🌐", title: "Focus the Waystation", body: "Snap your camera focal lock onto Waystation Soumaya-Prime, the central megastructure orbiting the galaxy.", tags: ["station", "structure", "orbit", "focal"] },
+      { icon: "🛰️", title: "Jump to Aura beacons", body: "Click the beacon hotkeys or click a beacon physically in space. Beacons take orbit over memories going cold, giving you quick jumping points to stars that need tending.", tags: ["beacon", "jump", "cooling", "tending"] },
+      { icon: "☄️", title: "Flashback Comet", body: "Tap the comet icon in the HUD to trigger a random serendipitous jump, launching the camera on a fast flight to a high-importance memory from the past.", tags: ["comet", "flashback", "random", "serendipity"] },
+      { icon: "🔈", title: "Ambient soundscapes", body: "Toggle the space drone soundtrack on and off directly from the audio control chip on the interface.", tags: ["audio", "music", "drone", "sound"] }
+    ]
+  },
+  {
+    id: "rules",
+    title: "Galaxy & Gravity",
+    icon: "🪐",
+    desc: "The rules of deep space: semantic orbits, entropy, cooling, and lore evolution.",
+    items: [
+      { icon: "🌌", title: "Constellations & Orbits", body: "Every memory behaves as a physical body with real gravity. Its mass—which determines its size and physical scale—is dynamically calculated from its connection count, emotional importance, and user-assigned significance. Heavy memories pull lighter thoughts into orbit around them, organizing your brain by association rather than folder structures.", tags: ["gravity", "size", "mass", "orbit", "connections"] },
+      { icon: "🔌", title: "Auto-Semantic Connections", body: "When you log a new thought, it is automatically vectorized and linked to the nearest thoughts in meaning—completely bypassing the chore of manual tagging. Over time, these links naturally coalesce into cosmic clusters and constellations.", tags: ["links", "vector", "ai", "semantic", "automatic"] },
+      { icon: "❄️", title: "Entropy (Cooling & Neglect)", body: "Untended memories slowly cool down, fading in color and drifting towards a cold blue. Highly connected memories cool down much slower. To warm a memory back up, simply view it (focal lock) to inject user energy.", tags: ["entropy", "cooling", "blue", "tending", "energy"] },
+      { icon: "☄️", title: "Star Classification & Tints", body: "Memories are classified from Asteroid to Moon, Planet, Gas Giant, Giant, Star, and Supergiant based on importance. Newly created stars burn hot white; older unconnected stars redshift over time into a weathered copper glow, leaving a visual fossil record.", tags: ["classification", "star", "white", "redshift", "fossil"] },
+      { icon: "❇️", title: "Emerald Energy Ripples", body: "Performing manual updates (like manually adjusting importance sliders or forging paths) triggers a green glowing wave of user energy radiating through the surrounding connections.", tags: ["ripples", "green", "energy", "importance"] },
+      { icon: "📖", title: "Chronicle & Lore Evolution", body: "Every memory keeps an append-only Chronicle—an evolving story tracking its life cycle. Tap '✦ Evolve' in details to let the AI write a new chapter connecting it to recent events, or watch the companion add chapters on her own.", tags: ["chronicle", "lore", "chapters", "evolve", "story"] }
+    ]
+  },
+  {
+    id: "fleet",
+    title: "Economy & Fleet",
+    icon: "⚡",
+    desc: "Manage Research Mode, fuel cells, and check the roles of your autonomous fleet.",
+    items: [
+      { icon: "⛽", title: "Celestial Fuel", body: "A free energy currency earned by actively tending your brain—creating new connections, logging memories, or completing agenda items. Spent by the companion to perform deep-dive gap analysis. (Her core maintenance runs for free!)", tags: ["fuel", "economy", "tending", "energy"] },
+      { icon: "🔬", title: "Research Mode", body: "Toggle Research Mode in the Companion Command Center. When active, she consumes fuel to scan the frontier of your graph, searching for isolated ideas and forging new links.", tags: ["research", "mode", "toggle", "gaps", "connections"] },
+      { icon: "🛰️", title: "Fleet: Companion Starpilot", body: "Your main autonomous vessel. She flies between hubs, bridges semantic gaps, prunes duplicate notes, and writes the daily Captain's Log summarizing the evolution of your galaxy.", tags: ["ship", "starpilot", "maintenance", "log"] },
+      { icon: "📡", title: "Fleet: Aura Beacons", body: "Warming relays dispatched to orbit cooling stars. Beacons project energy beams colored by the star's underlying emotion (warm gold for joy, cool blue for heavy thoughts).", tags: ["beacon", "relays", "beams", "emotion"] },
+      { icon: "🛰️", title: `Fleet: ${SATELLITE_NAME}s`, body: SATELLITE_LORE, tags: ["satellite", "sentinels", "beacons"] },
+      { icon: "🏹", title: "Fleet: The Scout & Defender", body: "The Scout ship surveys the frontier, looking for the loneliest, isolated memories. The Defender guards your heaviest hub, intercepting system anomalies and maintaining spatial stability.", tags: ["scout", "defender", "frontier", "hubs"] }
+    ]
+  },
+  {
+    id: "hangar",
+    title: "Hangar & Awards",
+    icon: "🏆",
+    desc: "Unlock custom hulls, exhaust trails, deploy Dyson megastructures, and access the Sandbox.",
+    items: [
+      { icon: "🛠️", title: "The Hangar Customizer", body: "Click the Hangar tab (🛠️) to customize your ship. Change the hull skin (Default, Holographic Sentinel, Biomechanical Specimen, or Fusion Destroyer) and exhaust trail particles.", tags: ["hangar", "skins", "exhaust", "trails", "customization"] },
+      { icon: "🏆", title: "Achievements (Awards Tab)", body: "Earn 8 unique badges by expanding your brain. Unlocks include the Hyperdrive Trail (Consistent Pilot), Aegis Shield Spire (Pathfinder), and Solar Gold Exhaust (Sector Pioneer).", tags: ["achievements", "badges", "awards", "unlocks"] },
+      { icon: "🪐", title: "Megastructures (Solar & Dyson)", body: "Unlock giant background figurines at memory milestones (Solar Monument at 100 memories, Biomechanical Specimen at 150, and Dyson Sphere Megastructure at 250) floating in the deep background space.", tags: ["dyson", "sphere", "monument", "megastructures", "figurines"] },
+      { icon: "🎲", title: "Sandbox Simulation Deck", body: "Accessible inside the Hangar tab for the owner. Offers control sliders to trigger simulated unlocks, toast alerts, and progression states in real-time.", tags: ["sandbox", "simulator", "demo", "testing", "controls"] }
+    ]
+  }
 ];
 
-const CONCEPTS: { title: string; body: string }[] = [
-  { title: "Tap a star", body: "Opens its Details and dims everything except its connections, so you can see what links to what." },
-  { title: "Macro View", body: "Far-off bodies render as small, spinning low-poly spheres (a field of light, Obsidian-style) for performance; fly closer and they resolve into full, textured worlds. Every body spins on its own axis while it orbits." },
-  { title: "👽 + 🌌 in the List", body: "Each memory row shows how many alien visitors it has drawn (👽) and which constellation it belongs to (🌌) — so the List doubles as a map of what's alive and how things cluster." },
-  { title: "Recall pulses", body: "When Chat answers cite memories, synapse-like pulses fire along their links and a soft burst marks each cited body — so you can SEE where the answer came from." },
-  { title: "Writing…", body: "A memory's orb pulses while Soumaya is actively working on it (synthesizing, maintaining), so you know something's happening." },
-  { title: "Emerald Ripples", body: "Manual user actions (like updating weights) trigger a green ripple — a sign of user energy flowing into the brain." },
-  { title: "Star Age Tints", body: "New memories burn hot white. Older, unconnected memories gradually redshift into a weathered glow, creating a visual fossil record." },
-  { title: "Flashback Comet ☄️", body: "Tap the comet icon to randomly fly to a high-importance memory from the past. Serendipity in action." },
-  { title: "Weight slider", body: "Sets a memory's importance → its size/class (asteroid → moon → planet → gas giant → giant → star → supergiant). 'auto' re-rates it." },
-  { title: "✨ Connect the dots", body: "(in Details) The AI ties THIS memory together with the ones it's linked to, into a fresh insight." },
-  { title: "💬 Chat", body: "Ask your brain a question; it answers from your memories, with citations you can fly to. Turn on 🗣️ to hear her answer aloud." },
-  { title: "Soumaya (tap her ship)", body: "Opens the Command Center: her live activity, Research Mode, and her ⛽ Fuel gauge." },
-  { title: "⛽ Fuel (the Celestial Economy)", body: "A free energy you EARN by tending your galaxy — logging memories, forging links, clearing action items. Soumaya SPENDS it on her ambitious deep-dive research + sector charting. Her core duties (surfacing connections, tidying the graph, her daily log) always run regardless — fuel just fuels the extra. The real API budget stays the hard cap." },
-  { title: "❄️ Cooling memories (Entropy)", body: "Untended memories slowly go cold — they dim and drift toward a cold blue in the galaxy, and surface in the daily digest as 'going cold'. Well-connected ones cool far slower. Nothing is ever deleted: just visit (focus) a memory to warm it right back up." },
-  { title: `🛰️ ${SATELLITE_NAME}s`, body: SATELLITE_LORE },
-];
-
-// The deeper "why" — the mechanics a player needs to understand to read the world,
-// not just operate the buttons. (Kept honest to what the app actually does today.)
-const MECHANICS: { title: string; body: string }[] = [
-  {
-    title: "It's a real graph, with real gravity",
-    body: "Every memory becomes a celestial body. Its size/class (asteroid → moon → planet → gas giant → giant → star → supergiant) is its gravitational MASS, blended from three things: how important it is, how connected it is, and its emotional charge. Heavy memories pull lighter ones into orbit around them, so the layout is meaning, not decoration.",
-  },
-  {
-    title: "Memories link themselves",
-    body: "When you add a thought, it's embedded and automatically linked to the memories closest to it in meaning — no manual tagging. Those associative links are what grow constellations and let the galaxy reveal structure you didn't know was there.",
-  },
-  {
-    title: "Soumaya is autonomous — and explains herself",
-    body: "The ship isn't decoration — she works on her own: connecting the dots between related-but-distant memories (her primary job), tidying and merging duplicates, harmonizing emotion, and writing a daily log. She does NOT research everything — research is reserved for genuine gaps (an important memory left under-connected, a blind spot). Every action she takes is logged in her panel with a plain-English breakdown — Objective / Why now / Benefit — and a floating label over her ship shows what she's doing right now (toggle it in the Soumaya tab). Her ambitious work is gated by Research Mode + ⛽ Fuel; her core upkeep always runs. The API budget is the hard ceiling.",
-  },
-  {
-    title: "Heat & cold (Entropy)",
-    body: "Memories cool when neglected — they dim and drift toward cold blue, and show up in the daily digest as 'going cold'. Well-connected memories cool much slower. Nothing is ever deleted; focusing a memory warms it right back.",
-  },
-  {
-    title: "The Aura beacons (her fleet)",
-    body: "When memories go cold, Soumaya dispatches relay beacons that take orbit and beam them warm — the colder the memory, the brighter the beam. When NOTHING is cold, a beacon instead stands sentinel over your heaviest hub star. A beam's color follows the memory's EMOTION (warm gold for joyful, cool blue for heavy). Visit a beamed memory to warm it; the beacon moves on.",
-  },
-  {
-    title: "Time: when it happened, reminders & tags",
-    body: "A memory can carry the date/time its event actually happened (you can backdate it), a future reminder, and tags (Work, Ideas, Anxious…). These let the brain be a timeline, not just a pile — and tags give you fast context/filtering.",
-  },
-  {
-    title: "Your brain is private",
-    body: "Each brain is its own private space, opened with a name + passcode. Anyone can create their own; brains never see each other's memories.",
-  },
-  {
-    title: "Talk to it from your phone (Telegram)",
-    body: "Link a Telegram chat to your brain (/link name passcode) and you can log thoughts and ask questions by message — and Soumaya sends you a daily digest on her own.",
-  },
-  {
-    title: "Install it like an app",
-    body: "Use your browser's 'Add to Home Screen' to install Soumaya as a standalone app. It launches full-screen and the galaxy still loads offline (your live memories need a connection).",
-  },
-  {
-    title: "The Fleet (🚀 tab)",
-    body: "Soumaya doesn't work alone. The Fleet tab is the roster of everyone reporting to her: her ship, the Waystation, the Aura beacons (warmth relays), the Scout (surveys the newest/loneliest memories — the frontier), and the Defender (guards your heaviest hub and intercepts hostile drifters). Each shows a live status of what it's doing right now.",
-  },
-  {
-    title: "Chronicle (an object's lore)",
-    body: "Open a memory's Details to find its Chronicle — an evolving, saved story that grows new chapters as the memory gets connected, merged, or goes cold and warm again. The first chapter (its genesis) never changes; tap ✦ Evolve to write the next one, or watch Soumaya add chapters on her own over time.",
-  },
-];
-
-/** A simple in-app guide explaining every control + concept. */
 export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
+  const [activeTab, setActiveTab] = useState<string>("navigation");
+  const [search, setSearch] = useState<string>("");
+
+  // Collect search results if search is not empty
+  const isSearchActive = search.trim().length > 0;
+  const searchResults: { item: HelpItem; category: string }[] = [];
+
+  if (isSearchActive) {
+    const query = search.toLowerCase();
+    CATEGORIES.forEach((cat) => {
+      cat.items.forEach((item) => {
+        const titleMatch = item.title.toLowerCase().includes(query);
+        const bodyMatch = item.body.toLowerCase().includes(query);
+        const tagMatch = item.tags?.some((t) => t.toLowerCase().includes(query));
+        if (titleMatch || bodyMatch || tagMatch) {
+          searchResults.push({ item, category: cat.title });
+        }
+      });
+    });
+  }
+
+  const selectedCategory = CATEGORIES.find((cat) => cat.id === activeTab);
+
   return (
-    <div className="help-overlay">
+    <div className="help-overlay" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <style>{`
+        .help-overlay {
+          padding: 24px;
+        }
+        .help-search-box {
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 8px;
+          display: flex;
+          align-items: center;
+          padding: 6px 12px;
+          margin-bottom: 20px;
+          position: relative;
+        }
+        .help-search-input {
+          border: none;
+          background: transparent;
+          color: white;
+          flex: 1;
+          outline: none;
+          font-size: 14px;
+          padding: 6px 0;
+        }
+        .help-search-input::placeholder {
+          color: var(--muted);
+          opacity: 0.6;
+        }
+        .help-search-clear {
+          background: transparent;
+          border: none;
+          color: var(--muted);
+          font-size: 18px;
+          cursor: pointer;
+          padding: 0 4px;
+        }
+        .help-layout {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+          gap: 20px;
+        }
+        .help-sidebar {
+          width: 240px;
+          flex-shrink: 0;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          border-right: 1px solid rgba(255, 255, 255, 0.08);
+          padding-right: 15px;
+          overflow-y: auto;
+        }
+        .help-tab-btn {
+          background: transparent;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          color: var(--muted);
+          text-align: left;
+          padding: 10px 14px;
+          font-size: 13.5px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .help-tab-btn:hover {
+          background: rgba(255, 255, 255, 0.04);
+          color: var(--text);
+        }
+        .help-tab-btn.active {
+          background: rgba(100, 200, 255, 0.08);
+          border-color: rgba(100, 200, 255, 0.25);
+          color: var(--accent);
+          font-weight: 500;
+        }
+        .help-content-scroll {
+          flex: 1;
+          overflow-y: auto;
+          padding-right: 8px;
+        }
+        .help-category-header {
+          margin: 0 0 15px 0;
+        }
+        .help-category-header h3 {
+          margin: 0 0 4px 0 !important;
+          font-size: 16px !important;
+          color: var(--text) !important;
+          text-transform: none !important;
+          letter-spacing: normal !important;
+        }
+        .help-category-desc {
+          margin: 0;
+          font-size: 12.5px;
+          color: var(--muted);
+          line-height: 1.4;
+        }
+        .help-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 12px;
+          padding-bottom: 20px;
+        }
+        .help-card {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 8px;
+          padding: 14px;
+          transition: all 0.2s ease;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+        }
+        .help-card:hover {
+          transform: translateY(-2px);
+          background: rgba(255, 255, 255, 0.04);
+          border-color: rgba(255, 255, 255, 0.08);
+          box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+        }
+        .help-card-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 8px;
+        }
+        .help-card-icon {
+          font-size: 16px;
+          background: rgba(255, 255, 255, 0.04);
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+        .help-card-title {
+          font-size: 13.5px;
+          font-weight: 600;
+          color: var(--text);
+          margin: 0;
+        }
+        .help-card-body {
+          font-size: 12px;
+          color: #d7d4ee;
+          line-height: 1.45;
+          margin: 0;
+          flex-grow: 1;
+        }
+        .help-card-tags {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin-top: 10px;
+        }
+        .help-card-tag {
+          font-size: 9px;
+          background: rgba(100, 200, 255, 0.06);
+          border: 1px solid rgba(100, 200, 255, 0.12);
+          color: var(--accent);
+          padding: 1.5px 5px;
+          border-radius: 3px;
+          text-transform: uppercase;
+          letter-spacing: 0.02em;
+        }
+        .help-card-category-badge {
+          align-self: flex-start;
+          font-size: 9px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          color: var(--muted);
+          padding: 1.5px 5px;
+          border-radius: 3px;
+          margin-top: 10px;
+        }
+        @media (max-width: 768px) {
+          .help-layout {
+            flex-direction: column;
+          }
+          .help-sidebar {
+            width: 100%;
+            flex-direction: row;
+            border-right: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-right: 0;
+            padding-bottom: 8px;
+            overflow-x: auto;
+            white-space: nowrap;
+          }
+          .help-tab-btn {
+            padding: 8px 12px;
+            font-size: 12.5px;
+          }
+          .help-content-scroll {
+            padding-top: 10px;
+          }
+        }
+      `}</style>
+
       <div className="help-head">
-        <h2>How Soumaya works</h2>
+        <h2>Galaxy Pilot Manual</h2>
         <button className="panel-close" onClick={onClose} aria-label="Close">
           ×
         </button>
       </div>
 
+      <p className="help-intro" style={{ marginBottom: "15px" }}>
+        Welcome to your personal second brain. Your thoughts form a dynamic physical galaxy where semantic connections organize themselves, and stars glow hot or cool down over time.
+      </p>
+
       {installPrompt && onInstall && (
-        <div className="help-install-container">
+        <div className="help-install-container" style={{ margin: "0 0 15px 0" }}>
           <button className="help-install-btn" onClick={onInstall}>
             📲 Install Second Brain App
           </button>
         </div>
       )}
 
-      <p className="help-intro">
-        Your thoughts become a living galaxy. Significant, well-connected memories grow into bright
-        stars; lonely ones fade until you revisit them. Soumaya (the ship) tends it all.
-      </p>
+      {/* Interactive Search */}
+      <div className="help-search-box">
+        <span style={{ fontSize: "14px", marginRight: "8px", opacity: 0.6 }}>🔍</span>
+        <input
+          type="text"
+          className="help-search-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search pilot guide for terms (e.g. fuel, orbit, beacon, trail, hangar)..."
+        />
+        {isSearchActive && (
+          <button className="help-search-clear" onClick={() => setSearch("")}>
+            ×
+          </button>
+        )}
+      </div>
 
-      <h3>Controls</h3>
-      <ul className="help-list">
-        {ROWS.map((r) => (
-          <li key={r.title}>
-            <span className="help-ic">{r.icon}</span>
-            <span>
-              <b>{r.title}</b> — {r.body}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {/* Interactive Main Area */}
+      <div className="help-layout">
+        {!isSearchActive && (
+          <div className="help-sidebar">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                className={`help-tab-btn ${activeTab === cat.id ? "active" : ""}`}
+                onClick={() => setActiveTab(cat.id)}
+              >
+                <span>{cat.icon}</span>
+                {cat.title}
+              </button>
+            ))}
+          </div>
+        )}
 
-      <h3>Good to know</h3>
-      <ul className="help-list">
-        {CONCEPTS.map((c) => (
-          <li key={c.title}>
-            <span>
-              <b>{c.title}</b> — {c.body}
-            </span>
-          </li>
-        ))}
-      </ul>
+        <div className="help-content-scroll">
+          {isSearchActive ? (
+            <div>
+              <div className="help-category-header">
+                <h3>Search Results ({searchResults.length})</h3>
+                <p className="help-category-desc">
+                  Showing matching topics for "{search}"
+                </p>
+              </div>
 
-      <h3>How the world works (the rules)</h3>
-      <p className="help-intro">
-        Soumaya is part tool, part living world. These are the mechanics behind what you
-        see — worth knowing so the galaxy reads as meaning, not just pretty lights.
-      </p>
-      <ul className="help-list">
-        {MECHANICS.map((m) => (
-          <li key={m.title}>
-            <span>
-              <b>{m.title}</b> — {m.body}
-            </span>
-          </li>
-        ))}
-      </ul>
+              {searchResults.length > 0 ? (
+                <div className="help-cards-grid">
+                  {searchResults.map(({ item, category }) => (
+                    <div key={item.title} className="help-card">
+                      <div>
+                        <div className="help-card-header">
+                          <span className="help-card-icon">{item.icon || "💡"}</span>
+                          <h4 className="help-card-title">{item.title}</h4>
+                        </div>
+                        <p className="help-card-body">{item.body}</p>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        {item.tags && item.tags.length > 0 && (
+                          <div className="help-card-tags">
+                            {item.tags.slice(0, 2).map((t) => (
+                              <span key={t} className="help-card-tag">{t}</span>
+                            ))}
+                          </div>
+                        )}
+                        <span className="help-card-category-badge">{category}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty" style={{ padding: "40px 0" }}>
+                  No guides match "{search}". Try searching for keywords like "fuel", "trail", "Dyson", or "lock".
+                </p>
+              )}
+            </div>
+          ) : (
+            selectedCategory && (
+              <div>
+                <div className="help-category-header">
+                  <h3>{selectedCategory.title}</h3>
+                  <p className="help-category-desc">{selectedCategory.desc}</p>
+                </div>
+
+                <div className="help-cards-grid">
+                  {selectedCategory.items.map((item) => (
+                    <div key={item.title} className="help-card">
+                      <div>
+                        <div className="help-card-header">
+                          <span className="help-card-icon">{item.icon || "💡"}</span>
+                          <h4 className="help-card-title">{item.title}</h4>
+                        </div>
+                        <p className="help-card-body">{item.body}</p>
+                      </div>
+                      {item.tags && item.tags.length > 0 && (
+                        <div className="help-card-tags">
+                          {item.tags.slice(0, 3).map((t) => (
+                            <span key={t} className="help-card-tag">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      </div>
     </div>
   );
 }
