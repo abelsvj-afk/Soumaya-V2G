@@ -75,6 +75,7 @@ interface Props {
   loaded?: boolean;
   onTasksChange?: (tasks: any[]) => void;
   shipViewMode?: "orbit" | "cockpit";
+  fuel?: any;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -87,7 +88,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded, onTasksChange, shipViewMode },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded, onTasksChange, shipViewMode, fuel },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -874,6 +875,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             slotOf: (id: number) => orbitsRef.current.slotOf(id),
             release: (id: number) => orbitsRef.current.release(id),
           },
+          fuel,
+          controls?.target,
         );
       }
 

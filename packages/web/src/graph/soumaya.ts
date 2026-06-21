@@ -33,6 +33,8 @@ export interface SoumayaHandle {
     stationPos?: THREE.Vector3 | null,
     onLinkConnect?: (key: string) => void,
     orbit?: { slotOf: (id: number) => THREE.Vector3 | null; release: (id: number) => void },
+    fuel?: any,
+    cameraTarget?: THREE.Vector3 | null,
   ) => void;
   /** Queue new connections for her to draw herself (takes priority over patrol). */
   enqueueLinks: (tasks: LinkTask[]) => void;
@@ -52,7 +54,7 @@ export interface SoumayaHandle {
   /** Turn the floating task label on/off (user preference). */
   setTaskVisible: (v: boolean) => void;
   getTasks: (nodes: any[]) => { id: string; type: string; label: string; status: "doing" | "planned" | "done" }[];
-  reorderTasks: (newOrder: { id: string; type: string }[]) => void;
+  reorderTasks: (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -72,12 +74,13 @@ function makeTaskLabel() {
   const canvas = document.createElement("canvas");
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: false });
+  // Enable depthTest so the label sorts correctly in 3D space instead of drawing on top of the ship
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, depthTest: true });
   const sprite = new THREE.Sprite(mat);
   sprite.visible = false;
   const H = 56; // canvas px height
-  const HU = 11; // world height
-  const MAXW = 120; // world width before it marquees
+  const HU = 7.5; // world height (smaller from 11)
+  const MAXW = 85; // world width before it marquees (smaller from 120)
   let scroll = false;
   let off = 0;
   let widthUnits = HU;
@@ -102,7 +105,7 @@ function makeTaskLabel() {
     c.font = `600 ${FS}px system-ui, -apple-system, sans-serif`;
     c.textBaseline = "middle";
     // translucent pill
-    c.fillStyle = "rgba(8,5,20,0.5)";
+    c.fillStyle = "rgba(8,5,20,0.65)";
     c.fillRect(0, 0, w, H);
     c.fillStyle = "#cfe0ff";
     c.fillText(text, pad, H / 2 + 1);
@@ -123,7 +126,7 @@ function makeTaskLabel() {
 
   const tick = (dt: number) => {
     if (scroll) {
-      off = (off + dt * 0.06) % 1;
+      off = (off + dt * 0.08) % 1; // scroll slightly faster for cool effect
       tex.offset.x = off;
     }
   };
@@ -247,7 +250,9 @@ export function makeSoumaya(): SoumayaHandle {
     | "placeCarry"
     | "removeTravel"
     | "removeCarry"
-    | "beaconTravel" = "idle";
+    | "beaconTravel"
+    | "distressTravel"
+    | "distressHover" = "idle";
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
@@ -290,6 +295,62 @@ export function makeSoumaya(): SoumayaHandle {
   let jobTimer = 0;
   let ou = new THREE.Vector3(1, 0, 0);
   let ov = new THREE.Vector3(0, 0, 1);
+
+  // Pre-planning queues & unified priority order
+  const plannedMaintenance: MaintenanceJob[] = [];
+  const taskOrder: string[] = [];
+  let distressTarget: THREE.Vector3 | null = null;
+
+  const getUniquePatrol = (nodes: any[], excludeIds: Set<number>): MaintenanceJob | null => {
+    const candidates = nodes.filter((n) => n.x != null && !excludeIds.has(n.id));
+    if (candidates.length === 0) return null;
+    const r = candidates[Math.floor(Math.random() * candidates.length)];
+    return {
+      type: "patrol",
+      targets: [r.id],
+      description: `Routine patrol of memory: ${r.label || `#${r.id}`}`
+    };
+  };
+
+  const fillPlannedMaintenance = async (nodes: any[]) => {
+    if (isFetching || nodes.length === 0) return;
+    
+    while (plannedMaintenance.length < 3) {
+      let job: MaintenanceJob | null = null;
+      try {
+        isFetching = true;
+        const serverJob = await getNextMaintenanceJob();
+        isFetching = false;
+        
+        const inProgress = currentJob && currentJob.targets[0] === serverJob.targets[0];
+        const alreadyQueued = plannedMaintenance.some(j => j.targets[0] === serverJob.targets[0]);
+        if (!inProgress && !alreadyQueued) {
+          job = serverJob;
+        }
+      } catch {
+        isFetching = false;
+      }
+      
+      if (!job) {
+        const excludeIds = new Set<number>();
+        if (currentJob && currentJob.targets[0] != null) excludeIds.add(currentJob.targets[0]);
+        for (const j of plannedMaintenance) {
+          if (j.targets[0] != null) excludeIds.add(j.targets[0]);
+        }
+        job = getUniquePatrol(nodes, excludeIds);
+      }
+      
+      if (job) {
+        plannedMaintenance.push(job);
+        const id = `planned-maint-${job.targets[0]}`;
+        if (!taskOrder.includes(id)) {
+          taskOrder.push(id);
+        }
+      } else {
+        break; // no candidates
+      }
+    }
+  };
 
   /** Fetch a real job from the backend or fall back to a random patrol if offline. */
   const acquireJob = async (nodes: any[]) => {
@@ -403,20 +464,17 @@ export function makeSoumaya(): SoumayaHandle {
         mode = "linkToSource";
         return;
       }
-      // endpoints not ready/positioned — drop and try the next.
     }
   };
 
-  // Begin ferrying the next brand-new memory: fly to where it waits (the dock),
-  // then carry it into its orbit slot. Falls back to releasing it (normal orbit
-  // placement) if anything's missing, so a new memory can never get stranded.
+  // Begin ferrying the next brand-new memory: fly to where it waits (the dock)
   const startPlacement = (nodes: any[]): void => {
     while (placeQueue.length > 0) {
       const id = placeQueue.shift()!;
       const node = nodes.find((n) => n.id === id);
       const slot = orbitApi?.slotOf(id) ?? null;
       if (!node || node.x == null || !slot) {
-        orbitApi?.release(id); // let the orbit system place it normally
+        orbitApi?.release(id);
         continue;
       }
       if (curveTo(node)) {
@@ -429,9 +487,7 @@ export function makeSoumaya(): SoumayaHandle {
     }
   };
 
-  // Begin a deletion: fly to where the discarded memory was, so she can grab it
-  // and drag it into the Sun. (The body is already gone from the graph data; the
-  // task carries its last position + look.)
+  // Begin a deletion: fly to where the discarded memory was
   const startRemoval = (): void => {
     const task = removalQueue.shift();
     if (!task) return;
@@ -465,8 +521,6 @@ export function makeSoumaya(): SoumayaHandle {
   };
 
   // Keep the floating task label in sync with whatever she's doing right now.
-  // Called at a single exit point (finally) so it tracks the ship in EVERY mode —
-  // including docking/idle, which return early from the main update body.
   const syncLabel = (dt: number) => {
     let taskText = "";
     if (mode === "removeTravel" || mode === "removeCarry") {
@@ -479,6 +533,8 @@ export function makeSoumaya(): SoumayaHandle {
       taskText = "Recharging at the station";
     } else if (mode === "linkToSource" || mode === "linkToTarget") {
       taskText = "Forging a new connection";
+    } else if (mode === "distressTravel" || mode === "distressHover") {
+      taskText = "🚨 Fuel depleted! Help me refuel.";
     } else if (currentJob) {
       taskText =
         currentJob.description ||
@@ -488,7 +544,12 @@ export function makeSoumaya(): SoumayaHandle {
       lastTaskText = taskText;
       if (taskText) taskLabel.draw(taskText);
     }
-    taskLabel.sprite.position.set(group.position.x, group.position.y + 18, group.position.z);
+    
+    // Position task label dynamically above her head, slightly to the rear, aligned to her local coordinates.
+    const upVec = new THREE.Vector3(0, 1, 0).applyQuaternion(group.quaternion).normalize();
+    const fwdVec = new THREE.Vector3(0, 0, 1).applyQuaternion(group.quaternion).normalize();
+    const pos = group.position.clone().addScaledVector(upVec, 6.0).addScaledVector(fwdVec, -2.5);
+    taskLabel.sprite.position.copy(pos);
     taskLabel.tick(dt);
     taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
   };
@@ -500,7 +561,17 @@ export function makeSoumaya(): SoumayaHandle {
     if (completedTasks.length > 8) completedTasks.shift();
   };
 
-  const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect, orbit) => {
+  const update: SoumayaHandle["update"] = (
+    dt,
+    nodes,
+    _links,
+    onArrive,
+    stationPos,
+    onLinkConnect,
+    orbit,
+    fuel,
+    cameraTarget,
+  ) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     if (orbit) orbitApi = orbit;
     try {
@@ -509,41 +580,135 @@ export function makeSoumaya(): SoumayaHandle {
         haveStation = true;
       }
 
+      // Auto-fill planned maintenance queue
+      fillPlannedMaintenance(nodes);
+
       // Priority Interruption Check:
       // If there are new placements or removals waiting, and she is currently doing a routine
-      // maintenance job (travel/orbit) or recharging when she has fuel, interrupt her immediately
-      // to handle the new memories.
-      const hasPriority = placeQueue.length > 0 || removalQueue.length > 0;
+      // maintenance job (travel/orbit) or recharging or distress-hovering, interrupt her immediately.
+      const hasPriority = placeQueue.length > 0 || removalQueue.length > 0 || linkQueue.length > 0 || beaconQueue.length > 0;
       if (hasPriority) {
-        if (currentJob && (mode === "travel" || mode === "orbit")) {
+        if (
+          mode === "distressTravel" ||
+          mode === "distressHover" ||
+          (currentJob && (mode === "travel" || mode === "orbit")) ||
+          (mode === "docking" || mode === "dockTravel")
+        ) {
           currentJob = null;
-          curve = null;
-          mode = "idle";
-        } else if ((mode === "docking" || mode === "dockTravel") && jobsSinceDock < DOCK_EVERY) {
           curve = null;
           mode = "idle";
         }
       }
 
       if (mode === "idle") {
-        // Deletions are user-initiated → handle first; then place new memories, then
-        // dispatch beacons, forge connections, and finally routine maintenance.
-        if (removalQueue.length > 0) {
-          startRemoval();
-          return;
+        // Distress Check: if fuel is very low, fly directly into the user's view (camera target) to request fuel!
+        const isLowFuel = fuel && fuel.fuel < 20;
+        if (isLowFuel && !hasPriority) {
+          if (cameraTarget) {
+            const dest = cameraTarget.clone().add(new THREE.Vector3(
+              (Math.random() - 0.5) * 30,
+              15 + (Math.random() - 0.5) * 10,
+              (Math.random() - 0.5) * 30
+            ));
+            const from = group.position.clone();
+            const mid = from.clone().add(dest).multiplyScalar(0.5).add(new THREE.Vector3((Math.random() - 0.5) * 30, 20, (Math.random() - 0.5) * 30));
+            curve = new THREE.QuadraticBezierCurve3(from, mid, dest);
+            t = 0;
+            speed = Math.min(0.4, 60 / (from.distanceTo(dest) || 1));
+            mode = "distressTravel";
+            distressTarget = dest;
+            return;
+          }
         }
-        if (placeQueue.length > 0 && orbitApi) {
-          startPlacement(nodes);
-          return;
+
+        // Clean taskOrder to remove IDs that are no longer in any queue
+        const validIds = new Set<string>();
+        for (const r of removalQueue) if (r.id) validIds.add(r.id);
+        for (const id of placeQueue) validIds.add(`place-${id}`);
+        for (const l of linkQueue) validIds.add(l.id || `link-${l.key}`);
+        for (const id of beaconQueue) validIds.add(`beacon-${id}`);
+        for (const j of plannedMaintenance) validIds.add(`planned-maint-${j.targets[0]}`);
+        
+        const currentPlannedOrder = taskOrder.filter(id => validIds.has(id));
+
+        if (currentPlannedOrder.length > 0) {
+          const nextTaskId = currentPlannedOrder[0]!;
+          const idx = taskOrder.indexOf(nextTaskId);
+          if (idx !== -1) taskOrder.splice(idx, 1);
+          
+          if (nextTaskId.startsWith("removal-")) {
+            const matchIdx = removalQueue.findIndex(r => r.id === nextTaskId);
+            if (matchIdx !== -1) {
+              const task = removalQueue.splice(matchIdx, 1)[0]!;
+              activeRemoval = task;
+              target = { x: task.x, y: task.y, z: task.z, label: "Discarded Memory", type: "system" } as any;
+              
+              const endpoint = new THREE.Vector3(0, 0, 0); // Sun is at origin
+              const from = group.position.clone();
+              const mid = from.clone().add(endpoint).multiplyScalar(0.5).add(new THREE.Vector3((Math.random() - 0.5) * 50, 40, (Math.random() - 0.5) * 50));
+              curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
+              t = 0;
+              speed = Math.min(0.4, 50 / (from.distanceTo(endpoint) || 1));
+              mode = "removeTravel";
+              return;
+            }
+          } else if (nextTaskId.startsWith("place-")) {
+            const id = Number(nextTaskId.replace("place-", ""));
+            const matchIdx = placeQueue.indexOf(id);
+            if (matchIdx !== -1) {
+              placeQueue.splice(matchIdx, 1);
+              activePlace = id;
+              target = nodes.find((n) => n.id === id);
+              if (target && target.x != null && curveTo(target)) {
+                mode = "placePickup";
+              } else {
+                activePlace = null;
+                mode = "idle";
+              }
+              return;
+            }
+          } else if (nextTaskId.startsWith("beacon-")) {
+            const id = Number(nextTaskId.replace("beacon-", ""));
+            const matchIdx = beaconQueue.indexOf(id);
+            if (matchIdx !== -1) {
+              beaconQueue.splice(matchIdx, 1);
+              activeBeacon = id;
+              target = nodes.find((n) => n.id === id);
+              if (target && target.x != null && curveTo(target)) {
+                mode = "beaconTravel";
+              } else {
+                activeBeacon = null;
+                mode = "idle";
+              }
+              return;
+            }
+          } else if (nextTaskId.startsWith("link-") || linkQueue.some(l => l.id === nextTaskId)) {
+            const matchIdx = linkQueue.findIndex(l => l.id === nextTaskId || `link-${l.key}` === nextTaskId);
+            if (matchIdx !== -1) {
+              const task = linkQueue.splice(matchIdx, 1)[0]!;
+              activeLink = task;
+              target = nodes.find((n) => n.id === task.source);
+              if (target && target.x != null && curveTo(target)) {
+                mode = "linkToSource";
+              } else {
+                activeLink = null;
+                mode = "idle";
+              }
+              return;
+            }
+          } else if (nextTaskId.startsWith("planned-maint-")) {
+            const matchIdx = plannedMaintenance.findIndex(j => `planned-maint-${j.targets[0]}` === nextTaskId);
+            if (matchIdx !== -1) {
+              const job = plannedMaintenance.splice(matchIdx, 1)[0]!;
+              currentJob = job;
+              planRoute(nodes);
+              return;
+            }
+          }
         }
-        if (beaconQueue.length > 0) {
-          startBeaconDispatch(nodes);
-          return;
-        }
-        if (linkQueue.length > 0) {
-          startLink(nodes);
-          return;
-        }
+      }
+
+      if (mode === "idle") {
         acquireJob(nodes);
         return;
       }
@@ -551,7 +716,6 @@ export function makeSoumaya(): SoumayaHandle {
       // DOCKING: park by the station, pulse recharge beams, then resume patrol.
       if (mode === "docking") {
         dockTime -= dt;
-        // Hover just off the station, gently bobbing and facing it.
         orbitAngle += dt * 0.4;
         const pos = stationLoc
           .clone()
@@ -563,8 +727,6 @@ export function makeSoumaya(): SoumayaHandle {
           onArrive(stationLoc.x, stationLoc.y, stationLoc.z, "synthesis"); // recharge beam
           jobTimer = 0.5;
         }
-        const s = 3 + Math.sin(performance.now() * 0.004) * 2;
-        glow.scale.set(s, s, 1);
         if (dockTime <= 0) {
           jobsSinceDock = 0;
           mode = "idle";
@@ -574,8 +736,44 @@ export function makeSoumaya(): SoumayaHandle {
 
       let currentVel = 0;
 
-      // ORBIT: circle the body at a standoff radius and do the "job" (periodic
-      // maintenance sparks), then head to the next memory.
+      // DISTRESS MODES: Fly to screen and bob/hover asking for help
+      if (mode === "distressTravel") {
+        if (!curve) {
+          mode = "idle";
+          return;
+        }
+        t += dt * speed;
+        if (t >= 1) {
+          group.position.copy(curve.getPoint(1));
+          curve = null;
+          mode = "distressHover";
+          jobTimer = 15; // Hover in view for 15 seconds
+          orbitAngle = 0;
+          currentVel = 0;
+        } else {
+          group.position.copy(curve.getPoint(smooth(t)));
+          const tangent = curve.getTangent(smooth(t));
+          group.lookAt(group.position.clone().add(tangent));
+          currentVel = 35;
+        }
+      } else if (mode === "distressHover") {
+        jobTimer -= dt;
+        orbitAngle += dt * 1.5;
+        const basePos = distressTarget || group.position.clone();
+        group.position.copy(basePos).add(new THREE.Vector3(0, Math.sin(orbitAngle) * 2.2, 0));
+        group.rotation.y += dt * 0.6; // slow dramatic spin
+        currentVel = 0;
+        if (jobTimer <= 0) {
+          if (haveStation) {
+            planDock();
+          } else {
+            mode = "idle";
+          }
+        }
+        return;
+      }
+
+      // ORBIT: circle the body at a standoff radius
       if (mode === "orbit") {
         if (!target || target.x == null) {
           mode = "idle";
@@ -594,13 +792,13 @@ export function makeSoumaya(): SoumayaHandle {
           .multiplyScalar(-Math.sin(orbitAngle))
           .addScaledVector(ov, Math.cos(orbitAngle));
         
-        currentVel = speedMultiplier * orbitRadius; // tangential velocity
+        currentVel = speedMultiplier * orbitRadius;
         
         group.position.copy(pos);
         group.lookAt(pos.clone().add(tangent));
         jobTimer -= dt;
         if (jobTimer <= 0) {
-          onArrive(tp.x, tp.y, tp.z, currentJob?.type || "patrol"); // tending the memory
+          onArrive(tp.x, tp.y, tp.z, currentJob?.type || "patrol");
           jobTimer = 1.3;
         }
 
@@ -612,14 +810,12 @@ export function makeSoumaya(): SoumayaHandle {
           }
           jobsSinceDock++;
           if (jobsSinceDock >= DOCK_EVERY && haveStation) {
-            planDock(); // time to refuel at the station
+            planDock();
           } else {
             mode = "idle";
           }
         }
       } else if (mode === "placeCarry") {
-        // Carrying a new memory: nudge it (and ride alongside it) toward its live
-        // orbit slot, then drop it in and hand control back to the orbit system.
         const slot = activePlace != null ? orbitApi?.slotOf(activePlace) ?? null : null;
         if (!target || activePlace == null || !slot) {
           if (activePlace != null) orbitApi?.release(activePlace);
@@ -629,9 +825,8 @@ export function makeSoumaya(): SoumayaHandle {
           const np = vecOf(target);
           const toSlot = slot.clone().sub(np);
           const dist = toSlot.length();
-          const step = Math.min(dist, (40 + dist) * dt * 0.9); // ease in: faster when far
+          const step = Math.min(dist, (40 + dist) * dt * 0.9);
           if (dist < 5) {
-            // Dropped home: snap to slot, release to normal orbiting, bloom.
             target.x = slot.x; target.y = slot.y; target.z = slot.z;
             target.fx = slot.x; target.fy = slot.y; target.fz = slot.z;
             orbitApi?.release(activePlace);
@@ -643,7 +838,7 @@ export function makeSoumaya(): SoumayaHandle {
           } else {
             const nv = np.addScaledVector(toSlot.normalize(), step);
             target.x = nv.x; target.y = nv.y; target.z = nv.z;
-            target.fx = nv.x; target.fy = nv.y; target.fz = nv.z; // tow the body (held → orbit won't fight)
+            target.fx = nv.x; target.fy = nv.y; target.fz = nv.z;
             const shipPos = nv.clone().add(new THREE.Vector3(0, bodyRadius(target) + 6, 0));
             group.position.copy(shipPos);
             group.lookAt(slot);
@@ -651,13 +846,10 @@ export function makeSoumaya(): SoumayaHandle {
           }
         }
       } else if (mode === "removeCarry") {
-        // Dragging a discarded memory into the Sun (origin). The cargo flies inward;
-        // the ship trails it but is clamped to a safe standoff so she never enters
-        // the Sun herself. On contact with the surface: a fiery consumption flare.
         const cargoPos = cargo.position.clone();
-        const dist = cargoPos.length(); // distance from the Sun's center (origin)
+        const dist = cargoPos.length();
         if (!activeRemoval || dist <= SUN_RADIUS_MAX || cargoPos.lengthSq() < 1e-3) {
-          onArrive(cargoPos.x, cargoPos.y, cargoPos.z, "consume"); // flare + burst (Graph3D)
+          onArrive(cargoPos.x, cargoPos.y, cargoPos.z, "consume");
           cargo.visible = false;
           if (activeRemoval) {
             pushCompleted("removal", "Discarded memory into the Sun", activeRemoval.id || "removal-active");
@@ -666,18 +858,16 @@ export function makeSoumaya(): SoumayaHandle {
           mode = "idle";
           currentVel = 0;
         } else {
-          const dirIn = cargoPos.clone().multiplyScalar(-1).normalize(); // toward the Sun
-          const step = Math.min(dist - SUN_RADIUS_MAX, (70 + dist * 0.4) * dt); // ease, faster when far
+          const dirIn = cargoPos.clone().multiplyScalar(-1).normalize();
+          const step = Math.min(dist - SUN_RADIUS_MAX, (70 + dist * 0.4) * dt);
           const nc = cargoPos.addScaledVector(dirIn, step);
           cargo.position.copy(nc);
-          // Ship trails just behind the cargo, never closer than a safe standoff.
           const standoff = Math.max(nc.length() + 50, SUN_RADIUS_MAX + 120);
           group.position.copy(nc.clone().normalize().multiplyScalar(standoff));
           group.lookAt(nc);
           currentVel = step / Math.max(dt, 0.001);
         }
       } else {
-        // TRAVEL (to a memory) / DOCKTRAVEL (to the station): cruise the Bézier.
         if (!curve) {
           mode = "idle";
           return;
@@ -687,7 +877,6 @@ export function makeSoumaya(): SoumayaHandle {
         t += speed * dt;
 
         if (t >= 1 && mode === "dockTravel") {
-          // Reached the station — begin the recharge dock.
           mode = "docking";
           dockTime = 6;
           jobTimer = 0.2;
@@ -695,7 +884,6 @@ export function makeSoumaya(): SoumayaHandle {
           curve = null;
           currentVel = 0;
         } else if (t >= 1 && mode === "linkToSource") {
-          // Reached the new memory — grab the thread, then carry it to the other end.
           const p = vecOf(target);
           onArrive(p.x, p.y, p.z, "synthesis", target?.id);
           curve = null;
@@ -708,7 +896,6 @@ export function makeSoumaya(): SoumayaHandle {
             mode = "idle";
           }
         } else if (t >= 1 && mode === "linkToTarget") {
-          // Reached the far end — fasten the connection and let it fire.
           const p = vecOf(target);
           onArrive(p.x, p.y, p.z, "synthesis", target?.id);
           if (activeLink && onLinkConnectCb) onLinkConnectCb(activeLink.key);
@@ -721,7 +908,6 @@ export function makeSoumaya(): SoumayaHandle {
           currentVel = 0;
           mode = "idle";
         } else if (t >= 1 && mode === "placePickup") {
-          // Reached the waiting new memory at the dock — pick it up and carry it home.
           curve = null;
           currentVel = 0;
           if (target && activePlace != null) {
@@ -732,7 +918,6 @@ export function makeSoumaya(): SoumayaHandle {
             mode = "idle";
           }
         } else if (t >= 1 && mode === "beaconTravel") {
-          // Reached the target memory — deploy the beacon and return to idle.
           const p = vecOf(target);
           onArrive(p.x, p.y, p.z, "beacon_dispatch", target?.id);
           if (activeBeacon) {
@@ -743,7 +928,6 @@ export function makeSoumaya(): SoumayaHandle {
           currentVel = 0;
           mode = "idle";
         } else if (t >= 1 && mode === "removeTravel") {
-          // Reached the discarded memory — grab it (show the cargo) and haul it sunward.
           curve = null;
           currentVel = 0;
           if (activeRemoval) {
@@ -756,7 +940,6 @@ export function makeSoumaya(): SoumayaHandle {
             mode = "idle";
           }
         } else if (t >= 1) {
-          // Arrived near the body — enter orbit around it (don't ram the center).
           mode = "orbit";
           orbitRadius = bodyRadius(target) + 12;
           orbitTime = 4 + Math.random() * 4;
@@ -769,8 +952,6 @@ export function makeSoumaya(): SoumayaHandle {
           curve = null;
           currentVel = 0;
         } else {
-          // Ease accel/decel along the hop: sample the curve at a smoothstepped
-          // parameter so she pulls away slowly and settles in slowly.
           const e = smooth(t);
           const ePrev = smooth(prevT);
           const p = curve.getPointAt(e);
@@ -781,9 +962,6 @@ export function makeSoumaya(): SoumayaHandle {
           const tangent = curve.getTangentAt(Math.min(0.999, e));
           group.lookAt(p.clone().add(tangent));
 
-          // Bank into turns: how much the heading is rotating (cross of the
-          // previous vs current tangent, signed about the ship's local up) drives
-          // a roll. Smooth toward it so she leans, holds, and levels out.
           const tanPrev = curve.getTangentAt(Math.min(0.999, Math.max(0, ePrev)));
           const turn = new THREE.Vector3().crossVectors(tanPrev, tangent);
           const up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.quaternion);
@@ -794,23 +972,52 @@ export function makeSoumaya(): SoumayaHandle {
         }
       }
 
-      // Dynamic Propulsion Beam: scale based on velocity
-      if (group.visible) {
-        // Normalize velocity for scaling (Travel speed is roughly 20-50 units/sec, Orbit is ~5-10)
-        const vRatio = Math.min(1, currentVel / 40);
-        const s = 2 + 10 * vRatio; // scale from 2 (idle/orbit) to 12 (max burn)
-        glow.scale.set(s, s, 1);
-        glow.position.z = -2.5 - (s * 0.1); // push back slightly so it doesn't clip hull
-        (glow.material as THREE.SpriteMaterial).opacity = 0.3 + 0.7 * vRatio;
+      // Dynamic Propulsion / Emotional Glow Color updates
+      if (group.visible && glow && (glow.material as THREE.SpriteMaterial).color) {
+        const mat = glow.material as THREE.SpriteMaterial;
+        const isLowFuel = fuel && fuel.fuel < 20;
+        
+        if (mode === "distressTravel" || mode === "distressHover" || isLowFuel) {
+          // Rapid red/orange emotional distress pulsation
+          mat.color.setHex(0xff3c00);
+          const p = 5.5 + Math.sin(performance.now() * 0.018) * 3.5;
+          glow.scale.set(p, p, 1);
+          mat.opacity = 0.4 + 0.6 * Math.sin(performance.now() * 0.018);
+        } else if (mode === "docking" || mode === "dockTravel") {
+          // Green recharge glow
+          mat.color.setHex(0x32ff6a);
+          const p = 4.5 + Math.sin(performance.now() * 0.005) * 1.5;
+          glow.scale.set(p, p, 1);
+          mat.opacity = 0.7;
+        } else if (mode === "placeCarry" || mode === "placePickup") {
+          // Cyan placement / ferrying glow
+          mat.color.setHex(0x00f3ff);
+          const p = 6.5 + Math.sin(performance.now() * 0.008) * 2;
+          glow.scale.set(p, p, 1);
+          mat.opacity = 0.8;
+        } else if (mode === "linkToSource" || mode === "linkToTarget") {
+          // Purple synthesis link connection glow
+          mat.color.setHex(0xc27aff);
+          const p = 6.5 + Math.sin(performance.now() * 0.008) * 2;
+          glow.scale.set(p, p, 1);
+          mat.opacity = 0.8;
+        } else {
+          // Standard cyan/white propulsion
+          mat.color.setHex(0xb4e2ff);
+          const vRatio = Math.min(1, currentVel / 40);
+          const s = 2 + 10 * vRatio;
+          glow.scale.set(s, s, 1);
+          glow.position.z = -2.5 - (s * 0.1);
+          mat.opacity = 0.3 + 0.7 * vRatio;
+        }
       }
     } catch {
       /* skip this frame */
     } finally {
-      // Always track the label to the ship, in every mode (docking/idle return early).
       try {
         syncLabel(dt);
       } catch {
-        /* label is non-critical — never let it break the frame */
+        /* non-critical */
       }
     }
   };
@@ -819,19 +1026,35 @@ export function makeSoumaya(): SoumayaHandle {
     for (const task of tasks) {
       if (!linkQueue.some((q) => q.key === task.key) && activeLink?.key !== task.key) {
         linkQueue.push(task);
+        const id = task.id || `link-${task.key}`;
+        if (!taskOrder.includes(id)) {
+          taskOrder.push(id);
+        }
       }
     }
   };
 
   const enqueuePlacements = (ids: number[]) => {
     for (const id of ids) {
-      if (id !== activePlace && !placeQueue.includes(id)) placeQueue.push(id);
+      if (id !== activePlace && !placeQueue.includes(id)) {
+        placeQueue.push(id);
+        const key = `place-${id}`;
+        if (!taskOrder.includes(key)) {
+          taskOrder.push(key);
+        }
+      }
     }
   };
 
   const enqueueBeacons = (ids: number[]) => {
     for (const id of ids) {
-      if (id !== activeBeacon && !beaconQueue.includes(id)) beaconQueue.push(id);
+      if (id !== activeBeacon && !beaconQueue.includes(id)) {
+        beaconQueue.push(id);
+        const key = `beacon-${id}`;
+        if (!taskOrder.includes(key)) {
+          taskOrder.push(key);
+        }
+      }
     }
   };
 
@@ -840,7 +1063,12 @@ export function makeSoumaya(): SoumayaHandle {
       if (!task.id) {
         task.id = `removal-${task.x}-${task.y}-${Date.now()}-${Math.random()}`;
       }
-      removalQueue.push(task);
+      if (!removalQueue.some(r => r.id === task.id) && activeRemoval?.id !== task.id) {
+        removalQueue.push(task);
+        if (!taskOrder.includes(task.id)) {
+          taskOrder.push(task.id);
+        }
+      }
     }
   };
 
@@ -850,7 +1078,6 @@ export function makeSoumaya(): SoumayaHandle {
   };
 
   const getTasks = (nodes: any[]) => {
-    // Filter out completed tasks older than 12 seconds
     const now = Date.now();
     const activeCompleted = completedTasks.filter((t) => now - t.time < 12000);
     if (activeCompleted.length !== completedTasks.length) {
@@ -912,43 +1139,88 @@ export function makeSoumaya(): SoumayaHandle {
       });
     }
 
-    // 2. Add "planned" tasks
+    // Ensure all items in queues are in taskOrder
     for (const r of removalQueue) {
-      tasks.push({
-        id: r.id || `removal-planned-${Math.random()}`,
-        type: "removal",
-        label: "Casting a memory into the Sun",
-        status: "planned",
-      });
+      if (r.id && !taskOrder.includes(r.id)) taskOrder.push(r.id);
     }
     for (const id of placeQueue) {
-      const node = nodes.find((n) => n.id === id);
-      tasks.push({
-        id: `place-${id}`,
-        type: "placement",
-        label: `Ferrying new memory: ${node?.label ?? `#${id}`}`,
-        status: "planned",
-      });
+      const key = `place-${id}`;
+      if (!taskOrder.includes(key)) taskOrder.push(key);
     }
     for (const l of linkQueue) {
-      const s = nodes.find((n) => n.id === l.source);
-      const t = nodes.find((n) => n.id === l.target);
-      tasks.push({
-        id: l.id || `link-${l.key}`,
-        type: "link",
-        label: `Forging connection: ${s?.label ?? `#${l.source}`} ↔ ${t?.label ?? `#${l.target}`}`,
-        status: "planned",
-      });
+      const key = l.id || `link-${l.key}`;
+      if (!taskOrder.includes(key)) taskOrder.push(key);
     }
     for (const id of beaconQueue) {
-      const node = nodes.find((n) => n.id === id);
-      tasks.push({
-        id: `beacon-${id}`,
-        type: "beacon",
-        label: `Deploying Aura beacon: ${node?.label ?? `#${id}`}`,
-        status: "planned",
-      });
+      const key = `beacon-${id}`;
+      if (!taskOrder.includes(key)) taskOrder.push(key);
     }
+    for (const j of plannedMaintenance) {
+      const key = `planned-maint-${j.targets[0]}`;
+      if (!taskOrder.includes(key)) taskOrder.push(key);
+    }
+
+    // 2. Add "planned" tasks in the order of taskOrder
+    const plannedTasks: any[] = [];
+    const rMap = new Map(removalQueue.map(r => [r.id!, r]));
+    const pMap = new Set(placeQueue);
+    const lMap = new Map(linkQueue.map(l => [l.id || `link-${l.key}`, l]));
+    const bMap = new Set(beaconQueue);
+    const mMap = new Map(plannedMaintenance.map(j => [`planned-maint-${j.targets[0]}`, j]));
+
+    for (const id of taskOrder) {
+      if (rMap.has(id)) {
+        plannedTasks.push({
+          id,
+          type: "removal",
+          label: "Casting a memory into the Sun",
+          status: "planned",
+        });
+      } else if (id.startsWith("place-")) {
+        const nodeId = Number(id.replace("place-", ""));
+        if (pMap.has(nodeId)) {
+          const node = nodes.find((n) => n.id === nodeId);
+          plannedTasks.push({
+            id,
+            type: "placement",
+            label: `Ferrying new memory: ${node?.label ?? `#${nodeId}`}`,
+            status: "planned",
+          });
+        }
+      } else if (lMap.has(id)) {
+        const l = lMap.get(id)!;
+        const s = nodes.find((n) => n.id === l.source);
+        const t = nodes.find((n) => n.id === l.target);
+        plannedTasks.push({
+          id,
+          type: "link",
+          label: `Forging connection: ${s?.label ?? `#${l.source}`} ↔ ${t?.label ?? `#${l.target}`}`,
+          status: "planned",
+        });
+      } else if (id.startsWith("beacon-")) {
+        const nodeId = Number(id.replace("beacon-", ""));
+        if (bMap.has(nodeId)) {
+          const node = nodes.find((n) => n.id === nodeId);
+          plannedTasks.push({
+            id,
+            type: "beacon",
+            label: `Deploying Aura beacon: ${node?.label ?? `#${nodeId}`}`,
+            status: "planned",
+          });
+        }
+      } else if (mMap.has(id)) {
+        const job = mMap.get(id)!;
+        const targetNode = nodes.find(n => n.id === job.targets[0]);
+        plannedTasks.push({
+          id,
+          type: "maintenance",
+          label: job.description || `Patrolling memory: ${targetNode?.label ?? `#${job.targets[0]}`}`,
+          status: "planned",
+        });
+      }
+    }
+
+    tasks.push(...plannedTasks);
 
     // 3. Add "done" tasks
     for (const t of completedTasks) {
@@ -963,43 +1235,37 @@ export function makeSoumaya(): SoumayaHandle {
     return tasks;
   };
 
-  const reorderTasks = (newOrder: { id: string; type: string }[]) => {
+  const reorderTasks = (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => {
+    const newPlannedIds = newOrder.filter(t => t.status === "planned").map(t => t.id);
+    
+    taskOrder.length = 0;
+    taskOrder.push(...newPlannedIds);
+    
     const newPlaceQueue: number[] = [];
     const newRemovalQueue: RemovalTask[] = [];
     const newLinkQueue: LinkTask[] = [];
     const newBeaconQueue: number[] = [];
+    const newPlannedMaintenance: MaintenanceJob[] = [];
 
-    for (const item of newOrder) {
-      if (item.type === "placement") {
-        const id = parseInt(item.id.replace("place-", ""));
-        if (placeQueue.includes(id)) newPlaceQueue.push(id);
-      } else if (item.type === "removal") {
-        const found = removalQueue.find((r) => r.id === item.id);
-        if (found) newRemovalQueue.push(found);
-      } else if (item.type === "link") {
-        const found = linkQueue.find((l) => l.id === item.id);
-        if (found) newLinkQueue.push(found);
-      } else if (item.type === "beacon") {
-        const id = parseInt(item.id.replace("beacon-", ""));
-        if (beaconQueue.includes(id)) newBeaconQueue.push(id);
+    for (const id of taskOrder) {
+      if (id.startsWith("removal-")) {
+        const match = removalQueue.find(r => r.id === id);
+        if (match) newRemovalQueue.push(match);
+      } else if (id.startsWith("place-")) {
+        const val = Number(id.replace("place-", ""));
+        if (placeQueue.includes(val)) newPlaceQueue.push(val);
+      } else if (id.startsWith("link-") || linkQueue.some(l => l.id === id)) {
+        const match = linkQueue.find(l => l.id === id || `link-${l.key}` === id);
+        if (match) newLinkQueue.push(match);
+      } else if (id.startsWith("beacon-")) {
+        const val = Number(id.replace("beacon-", ""));
+        if (beaconQueue.includes(val)) newBeaconQueue.push(val);
+      } else if (id.startsWith("planned-maint-")) {
+        const match = plannedMaintenance.find(j => `planned-maint-${j.targets[0]}` === id);
+        if (match) newPlannedMaintenance.push(match);
       }
     }
 
-    // Append any tasks that were not in the newOrder list (just in case)
-    for (const id of placeQueue) {
-      if (!newPlaceQueue.includes(id)) newPlaceQueue.push(id);
-    }
-    for (const r of removalQueue) {
-      if (!newRemovalQueue.some((x) => x.id === r.id)) newRemovalQueue.push(r);
-    }
-    for (const l of linkQueue) {
-      if (!newLinkQueue.some((x) => x.id === l.id)) newLinkQueue.push(l);
-    }
-    for (const id of beaconQueue) {
-      if (!newBeaconQueue.includes(id)) newBeaconQueue.push(id);
-    }
-
-    // Overwrite the queues!
     placeQueue.length = 0;
     placeQueue.push(...newPlaceQueue);
     
@@ -1011,6 +1277,9 @@ export function makeSoumaya(): SoumayaHandle {
     
     beaconQueue.length = 0;
     beaconQueue.push(...newBeaconQueue);
+    
+    plannedMaintenance.length = 0;
+    plannedMaintenance.push(...newPlannedMaintenance);
   };
 
   return {

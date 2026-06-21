@@ -333,6 +333,7 @@ export default function App() {
         loaded={loaded}
         onTasksChange={setTasks}
         shipViewMode={shipViewMode}
+        fuel={fuel}
       />
 
       {!loaded && (
