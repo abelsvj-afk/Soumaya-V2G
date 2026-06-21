@@ -76,6 +76,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("ship.task", showShipTask ? "1" : "0");
   }, [showShipTask]);
+  const [shipViewMode, setShipViewMode] = useState<"orbit" | "cockpit">("orbit");
+  const [tasks, setTasks] = useState<any[]>([]);
+  const handleReorderTasks = useCallback((newOrder: any[]) => {
+    graphRef.current?.reorderTasks(newOrder);
+    setTasks(newOrder);
+  }, []);
   // Transient glow on the focus button when a NEW beacon launches (not constant).
   const [beaconPulse, setBeaconPulse] = useState(false);
   const prevSatRef = useRef(0);
@@ -312,6 +318,11 @@ export default function App() {
         onSoumayaClick={() => {
           setTab("chat"); // tapping her ship = talk to Soumaya
           setPanel("dock");
+          setFollowShip(true);
+          setFollowStation(false);
+          setFollowSatellite(false);
+          setFollowVisitor(false);
+          graphRef.current?.toggleFollowShip(true);
         }}
         onSatelliteCount={setSatelliteCount}
         onVisitorCount={setVisitorCount}
@@ -320,6 +331,8 @@ export default function App() {
         demo={demo}
         showShipTask={showShipTask}
         loaded={loaded}
+        onTasksChange={setTasks}
+        shipViewMode={shipViewMode}
       />
 
       {!loaded && (
@@ -585,6 +598,10 @@ export default function App() {
           showShipTask={showShipTask}
           setShowShipTask={setShowShipTask}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
+          shipViewMode={shipViewMode}
+          setShipViewMode={setShipViewMode}
+          tasks={tasks}
+          onReorderTasks={handleReorderTasks}
         />
       )}
     </div>

@@ -35,7 +35,7 @@ export interface Graph3DHandle {
   /** On-screen zoom: factor < 1 zooms in, > 1 zooms out (for the +/- buttons). */
   zoomBy: (factor: number) => void;
   /** Toggle the camera focusing Soumaya's ship; returns the new state. */
-  toggleFollowShip: () => boolean;
+  toggleFollowShip: (forceState?: boolean) => boolean;
   /** Toggle the camera focusing the space station; returns the new state. */
   toggleFollowStation: () => boolean;
   /** Jump to the next active Aura beacon (cycles through them). False if none. */
@@ -52,6 +52,7 @@ export interface Graph3DHandle {
   fireRecall: (citationIds: number[]) => void;
   /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
   getFleetStatus: () => FleetStatus;
+  reorderTasks: (newOrder: { id: string; type: string }[]) => void;
 }
 
 interface Props {
@@ -72,6 +73,8 @@ interface Props {
   showShipTask?: boolean;
   /** True when the initial API fetch of the real galaxy is done. */
   loaded?: boolean;
+  onTasksChange?: (tasks: any[]) => void;
+  shipViewMode?: "orbit" | "cockpit";
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -84,7 +87,7 @@ const linkKey = (l: any): string => {
 };
 
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
-  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded },
+  { data, onSelect, onSoumayaClick, onSatelliteCount, onVisitorCount, selectedId, bottomInset, demo, showShipTask, loaded, onTasksChange, shipViewMode },
   ref,
 ) {
   const fgRef = useRef<any>(null);
@@ -170,7 +173,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (!knownLinksRef.current.has(k)) {
           knownLinksRef.current.add(k);
           pendingLinksRef.current.add(k); // hide it until Soumaya draws it
-          fresh.push({ source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+          fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
         }
       }
       if (fresh.length > 0) {
@@ -211,6 +214,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const old = prevById.get(id);
           if (old && old.x != null) {
             removals.push({
+              id: `removal-${id}-${Date.now()}`,
               x: old.x,
               y: old.y,
               z: old.z ?? 0,
@@ -248,6 +252,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const soumayaHandleRef = useRef<SoumayaHandle | null>(null);
   const stationObjRef = useRef<THREE.Object3D | null>(null);
   const sunRef = useRef<THREE.Object3D | null>(null);
+
+  const onTasksChangeRef = useRef(onTasksChange);
+  useEffect(() => {
+    onTasksChangeRef.current = onTasksChange;
+  }, [onTasksChange]);
+
+  const shipViewModeRef = useRef<"orbit" | "cockpit">("orbit");
+  useEffect(() => {
+    if (shipViewMode) shipViewModeRef.current = shipViewMode;
+  }, [shipViewMode]);
+
+  const lastTasksJsonRef = useRef("");
+
   const bloomRef = useRef<{ strength: number } | null>(null);
   const initialFramedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
@@ -528,6 +545,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const dt = Math.min(0.05, now - last);
       last = now;
 
+      // Sync tasks changes back to React UI
+      if (soumayaHandleRef.current && onTasksChangeRef.current) {
+        const currentTasks = soumayaHandleRef.current.getTasks(dataRef.current.nodes);
+        const tasksJson = JSON.stringify(currentTasks);
+        if (tasksJson !== lastTasksJsonRef.current) {
+          lastTasksJsonRef.current = tasksJson;
+          onTasksChangeRef.current(currentTasks);
+        }
+      }
+
       // Make link curvature/opacity zoom-bias live:
       // Track camera distance and periodically refresh link styles when zooming/scrolling
       const camera = fgRef.current?.camera();
@@ -685,10 +712,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
           controls.target.copy(followPos);
           // When the bottom sheet is open on mobile, look a bit lower so the body
-          // rides above the panel instead of being centered behind it.
-          if (insetRef.current && window.innerWidth <= 720) {
-            const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
-            controls.target.addScaledVector(down, camera.position.distanceTo(followPos) * 0.18);
+          // rides above the panel instead of being centered behind it. On desktop,
+          // look a bit to the right to shift the focused target to the left.
+          if (insetRef.current) {
+            if (window.innerWidth <= 720) {
+              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+              controls.target.addScaledVector(down, camera.position.distanceTo(followPos) * 0.18);
+            } else {
+              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+              controls.target.addScaledVector(right, camera.position.distanceTo(followPos) * 0.095);
+            }
           }
           followAnchor.copy(followPos);
           followAnchorId = fid;
@@ -850,26 +883,54 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (fo && controls) {
         const sp = new THREE.Vector3();
         fo.getWorldPosition(sp);
-        if (followSnapRef.current) {
-          // Snap once to the front of the object, then anchor.
+        
+        if (followKindRef.current === "ship" && shipViewModeRef.current === "cockpit") {
+          // Cockpit Lock: camera is locked in front of the ship, looking back at the nose.
           const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
-          const d = followDistRef.current;
-          camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
-          followObjAnchor.current.copy(sp);
-          followObjAnchored.current = true;
-          followSnapRef.current = false;
-        } else if (followObjAnchored.current) {
-          // Ride along with the moving body: translate the camera by the body's
-          // delta so the view stays locked instead of swinging to chase it.
-          camera.position.add(sp.clone().sub(followObjAnchor.current));
-          followObjAnchor.current.copy(sp);
+          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(fo.quaternion).normalize();
+          const dist = 28;
+          const camPos = sp.clone().addScaledVector(fwd, dist).addScaledVector(up, 8);
+          camera.position.copy(camPos);
+          
+          const target = sp.clone();
+          if (insetRef.current) {
+            if (window.innerWidth <= 720) {
+              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(down, dist * 0.18);
+            } else {
+              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(right, dist * 0.095);
+            }
+          }
+          controls.target.copy(target);
+          followObjAnchored.current = false;
+        } else {
+          // Standard Orbit Follow: snap once, then ride along.
+          if (followSnapRef.current) {
+            const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
+            const d = followDistRef.current;
+            camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
+            followObjAnchor.current.copy(sp);
+            followObjAnchored.current = true;
+            followSnapRef.current = false;
+          } else if (followObjAnchored.current) {
+            // Ride along with the moving body: translate the camera by the body's
+            // delta so the view stays locked instead of swinging to chase it.
+            camera.position.add(sp.clone().sub(followObjAnchor.current));
+            followObjAnchor.current.copy(sp);
+          }
+          const target = sp.clone();
+          if (insetRef.current) {
+            if (window.innerWidth <= 720) {
+              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+            } else {
+              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+              target.addScaledVector(right, camera.position.distanceTo(sp) * 0.095);
+            }
+          }
+          controls.target.copy(target);
         }
-        const target = sp.clone();
-        if (insetRef.current && window.innerWidth <= 720) {
-          const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
-          target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
-        }
-        controls.target.copy(target); // locked; user can still orbit around it
       }
 
       // Sync computed coordinates from dataRef.current.nodes back to the active simulated nodes
@@ -1068,8 +1129,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
         controls.update?.();
       },
-      toggleFollowShip: () => {
-        const on = followKindRef.current !== "ship";
+      toggleFollowShip: (forceState?: boolean) => {
+        const on = forceState !== undefined ? forceState : followKindRef.current !== "ship";
         followKindRef.current = on ? "ship" : null;
         followObjRef.current = on ? soumayaObjRef.current : null;
         followDistRef.current = 26;
@@ -1077,6 +1138,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjAnchored.current = false;
         if (on) followRef.current = null;
         return on;
+      },
+      reorderTasks: (newOrder: { id: string; type: string }[]) => {
+        soumayaHandleRef.current?.reorderTasks(newOrder);
       },
       toggleFollowStation: () => {
         const on = followKindRef.current !== "station";

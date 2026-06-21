@@ -1973,3 +1973,119 @@ button {
   border-color: rgba(255, 200, 90, 0.35);
   cursor: help;
 }
+
+/* Soumaya Flight Tasks UI in Chat Panel */
+.ship-tasks-section {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid var(--glass-border);
+}
+.ship-tasks-section h4 {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.ship-tasks-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ship-task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--glass-border);
+  border-radius: 8px;
+  font-size: 12.5px;
+  transition: all 0.2s ease;
+}
+.ship-task-item.doing {
+  background: rgba(122, 249, 255, 0.05);
+  border-color: rgba(122, 249, 255, 0.25);
+  box-shadow: 0 0 8px rgba(122, 249, 255, 0.08);
+}
+.ship-task-item.done {
+  background: rgba(139, 233, 160, 0.03);
+  border-color: rgba(139, 233, 160, 0.15);
+  opacity: 0.7;
+}
+.ship-task-item.planned {
+  opacity: 0.9;
+}
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 11px;
+  font-weight: bold;
+}
+.status-indicator.doing {
+  color: var(--accent);
+}
+.status-indicator.done {
+  color: #8be9a0;
+}
+.status-indicator.planned {
+  color: #ffd166;
+}
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: task-pulse 1.2s infinite ease-in-out;
+  box-shadow: 0 0 6px var(--accent);
+}
+@keyframes task-pulse {
+  0%, 100% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+.ship-task-item .task-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-controls {
+  display: flex;
+  gap: 4px;
+}
+.task-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  border-radius: 4px;
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+.task-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--accent);
+}
+.task-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+

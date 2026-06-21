@@ -32,6 +32,10 @@ interface Props {
   showShipTask?: boolean;
   setShowShipTask?: (v: boolean) => void;
   onRecall?: (ids: number[]) => void;
+  shipViewMode?: "orbit" | "cockpit";
+  setShipViewMode?: (v: "orbit" | "cockpit") => void;
+  tasks?: any[];
+  onReorderTasks?: (newOrder: any[]) => void;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -66,6 +70,10 @@ export function RightDock({
   showShipTask,
   setShowShipTask,
   onRecall,
+  shipViewMode,
+  setShipViewMode,
+  tasks,
+  onReorderTasks,
 }: Props) {
   return (
     <div className="panel dock">
@@ -118,7 +126,18 @@ export function RightDock({
           />
         )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
-        {tab === "chat" && <ChatPanel onFocus={onFocus} onRecall={onRecall} />}
+        {tab === "chat" && (
+          <ChatPanel
+            onFocus={onFocus}
+            onRecall={onRecall}
+            showShipTask={showShipTask}
+            setShowShipTask={setShowShipTask}
+            shipViewMode={shipViewMode}
+            setShipViewMode={setShipViewMode}
+            tasks={tasks}
+            onReorderTasks={onReorderTasks}
+          />
+        )}
         {tab === "soumaya" && (
           <SoumayaPanel
             onFocus={onFocus}

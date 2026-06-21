@@ -37,9 +37,21 @@ function playTick() {
 export function ChatPanel({
   onFocus,
   onRecall,
+  showShipTask,
+  setShowShipTask,
+  shipViewMode,
+  setShipViewMode,
+  tasks,
+  onReorderTasks,
 }: {
   onFocus: (id: number) => void;
   onRecall?: (ids: number[]) => void;
+  showShipTask?: boolean;
+  setShowShipTask?: (v: boolean) => void;
+  shipViewMode?: "orbit" | "cockpit";
+  setShipViewMode?: (v: "orbit" | "cockpit") => void;
+  tasks?: any[];
+  onReorderTasks?: (newOrder: any[]) => void;
 }) {
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -50,6 +62,27 @@ export function ChatPanel({
   const [speaking, setSpeaking] = useState(false);
   const soundRef = useRef(true);
   const voiceSupported = isVoiceSupported();
+
+  const moveTask = (index: number, direction: "up" | "down") => {
+    if (!tasks || !onReorderTasks) return;
+    const plannedTasks = tasks.filter((t) => t.status === "planned");
+    const targetPlannedIndex = plannedTasks.findIndex(t => t.id === tasks[index].id);
+    if (targetPlannedIndex === -1) return;
+    
+    const nextPlannedIndex = direction === "up" ? targetPlannedIndex - 1 : targetPlannedIndex + 1;
+    if (nextPlannedIndex < 0 || nextPlannedIndex >= plannedTasks.length) return;
+    
+    const newPlanned = [...plannedTasks];
+    const temp = newPlanned[targetPlannedIndex]!;
+    newPlanned[targetPlannedIndex] = newPlanned[nextPlannedIndex]!;
+    newPlanned[nextPlannedIndex] = temp;
+    
+    const doing = tasks.filter((t) => t.status === "doing");
+    const done = tasks.filter((t) => t.status === "done");
+    
+    const newOrder = [...doing, ...newPlanned, ...done];
+    onReorderTasks(newOrder);
+  };
 
   // Stop any speech if the panel unmounts.
   useEffect(() => () => stopSpeaking(), []);
@@ -119,6 +152,26 @@ export function ChatPanel({
       <div className="dock-head">
         <h3>Talk to Soumaya {speaking && <span className="speaking-dot" title="Speaking…">◗</span>}</h3>
         <div className="head-tools">
+          {setShipViewMode && (
+            <button
+              className={`link-btn ${shipViewMode === "cockpit" ? "active" : ""}`}
+              title={shipViewMode === "cockpit" ? "Camera Mode: Cockpit Lock" : "Camera Mode: Orbit Follow"}
+              onClick={() => setShipViewMode(shipViewMode === "cockpit" ? "orbit" : "cockpit")}
+              style={{ fontSize: "1.1rem" }}
+            >
+              {shipViewMode === "cockpit" ? "🎥 Lock" : "🎥 Free"}
+            </button>
+          )}
+          {setShowShipTask && (
+            <button
+              className={`link-btn ${showShipTask ? "active" : ""}`}
+              title={showShipTask ? "Hide ship task label" : "Show ship task label"}
+              onClick={() => setShowShipTask(!showShipTask)}
+              style={{ fontSize: "1.1rem" }}
+            >
+              🏷️
+            </button>
+          )}
           {voiceSupported && (
             <button
               className={`link-btn ${voiceOn ? "active" : ""}`}
@@ -161,6 +214,53 @@ export function ChatPanel({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {tasks && tasks.length > 0 && (
+        <div className="ship-tasks-section">
+          <h4>Soumaya's Active Flight Tasks</h4>
+          <ul className="ship-tasks-list">
+            {tasks.map((task, idx) => {
+              const isPlanned = task.status === "planned";
+              const isDoing = task.status === "doing";
+              const isDone = task.status === "done";
+              
+              const plannedTasks = tasks.filter((t) => t.status === "planned");
+              const pIdx = plannedTasks.findIndex(t => t.id === task.id);
+              
+              return (
+                <li key={task.id} className={`ship-task-item ${task.status}`}>
+                  <span className={`status-indicator ${task.status}`}>
+                    {isDoing && <span className="pulse-dot" />}
+                    {isDone && "✓"}
+                    {isPlanned && "○"}
+                  </span>
+                  <span className="task-label">{task.label}</span>
+                  {isPlanned && (
+                    <div className="task-controls">
+                      <button
+                        className="task-btn"
+                        disabled={pIdx === 0}
+                        onClick={() => moveTask(idx, "up")}
+                        title="Move task up in priority"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        className="task-btn"
+                        disabled={pIdx === plannedTasks.length - 1}
+                        onClick={() => moveTask(idx, "down")}
+                        title="Move task down in priority"
+                      >
+                        ▼
+                      </button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
       )}
     </div>

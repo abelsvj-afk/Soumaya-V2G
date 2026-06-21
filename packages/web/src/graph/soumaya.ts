@@ -6,6 +6,7 @@ import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } fr
 
 /** A connection Soumaya should personally fly out and forge (source → target). */
 export interface LinkTask {
+  id?: string;
   source: number;
   target: number;
   key: string;
@@ -13,6 +14,7 @@ export interface LinkTask {
 
 /** A discarded memory Soumaya should drag to the Sun and fling in (deletion). */
 export interface RemovalTask {
+  id?: string;
   x: number;
   y: number;
   z: number;
@@ -49,6 +51,8 @@ export interface SoumayaHandle {
   taskLabel: THREE.Object3D;
   /** Turn the floating task label on/off (user preference). */
   setTaskVisible: (v: boolean) => void;
+  getTasks: (nodes: any[]) => { id: string; type: string; label: string; status: "doing" | "planned" | "done" }[];
+  reorderTasks: (newOrder: { id: string; type: string }[]) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -83,7 +87,14 @@ function makeTaskLabel() {
     const FS = 32;
     const pad = 22;
     ctx.font = `600 ${FS}px system-ui, -apple-system, sans-serif`;
-    const w = Math.max(64, Math.ceil(ctx.measureText(text).width) + pad * 2);
+    const textWidth = Math.ceil(ctx.measureText(text).width) + pad * 2;
+    const baseWidthUnits = (textWidth / H) * HU;
+    const needScroll = baseWidthUnits > MAXW;
+    
+    // Add gap space at the end if scrolling so it doesn't loop-clump immediately
+    const gap = needScroll ? 140 : 0;
+    const w = Math.max(64, textWidth + gap);
+    
     canvas.width = w;
     canvas.height = H;
     const c = canvas.getContext("2d")!;
@@ -96,8 +107,9 @@ function makeTaskLabel() {
     c.fillStyle = "#cfe0ff";
     c.fillText(text, pad, H / 2 + 1);
     tex.needsUpdate = true;
+    
     widthUnits = (w / H) * HU;
-    if (widthUnits > MAXW) {
+    if (needScroll) {
       scroll = true;
       tex.repeat.x = MAXW / widthUnits;
       sprite.scale.set(MAXW, HU, 1);
@@ -481,6 +493,13 @@ export function makeSoumaya(): SoumayaHandle {
     taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
   };
 
+  // Done tasks cache
+  const completedTasks: { id: string; type: string; label: string; status: "done"; time: number }[] = [];
+  const pushCompleted = (type: string, label: string, id: string) => {
+    completedTasks.push({ id, type, label, status: "done", time: Date.now() });
+    if (completedTasks.length > 8) completedTasks.shift();
+  };
+
   const update: SoumayaHandle["update"] = (dt, nodes, _links, onArrive, stationPos, onLinkConnect, orbit) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     if (orbit) orbitApi = orbit;
@@ -488,6 +507,22 @@ export function makeSoumaya(): SoumayaHandle {
       if (stationPos) {
         stationLoc.copy(stationPos);
         haveStation = true;
+      }
+
+      // Priority Interruption Check:
+      // If there are new placements or removals waiting, and she is currently doing a routine
+      // maintenance job (travel/orbit) or recharging when she has fuel, interrupt her immediately
+      // to handle the new memories.
+      const hasPriority = placeQueue.length > 0 || removalQueue.length > 0;
+      if (hasPriority) {
+        if (currentJob && (mode === "travel" || mode === "orbit")) {
+          currentJob = null;
+          curve = null;
+          mode = "idle";
+        } else if ((mode === "docking" || mode === "dockTravel") && jobsSinceDock < DOCK_EVERY) {
+          curve = null;
+          mode = "idle";
+        }
       }
 
       if (mode === "idle") {
@@ -572,6 +607,7 @@ export function makeSoumaya(): SoumayaHandle {
         if (orbitTime <= 0) {
           if (currentJob) {
             completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+            pushCompleted("maintenance", currentJob.description || "Completed patrol", `patrol-${currentJob.targets[0]}`);
             currentJob = null;
           }
           jobsSinceDock++;
@@ -600,6 +636,7 @@ export function makeSoumaya(): SoumayaHandle {
             target.fx = slot.x; target.fy = slot.y; target.fz = slot.z;
             orbitApi?.release(activePlace);
             onArrive(slot.x, slot.y, slot.z, "synthesis", activePlace);
+            pushCompleted("placement", `Ferried new memory: ${target?.label ?? `#${activePlace}`}`, `place-${activePlace}`);
             activePlace = null;
             target = null;
             mode = "idle";
@@ -622,6 +659,9 @@ export function makeSoumaya(): SoumayaHandle {
         if (!activeRemoval || dist <= SUN_RADIUS_MAX || cargoPos.lengthSq() < 1e-3) {
           onArrive(cargoPos.x, cargoPos.y, cargoPos.z, "consume"); // flare + burst (Graph3D)
           cargo.visible = false;
+          if (activeRemoval) {
+            pushCompleted("removal", "Discarded memory into the Sun", activeRemoval.id || "removal-active");
+          }
           activeRemoval = null;
           mode = "idle";
           currentVel = 0;
@@ -672,6 +712,9 @@ export function makeSoumaya(): SoumayaHandle {
           const p = vecOf(target);
           onArrive(p.x, p.y, p.z, "synthesis", target?.id);
           if (activeLink && onLinkConnectCb) onLinkConnectCb(activeLink.key);
+          if (activeLink) {
+            pushCompleted("link", "Forged connection", activeLink.id || `link-${activeLink.key}`);
+          }
           activeLink = null;
           linkTgtNode = null;
           curve = null;
@@ -692,6 +735,9 @@ export function makeSoumaya(): SoumayaHandle {
           // Reached the target memory — deploy the beacon and return to idle.
           const p = vecOf(target);
           onArrive(p.x, p.y, p.z, "beacon_dispatch", target?.id);
+          if (activeBeacon) {
+            pushCompleted("beacon", `Deployed Aura beacon at ${target?.label ?? `#${activeBeacon}`}`, `beacon-${activeBeacon}`);
+          }
           activeBeacon = null;
           curve = null;
           currentVel = 0;
@@ -790,12 +836,181 @@ export function makeSoumaya(): SoumayaHandle {
   };
 
   const enqueueRemovals = (tasks: RemovalTask[]) => {
-    for (const task of tasks) removalQueue.push(task);
+    for (const task of tasks) {
+      if (!task.id) {
+        task.id = `removal-${task.x}-${task.y}-${Date.now()}-${Math.random()}`;
+      }
+      removalQueue.push(task);
+    }
   };
 
   const setTaskVisible = (v: boolean) => {
     taskEnabled = v;
     if (!v) taskLabel.sprite.visible = false;
+  };
+
+  const getTasks = (nodes: any[]) => {
+    // Filter out completed tasks older than 12 seconds
+    const now = Date.now();
+    const activeCompleted = completedTasks.filter((t) => now - t.time < 12000);
+    if (activeCompleted.length !== completedTasks.length) {
+      completedTasks.length = 0;
+      completedTasks.push(...activeCompleted);
+    }
+
+    const tasks: any[] = [];
+
+    // 1. Add "doing" tasks
+    const currentRemoval = activeRemoval;
+    if (currentRemoval) {
+      tasks.push({
+        id: currentRemoval.id || "removal-active",
+        type: "removal",
+        label: "Casting a memory into the Sun",
+        status: "doing",
+      });
+    }
+    const currentPlace = activePlace;
+    if (currentPlace != null) {
+      const node = nodes.find((n) => n.id === currentPlace);
+      tasks.push({
+        id: `place-${currentPlace}`,
+        type: "placement",
+        label: `Ferrying new memory: ${node?.label ?? `#${currentPlace}`}`,
+        status: "doing",
+      });
+    }
+    const currentLink = activeLink;
+    if (currentLink) {
+      const s = nodes.find((n) => n.id === currentLink.source);
+      const t = nodes.find((n) => n.id === currentLink.target);
+      tasks.push({
+        id: currentLink.id || `link-${currentLink.key}`,
+        type: "link",
+        label: `Forging connection: ${s?.label ?? `#${currentLink.source}`} ↔ ${t?.label ?? `#${currentLink.target}`}`,
+        status: "doing",
+      });
+    }
+    if (activeBeacon != null) {
+      const node = nodes.find((n) => n.id === activeBeacon);
+      tasks.push({
+        id: `beacon-${activeBeacon}`,
+        type: "beacon",
+        label: `Deploying Aura beacon: ${node?.label ?? `#${activeBeacon}`}`,
+        status: "doing",
+      });
+    }
+    if (currentJob && (mode === "travel" || mode === "orbit" || mode === "docking" || mode === "dockTravel")) {
+      const label = mode === "docking" || mode === "dockTravel"
+        ? "Recharging at the space station"
+        : currentJob.description || "Patrolling the galaxy";
+      tasks.push({
+        id: `patrol-${currentJob.targets[0] || "active"}`,
+        type: "maintenance",
+        label,
+        status: "doing",
+      });
+    }
+
+    // 2. Add "planned" tasks
+    for (const r of removalQueue) {
+      tasks.push({
+        id: r.id || `removal-planned-${Math.random()}`,
+        type: "removal",
+        label: "Casting a memory into the Sun",
+        status: "planned",
+      });
+    }
+    for (const id of placeQueue) {
+      const node = nodes.find((n) => n.id === id);
+      tasks.push({
+        id: `place-${id}`,
+        type: "placement",
+        label: `Ferrying new memory: ${node?.label ?? `#${id}`}`,
+        status: "planned",
+      });
+    }
+    for (const l of linkQueue) {
+      const s = nodes.find((n) => n.id === l.source);
+      const t = nodes.find((n) => n.id === l.target);
+      tasks.push({
+        id: l.id || `link-${l.key}`,
+        type: "link",
+        label: `Forging connection: ${s?.label ?? `#${l.source}`} ↔ ${t?.label ?? `#${l.target}`}`,
+        status: "planned",
+      });
+    }
+    for (const id of beaconQueue) {
+      const node = nodes.find((n) => n.id === id);
+      tasks.push({
+        id: `beacon-${id}`,
+        type: "beacon",
+        label: `Deploying Aura beacon: ${node?.label ?? `#${id}`}`,
+        status: "planned",
+      });
+    }
+
+    // 3. Add "done" tasks
+    for (const t of completedTasks) {
+      tasks.push({
+        id: t.id,
+        type: t.type,
+        label: t.label,
+        status: "done",
+      });
+    }
+
+    return tasks;
+  };
+
+  const reorderTasks = (newOrder: { id: string; type: string }[]) => {
+    const newPlaceQueue: number[] = [];
+    const newRemovalQueue: RemovalTask[] = [];
+    const newLinkQueue: LinkTask[] = [];
+    const newBeaconQueue: number[] = [];
+
+    for (const item of newOrder) {
+      if (item.type === "placement") {
+        const id = parseInt(item.id.replace("place-", ""));
+        if (placeQueue.includes(id)) newPlaceQueue.push(id);
+      } else if (item.type === "removal") {
+        const found = removalQueue.find((r) => r.id === item.id);
+        if (found) newRemovalQueue.push(found);
+      } else if (item.type === "link") {
+        const found = linkQueue.find((l) => l.id === item.id);
+        if (found) newLinkQueue.push(found);
+      } else if (item.type === "beacon") {
+        const id = parseInt(item.id.replace("beacon-", ""));
+        if (beaconQueue.includes(id)) newBeaconQueue.push(id);
+      }
+    }
+
+    // Append any tasks that were not in the newOrder list (just in case)
+    for (const id of placeQueue) {
+      if (!newPlaceQueue.includes(id)) newPlaceQueue.push(id);
+    }
+    for (const r of removalQueue) {
+      if (!newRemovalQueue.some((x) => x.id === r.id)) newRemovalQueue.push(r);
+    }
+    for (const l of linkQueue) {
+      if (!newLinkQueue.some((x) => x.id === l.id)) newLinkQueue.push(l);
+    }
+    for (const id of beaconQueue) {
+      if (!newBeaconQueue.includes(id)) newBeaconQueue.push(id);
+    }
+
+    // Overwrite the queues!
+    placeQueue.length = 0;
+    placeQueue.push(...newPlaceQueue);
+    
+    removalQueue.length = 0;
+    removalQueue.push(...newRemovalQueue);
+    
+    linkQueue.length = 0;
+    linkQueue.push(...newLinkQueue);
+    
+    beaconQueue.length = 0;
+    beaconQueue.push(...newBeaconQueue);
   };
 
   return {
@@ -808,5 +1023,7 @@ export function makeSoumaya(): SoumayaHandle {
     cargo,
     taskLabel: taskLabel.sprite,
     setTaskVisible,
+    getTasks,
+    reorderTasks,
   };
 }
