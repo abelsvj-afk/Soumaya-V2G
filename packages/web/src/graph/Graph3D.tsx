@@ -114,9 +114,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const dataRef = useRef(data);
   // id → node map for O(1) lookups in the per-link accessors (see getLinkActivity).
   const nodeByIdRef = useRef<Map<number, any>>(new Map());
+  const nodeThreeObjCacheRef = useRef<Map<number, { obj: THREE.Object3D; key: string }>>(new Map());
   const orbitsRef = useRef(makeOrbitSystem());
   useEffect(() => {
     dataRef.current = data;
+    const liveIds = new Set((data.nodes as any[]).map((n) => n.id));
+    for (const id of nodeThreeObjCacheRef.current.keys()) {
+      if (!liveIds.has(id)) {
+        nodeThreeObjCacheRef.current.delete(id);
+      }
+    }
     const prevById = nodeByIdRef.current; // last frame's nodes (for detecting deletions)
     nodeByIdRef.current = new Map((data.nodes as any[]).map((n: any) => [n.id, n]));
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
@@ -1234,11 +1241,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
       nodeThreeObject={(node: any) => {
         const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
-        if (!node.__threeObj || node.__threeKey !== cacheKey) {
-          node.__threeObj = makeNodeObject(node);
-          node.__threeKey = cacheKey;
+        const cached = nodeThreeObjCacheRef.current.get(node.id);
+        if (cached && cached.key === cacheKey) {
+          return cached.obj;
         }
-        return node.__threeObj;
+        const obj = makeNodeObject(node);
+        nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
+        return obj;
       }}
       nodeLabel={(n: any) => {
         const proc = isNodeProcessing(n.id) ? " ⚙️ (Writing...)" : "";
