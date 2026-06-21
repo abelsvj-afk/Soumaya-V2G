@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphData, GraphNode, Fuel } from "@brain/shared";
+import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
 
 /** Pop-up offset for an item in the focus cluster (stacks upward when open). */
 function focusItemStyle(index: number, open: boolean): CSSProperties {
@@ -251,6 +252,33 @@ export default function App() {
     }
     pushToast(`${top} memories — your galaxy is growing.`, "🎉", 6500);
   }, [space, loaded, demo, data.nodes]);
+
+  // Gamification (Wave 1): celebrate when a memory GROWS a tier (asteroid→…→star)
+  // as it earns mass over time — the payoff of the slow-growth model. The first
+  // snapshot is silent (baseline); only later promotions toast (capped, planet+).
+  const tierRef = useRef<Map<number, number>>(new Map());
+  const tierInitedRef = useRef(false);
+  useEffect(() => {
+    if (demo || !loaded) return;
+    const idx = (c?: string) => Math.max(0, CELESTIAL_CLASSES.indexOf((c ?? "asteroid") as never));
+    const planetIdx = CELESTIAL_CLASSES.indexOf("planet");
+    const prev = tierRef.current;
+    const next = new Map<number, number>();
+    const ups: GraphNode[] = [];
+    for (const n of data.nodes as GraphNode[]) {
+      if (n.kind === "action") continue;
+      const t = idx(n.celestial);
+      next.set(n.id, t);
+      const p = prev.get(n.id);
+      if (tierInitedRef.current && p != null && t > p && t >= planetIdx) ups.push(n);
+    }
+    tierRef.current = next;
+    tierInitedRef.current = true;
+    for (const n of ups.slice(0, 2)) {
+      const label = n.label.length > 30 ? `${n.label.slice(0, 30)}…` : n.label;
+      pushToast(`"${label}" grew into a ${CELESTIAL_LABEL[n.celestial ?? "planet"]}`, "✦", 6000);
+    }
+  }, [data.nodes, demo, loaded]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(

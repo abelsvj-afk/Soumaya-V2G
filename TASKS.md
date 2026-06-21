@@ -108,13 +108,13 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 > Rewards are always ADDITIVE — they must never gate core utility. Keep the gate green + offline-safe.
 
 ### Wave 1 — quick wins (cheap, high delight; mostly 🟢 frontend)
-- [ ] 🟢 **Return greeting** — on open, Soumaya greets you by space name + references the last daily log /
+- [x] 🟢 **Return greeting** — on open, Soumaya greets you by space name + references the last daily log /
   what changed while away ("Welcome back — 3 memories cooled, I found 1 new connection"). Uses
   `daily_logs` + `getGraph`. UI in `App`/`SoumayaPanel`.
-- [ ] 🟢 **Discovery toasts** — transient celebratory banner on notable events: "✦ New constellation: <name>",
+- [~] 🟢 **Discovery toasts** — transient celebratory banner on notable events: "✦ New constellation: <name>",
   "Soumaya linked '<a>' ↔ '<b>'", "'<label>' grew into a planet". Diff `insights`/`constellations`/mass-tier
   on refresh; pure client.
-- [ ] 🟢 **Milestone bodies** — your Nth memory (10/50/100/365) gets a one-time celebration + a permanent
+- [x] 🟢 **Milestone bodies** — your Nth memory (10/50/100/365) gets a one-time celebration + a permanent
   badge/glow. Client-side from node count + creation order.
 - [ ] 🟢 **First-run / genesis moment** — empty brain shows a warm "drop your first thought" prompt; first
   memory gets a big bloom + Soumaya's first words. (Pairs with the Daily-Log onboarding item above.)
