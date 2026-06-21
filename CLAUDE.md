@@ -139,8 +139,11 @@ delegate it and consume only the conclusion.
 - Bulk/mechanical, well-specified edits — rename a thing everywhere, apply one pattern
   across many `components/*` or `graph/*` files, batch asset/CSS work.
 - **Browser-based visual QA** — load the app, click through the galaxy, screenshot, record
-  a `.webm` walkthrough, run a UX/design review. (Far cheaper than Claude reasoning about
-  whether a visual change "probably" works.)
+  a `.webm` walkthrough, run a UX/design review. ⚠️ **NOT available on the user's Termux
+  (android-arm64 has no compatible headless Chrome — confirmed 2026-06-21, issue #10).** From
+  this hosted sandbox you also can't reach the live site. So live pixel verification falls to the
+  USER (or a desktop browser); for everything else, verify behavior by headless
+  reproduction/measurement (see "Verify before you build"), not by eyeballing.
 - **Research & doc ingestion** — web research with citations; URL/PDF/docx/image → Markdown.
 - **Broad codebase exploration** that would otherwise dump many files into Claude's context.
 - Long-running **gate/build** runs and routine git ops, especially from mobile.
