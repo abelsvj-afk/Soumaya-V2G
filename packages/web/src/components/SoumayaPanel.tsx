@@ -50,6 +50,7 @@ function playTick() {
 }
 
 export function SoumayaPanel({
+  spaceName = "Soumaya",
   onFocus,
   onRecall,
   showShipTask,
@@ -59,6 +60,7 @@ export function SoumayaPanel({
   tasks,
   onReorderTasks,
 }: {
+  spaceName?: string;
   onFocus: (id: number) => void;
   onRecall?: (ids: number[]) => void;
   showShipTask?: boolean;
@@ -207,7 +209,7 @@ export function SoumayaPanel({
   if (loading) {
     return (
       <div className="dock-body">
-        <p className="empty">Initializing Soumaya link...</p>
+        <p className="empty">Initializing {spaceName} link...</p>
       </div>
     );
   }
@@ -215,7 +217,7 @@ export function SoumayaPanel({
   return (
     <div className="dock-body">
       <div className="dock-head">
-        <h3>Soumaya {speaking && <span className="speaking-dot" title="Speaking…">◗</span>}</h3>
+        <h3>{spaceName} {speaking && <span className="speaking-dot" title="Speaking…">◗</span>}</h3>
         <div className="head-tools">
           {setShipViewMode && (
             <button
@@ -240,7 +242,7 @@ export function SoumayaPanel({
           {voiceSupported && (
             <button
               className={`link-btn ${voiceOn ? "active" : ""}`}
-              title={voiceOn ? "Soumaya's voice: ON" : "Soumaya's voice: OFF"}
+              title={voiceOn ? `${spaceName}'s voice: ON` : `${spaceName}'s voice: OFF`}
               onClick={toggleVoice}
             >
               {voiceOn ? "🗣️" : "🔇"}
@@ -313,10 +315,10 @@ export function SoumayaPanel({
       {/* 2. Chat Interface */}
       <div className="chat-section" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
         <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Talk to Soumaya
+          Talk to {spaceName}
         </h4>
         <form onSubmit={ask} className="chat-form">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Ask Soumaya…" />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Ask ${spaceName}…`} />
           <button disabled={busy}>{busy ? "…" : "Ask"}</button>
         </form>
         {resp && (

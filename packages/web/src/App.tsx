@@ -228,8 +228,8 @@ export default function App() {
       .then((sp) => {
         setSpace(sp);
         const params = new URLSearchParams(window.location.search);
-        // Only allow demo mode if logged in as "somia" (case-insensitive)
-        if (sp && sp.name.toLowerCase() === "somia" && params.get("demo") === "1") {
+        // Only allow demo mode if logged in as "soumaya" (case-insensitive)
+        if (sp && sp.name.toLowerCase() === "soumaya" && params.get("demo") === "1") {
           setDemo(true);
         } else {
           setDemo(false);
@@ -528,16 +528,16 @@ export default function App() {
 
       {aiBusy > 0 && (
         <div className="ai-busy">
-          <span className="ai-dot" /> Soumaya is thinking…
+          <span className="ai-dot" /> {space?.name ?? "Soumaya"} is thinking…
         </div>
       )}
 
       <header className="brand">
         <h1>
-          Soumaya <span className="sep">·</span> Second Brain
+          {space?.name ?? "Soumaya"} <span className="sep">·</span> Second Brain
         </h1>
         <div className="brand-row">
-          {space && space.name.toLowerCase() === "somia" && (
+          {space && space.name.toLowerCase() === "soumaya" && (
             <button
               className="chip-btn"
               onClick={() => {
@@ -778,6 +778,7 @@ export default function App() {
       )}
       {panel === "dock" && (
         <RightDock
+          spaceName={space?.name ?? "Soumaya"}
           tab={tab}
           setTab={setTab}
           selected={selected}

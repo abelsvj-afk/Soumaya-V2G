@@ -41,6 +41,7 @@ interface Props {
   /** Live fuel + brain id for the Awards (achievements) tab. */
   fuel?: Fuel | null;
   spaceId?: string;
+  spaceName?: string;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -82,7 +83,12 @@ export function RightDock({
   onReorderTasks,
   fuel,
   spaceId,
+  spaceName = "Soumaya",
 }: Props) {
+  const dynamicTabs = TABS.map((t) =>
+    t.id === "soumaya" ? { ...t, name: spaceName } : t
+  );
+
   return (
     <div className="panel dock">
       <div className="tabs">
@@ -91,7 +97,7 @@ export function RightDock({
             ←
           </button>
         )}
-        {TABS.map((t) => (
+        {dynamicTabs.map((t) => (
           <button
             key={t.id}
             className={tab === t.id ? "on" : ""}
@@ -136,6 +142,7 @@ export function RightDock({
         {tab === "insights" && <DigestPanel onFocus={onFocus} />}
         {(tab === "soumaya" || tab === "chat") && (
           <SoumayaPanel
+            spaceName={spaceName}
             onFocus={onFocus}
             onRecall={onRecall}
             showShipTask={showShipTask}

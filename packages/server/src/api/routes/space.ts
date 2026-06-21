@@ -4,30 +4,35 @@ import type { AppContext } from "../../context.js";
 import { SpacesRepo } from "../../auth/spaces.js";
 
 const AuthBody = z.object({
-  name: z.string().trim().min(2).max(40),
+  gamerTag: z.string().trim().min(2).max(40),
   passcode: z.string().min(4).max(100),
+  name: z.string().trim().min(2).max(40).optional(),
 });
 
 export function spaceRoutes(ctx: AppContext): Router {
   const r = Router();
   const repo = new SpacesRepo(ctx.handle);
 
-  // POST /api/space/auth { name, passcode } -> log in to or create a brain.
+  // POST /api/space/auth { gamerTag, passcode, name? } -> log in to or create a brain.
   // Returns the space's secret id, which the client stores and sends as
   // `x-space-id` on every later request.
   r.post("/auth", (req, res) => {
     const parsed = AuthBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Body must be { name (2-40 chars), passcode (4+ chars) }" });
+      res.status(400).json({ error: "Body must be { gamerTag (2-40 chars), passcode (4+ chars), name (optional, 2-40 chars) }" });
       return;
     }
-    const { name, passcode } = parsed.data;
-    const result = repo.authOrCreate(name, passcode);
-    if (!result) {
-      res.status(401).json({ error: "That name is taken and the passcode doesn't match." });
-      return;
+    const { gamerTag, passcode, name } = parsed.data;
+    try {
+      const result = repo.authOrCreate(gamerTag, passcode, name);
+      if (!result) {
+        res.status(401).json({ error: "Incorrect passcode for this gamer tag." });
+        return;
+      }
+      res.json({ id: result.space.id, name: result.space.name, gamerTag: result.space.gamerTag, created: result.created });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
     }
-    res.json({ id: result.space.id, name: result.space.name, created: result.created });
   });
 
   // GET /api/space/me -> validate the current x-space-id header.
@@ -38,7 +43,7 @@ export function spaceRoutes(ctx: AppContext): Router {
       res.status(401).json({ error: "No valid brain selected." });
       return;
     }
-    res.json({ id: space.id, name: space.name });
+    res.json({ id: space.id, name: space.name, gamerTag: space.gamerTag });
   });
 
   return r;

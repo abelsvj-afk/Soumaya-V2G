@@ -79,7 +79,8 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE TABLE IF NOT EXISTS spaces (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      gamer_tag TEXT NOT NULL UNIQUE,
       passcode_hash TEXT NOT NULL,
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -220,10 +221,34 @@ function migrateSchema(sqlite: RawDb): void {
   };
   for (const t of ["nodes", "edges", "insights", "agent_logs", "daily_logs"]) addSpaceId(t);
   sqlite.exec(`CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id)`);
+  // Migrate spaces table to non-unique name + unique gamer_tag if needed
+  const spaceCols = sqlite.prepare(`PRAGMA table_info(spaces)`).all() as { name: string }[];
+  if (spaceCols.length > 0 && !spaceCols.some((c) => c.name === "gamer_tag")) {
+    sqlite.transaction(() => {
+      sqlite.exec(`ALTER TABLE spaces RENAME TO spaces_old`);
+      sqlite.exec(`
+        CREATE TABLE spaces (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          gamer_tag TEXT NOT NULL UNIQUE,
+          passcode_hash TEXT NOT NULL,
+          passcode_salt TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      sqlite.exec(`
+        INSERT INTO spaces (id, name, gamer_tag, passcode_hash, passcode_salt, created_at)
+        SELECT id, name, name, passcode_hash, passcode_salt, created_at FROM spaces_old
+      `);
+      sqlite.exec(`DROP TABLE spaces_old`);
+    })();
+  }
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS spaces (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      gamer_tag TEXT NOT NULL UNIQUE,
       passcode_hash TEXT NOT NULL,
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

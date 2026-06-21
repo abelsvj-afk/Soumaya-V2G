@@ -87,27 +87,27 @@ export interface AuthResult {
 }
 
 /** Open a brain (log in) or create one. Persists the id on success. */
-export async function authSpace(name: string, passcode: string): Promise<AuthResult> {
+export async function authSpace(gamerTag: string, passcode: string, name?: string): Promise<AuthResult> {
   const res = await afetch(`${API}/space/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, passcode }),
+    body: JSON.stringify({ gamerTag, passcode, name }),
   });
   const body = (await res.json().catch(() => ({}))) as Partial<AuthResult> & { error?: string };
   if (!res.ok || !body.id) {
     throw new Error(body.error ?? `Couldn't open that brain (${res.status})`);
   }
   storeSpace(body.id, body.name);
-  return { id: body.id, name: body.name ?? name, created: !!body.created };
+  return { id: body.id, name: body.name ?? name ?? gamerTag, created: !!body.created };
 }
 
 /** Validate the stored id against the server; returns the brain or null. */
-export async function currentSpace(): Promise<{ id: string; name: string } | null> {
+export async function currentSpace(): Promise<{ id: string; name: string; gamerTag?: string } | null> {
   if (!getSpaceId()) return null;
   try {
     const res = await afetch(`${API}/space/me`);
     if (!res.ok) return null;
-    const body = (await res.json()) as { id: string; name: string };
+    const body = (await res.json()) as { id: string; name: string; gamerTag?: string };
     storeSpace(body.id, body.name);
     return body;
   } catch {
