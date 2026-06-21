@@ -10,22 +10,39 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
   // Load unlocked achievements from localStorage to determine which items are available
   const unlocked = loadUnlocked(spaceId);
 
-  // Unlocked predicates
+  // Unlocked predicates (milestones & custom achievements)
   const isStarUnlocked = unlocked.has("star_center_figurine") || memoriesCount >= 100;
   const isOrganicUnlocked = unlocked.has("organic_ship_skin") || memoriesCount >= 150;
   const isDysonUnlocked = unlocked.has("dyson_sphere_figurine") || memoriesCount >= 250;
 
+  // New gamification unlock predicates
+  const hasPathfinder = unlocked.has("pathfinder_quest");
+  const hasConsistent = unlocked.has("consistent_pilot");
+  const hasSectorPioneer = unlocked.has("sector_pioneer");
+  const hasSentinel = unlocked.has("sentinel_command");
+  const hasDeepCluster = unlocked.has("deep_cluster");
+  const hasCosmicVoyager = unlocked.has("cosmic_voyager");
+  const hasMegastructure = unlocked.has("galactic_megastructure");
+  const hasGrandRestorer = unlocked.has("grand_restorer");
+
   // Active selections (from localStorage)
   const shipKey = `brain.hangar.ship.${spaceId}`;
+  const trailKey = `brain.hangar.trail.${spaceId}`;
   const fig1Key = `brain.hangar.fig1.${spaceId}`;
   const fig2Key = `brain.hangar.fig2.${spaceId}`;
 
   const currentShip = localStorage.getItem(shipKey) || "default";
+  const currentTrail = localStorage.getItem(trailKey) || "blue";
   const currentFig1 = localStorage.getItem(fig1Key) || "none";
   const currentFig2 = localStorage.getItem(fig2Key) || "none";
 
   const setShip = (val: string) => {
     localStorage.setItem(shipKey, val);
+    onEquipChanged();
+  };
+
+  const setTrail = (val: string) => {
+    localStorage.setItem(trailKey, val);
     onEquipChanged();
   };
 
@@ -40,12 +57,12 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
   };
 
   return (
-    <div className="dock-body hangar">
+    <div className="dock-body hangar" style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto", paddingRight: "4px" }}>
       <div className="awards-head">
         <h3 className="awards-title">🛠️ Hangar</h3>
       </div>
       <p style={{ fontSize: "0.82rem", opacity: 0.8, margin: "0 0 1.25rem 0" }}>
-        Customize Soumaya's spaceship hull and place gigantic, civilization-scale monuments in the deep space background.
+        Customize Soumaya's spaceship hull, adjust her cosmic engine trail, and mount colossal, civilization-scale monuments in the deep space background.
       </p>
 
       {/* SECTION: Ship Skins */}
@@ -99,6 +116,88 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
             {currentShip === "organic" ? "Equipped" : isOrganicUnlocked ? "Equip" : "Locked"}
           </button>
         </div>
+
+        {/* Fusion Core Destroyer */}
+        <div style={{
+          padding: "0.75rem",
+          borderRadius: "6px",
+          border: "1px solid " + (currentShip === "fusion_core" ? "var(--accent)" : "rgba(255, 255, 255, 0.1)"),
+          background: currentShip === "fusion_core" ? "rgba(122, 249, 255, 0.08)" : "rgba(10, 12, 28, 0.4)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          opacity: hasCosmicVoyager ? 1 : 0.6
+        }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.86rem" }}>Fusion Core Destroyer {!hasCosmicVoyager && "🔒"}</div>
+            <div style={{ fontSize: "0.74rem", opacity: 0.7 }}>
+              {hasCosmicVoyager ? "Heavy explorer ship with sun reactor." : "Unlock via 'Cosmic Voyager' (15 travel hops)."}
+            </div>
+          </div>
+          <button
+            className="mini"
+            disabled={!hasCosmicVoyager || currentShip === "fusion_core"}
+            onClick={() => setShip("fusion_core")}
+          >
+            {currentShip === "fusion_core" ? "Equipped" : hasCosmicVoyager ? "Equip" : "Locked"}
+          </button>
+        </div>
+
+        {/* Holographic Sentinel */}
+        <div style={{
+          padding: "0.75rem",
+          borderRadius: "6px",
+          border: "1px solid " + (currentShip === "holographic" ? "var(--accent)" : "rgba(255, 255, 255, 0.1)"),
+          background: currentShip === "holographic" ? "rgba(122, 249, 255, 0.08)" : "rgba(10, 12, 28, 0.4)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          opacity: hasSentinel ? 1 : 0.6
+        }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.86rem" }}>Holographic Sentinel {!hasSentinel && "🔒"}</div>
+            <div style={{ fontSize: "0.74rem", opacity: 0.7 }}>
+              {hasSentinel ? "A futuristic wireframe energy projection." : "Unlock via 'Sentinel Command' (5 beacons)."}
+            </div>
+          </div>
+          <button
+            className="mini"
+            disabled={!hasSentinel || currentShip === "holographic"}
+            onClick={() => setShip("holographic")}
+          >
+            {currentShip === "holographic" ? "Equipped" : hasSentinel ? "Equip" : "Locked"}
+          </button>
+        </div>
+      </div>
+
+      {/* SECTION: Engine Trails */}
+      <h4 style={{ margin: "1rem 0 0.5rem 0", color: "var(--accent)" }}>✨ Cosmic Trails</h4>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", marginBottom: "1.5rem" }}>
+        {/* Trail Dropdown */}
+        <select
+          style={{
+            width: "100%",
+            background: "rgba(10, 12, 28, 0.8)",
+            border: "1px solid rgba(122, 200, 255, 0.25)",
+            borderRadius: "4px",
+            color: "#fff",
+            padding: "0.5rem",
+            fontSize: "0.84rem"
+          }}
+          value={currentTrail}
+          onChange={(e) => setTrail(e.target.value)}
+        >
+          <option value="blue">🔵 Blue Nebula (Default)</option>
+          <option value="neon" disabled={!hasConsistent}>
+            {hasConsistent ? "💖 Hyperdrive Neon (Pink-Cyan)" : "🔒 Hyperdrive Neon (Consistent Pilot streak)"}
+          </option>
+          <option value="gold" disabled={!hasSectorPioneer}>
+            {hasSectorPioneer ? "💛 Solar Gold Exhaust" : "🔒 Solar Gold Exhaust (Sector Pioneer path)"}
+          </option>
+          <option value="purple" disabled={!hasGrandRestorer}>
+            {hasGrandRestorer ? "💜 Void Purple Flare" : "🔒 Void Purple Flare (Grand Restorer path)"}
+          </option>
+        </select>
       </div>
 
       {/* SECTION: Background Figurines */}
@@ -134,11 +233,20 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
           <option value="dyson_sphere" disabled={!isDysonUnlocked}>
             {isDysonUnlocked ? "🪐 Dyson Megastructure (Dyson Sphere)" : "🔒 Dyson Megastructure (250 memories)"}
           </option>
+          <option value="quantum_core" disabled={!hasDeepCluster}>
+            {hasDeepCluster ? "🌌 Quantum Singularity Core" : "🔒 Quantum Singularity Core (Deep Cluster)"}
+          </option>
+          <option value="hyper_array" disabled={!hasMegastructure}>
+            {hasMegastructure ? "📡 Synapse Hyper-Array" : "🔒 Synapse Hyper-Array (Galactic Megastructure)"}
+          </option>
+          <option value="shield_spire" disabled={!hasPathfinder}>
+            {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
+          </option>
         </select>
       </div>
 
       {/* SLOT 2 SELECTION */}
-      <div>
+      <div style={{ marginBottom: "1rem" }}>
         <label style={{ fontSize: "0.8rem", fontWeight: 600, display: "block", marginBottom: "0.35rem" }}>
           Background Slot 2
         </label>
@@ -163,6 +271,15 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged }: HangarPa
           </option>
           <option value="dyson_sphere" disabled={!isDysonUnlocked}>
             {isDysonUnlocked ? "🪐 Dyson Megastructure (Dyson Sphere)" : "🔒 Dyson Megastructure (250 memories)"}
+          </option>
+          <option value="quantum_core" disabled={!hasDeepCluster}>
+            {hasDeepCluster ? "🌌 Quantum Singularity Core" : "🔒 Quantum Singularity Core (Deep Cluster)"}
+          </option>
+          <option value="hyper_array" disabled={!hasMegastructure}>
+            {hasMegastructure ? "📡 Synapse Hyper-Array" : "🔒 Synapse Hyper-Array (Galactic Megastructure)"}
+          </option>
+          <option value="shield_spire" disabled={!hasPathfinder}>
+            {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
           </option>
         </select>
       </div>

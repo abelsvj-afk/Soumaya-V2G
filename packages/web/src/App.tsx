@@ -45,16 +45,20 @@ export default function App() {
 
   // Hangar system equipped states
   const [equippedShip, setEquippedShip] = useState<string>("default");
+  const [equippedTrail, setEquippedTrail] = useState<string>("blue");
   const [equippedFig1, setEquippedFig1] = useState<string>("none");
   const [equippedFig2, setEquippedFig2] = useState<string>("none");
 
   // Load equipped customizations when the space changes
   useEffect(() => {
     if (!space) return;
+    localStorage.setItem("current_space_id", space.id);
     const shipKey = `brain.hangar.ship.${space.id}`;
+    const trailKey = `brain.hangar.trail.${space.id}`;
     const fig1Key = `brain.hangar.fig1.${space.id}`;
     const fig2Key = `brain.hangar.fig2.${space.id}`;
     setEquippedShip(localStorage.getItem(shipKey) || "default");
+    setEquippedTrail(localStorage.getItem(trailKey) || "blue");
     setEquippedFig1(localStorage.getItem(fig1Key) || "none");
     setEquippedFig2(localStorage.getItem(fig2Key) || "none");
   }, [space]);
@@ -306,7 +310,7 @@ export default function App() {
   useEffect(() => {
     if (demo || !space || !loaded) return;
     const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
-    const now = unlockedIds({ memories, links: data.links.length, fuel });
+    const now = unlockedIds({ memories, links: data.links.length, fuel, linkObjects: data.links });
     const key = achvKey(space.id);
     const seen = loadUnlocked(space.id);
     const fresh = now.filter((id) => !seen.has(id));
@@ -339,9 +343,15 @@ export default function App() {
       setPanel("dock");
       graphRef.current?.focusNode(id);
       if (ripple) graphRef.current?.spawnBurst(id, "user");
-      if (!demo) void tendNode(id); // revisiting a memory warms it back up (entropy)
+      if (!demo && space) {
+        void tendNode(id); // revisiting a memory warms it back up (entropy)
+        const tendKey = `stat.memories_tended.${space.id}`;
+        localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
+        // Force evaluation of achievements
+        setTimeout(() => handleChanged(-1), 100);
+      }
     },
-    [view, selected, demo],
+    [view, selected, demo, space],
   );
 
   const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);
@@ -394,9 +404,11 @@ export default function App() {
     if (id === -1) {
       if (space) {
         const shipKey = `brain.hangar.ship.${space.id}`;
+        const trailKey = `brain.hangar.trail.${space.id}`;
         const fig1Key = `brain.hangar.fig1.${space.id}`;
         const fig2Key = `brain.hangar.fig2.${space.id}`;
         setEquippedShip(localStorage.getItem(shipKey) || "default");
+        setEquippedTrail(localStorage.getItem(trailKey) || "blue");
         setEquippedFig1(localStorage.getItem(fig1Key) || "none");
         setEquippedFig2(localStorage.getItem(fig2Key) || "none");
       }
@@ -469,8 +481,10 @@ export default function App() {
         shipViewMode={shipViewMode}
         fuel={fuel}
         equippedShip={equippedShip}
+        equippedTrail={equippedTrail}
         equippedFig1={equippedFig1}
         equippedFig2={equippedFig2}
+        spaceId={space?.id ?? ""}
       />
 
       {!loaded && (

@@ -80,6 +80,8 @@ interface Props {
   equippedShip?: string;
   equippedFig1?: string;
   equippedFig2?: string;
+  equippedTrail?: string;
+  spaceId?: string;
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -168,6 +170,65 @@ function updateFigurine(
     subGroup.add(inner);
     subGroup.add(outer);
     fallbackMesh = subGroup;
+  } else if (type === "quantum_core") {
+    modelPath = "/space_station_3.glb";
+    targetSize = 1100;
+    const innerMat = new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      roughness: 0.9,
+      metalness: 0.1
+    });
+    const outerMat = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      emissive: 0x00ffff,
+      emissiveIntensity: 2.0
+    });
+    const subGroup = new THREE.Group();
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(300, 32, 32), innerMat);
+    const outer = new THREE.Mesh(new THREE.TorusGeometry(800, 40, 8, 48), outerMat);
+    outer.rotation.x = Math.PI / 2;
+    subGroup.add(inner);
+    subGroup.add(outer);
+    fallbackMesh = subGroup;
+  } else if (type === "hyper_array") {
+    modelPath = "/aura-satellite.glb";
+    targetSize = 1200;
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0x00ff88,
+      emissive: 0x008844,
+      emissiveIntensity: 1.2,
+      roughness: 0.3,
+      metalness: 0.8
+    });
+    const subGroup = new THREE.Group();
+    const torus1 = new THREE.Mesh(new THREE.TorusGeometry(600, 40, 8, 48), mat);
+    const torus2 = new THREE.Mesh(new THREE.TorusGeometry(600, 40, 8, 48), mat);
+    torus2.rotation.y = Math.PI / 2;
+    subGroup.add(torus1);
+    subGroup.add(torus2);
+    fallbackMesh = subGroup;
+  } else if (type === "shield_spire") {
+    modelPath = "/space_station_3.glb";
+    targetSize = 1400;
+    const matBase = new THREE.MeshStandardMaterial({
+      color: 0x557799,
+      roughness: 0.4,
+      metalness: 0.7
+    });
+    const matOrb = new THREE.MeshStandardMaterial({
+      color: 0x7af9ff,
+      emissive: 0x7af9ff,
+      emissiveIntensity: 1.5,
+      transparent: true,
+      opacity: 0.65
+    });
+    const subGroup = new THREE.Group();
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(50, 150, 900, 16), matBase);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(250, 16, 16), matOrb);
+    orb.position.y = 450;
+    subGroup.add(base);
+    subGroup.add(orb);
+    fallbackMesh = subGroup;
   } else {
     return;
   }
@@ -234,6 +295,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     equippedShip = "default",
     equippedFig1 = "none",
     equippedFig2 = "none",
+    equippedTrail = "blue",
+    spaceId = "",
   },
   ref,
 ) {
@@ -272,6 +335,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const equippedShipRef = useRef(equippedShip);
   const equippedFig1Ref = useRef(equippedFig1);
   const equippedFig2Ref = useRef(equippedFig2);
+  const equippedTrailRef = useRef(equippedTrail);
+
+  const spaceIdRef = useRef(spaceId);
+  useEffect(() => {
+    spaceIdRef.current = spaceId;
+  }, [spaceId]);
 
   useEffect(() => {
     equippedShipRef.current = equippedShip;
@@ -279,6 +348,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       soumayaHandleRef.current.setShipSkin(equippedShip);
     }
   }, [equippedShip]);
+
+  useEffect(() => {
+    equippedTrailRef.current = equippedTrail;
+    if (soumayaHandleRef.current?.setTrailColor) {
+      soumayaHandleRef.current.setTrailColor(equippedTrail);
+    }
+  }, [equippedTrail]);
 
   useEffect(() => {
     equippedFig1Ref.current = equippedFig1;
@@ -553,6 +629,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       soumaya = makeSoumaya(equippedShipRef.current);
       soumayaHandleRef.current = soumaya;
+      if (soumaya.setTrailColor) {
+        soumaya.setTrailColor(equippedTrailRef.current);
+      }
       scene.add(soumaya.object);
       scene.add(soumaya.taskLabel);
       scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
@@ -840,6 +919,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const pending = satellites.getPendingDispatches();
         if (pending.length > 0) {
           soumayaHandleRef.current.enqueueBeacons(pending);
+          if (spaceIdRef.current) {
+            const key = `stat.beacons_deployed.${spaceIdRef.current}`;
+            localStorage.setItem(key, String(parseInt(localStorage.getItem(key) || "0", 10) + pending.length));
+            // Force evaluate achievements in App
+            fgRef.current?.refresh?.();
+          }
         }
       }
       // Defender live drifter intercept: wire visitor positions as a hazard context
@@ -1057,6 +1142,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           d.nodes as any[],
           d.links as any[],
           (x, y, z, type, nodeId) => {
+            if (spaceIdRef.current) {
+              const hopKey = `stat.travel_hops.${spaceIdRef.current}`;
+              localStorage.setItem(hopKey, String(parseInt(localStorage.getItem(hopKey) || "0", 10) + 1));
+            }
             if (type === "beacon_dispatch" && nodeId != null) {
               satellitesRef.current?.release(nodeId);
               burstsRef.current?.spawn(x, y, z, "synthesis");
