@@ -897,7 +897,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const ns = dataRef.current.nodes as any[];
           if (ns.length === 0 || ns.some((n) => n.x != null && !isNaN(n.x))) {
             initialFramedRef.current = true;
-            frameGalaxy(0);
+            frameGalaxy(3200, undefined, true);
           }
         }
       }
@@ -1354,7 +1354,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Snap to a flattering "best view" of the whole galaxy: a consistent cinematic
   // 3/4 angle (slightly above + to the side) framed to the galaxy's bounding
   // sphere, rather than zoomToFit's lock to whatever angle the camera drifted to.
-  const frameGalaxy = (ms = 900, filter?: (n: any) => boolean) => {
+  const frameGalaxy = (ms = 900, filter?: (n: any) => boolean, isIntro = false) => {
     const fg = fgRef.current;
     if (!fg) return;
     const pts = (dataRef.current.nodes as any[]).filter(
@@ -1391,6 +1391,29 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       Math.cos(el) * Math.cos(az),
     );
     const camPos = center.clone().addScaledVector(dirv, dist);
+
+    if (isIntro) {
+      // Cinematic start: position camera far away, at a steep angle, rotated around the sun
+      const startAz = az + Math.PI * 0.42; // offset yaw by ~75 degrees
+      const startEl = Math.PI * 0.38;       // steeper elevation to look down
+      const startDir = new THREE.Vector3(
+        Math.cos(startEl) * Math.sin(startAz),
+        Math.sin(startEl),
+        Math.cos(startEl) * Math.cos(startAz)
+      );
+      const startPos = center.clone().addScaledVector(startDir, dist * 3.0);
+      fg.cameraPosition({ x: startPos.x, y: startPos.y, z: startPos.z }, center, 0);
+
+      // Lock user controls during the cinematic fly-in to keep it smooth
+      const controls = fg.controls?.();
+      if (controls) {
+        controls.enabled = false;
+        window.setTimeout(() => {
+          controls.enabled = true;
+        }, ms);
+      }
+    }
+
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
   };
 
