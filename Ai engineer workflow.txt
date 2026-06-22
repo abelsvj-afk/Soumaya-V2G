@@ -1,0 +1,483 @@
+AI_ENGINEERING_WORKFLOW.md
+
+Purpose
+
+This document defines the standard workflow for all software projects.
+
+The goal is to eliminate random development, reduce technical debt, improve architecture quality, and allow multiple AI agents to collaborate effectively.
+
+Rule #1:
+
+NO CODE IS WRITTEN UNTIL DESIGN IS COMPLETE.
+
+───
+
+Development Lifecycle
+
+Every project follows:
+
+Idea
+↓
+Vision
+↓
+Requirements
+↓
+User Stories
+↓
+Architecture
+↓
+Roadmap
+↓
+Tasks
+↓
+Implementation
+↓
+Testing
+↓
+Review
+↓
+Deployment
+↓
+Postmortem
+
+Never skip stages.
+
+───
+
+Phase 1: Idea Discovery
+
+Before creating code, answer:
+
+What problem does this solve?
+
+Who is the target user?
+
+Why would someone use it?
+
+What makes it valuable?
+
+What is the simplest version that provides value?
+
+Deliverable:
+
+docs/idea.md
+
+Template:
+
+• Project Name
+• Problem Statement
+• Target User
+• Core Value Proposition
+• Success Criteria
+• MVP Definition
+
+───
+
+Phase 2: Vision
+
+Create a high-level vision document.
+
+Deliverable:
+
+docs/vision.md
+
+Template:
+
+Mission
+
+What is this product trying to accomplish?
+
+Users
+
+Who benefits from this?
+
+Core Features
+
+List only essential features.
+
+Future Features
+
+List features excluded from MVP.
+
+Success Metrics
+
+How will success be measured?
+
+───
+
+Phase 3: Requirements
+
+Create detailed requirements.
+
+Deliverable:
+
+docs/requirements.md
+
+Template:
+
+Functional Requirements
+
+What the system must do.
+
+Non-Functional Requirements
+
+Performance
+Security
+Scalability
+Reliability
+Accessibility
+
+Constraints
+
+Budget
+Hosting
+Third-party services
+Licensing
+
+───
+
+Phase 4: User Stories
+
+Deliverable:
+
+docs/user-stories.md
+
+Template:
+
+As a user,
+I want to ______
+so that ______.
+
+As an administrator,
+I want to ______
+so that ______.
+
+───
+
+Phase 5: Architecture
+
+NO IMPLEMENTATION.
+
+Design only.
+
+Deliverable:
+
+docs/architecture.md
+
+Must include:
+
+System Overview
+
+Folder Structure
+
+Database Design
+
+API Design
+
+Authentication Strategy
+
+Authorization Strategy
+
+Service Boundaries
+
+External Integrations
+
+Caching Strategy
+
+Deployment Strategy
+
+Scalability Plan
+
+Risks
+
+Technical Debt Prevention
+
+───
+
+Phase 6: Repository Setup
+
+Create repository structure.
+
+Required:
+
+/docs
+/src
+/tests
+/scripts
+/.github
+
+Required Files:
+
+README.md
+
+CHANGELOG.md
+
+ROADMAP.md
+
+TASKS.md
+
+PROJECT_STATE.md
+
+CLAUDE.md
+
+GEMINI.md
+
+ARCHITECT.md
+
+───
+
+Phase 7: Roadmap
+
+Deliverable:
+
+ROADMAP.md
+
+Break project into phases.
+
+Example:
+
+Phase 1
+Authentication
+
+Phase 2
+Core Features
+
+Phase 3
+Integrations
+
+Phase 4
+Optimization
+
+Phase 5
+Deployment
+
+───
+
+Phase 8: Task Generation
+
+Deliverable:
+
+TASKS.md
+
+Rules:
+
+Tasks must be small.
+
+Tasks should take less than 4 hours.
+
+Tasks must be independently testable.
+
+Tasks must have clear acceptance criteria.
+
+Example:
+
+• Create user table
+• Create authentication API
+• Add JWT validation
+• Create login page
+• Add authentication tests
+
+───
+
+Phase 9: AI Agent Roles
+
+Architect Agent
+
+Responsibilities:
+
+• System design
+• Technical decisions
+• Architecture reviews
+• Risk analysis
+
+Never writes implementation code.
+
+───
+
+Builder Agent
+
+Responsibilities:
+
+• Feature implementation
+• Refactoring
+• Testing
+• Documentation
+
+Must follow architecture.
+
+───
+
+Reviewer Agent
+
+Responsibilities:
+
+• Code review
+• Security review
+• Performance review
+• Maintainability review
+
+Must reject shortcuts.
+
+───
+
+Phase 10: Implementation Rules
+
+Every implementation task must:
+
+Read architecture.md
+
+Read requirements.md
+
+Read PROJECT_STATE.md
+
+Read current task
+
+Verify dependencies
+
+Implement only requested scope
+
+Update tests
+
+Update documentation
+
+Update PROJECT_STATE.md
+
+───
+
+Engineering Standards
+
+Maximum file size:
+300 lines preferred
+
+Maximum function size:
+50 lines preferred
+
+Use strict typing
+
+Avoid duplication
+
+Favor composition over inheritance
+
+Follow SOLID principles
+
+Follow DRY principles
+
+Maintain separation of concerns
+
+No hardcoded secrets
+
+No dead code
+
+No temporary hacks
+
+No silent failures
+
+───
+
+Testing Standards
+
+Every feature requires:
+
+Unit Tests
+
+Integration Tests (when applicable)
+
+Error Handling Tests
+
+Edge Case Validation
+
+No feature is complete without testing.
+
+───
+
+Documentation Standards
+
+Whenever architecture changes:
+
+Update architecture.md
+
+Whenever requirements change:
+
+Update requirements.md
+
+Whenever project status changes:
+
+Update PROJECT_STATE.md
+
+Documentation is not optional.
+
+Documentation is part of development.
+
+───
+
+PROJECT_STATE.md Format
+
+Current Phase:
+
+Current Sprint:
+
+Completed:
+
+In Progress:
+
+Blocked:
+
+Next Tasks:
+
+Known Issues:
+
+Technical Debt:
+
+Last Updated:
+
+───
+
+Pull Request Checklist
+
+Before merging:
+
+Code reviewed
+
+Tests passing
+
+Documentation updated
+
+No duplicate logic
+
+No architecture violations
+
+No security issues
+
+No linting errors
+
+No failing builds
+
+───
+
+Postmortem Process
+
+After major milestones:
+
+What went well?
+
+What failed?
+
+What caused delays?
+
+What should be automated?
+
+What should become part of the template?
+
+Every completed project improves the workflow.
+
+Every mistake becomes a future guardrail.
+
+───
+
+Master Rule
+
+The objective is not to write code.
+
+The objective is to build maintainable systems efficiently.
+
+Code is the final step, not the first step.
