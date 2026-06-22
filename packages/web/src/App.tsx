@@ -67,6 +67,8 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
   const [fuel, setFuel] = useState<Fuel | null>(null);
+  const [fuelPops, setFuelPops] = useState<{ id: number; text: string }[]>([]);
+  const prevFuelRef = useRef<number | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
 
   // Hangar system equipped states
@@ -123,6 +125,27 @@ export default function App() {
       window.clearInterval(iv);
     };
   }, [space, demo]);
+
+  // Fuel tracking for visual pops
+  useEffect(() => {
+    if (fuel === null) {
+      prevFuelRef.current = null;
+      return;
+    }
+    if (prevFuelRef.current !== null) {
+      const diff = fuel.fuel - prevFuelRef.current;
+      if (diff > 0.05) {
+        const text = `+${Math.round(diff * 10) / 10}`;
+        const id = Date.now() + Math.random();
+        setFuelPops((prev) => [...prev, { id, text }]);
+        window.setTimeout(() => {
+          setFuelPops((prev) => prev.filter((p) => p.id !== id));
+        }, 1600);
+      }
+    }
+    prevFuelRef.current = fuel.fuel;
+  }, [fuel?.fuel]);
+
   const [panel, setPanel] = useState<Panel>(null);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
@@ -206,6 +229,7 @@ export default function App() {
     try {
       const g = await getGraph();
       setData(g);
+      getFuel().then((f) => f && setFuel(f)).catch(() => {});
       if (newIds && newIds.length > 0) {
         // Give the graph a moment to render the new nodes before rippling them.
         setTimeout(() => {
@@ -490,6 +514,7 @@ export default function App() {
     if (demo) return;
     const g = await getGraph();
     setData(g);
+    getFuel().then((f) => f && setFuel(f)).catch(() => {});
     const n = g.nodes.find((x) => x.id === id);
     if (n) {
       setSelected(n);
@@ -602,8 +627,16 @@ export default function App() {
             <span
               className="status fuel-chip"
               title={`⛽ Fuel ${fuel.fuel}/${fuel.capacity} — Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). EARN it by logging memories, forging links & clearing action items; it also slowly refills on its own. Her core upkeep + the living galaxy never need fuel.`}
+              style={{
+                background: `linear-gradient(90deg, rgba(255, 207, 107, 0.16) ${(fuel.fuel / fuel.capacity) * 100}%, rgba(255, 207, 107, 0.02) ${(fuel.fuel / fuel.capacity) * 100}%)`
+              }}
             >
               ⛽ {Math.round(fuel.fuel)}/{fuel.capacity}
+              {fuelPops.map((pop) => (
+                <span key={pop.id} className="fuel-pop">
+                  {pop.text}
+                </span>
+              ))}
             </span>
           )}
           {installPrompt && (

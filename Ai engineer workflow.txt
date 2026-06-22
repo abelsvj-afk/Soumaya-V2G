@@ -1,3 +1,126 @@
+🛰️ SOUMAYA: AI ENGINEER WORKFLOW & PROJECT BLUEPRINT (v1.0)
+
+This document defines the comprehensive architectural specification, development standards, and agentic workflows for the "Soumaya" Second Brain. It serves as the project's foundation plan—specifying how the 3D celestial knowledge galaxy, multi-tenant backend, and local-first LLM ingestion pipeline are designed to integrate.
+
+--------------------------------------------------------------------------------
+1. PROJECT ARCHITECTURE & BOUNDARIES
+--------------------------------------------------------------------------------
+
+Soumaya is built as a three-tier monorepo using npm workspaces. Each workspace has strict boundaries to enforce clean separation of concerns and maintain a single source of truth:
+
+                       +--------------------+
+                       |  packages/shared   | <--- Domain models, Zod schemas,
+                       +--------------------+      celestial mechanics, types
+                                 |
+                +----------------+----------------+
+                v                                 v
+      +--------------------+            +--------------------+
+      |  packages/server   |            |    packages/web    |
+      +--------------------+            +--------------------+
+      | SQLite + Vector DB |            | React + 3D Galaxy  |
+      | Ingestion Pipeline |            | Web Audio Engine   |
+      | Express REST API   |            | PWA Service Worker |
+      +--------------------+            +--------------------+
+
+A. packages/shared (Domain Rules & Physics)
+   - Source of truth for database-relational structures, REST contracts, and Zod verification schemas.
+   - Contains the core celestial mechanics logic (celestial.ts):
+     * Importance-to-Mass translation: blends importance (0..1), degree (connections), and emotional charge into a 0..1 mass rating.
+     * Classification levels: Asteroid -> Moon -> Planet -> Gas Giant -> Star -> Supergiant.
+   - Shared calculation utilities must remain side-effect free (pure functions).
+
+B. packages/server (Resilient API & Data Store)
+   - Database layer using SQLite and sqlite-vec for high-performance localized vector similarity searches.
+   - Scoped data access: all queries and vector indexes are namespaced by a string `space_id` header (multi-tenancy).
+   - Local-first pipeline: ingest operations must perform token-gated entity extraction and associative link modeling.
+   - Provider Seams: LLM and Embedding models are abstracted. If cloud keys (e.g. Gemini, OpenAI) are missing, the server must fallback to Heuristic NLP and hash-based embedding routines to support offline execution.
+
+C. packages/web (Immersive 3D HUD & Audio)
+   - Immersive 3D visualization using react-force-graph-3d (Three.js).
+   - Motion dynamics: node positions are computed kinematically (orbits.ts) on orbit tracks around the heaviest local neighbor to prevent layout collapse.
+   - Generative audio engine: procedurally synthesize space hums and resonant drone chords using the Web Audio API (hardened with limiters to prevent audio clipping).
+   - PWA features: Service Worker caching strategies with automated cache-busting logic.
+
+--------------------------------------------------------------------------------
+2. AI-AGENT DEVELOPMENT PROTOCOL (SPEC-FIRST)
+--------------------------------------------------------------------------------
+
+To prevent regression and code drift, AI agents (Antigravity/agy) and humans must strictly adhere to the following development lifecycle:
+
+   [ Phase A: Research ] ---> [ Phase B: Draft Spec ] ---> [ Phase C: execution ] ---> [ Phase D: Verification ]
+       (Blast Radius)             (Review Plan)              (Tiered Update)             (Gate Check)
+
+Phase A: Research & Blast Radius Identification
+   - Before writing any code, search the repository for all references to the affected components.
+   - Determine if the change modifies:
+     * Relational schema/types (packages/shared) -> RED ZONE (Requires DB Migration)
+     * API request/response payloads (shared schemas) -> RED ZONE (Requires API sync)
+     * CSS/component layouts (packages/web) -> GREEN ZONE (Surgical frontend)
+
+Phase B: The Technical Spec
+   - Draft a spec summarizing:
+     1. Objective (What problem is solved).
+     2. Files to modify (The exact blast radius).
+     3. Shared Contract impact (Zod schemas, types).
+     4. Fallback behavior (How offline-mode is preserved).
+     5. Verification steps (Unit tests, visual QA).
+   - Do not write code until the user approves the spec.
+
+Phase C: Tiered Execution
+   - Implementation must flow in order of dependency:
+     1. Type and schema edits in `packages/shared`.
+     2. Database schemas and route controllers in `packages/server`.
+     3. Rendering logic, CSS styles, and HUD indicators in `packages/web`.
+   - Never implement extraneous functionality outside the approved spec.
+
+Phase D: Verification & Hand-off
+   - Run typechecks and test suites to verify compile cleanliness:
+     * `npm run typecheck`
+     * `npm test`
+     * `npm run build -w @brain/web`
+   - Log all completed modifications in `GEMINI_CHANGES.md` under the date, leaving an unchecked `[ ] Verified by Claude` box for auditor review.
+
+--------------------------------------------------------------------------------
+3. ARCHITECTURAL GUARDRAILS & DESIGN PRINCIPLES
+--------------------------------------------------------------------------------
+
+AI engineers must safeguard these architectural rules:
+
+Rule 1: The Offline Fallback
+   - Never build a feature that breaks when there is no internet connection.
+   - If an LLM call fails or the user has no API key, the heuristic model must simulate responses gracefully.
+
+Rule 2: Visual Honesty
+   - Every state change in the database must reflect visually in the 3D viewport.
+   - Example: Adding a node must spawn a birth animation; deleting a node must visually drag it into the Sun; a node undergoing background maintenance must pulse with a "Writing..." loading indicator.
+
+Rule 3: Strict Multi-Tenant Isolation
+   - Vector database searches (KNN) over-fetch nodes and filter by `space_id` to guarantee user privacy.
+   - All repository initializations must receive a validated `spaceId` parameter.
+
+Rule 4: Damped Camera Control
+   - Camera manipulation must not fight OrbitControls. Do not trigger multiple `controls.update()` calls per frame.
+   - Damping parameters (inertia) must be maintained to ensure fluid camera panning and dolly-zooming.
+
+--------------------------------------------------------------------------------
+4. DEPLOYMENT & PRODUCTION RUNBOOK
+--------------------------------------------------------------------------------
+
+When shipping changes to live staging or production, follow these steps:
+
+Step 1: PWA Cache Busting
+   - Update the service worker version or stamped identifier in `sw.js` to trigger update checks on client devices.
+   - Ensure the shell file `index.html` is served with `Cache-Control: no-cache` to prevent devices from caching stale static indexes.
+
+Step 2: Remote Container Builds
+   - Build assets using Fly.io remote builders to avoid overloading local Termux resource bounds:
+     `fly deploy --remote-only`
+   - Verify that the SQLite storage volume mounts correctly and that migrations run automatically on startup.
+
+Step 3: Verification Check
+   - Perform a live verification of the deployment using:
+     `curl -I https://<app-domain>/sw.js` (inspecting HTTP cache headers).
+   - Use visual QA to ensure orbits do not clump and nodes display proper visual mass distribution.
 AI_ENGINEERING_WORKFLOW.md
 
 Purpose

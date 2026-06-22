@@ -1969,9 +1969,49 @@ button {
 
 /* Main-HUD fuel gauge chip (Phase 4): amber so it reads as energy at a glance. */
 .fuel-chip {
+  background: rgba(255, 207, 107, 0.06);
+  border: 1px solid rgba(255, 200, 90, 0.35);
   color: #ffcf6b;
-  border-color: rgba(255, 200, 90, 0.35);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
   cursor: help;
+  position: relative; /* for absolute positioning of pops */
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.3s ease;
+}
+
+/* Fuel pop animation */
+@keyframes fuel-pop-up {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.7);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -15px) scale(1.1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -35px) scale(0.9);
+  }
+}
+.fuel-pop {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #ffa726; /* bright amber */
+  font-weight: bold;
+  font-size: 13px;
+  pointer-events: none;
+  animation: fuel-pop-up 1.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  text-shadow: 0 0 6px rgba(255, 167, 38, 0.8), 0 0 12px rgba(255, 167, 38, 0.4);
+  white-space: nowrap;
+  z-index: 1000;
 }
 
 /* Soumaya Flight Tasks UI in Chat Panel */
