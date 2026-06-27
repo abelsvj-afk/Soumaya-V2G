@@ -12,7 +12,7 @@ import { AchievementsPanel } from "./AchievementsPanel.js";
 import { HangarPanel } from "./HangarPanel.js";
 import { InboxPanel } from "./InboxPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
-import type { Fuel } from "@brain/shared";
+import type { Fuel, Streak } from "@brain/shared";
 
 export type DockTab =
   | "details"
@@ -52,8 +52,9 @@ interface Props {
   setShipViewMode?: (v: "orbit" | "cockpit") => void;
   tasks?: any[];
   onReorderTasks?: (newOrder: any[]) => void;
-  /** Live fuel + brain id for the Awards (achievements) tab. */
+  /** Live fuel + streak + brain id for the Awards (achievements) tab. */
   fuel?: Fuel | null;
+  streak?: Streak | null;
   spaceId?: string;
   spaceName?: string;
 }
@@ -97,6 +98,7 @@ export function RightDock({
   tasks,
   onReorderTasks,
   fuel,
+  streak,
   spaceId,
   spaceName = "Soumaya",
 }: Props) {
@@ -220,7 +222,9 @@ export function RightDock({
         )}
         {tab === "companion" && <CompanionPanel demo={demo} />}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
-        {tab === "awards" && <AchievementsPanel graph={graph} fuel={fuel ?? null} spaceId={spaceId ?? ""} />}
+        {tab === "awards" && (
+          <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
+        )}
         {tab === "hangar" && (
           <HangarPanel
             spaceId={spaceId ?? ""}

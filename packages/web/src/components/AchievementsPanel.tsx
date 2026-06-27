@@ -1,4 +1,4 @@
-import type { GraphData, GraphNode, Fuel } from "@brain/shared";
+import type { GraphData, GraphNode, Fuel, Streak } from "@brain/shared";
 import {
   ACHIEVEMENTS,
   MEMORY_MILESTONES,
@@ -17,10 +17,12 @@ import {
 export function AchievementsPanel({
   graph,
   fuel,
+  streak,
   spaceId,
 }: {
   graph: GraphData;
   fuel: Fuel | null;
+  streak: Streak | null;
   spaceId: string;
 }) {
   const memories = (graph.nodes as GraphNode[]).filter((n) => n.kind !== "action");
@@ -31,6 +33,25 @@ export function AchievementsPanel({
 
   return (
     <div className="dock-body awards">
+      {streak && (
+        <div className={`streak-banner ${streak.current > 0 ? "on" : "cold"}`}>
+          <span className="streak-flame">🔥</span>
+          <span className="streak-text">
+            {streak.current > 0 ? (
+              <>
+                <b>{streak.current}-day</b> tending streak
+                {streak.best > streak.current ? ` · best ${streak.best}` : ""}
+                {streak.today ? " · fed today ✓" : " · feed a memory today to keep it"}
+              </>
+            ) : (
+              <>
+                No active streak — log a memory to start one
+                {streak.best > 0 ? ` (best ${streak.best})` : ""}
+              </>
+            )}
+          </span>
+        </div>
+      )}
       <div className="awards-head">
         <h3 className="awards-title">🏆 Awards</h3>
         <span className="awards-tally">

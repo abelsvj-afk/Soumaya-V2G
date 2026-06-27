@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { GraphData, GraphNode, Fuel } from "@brain/shared";
+import type { GraphData, GraphNode, Fuel, Streak } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
 
 /** Pop-up offset for an item in the focus cluster (stacks upward when open). */
@@ -51,6 +51,7 @@ import {
   getGraph,
   getHealth,
   getFuel,
+  getStreak,
   logoutSpace,
   onAiActivity,
   tendNode,
@@ -69,6 +70,8 @@ export default function App() {
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [fuelPops, setFuelPops] = useState<{ id: number; text: string }[]>([]);
   const prevFuelRef = useRef<number | null>(null);
+  // Daily-tending streak (flame on the HUD + Awards tab) — polled while signed in.
+  const [streak, setStreak] = useState<Streak | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
 
   // Hangar system equipped states
@@ -117,7 +120,10 @@ export default function App() {
   useEffect(() => {
     if (!space || demo) return;
     let alive = true;
-    const load = () => getFuel().then((f) => alive && setFuel(f));
+    const load = () => {
+      getFuel().then((f) => alive && setFuel(f));
+      getStreak().then((s) => alive && setStreak(s));
+    };
     load();
     const iv = window.setInterval(load, 30000);
     return () => {
@@ -639,6 +645,16 @@ export default function App() {
               ))}
             </span>
           )}
+          {streak && streak.current > 0 && !demo && (
+            <span
+              className="status streak-chip"
+              title={`🔥 ${streak.current}-day streak — consecutive days you've fed your brain a memory${
+                streak.best > streak.current ? ` (best: ${streak.best})` : ""
+              }. Keep it alive: log at least one memory a day.`}
+            >
+              🔥 {streak.current}
+            </span>
+          )}
           {installPrompt && (
             <button
               className="chip-btn install-btn"
@@ -946,6 +962,7 @@ export default function App() {
           tasks={tasks}
           onReorderTasks={handleReorderTasks}
           fuel={fuel}
+          streak={streak}
           spaceId={space?.id ?? ""}
         />
       )}

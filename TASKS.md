@@ -122,8 +122,11 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   log/link/clear an action. (Fuel is already surfaced; add the juice.)
 
 ### Wave 2 — engagement loop (🟡 light server)
-- [ ] 🟡 **Streaks** — consecutive days you tended the galaxy; streak flame + small fuel bonus to keep it.
-  Counter = additive `space_meta` field (🔴 migration) + UI (🟢).
+- [x] 🟡 **Streaks** — ✅ done (Wave 2). Consecutive days you fed the brain a memory. Server-authoritative
+  (`streak.ts` `StreakRepo` over additive `space_meta` columns streak/streak_best/last_active_date —
+  bootstrap + idempotent migration), advanced on ingest with a once-per-day +2 fuel bonus
+  (`STREAK_DAY_BONUS`), exposed at `GET /api/maintenance/streak`. UI: 🔥 HUD chip + a banner atop the
+  Awards tab; lapses to 0 (shown honestly) but keeps your best. Space-scoped, offline-safe, 4 tests.
 - [ ] 🟡 **Daily quests / tend list** — 1–3 concrete nudges ("warm 2 cooling memories", "review Soumaya's
   newest insight"); completing earns fuel. Built from `entropy` + `insights` (server read) + UI.
 - [x] 🟢 **Achievements** — ✅ done (Wave 2). 7 qualitative feats (First Light, Synapse, Connector, Nexus,

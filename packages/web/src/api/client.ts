@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -342,6 +342,18 @@ export async function getFuel(): Promise<Fuel | null> {
     if (!res.ok) return null;
     const d = await res.json().catch(() => null);
     return d && typeof d.fuel === "number" ? (d as Fuel) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** This brain's daily-tending streak (consecutive days fed a memory). */
+export async function getStreak(): Promise<Streak | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/streak`);
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && typeof d.current === "number" ? (d as Streak) : null;
   } catch {
     return null;
   }

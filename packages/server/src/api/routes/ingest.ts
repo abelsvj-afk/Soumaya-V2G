@@ -4,6 +4,7 @@ import type { AppContext } from "../../context.js";
 import { ingest } from "../../ingestion/pipeline.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../../economy.js";
+import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -61,11 +62,15 @@ export function ingestRoutes(ctx: AppContext): Router {
       spaceId,
       { occurredAt, remindAt, tags },
     );
-    // Earn fuel for tending the galaxy: a memory + each association it forged.
-    const fuelEarned = EARN_MEMORY + EARN_LINK * result.associativeEdges.length;
+    // Tending the galaxy advances the daily streak; a new day grants a small bonus.
+    const { streak, advanced } = new StreakRepo(ctx.handle, spaceId).touch();
+    // Earn fuel for tending the galaxy: a memory + each association it forged,
+    // plus the once-per-day streak bonus when a new day was counted.
+    const fuelEarned =
+      EARN_MEMORY + EARN_LINK * result.associativeEdges.length + (advanced ? STREAK_DAY_BONUS : 0);
     const econ = new EconomyRepo(ctx.handle, spaceId);
     econ.add(fuelEarned);
-    res.json({ ...result, fuelEarned, fuel: econ.toFuel() });
+    res.json({ ...result, fuelEarned, fuel: econ.toFuel(), streak, streakAdvanced: advanced });
   });
   return r;
 }

@@ -88,6 +88,9 @@ export function bootstrapSchema(sqlite: RawDb): void {
     CREATE TABLE IF NOT EXISTS space_meta (
       space_id TEXT PRIMARY KEY,
       fuel REAL NOT NULL DEFAULT 25,
+      streak INTEGER NOT NULL DEFAULT 0,
+      streak_best INTEGER NOT NULL DEFAULT 0,
+      last_active_date TEXT,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     -- Telegram: bind a chat to a brain so messages route to the right space and
@@ -242,6 +245,20 @@ function migrateSchema(sqlite: RawDb): void {
       `);
       sqlite.exec(`DROP TABLE spaces_old`);
     })();
+  }
+
+  // Daily-tending streak columns on existing space_meta volumes (additive).
+  const metaCols = sqlite.prepare(`PRAGMA table_info(space_meta)`).all() as { name: string }[];
+  if (metaCols.length > 0) {
+    if (!metaCols.some((c) => c.name === "streak")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!metaCols.some((c) => c.name === "streak_best")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak_best INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!metaCols.some((c) => c.name === "last_active_date")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_active_date TEXT`);
+    }
   }
 
   sqlite.exec(`

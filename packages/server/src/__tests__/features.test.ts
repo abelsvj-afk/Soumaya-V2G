@@ -9,6 +9,7 @@ import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { findConstellations } from "../ml/cluster.js";
 import { chat } from "../chat/graphrag.js";
 import { EconomyRepo, FUEL_START, FUEL_JOB_COST, FUEL_CAP } from "../economy.js";
+import { StreakRepo } from "../streak.js";
 import { GraphService } from "../graph/service.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { analyzeSentiment, moodFromTone, prosodyFor, toneFrom } from "@brain/shared";
@@ -185,6 +186,55 @@ describe("celestial economy — fuel", () => {
     const after = econ.get();
     expect(after).toBeGreaterThan(FUEL_START + 5); // ≈ +10 at 2/hour
     expect(after).toBeLessThanOrEqual(FUEL_CAP);
+  });
+});
+
+describe("daily-tending streak", () => {
+  it("starts a streak on first touch and is idempotent within a day", () => {
+    const s = new StreakRepo(handle, "spaceS");
+    expect(s.get().current).toBe(0); // nothing yet
+    const first = s.touch();
+    expect(first.advanced).toBe(true);
+    expect(first.streak.current).toBe(1);
+    // A second touch the same day must not advance or award again.
+    const again = s.touch();
+    expect(again.advanced).toBe(false);
+    expect(s.get().current).toBe(1);
+    expect(s.get().best).toBe(1);
+  });
+
+  it("continues across consecutive days and tracks the best", () => {
+    const s = new StreakRepo(handle, "spaceT");
+    s.touch(); // day 0 → streak 1
+    // Pretend the last active day was yesterday, then touch again → streak 2.
+    handle.sqlite
+      .prepare(`UPDATE space_meta SET last_active_date = date('now','-1 day') WHERE space_id = ?`)
+      .run("spaceT");
+    const cont = s.touch();
+    expect(cont.advanced).toBe(true);
+    expect(cont.streak.current).toBe(2);
+    expect(cont.streak.best).toBe(2);
+  });
+
+  it("resets to 1 after a missed day but keeps the best", () => {
+    const s = new StreakRepo(handle, "spaceU");
+    s.touch(); // create the row
+    // Build up a streak of 3, then simulate a 3-day gap.
+    handle.sqlite
+      .prepare(`UPDATE space_meta SET streak = 3, streak_best = 3, last_active_date = date('now','-3 days') WHERE space_id = ?`)
+      .run("spaceU");
+    expect(s.get().current).toBe(0); // lapsed → shows 0 until next touch
+    const restart = s.touch();
+    expect(restart.streak.current).toBe(1); // restarted
+    expect(restart.streak.best).toBe(3); // best preserved
+  });
+
+  it("keeps each brain's streak separate", () => {
+    const a = new StreakRepo(handle, "spaceA2");
+    const b = new StreakRepo(handle, "spaceB2");
+    a.touch();
+    expect(a.get().current).toBe(1);
+    expect(b.get().current).toBe(0);
   });
 });
 
