@@ -6,6 +6,7 @@ import {
   unlockedIds,
   type AchievementCtx,
 } from "./achievements.js";
+import { pilotRank } from "./rank.js";
 
 /**
  * The Awards tab — a persistent trophy case. Toasts announce an unlock in the
@@ -30,9 +31,27 @@ export function AchievementsPanel({
   // Earned = persisted (sticky) ∪ currently-satisfied, so the case matches the toasts.
   const earned = new Set<string>([...loadUnlocked(spaceId), ...unlockedIds(ctx)]);
   const count = earned.size;
+  // Pilot rank — driven by real memories (excludes constellation hubs), matching
+  // the same progression that speeds Soumaya up.
+  const realCount = memories.filter((n) => n.kind !== "moc").length;
+  const rank = pilotRank(realCount);
 
   return (
     <div className="dock-body awards">
+      <div className="rank-banner">
+        <span className="rank-badge">★ Lv {rank.level}</span>
+        <span className="rank-body">
+          <span className="rank-title">{rank.title}</span>
+          <span className="rank-bar">
+            <span style={{ width: `${rank.progress * 100}%` }} />
+          </span>
+          <span className="rank-sub">
+            {rank.nextAt != null
+              ? `${rank.cur}/${rank.nextAt} memories to next rank`
+              : `${rank.cur} memories · top rank`}
+          </span>
+        </span>
+      </div>
       {streak && (
         <div className={`streak-banner ${streak.current > 0 ? "on" : "cold"}`}>
           <span className="streak-flame">🔥</span>

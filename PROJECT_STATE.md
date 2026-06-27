@@ -48,6 +48,9 @@
     into the daily-log/maintenance voice; editable per-space soul from the Companion tab.
 
 ## Completed (this session, cont.)
+- **Pilot rank / level-up** (`components/rank.ts`): 8 named tiers by memory count, banner atop the Awards
+  tab with a progress bar + per-brain level-up toast — the visible side of the same progression that
+  speeds Soumaya up. ("✦ New constellation" discovery toast already fires on promotion.)
 - **Soumaya movement rework** (`graph/soumaya.ts`): distance-aware time-bounded cruise — short hops
   gentle, no trip > ~5.5s, very long hauls "warp" to a much higher top speed; per-task base speeds
   preserved; smooth() accel/decel kept. New **progression** `pilotSpeed` (1.0 → ~1.9×) from memory
