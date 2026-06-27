@@ -141,9 +141,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   Companion). Makes her feel like she *knows* you. `persona/derive.ts`.
 - [ ] 🟢 **Soumaya reactions** — she emotes to events (excited on a new link, concerned when many memories
   cool, celebratory at a milestone) via her task label / a speech bubble + the existing voice.
-- [ ] 🟢 **Galaxy "rank" / level-up** — visible progression: sun grows a touch at milestones (exists,
-  clamped), sectors auto-name as they densify (`celestialTitle`), a subtle brain rank (Nebula → Cluster →
-  Galaxy) from size/connectivity.
+- [x] 🟢 **Galaxy "rank" / level-up** — ✅ done (Wave 3). Pilot rank (`components/rank.ts`): 8 named tiers
+  (Cadet → … → Voyager) by memory count, shown as a banner atop the Awards tab with a progress bar, plus a
+  per-brain level-up toast. Same progression that speeds Soumaya up. (Deferred polish: sun grows at rank-ups.)
 - [ ] 🟢 **Cinematic intro** — on load, a brief camera flythrough that settles into the framed galaxy (now
   that framing is fixed), so opening *feels* like arriving somewhere.
 

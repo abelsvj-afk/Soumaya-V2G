@@ -45,6 +45,7 @@ import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
+import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
 import {
@@ -363,6 +364,29 @@ export default function App() {
       /* ignore */
     }
     pushToast(`${top} memories — your galaxy is growing.`, "🎉", 10000);
+  }, [space, loaded, demo, data.nodes]);
+
+  // Gamification (Wave 3): pilot rank level-up — celebrate climbing a rank once
+  // each, per brain. Same progression that speeds Soumaya up (real memory count).
+  useEffect(() => {
+    if (demo || !space || !loaded) return;
+    const real = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action" && n.kind !== "moc").length;
+    const rank = pilotRank(real);
+    const key = `brain.rank.${space.id}`;
+    let last = 0;
+    try {
+      last = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+    } catch {
+      /* storage unavailable */
+    }
+    if (rank.level <= last) return;
+    try {
+      localStorage.setItem(key, String(rank.level));
+    } catch {
+      /* ignore */
+    }
+    // First eval on a device with an established brain shouldn't fire retroactively.
+    if (last > 0) pushToast(`Rank up — you're now a ${rank.title} (Lv ${rank.level})`, "⭐", 9000);
   }, [space, loaded, demo, data.nodes]);
 
   // Gamification (Wave 1): celebrate when a memory GROWS a tier (asteroid→…→star)
