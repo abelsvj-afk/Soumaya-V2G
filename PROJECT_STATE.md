@@ -22,8 +22,11 @@
 - **Design pass (Rule #1, no code yet)** for second-brain growth — specs drafted, awaiting approval:
   - [Stage 0 — Taxonomy expansion](./docs/specs/stage-0-taxonomy.md) 🔴
   - [Stage 1 — Constellation hubs / MOCs](./docs/specs/stage-1-mocs.md) 🔴
-  - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — reconciled with the
-    existing cinematic fly-in (Observatory fades in over it; intro untouched).
+  - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — **IMPLEMENTED.**
+    `components/Observatory.tsx` fades in ~3.4s after load (after the cinematic settles; intro
+    untouched): greeting + streak, capture, Soumaya's latest connection, your constellations
+    (`getConstellations`), jump-back-in (recent), "Enter the galaxy". 🔭 FAB reopens it. New-brain
+    hero for empty galaxies. Offline-safe; gate green (91 tests).
   - [Stage 4 — Identity layer wiring](./docs/specs/stage-4-identity-layer.md) 🔴 — **files authored**
     ([`soul.md`](./soul.md), [`identity.md`](./identity.md), [`user.md`](./user.md)); runtime wiring pending.
 
