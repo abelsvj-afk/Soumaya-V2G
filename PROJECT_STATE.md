@@ -47,6 +47,12 @@
     file → falls back to the hardcoded ANSWER_SYSTEM voice. Gate green (95 tests). Deferred: wiring soul
     into the daily-log/maintenance voice; editable per-space soul from the Companion tab.
 
+## Completed (this session, cont.)
+- **Soumaya movement rework** (`graph/soumaya.ts`): distance-aware time-bounded cruise — short hops
+  gentle, no trip > ~5.5s, very long hauls "warp" to a much higher top speed; per-task base speeds
+  preserved; smooth() accel/decel kept. New **progression** `pilotSpeed` (1.0 → ~1.9×) from memory
+  count + streak, threaded App → Graph3D → handle, so she flies faster the more you use the brain.
+
 ## Blocked
 - **Deploy delivery** — GitHub Actions is blocked on this account; nothing ships until `agy` runs a
   manual `fly deploy`. The whole gamification batch (Waves 1–2) is pushed but **not yet live** — the
