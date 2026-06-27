@@ -1,5 +1,17 @@
 # CLAUDE.md
 
+**MANDATORY — development process.** All substantive work follows the full
+[`docs/AI_ENGINEERING_WORKFLOW.md`](./docs/AI_ENGINEERING_WORKFLOW.md) lifecycle —
+**Rule #1: no code is written until the design/spec is complete.** ([`WORKFLOW.md`](./WORKFLOW.md)
+is the lighter day-to-day loop derived from it.) This is standing policy; it does not need to be
+re-stated each session.
+
+**MANDATORY — product north star.** We are building Soumaya toward the patterns in
+[`docs/SECOND_BRAIN_BRIEFING.md`](./docs/SECOND_BRAIN_BRIEFING.md) (Obsidian "second brain"
+adaptation; the research calls us "Sarmiah" — same product). The live gap analysis + staged growth
+plan is [`docs/SECOND_BRAIN_ALIGNMENT.md`](./docs/SECOND_BRAIN_ALIGNMENT.md) — consult it when
+planning new feature growth.
+
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
