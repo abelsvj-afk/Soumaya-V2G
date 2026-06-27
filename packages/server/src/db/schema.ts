@@ -23,6 +23,8 @@ export const nodes = sqliteTable("nodes", {
   emotionalWeight: real("emotional_weight"),
   importance: real("importance"),
   color: text("color"),
+  // Provenance: "agent" = Soumaya-authored (e.g. a constellation hub); null/"user" = yours.
+  origin: text("origin"),
   deletedAt: text("deleted_at"),
   mergedInto: integer("merged_into"),
   kind: text("kind"),

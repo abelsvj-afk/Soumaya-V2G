@@ -178,6 +178,10 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "color")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN color TEXT`);
   }
+  // Provenance: who authored a node ("agent" = Soumaya, e.g. a constellation hub).
+  if (!cols.some((c) => c.name === "origin")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN origin TEXT`);
+  }
   // Soft-delete safety (merged/redundant memories are flagged, not erased).
   if (!cols.some((c) => c.name === "deleted_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN deleted_at TEXT`);

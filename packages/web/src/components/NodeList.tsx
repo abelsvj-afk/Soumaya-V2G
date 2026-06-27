@@ -76,6 +76,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
   const [emotion, setEmotion] = useState<Emotion>("all");
   const [type, setType] = useState<NodeType | "all">("all");
   const [cooling, setCooling] = useState(false);
+  const [drifting, setDrifting] = useState(false); // orphan lint: memories with no links
   const [sort, setSort] = useState<Sort>("mass");
   const [tag, setTag] = useState<string | null>(null);
   const [timeline, setTimeline] = useState(false);
@@ -130,6 +131,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
       if (type !== "all" && normalizeNodeType(n.type) !== type) return false;
       if (emotion !== "all" && emotionBucket(n.emotionalWeight) !== emotion) return false;
       if (cooling && (n.entropy ?? 0) < 0.45) return false;
+      if (drifting && (n.degree ?? 0) > 0) return false;
       if (tag && !(n.tags ?? []).includes(tag)) return false;
       return true;
     });
@@ -146,7 +148,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
       }
     });
     return out;
-  }, [memories, q, tier, type, emotion, cooling, tag, sort]);
+  }, [memories, q, tier, type, emotion, cooling, drifting, tag, sort]);
 
   // Timeline grouping: bucket the filtered set by when each memory happened.
   const groups = useMemo(() => {
@@ -242,6 +244,13 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
           title="Memories going cold (neglected)"
         >
           ❄️ cooling
+        </button>
+        <button
+          className={`tag-chip ${drifting ? "on" : ""}`}
+          onClick={() => setDrifting((d) => !d)}
+          title="Drifting memories — no connections yet"
+        >
+          🪐 drifting
         </button>
         <button
           className={`tag-chip ${timeline ? "on" : ""}`}

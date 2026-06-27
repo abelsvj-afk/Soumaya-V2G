@@ -114,6 +114,8 @@ export interface GraphNode {
   emotionalWeight?: number;
   /** Hex or CSS color suggestion based on emotional resonance. */
   color?: string;
+  /** Who authored this node: "agent" = Soumaya (e.g. a constellation hub), else yours. */
+  origin?: "user" | "agent";
   /** 0..1 significance/seriousness/life-impact, rated at ingestion. */
   importance?: number;
   /** Connection count — enriched by the graph service on read. */

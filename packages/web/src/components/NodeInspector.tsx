@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES } from "@brain/shared";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { deleteNode, setImportance, synthesizeNode, answerResearch } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
@@ -107,8 +107,13 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
   return (
     <div className="dock-body">
       <span className="chip" style={{ background: colorForType(node.type) }}>
-        {node.type.replace(/_/g, " ")}
+        {NODE_TYPE_LABEL[normalizeNodeType(node.type)]}
       </span>
+      {node.origin === "agent" && (
+        <span className="chip provenance-chip" title="Soumaya authored this — a constellation hub she charted">
+          ✦ Charted by Soumaya
+        </span>
+      )}
       {node.celestial && (
         <span className="meta">
           {CELESTIAL_ICON[node.celestial]} {CELESTIAL_LABEL[node.celestial]} · weight{" "}
