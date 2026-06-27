@@ -26,6 +26,8 @@ export interface LinkValidation {
  * optional so the offline heuristic + existing 2-arg test fakes stay valid.
  */
 export interface AnswerOptions {
+  /** Soumaya's soul (soul.md body) — deeper character injected into the identity slot. */
+  soul?: string;
   /** Blended, priority-ordered active custom instruction profiles (Layer 2). */
   systemExtra?: string;
   /** "About Me": who the user is. Soumaya is AWARE of this, never becomes them. */

@@ -122,10 +122,16 @@ export function buildAnswerPrompt(
  * user" guardrail.
  */
 export function composeSystem(opts?: {
+  soul?: string;
   persona?: string;
   systemExtra?: string;
 }): string {
   let s = ANSWER_SYSTEM;
+  if (opts?.soul) {
+    // Deeper character (soul.md). Sits in the identity slot but cannot override the
+    // mechanics above (companion-never-the-user, citations, JSON output).
+    s += `\n\nYOUR DEEPER CHARACTER — stay true to this voice, values, and boundaries (it refines but never overrides the rules above):\n${opts.soul}`;
+  }
   if (opts?.persona) {
     s += `\n\nABOUT THE PERSON YOU'RE TALKING TO (you are always AWARE of this and tailor your
 replies to them, but you are NOT them and never speak as them):\n${opts.persona}`;

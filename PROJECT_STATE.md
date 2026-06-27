@@ -41,8 +41,11 @@
     untouched): greeting + streak, capture, Soumaya's latest connection, your constellations
     (`getConstellations`), jump-back-in (recent), "Enter the galaxy". 🔭 FAB reopens it. New-brain
     hero for empty galaxies. Offline-safe; gate green (91 tests).
-  - [Stage 4 — Identity layer wiring](./docs/specs/stage-4-identity-layer.md) 🔴 — **files authored**
-    ([`soul.md`](./soul.md), [`identity.md`](./identity.md), [`user.md`](./user.md)); runtime wiring pending.
+  - [Stage 4 — Identity layer wiring](./docs/specs/stage-4-identity-layer.md) 🔴 — **IMPLEMENTED.**
+    `server/identity.ts` loads `soul.md` at boot (cached, frontmatter-stripped) and `graphrag` injects
+    it into the chat system prompt's identity slot via `composeSystem({ soul })`. Offline-safe: missing
+    file → falls back to the hardcoded ANSWER_SYSTEM voice. Gate green (95 tests). Deferred: wiring soul
+    into the daily-log/maintenance voice; editable per-space soul from the Companion tab.
 
 ## Blocked
 - **Deploy delivery** — GitHub Actions is blocked on this account; nothing ships until `agy` runs a

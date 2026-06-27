@@ -189,6 +189,21 @@ describe("celestial economy — fuel", () => {
   });
 });
 
+describe("identity layer (soul.md)", () => {
+  it("loads Soumaya's soul and injects it into the chat system prompt", async () => {
+    const { soulText } = await import("../identity.js");
+    const { composeSystem } = await import("../llm/prompts.js");
+    const soul = soulText();
+    expect(soul.length).toBeGreaterThan(100); // soul.md body is present
+    expect(soul).toContain("Soumaya");
+    const sys = composeSystem({ soul });
+    expect(sys).toContain("DEEPER CHARACTER");
+    expect(sys).toContain("Connection over collection"); // a value from soul.md
+    // Absent soul → graceful (no deeper-character block).
+    expect(composeSystem({})).not.toContain("DEEPER CHARACTER");
+  });
+});
+
 describe("daily-tending streak", () => {
   it("starts a streak on first touch and is idempotent within a day", () => {
     const s = new StreakRepo(handle, "spaceS");
