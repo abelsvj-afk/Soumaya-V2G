@@ -82,9 +82,12 @@ export class GraphService {
         reinforcement,
       });
       // Entropy: days since last tended (fall back to creation), resisted by degree.
+      // Action items and constellation hubs never "cool".
       const days = daysSince(n.lastTendedAt ?? n.createdAt);
-      const entropy = n.kind === "action" ? 0 : entropyFrom(days, degree);
-      return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy };
+      const entropy = n.kind === "action" || n.kind === "moc" ? 0 : entropyFrom(days, degree);
+      // A constellation hub's degree IS its member count (every edge is a member).
+      const memberCount = n.kind === "moc" ? degree : undefined;
+      return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy, memberCount };
     });
   }
 

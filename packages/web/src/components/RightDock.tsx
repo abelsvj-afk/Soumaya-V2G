@@ -57,6 +57,8 @@ interface Props {
   streak?: Streak | null;
   spaceId?: string;
   spaceName?: string;
+  /** Refresh the galaxy after a constellation hub is created (Insights tab). */
+  onPromoted?: () => void;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -101,6 +103,7 @@ export function RightDock({
   streak,
   spaceId,
   spaceName = "Soumaya",
+  onPromoted,
 }: Props) {
   const [unseenCount, setUnseenCount] = useState(0);
 
@@ -203,7 +206,7 @@ export function RightDock({
             onIsolate={(id) => onIsolate?.(id)}
           />
         )}
-        {tab === "insights" && <DigestPanel onFocus={onFocus} />}
+        {tab === "insights" && <DigestPanel onFocus={onFocus} onPromoted={onPromoted} />}
         {(tab === "soumaya" || tab === "chat") && (
           <SoumayaPanel
             spaceName={spaceName}

@@ -26,7 +26,12 @@
     type is free TEXT). Extraction prompt + offline heuristic classify into the new kinds (tested);
     per-kind color (`colorForType`, legacy-tolerant); List tab filters by kind + a color legend.
     Gate green (92 tests).
-  - [Stage 1 — Constellation hubs / MOCs](./docs/specs/stage-1-mocs.md) 🔴
+  - [Stage 1 — Constellation hubs / MOCs](./docs/specs/stage-1-mocs.md) 🔴 — **IMPLEMENTED (v1).**
+    `moc` node kind + `summarizes` edges; `POST /api/constellations/promote` turns a detected cluster
+    into a persistent, named hub with a curated summary (offline-safe via `summarizeSector`), space-
+    scoped. Insights tab gains an inline "✦ Save as constellation"; the hub renders as a bright golden
+    body with its name as a macro label, and clicking it shows summary + members. Gate green (94 tests).
+    Deferred: Soumaya *auto-proposing* hubs at the squeeze point (manual human-curated promotion ships now).
   - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — **IMPLEMENTED.**
     `components/Observatory.tsx` fades in ~3.4s after load (after the cinematic settles; intro
     untouched): greeting + streak, capture, Soumaya's latest connection, your constellations

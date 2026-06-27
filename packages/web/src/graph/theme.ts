@@ -11,6 +11,7 @@ export const TYPE_COLORS: Record<NodeType, string> = {
   knowledge: "#9dff8a", // lime
   concept: "#f4a6ff", // magenta
   other: "#c7c7e0", // grey
+  moc: "#ffe9a8", // constellation hub — bright starlight gold
 };
 
 /** Color for any stored/raw type string, tolerant of legacy values. */

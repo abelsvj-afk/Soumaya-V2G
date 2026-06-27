@@ -118,7 +118,9 @@ export function findConstellations(
   opts: ClusterOptions = {},
   spaceId: string = DEFAULT_SPACE,
 ): Constellation[] {
-  const nodes = new NodesRepo(h, spaceId).all().filter((n) => n.kind !== "action");
+  // Cluster real memories only — never an action item or a constellation hub
+  // (clustering hubs would recursively propose constellations of constellations).
+  const nodes = new NodesRepo(h, spaceId).all().filter((n) => n.kind !== "action" && n.kind !== "moc");
   const samples: Sample[] = [];
   for (const node of nodes) {
     const vec = getEmbedding(h.sqlite, node.id);

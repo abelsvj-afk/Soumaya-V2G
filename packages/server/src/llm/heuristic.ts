@@ -55,7 +55,7 @@ export class HeuristicProvider implements LlmProvider {
   readonly available = false;
   readonly model = "heuristic";
 
-  private guessType(text: string): NodeType {
+  private guessType(text: string): Exclude<NodeType, "moc"> {
     const t = text.toLowerCase();
     // Ordered substring rules (no word boundaries) so "arguing", "meeting",
     // "deciding" etc. are caught. First match wins; falls through to "daily".
