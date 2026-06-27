@@ -7,10 +7,13 @@ import { z } from "zod";
  */
 
 export const NodeTypeSchema = z.enum([
-  "business_idea",
-  "relationship_reflection",
-  "random_thought",
   "person",
+  "project",
+  "decision",
+  "company",
+  "meeting",
+  "daily",
+  "knowledge",
   "concept",
   "other",
 ]);

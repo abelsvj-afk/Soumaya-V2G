@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { colorForType } from "../graph/theme.js";
 
 interface Props {
   graph: GraphData;
@@ -103,7 +103,7 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
           return (
             <li key={s.id} className="sector-card">
               <div className="sector-header">
-                <span className="dot" style={{ background: TYPE_COLORS[s.type] }} />
+                <span className="dot" style={{ background: colorForType(s.type) }} />
                 <span className="sector-name">{s.label}</span>
                 <em className="sector-meta">
                   {CELESTIAL_ICON[s.celestial ?? "star"]} {Math.round((s.mass ?? 0) * 100)}% mass

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES } from "@brain/shared";
 import { deleteNode, setImportance, synthesizeNode, answerResearch } from "../api/client.js";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { Chronicle } from "./Chronicle.js";
 
@@ -106,7 +106,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
 
   return (
     <div className="dock-body">
-      <span className="chip" style={{ background: TYPE_COLORS[node.type] }}>
+      <span className="chip" style={{ background: colorForType(node.type) }}>
         {node.type.replace(/_/g, " ")}
       </span>
       {node.celestial && (
@@ -320,7 +320,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         {neighbors.map((n) => (
           <li key={n.id}>
             <button onClick={() => onFocus(n.id)}>
-              <span className="dot" style={{ background: TYPE_COLORS[n.type] }} />
+              <span className="dot" style={{ background: colorForType(n.type) }} />
               {n.label}
             </button>
           </li>

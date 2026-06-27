@@ -20,7 +20,12 @@
 
 ## In Progress
 - **Design pass (Rule #1, no code yet)** for second-brain growth — specs drafted, awaiting approval:
-  - [Stage 0 — Taxonomy expansion](./docs/specs/stage-0-taxonomy.md) 🔴
+  - [Stage 0 — Taxonomy expansion](./docs/specs/stage-0-taxonomy.md) 🔴 — **IMPLEMENTED.** `NodeType`
+    is now person·project·decision·company·meeting·daily·knowledge·concept·other; legacy values
+    (business_idea/relationship_reflection/random_thought) map via `normalizeNodeType` (no migration —
+    type is free TEXT). Extraction prompt + offline heuristic classify into the new kinds (tested);
+    per-kind color (`colorForType`, legacy-tolerant); List tab filters by kind + a color legend.
+    Gate green (92 tests).
   - [Stage 1 — Constellation hubs / MOCs](./docs/specs/stage-1-mocs.md) 🔴
   - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — **IMPLEMENTED.**
     `components/Observatory.tsx` fades in ~3.4s after load (after the cinematic settles; intro

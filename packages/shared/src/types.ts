@@ -4,13 +4,63 @@
  * and the API consume it.
  */
 
+/**
+ * The "Wire the Brain" taxonomy — what a memory IS. CRM-flavored + link-first
+ * (see docs/SECOND_BRAIN_ALIGNMENT.md). Legacy values (business_idea,
+ * relationship_reflection, random_thought) are mapped onto these via
+ * LEGACY_NODE_TYPE_ALIASES + normalizeNodeType, so existing galaxies stay
+ * coherent without a data migration (node.type is free TEXT).
+ */
 export type NodeType =
-  | "business_idea"
-  | "relationship_reflection"
-  | "random_thought"
   | "person"
+  | "project"
+  | "decision"
+  | "company"
+  | "meeting"
+  | "daily"
+  | "knowledge"
   | "concept"
   | "other";
+
+/** Old stored type values → their canonical kind (display/classification only). */
+export const LEGACY_NODE_TYPE_ALIASES: Record<string, NodeType> = {
+  business_idea: "project",
+  relationship_reflection: "person",
+  random_thought: "daily",
+};
+
+/** Human label per kind (UI chips, legend). */
+export const NODE_TYPE_LABEL: Record<NodeType, string> = {
+  person: "Person",
+  project: "Project",
+  decision: "Decision",
+  company: "Company",
+  meeting: "Meeting",
+  daily: "Daily",
+  knowledge: "Knowledge",
+  concept: "Concept",
+  other: "Other",
+};
+
+/** One-line guidance per kind — fed to the extraction prompt for classification. */
+export const NODE_TYPE_GUIDE: Record<NodeType, string> = {
+  person: "an individual — someone you know, met, or mentioned",
+  company: "an organization, business, team, or institution",
+  project: "an initiative or effort with an outcome (a venture, build, plan)",
+  decision: "a choice made or being weighed, with its rationale",
+  meeting: "a conversation, call, or sync at a point in time, involving people",
+  daily: "a day-to-day note, journal entry, to-do, or fleeting thought",
+  knowledge: "a reference fact, concept explainer, or learning worth keeping",
+  concept: "an abstract idea, theme, or principle",
+  other: "anything that fits none of the above",
+};
+
+/** Normalize any stored/raw type string to a canonical kind (legacy-tolerant). */
+export function normalizeNodeType(raw: string | null | undefined): NodeType {
+  if (!raw) return "other";
+  if ((NODE_TYPES as readonly string[]).includes(raw)) return raw as NodeType;
+  return LEGACY_NODE_TYPE_ALIASES[raw] ?? "other";
+}
 
 export type RelationshipType =
   | "resolves"
@@ -24,10 +74,13 @@ export type RelationshipType =
 
 /** Convenience runtime lists (also exercised by the seed script). */
 export const NODE_TYPES: readonly NodeType[] = [
-  "business_idea",
-  "relationship_reflection",
-  "random_thought",
   "person",
+  "project",
+  "decision",
+  "company",
+  "meeting",
+  "daily",
+  "knowledge",
   "concept",
   "other",
 ];

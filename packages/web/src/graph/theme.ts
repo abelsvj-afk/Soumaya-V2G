@@ -1,14 +1,22 @@
-import type { CelestialClass, GraphNode, NodeType } from "@brain/shared";
+import { type CelestialClass, type GraphNode, type NodeType, normalizeNodeType } from "@brain/shared";
 
-/** Per-type hue — used for chips, dots and as the tint seed for bodies. */
+/** Per-kind hue — used for chips, dots and as the tint seed for bodies. */
 export const TYPE_COLORS: Record<NodeType, string> = {
-  business_idea: "#ffd166",
-  relationship_reflection: "#ff6b9d",
-  random_thought: "#7af9ff",
-  person: "#b388ff",
-  concept: "#9dff8a",
-  other: "#c7c7e0",
+  person: "#b388ff", // violet
+  project: "#ffd166", // gold
+  decision: "#ff7b54", // coral
+  company: "#4fa3ff", // blue
+  meeting: "#5fe0b0", // mint
+  daily: "#7af9ff", // cyan
+  knowledge: "#9dff8a", // lime
+  concept: "#f4a6ff", // magenta
+  other: "#c7c7e0", // grey
 };
+
+/** Color for any stored/raw type string, tolerant of legacy values. */
+export function colorForType(raw: string | null | undefined): string {
+  return TYPE_COLORS[normalizeNodeType(raw)];
+}
 
 /**
  * Body palettes by celestial class. Stars burn warm/bright, planets span vivid

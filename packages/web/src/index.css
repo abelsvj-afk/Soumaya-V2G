@@ -2454,3 +2454,22 @@ button {
   font-size: 0.95rem;
   cursor: pointer;
 }
+
+/* Node-kind legend / quick filter (Stage 0 taxonomy). */
+.kind-legend { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 2px; }
+.kind-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  background: rgba(120, 160, 220, 0.1);
+  border: 1px solid rgba(122, 200, 255, 0.16);
+  color: #cdd8ee;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.kind-key:hover { background: rgba(120, 160, 220, 0.2); }
+.kind-key.on { background: rgba(91, 214, 255, 0.18); border-color: rgba(91, 214, 255, 0.45); color: #eaf2ff; }
+.kind-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }

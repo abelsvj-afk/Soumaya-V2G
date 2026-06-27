@@ -40,7 +40,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       const node = new NodesRepo(ctx.handle, spaceId).create(
         {
           label,
-          type: "random_thought",
+          type: "daily",
           content: text.trim(),
           importance: 0.12, // small celestial body
           kind: "action",

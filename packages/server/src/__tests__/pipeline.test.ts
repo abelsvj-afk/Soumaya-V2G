@@ -17,7 +17,7 @@ class FakeLlm implements LlmProvider {
   async extract(text: string, _ctx: ContextNode[]): Promise<ExtractionResult> {
     return (
       this.extraction ?? {
-        nodes: [{ label: text.slice(0, 24), type: "random_thought", content: text }],
+        nodes: [{ label: text.slice(0, 24), type: "daily", content: text }],
         edges: [],
       }
     );
@@ -101,8 +101,8 @@ describe("ingestion pipeline", () => {
   it("persists LLM-extracted edges between nodes in the same input", async () => {
     const extraction: ExtractionResult = {
       nodes: [
-        { label: "Coffee subscription", type: "business_idea", content: "monthly coffee delivery" },
-        { label: "Roaster partnership", type: "business_idea", content: "partner with local roasters" },
+        { label: "Coffee subscription", type: "project", content: "monthly coffee delivery" },
+        { label: "Roaster partnership", type: "project", content: "partner with local roasters" },
       ],
       edges: [{ sourceLabel: "Coffee subscription", targetLabel: "Roaster partnership", relationship: "builds_on" }],
     };
@@ -140,7 +140,20 @@ describe("ingestion pipeline", () => {
       "I have a startup idea for a SaaS product targeting the coffee market",
     );
     expect(res.nodes).toHaveLength(1);
-    expect(res.nodes[0]!.type).toBe("business_idea");
+    expect(res.nodes[0]!.type).toBe("project");
+  });
+
+  it("heuristic classifies into the Wire-the-Brain taxonomy", async () => {
+    const llm = new HeuristicProvider();
+    const kindOf = async (text: string) =>
+      (await ingest(handle, { embeddings, llm }, text)).nodes[0]!.type;
+    expect(await kindOf("Met with Sara this morning to sync on the launch")).toBe("meeting");
+    expect(await kindOf("I decided to delay the launch — too risky right now")).toBe("decision");
+    expect(await kindOf("Acme Inc is our biggest vendor this quarter")).toBe("company");
+    expect(await kindOf("My sister called, our relationship feels lighter lately")).toBe("person");
+    expect(await kindOf("New product idea: a SaaS roadmap tool")).toBe("project");
+    expect(await kindOf("The definition of compound interest, for reference")).toBe("knowledge");
+    expect(await kindOf("Slept okay, walked the dog, quiet day")).toBe("daily");
   });
 });
 

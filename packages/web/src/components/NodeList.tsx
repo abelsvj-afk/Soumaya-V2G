@@ -6,8 +6,10 @@ import {
   CELESTIAL_ICON,
   CELESTIAL_LABEL,
   CELESTIAL_CLASSES,
+  NODE_TYPE_LABEL,
+  normalizeNodeType,
 } from "@brain/shared";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { colorForType, TYPE_COLORS } from "../graph/theme.js";
 import { getConstellations, getVisitorActivity, useProcessingNodes, type VisitedMemory } from "../api/client.js";
 
 interface Props {
@@ -113,8 +115,9 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     return [...f.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([t]) => t);
   }, [memories]);
 
+  // Distinct kinds present (legacy values normalized to the canonical taxonomy).
   const types = useMemo(
-    () => [...new Set(memories.map((n) => n.type))].sort(),
+    () => [...new Set(memories.map((n) => normalizeNodeType(n.type)))].sort(),
     [memories],
   );
 
@@ -124,7 +127,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
       if (needle && !n.label.toLowerCase().includes(needle) && !n.content.toLowerCase().includes(needle))
         return false;
       if (tier !== "all" && (n.celestial ?? "moon") !== tier) return false;
-      if (type !== "all" && n.type !== type) return false;
+      if (type !== "all" && normalizeNodeType(n.type) !== type) return false;
       if (emotion !== "all" && emotionBucket(n.emotionalWeight) !== emotion) return false;
       if (cooling && (n.entropy ?? 0) < 0.45) return false;
       if (tag && !(n.tags ?? []).includes(tag)) return false;
@@ -171,7 +174,7 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     return (
       <li key={n.id} className={isProcessing ? "processing" : ""}>
         <button onClick={() => onFocus(n.id)}>
-          <span className="dot" style={{ background: TYPE_COLORS[n.type] }} />
+          <span className="dot" style={{ background: colorForType(n.type) }} />
           <span className="nl-main">
             <span className="nl-label">
               {n.label}
@@ -219,11 +222,11 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
           <option value="neutral">● neutral</option>
           <option value="negative">● heavy</option>
         </select>
-        <select value={type} onChange={(e) => setType(e.target.value as NodeType | "all")} title="Memory type">
-          <option value="all">any type</option>
+        <select value={type} onChange={(e) => setType(e.target.value as NodeType | "all")} title="Memory kind">
+          <option value="all">any kind</option>
           {types.map((t) => (
             <option key={t} value={t}>
-              {t.replace(/_/g, " ")}
+              {NODE_TYPE_LABEL[t]}
             </option>
           ))}
         </select>
@@ -248,6 +251,22 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
           🕰 timeline
         </button>
       </div>
+
+      {types.length > 1 && (
+        <div className="kind-legend">
+          {types.map((t) => (
+            <button
+              key={t}
+              className={`kind-key ${type === t ? "on" : ""}`}
+              onClick={() => setType(type === t ? "all" : t)}
+              title={`Filter to ${NODE_TYPE_LABEL[t]}`}
+            >
+              <span className="kind-dot" style={{ background: TYPE_COLORS[t] }} />
+              {NODE_TYPE_LABEL[t]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {allTags.length > 0 && (
         <div className="discovery-tags">

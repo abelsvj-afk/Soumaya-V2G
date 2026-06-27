@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, Insight } from "@brain/shared";
 import { getConstellations, getDailyDigest, getDigest, runDigest } from "../api/client.js";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { colorForType } from "../graph/theme.js";
 
 export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
   const [items, setItems] = useState<Insight[]>([]);
@@ -47,7 +47,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
                 <li key={e.node.id}>
                   <button
                     className="digest-link"
-                    style={{ borderColor: TYPE_COLORS[e.node.type] }}
+                    style={{ borderColor: colorForType(e.node.type) }}
                     onClick={() => onFocus(e.node.id)}
                   >
                     {e.node.label}
@@ -78,7 +78,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
                   <button
                     key={c.node.id}
                     className="pill"
-                    style={{ borderColor: TYPE_COLORS[c.node.type], opacity: 0.55 + 0.45 * (1 - c.entropy) }}
+                    style={{ borderColor: colorForType(c.node.type), opacity: 0.55 + 0.45 * (1 - c.entropy) }}
                     onClick={() => onFocus(c.node.id)}
                     title={`${Math.round(c.entropy * 100)}% cold`}
                   >
@@ -114,7 +114,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
                     <button
                       key={n.id}
                       className="pill"
-                      style={{ borderColor: TYPE_COLORS[n.type] }}
+                      style={{ borderColor: colorForType(n.type) }}
                       onClick={() => onFocus(n.id)}
                     >
                       {n.label}
@@ -149,7 +149,7 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
                 <button
                   key={n.id}
                   className="pill"
-                  style={{ borderColor: TYPE_COLORS[n.type] }}
+                  style={{ borderColor: colorForType(n.type) }}
                   onClick={() => onFocus(n.id)}
                 >
                   {n.label}
