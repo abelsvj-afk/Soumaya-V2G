@@ -158,11 +158,44 @@ export function researchEnabled(ctx: AppContext): boolean {
   );
 }
 
+/** Most-recent memories scanned for near-duplicate merging each tick. */
+const MERGE_SCAN_LIMIT = 50;
+
+/**
+ * In-memory job claim guard (idempotency). The browser maintenance loop and the
+ * server-side 24/7 loop both poll /next-job against the SAME single Fly process,
+ * so a short-lived in-process claim is enough to stop them double-running the same
+ * job: the first caller gets the real job + records its signature; a second caller
+ * within the TTL gets a harmless patrol instead. (One process today; a multi-
+ * instance deploy would need a DB `claimed_at` lock — noted in TASKS.)
+ */
+const issuedJobs = new Map<string, number>();
+const CLAIM_TTL_MS = 20_000;
+
+function withClaim(ctx: AppContext, spaceId: string, job: AgentJob | null): AgentJob | null {
+  if (!job || job.type === "patrol") return job; // patrol is idempotent — never gated
+  const sig = `${spaceId}:${job.type}:${job.targets.join(",")}`;
+  const now = Date.now();
+  const exp = issuedJobs.get(sig);
+  if (exp && exp > now) {
+    // Just handed this exact job to another caller — give this one a no-op patrol.
+    return mkJob(ctx, spaceId, "patrol", [], "Routine patrol & health check.");
+  }
+  issuedJobs.set(sig, now + CLAIM_TTL_MS);
+  if (issuedJobs.size > 256) for (const [k, v] of issuedJobs) if (v <= now) issuedJobs.delete(k);
+  return job;
+}
+
 /**
  * Choose the next meaningful job for a brain, or null if there's nothing to do.
- * Mirrors the original next-job ladder exactly.
+ * Wraps the selection ladder with an idempotency claim so concurrent pollers
+ * don't double-execute the same job.
  */
 export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
+  return withClaim(ctx, spaceId, selectJobInner(ctx, spaceId));
+}
+
+function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
   const economy = new EconomyRepo(ctx.handle, spaceId);
   const llmOn = researchEnabled(ctx) && !ctx.usage.overBudget();
   const expansionOn = llmOn && economy.canRunJob();
@@ -179,9 +212,13 @@ export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
     return mkJob(ctx, spaceId, "daily_log", [], "Captain's Log: Summarizing today's brain evolution.");
   }
 
-  // 0. Merging — near-duplicate memories (similarity > 0.96).
+  // 0. Merging — near-duplicate memories (similarity > 0.96). Only the most
+  // recent memories are scanned: duplicates arrive with new input, and older
+  // ones were already checked/merged on earlier passes. Bounds this from an
+  // O(n) knn-per-node full scan every tick to a small constant (perf: Gap #4).
   if (llmOn) {
-    for (const node of nodesRepo.all()) {
+    const recent = nodesRepo.all().slice(-MERGE_SCAN_LIMIT);
+    for (const node of recent) {
       const emb = getEmbedding(ctx.handle.sqlite, node.id);
       if (!emb) continue;
       const hits = knn(ctx.handle.sqlite, emb, 2, spaceId);

@@ -244,7 +244,7 @@ export default function App() {
     return Math.round(lvl * 100) / 100;
   }, [view.nodes, streak]);
 
-  const refresh = useCallback(async (newIds?: number[], fuelEarned?: number) => {
+  const refresh = useCallback(async (newIds?: number[], fuelEarned?: number, linkCount?: number) => {
     if (demo) {
       setLoaded(true);
       return;
@@ -264,6 +264,16 @@ export default function App() {
         // Gamification: celebrate the fuel earned with a toast (Wave 1).
         if (fuelEarned && fuelEarned > 0)
           pushToast(`+${Math.round(fuelEarned * 10) / 10} fuel earned`, "⛽");
+        // Soumaya reacts to new connections in her own voice (Wave 3).
+        if (linkCount && linkCount > 0) {
+          const msg =
+            linkCount >= 3
+              ? `Soumaya: oh, this one lights up — it ties into ${linkCount} of your memories.`
+              : linkCount === 2
+                ? "Soumaya: I felt two threads connect to this."
+                : "Soumaya: there — a new thread linked up.";
+          pushToast(msg, "🛰️", 7000);
+        }
         // Then fly the camera to the new memory so you can SEE where it populated.
         setTimeout(() => {
           graphRef.current?.focusNode(newIds[0]!);

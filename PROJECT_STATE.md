@@ -48,6 +48,12 @@
     into the daily-log/maintenance voice; editable per-space soul from the Companion tab.
 
 ## Completed (this session, cont.)
+- **Soumaya reactions** — she reacts in her own voice to new connections on ingest (1/2/3+ links → distinct lines).
+- **Autonomy hardening** — `/next-job` merge scan bounded to the 50 most-recent memories (was O(n) knn/tick);
+  in-memory `withClaim` idempotency so the server loop + a browser tab can't double-run a job (+1 test).
+- **Daily quests / tend list** (`components/quests.ts`): 1–3 live click-through nudges (feed today / warm
+  a cooling memory / revisit a drifting one) in the Observatory's "Today's tending" card.
+- **Observatory toast fix** — celebratory toasts buffer behind the home cards and flush when you exit.
 - **Pilot rank / level-up** (`components/rank.ts`): 8 named tiers by memory count, banner atop the Awards
   tab with a progress bar + per-brain level-up toast — the visible side of the same progression that
   speeds Soumaya up. ("✦ New constellation" discovery toast already fires on promotion.)

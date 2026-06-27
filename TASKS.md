@@ -13,8 +13,13 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ## Autonomy & Agent Hardening
 
-- [ ] 🔴 **Performance fix: `last_maintained_at` filter in `/next-job`** — Critical Gap #4, never resolved. Every maintenance cycle does a full table scan. Fix belongs in the maintenance repo SQL query.
-- [ ] 🔴 **Job claiming / idempotency (`claimed_at` lock)** — prevent double-execution when server loop + browser tab both run. Requires new nullable column in `db/schema.ts` → `migrateSchema` additive migration.
+- [x] 🔴 **Performance fix: `/next-job` full scan** — ✅ mitigated. The O(n) knn-per-node merge scan is now
+  bounded to the most-recent `MERGE_SCAN_LIMIT` (50) memories in `selectJob` (duplicates arrive with new
+  input). Full `last_maintained_at` cursor still possible later, but the per-tick cost is no longer O(n).
+- [x] 🔴 **Job claiming / idempotency** — ✅ done (in-memory). `withClaim` in `maintenance/agent.ts` records
+  each issued job's signature for 20s; a concurrent poller (server loop + browser tab on the one Fly
+  process) gets a harmless patrol instead of re-running it. (A DB `claimed_at` lock would be needed only
+  for a multi-instance deploy — noted in code.) +1 test.
 - [ ] 🔴 **LLM planning agent: replace fixed job-selection ladder** — swap the if/else chain in `maintenance/agent.ts` with a tools-based LLM planner; keep the deterministic ladder as a fallback. Touches LlmProvider seam.
 - [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
 - [ ] 🟡 **Request-Maintenance high-priority queue** — `POST /api/nodes/:id/tend` is partial. Route contract / priority field = Red; UI trigger button = Green.
@@ -141,8 +146,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 ### Wave 3 — companion warmth + progression (🟡/🔴)
 - [ ] 🔴 **Behavioral persona deepening** — Soumaya's tone adapts to your patterns/history (also under AI
   Companion). Makes her feel like she *knows* you. `persona/derive.ts`.
-- [ ] 🟢 **Soumaya reactions** — she emotes to events (excited on a new link, concerned when many memories
-  cool, celebratory at a milestone) via her task label / a speech bubble + the existing voice.
+- [x] 🟢 **Soumaya reactions** — ✅ done (v1). She reacts in her own voice to new connections on ingest
+  (1 / 2 / 3+ links get distinct lines) via a toast; tier-up + rank toasts cover the celebratory side.
+  (Deferred: in-world speech bubble + a concerned reaction to mass cooling.)
 - [x] 🟢 **Galaxy "rank" / level-up** — ✅ done (Wave 3). Pilot rank (`components/rank.ts`): 8 named tiers
   (Cadet → … → Voyager) by memory count, shown as a banner atop the Awards tab with a progress bar, plus a
   per-brain level-up toast. Same progression that speeds Soumaya up. (Deferred polish: sun grows at rank-ups.)
