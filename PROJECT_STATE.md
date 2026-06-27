@@ -22,7 +22,10 @@
 - **Design pass (Rule #1, no code yet)** for second-brain growth — specs drafted, awaiting approval:
   - [Stage 0 — Taxonomy expansion](./docs/specs/stage-0-taxonomy.md) 🔴
   - [Stage 1 — Constellation hubs / MOCs](./docs/specs/stage-1-mocs.md) 🔴
-  - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢
+  - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — reconciled with the
+    existing cinematic fly-in (Observatory fades in over it; intro untouched).
+  - [Stage 4 — Identity layer wiring](./docs/specs/stage-4-identity-layer.md) 🔴 — **files authored**
+    ([`soul.md`](./soul.md), [`identity.md`](./identity.md), [`user.md`](./user.md)); runtime wiring pending.
 
 ## Blocked
 - **Deploy delivery** — GitHub Actions is blocked on this account; nothing ships until `agy` runs a

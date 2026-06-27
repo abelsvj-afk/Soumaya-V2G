@@ -114,11 +114,11 @@ We already have entropy (decay) and dedup; this extends them into an explicit hy
   a subtle node badge.
 - *Benchmark:* you can tell at a glance what Soumaya wrote vs you, and orphans are surfaced.
 
-### Stage 4 — The soul/identity file layer (AI-context) 🟡
-Give Soumaya an explicit, editable identity surfaced from the existing persona system —
-a `soul.md`-equivalent (voice/values/boundaries, the briefing's Lineage B 8-layer shape
-since Soumaya is an operational assistant), `identity.md` (name/role/vibe), and a `user.md`
-(who the human is + authority levels). Could remain DB-backed but exposed as editable docs.
+### Stage 4 — The soul/identity file layer (AI-context) 🟡 — **files authored**
+Give Soumaya an explicit, editable identity. The canonical files now exist at repo root:
+[`soul.md`](../soul.md) (voice/values/boundaries, Lineage B 8-layer), [`identity.md`](../identity.md)
+(name/role/vibe), [`user.md`](../user.md) (who the human is + authority levels). Remaining work =
+wiring them into the runtime prompt assembly — see [Stage 4 spec](./specs/stage-4-identity-layer.md).
 - *Caveat from the briefing:* soul files are **context, not security** — enforce real limits
   at the harness/tool level, keep secrets out, and budget for persona drift (re-anchoring).
 - *Benchmark:* the agent can answer "who am I, who do I serve, how do I behave?" from these.

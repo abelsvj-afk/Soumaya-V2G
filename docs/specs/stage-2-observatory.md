@@ -22,6 +22,23 @@ implied by the sum of feature panels).
 
 No schema or shared-type change. Primary new navigation surface, so treat with care (it's the shell).
 
+## Reconciliation with the existing cinematic opening (do NOT break it)
+
+The app already plays a **cinematic fly-in** on first load: `Graph3D.frameGalaxy(3200, …,
+isIntro=true)` swoops the camera from a far, steep angle into the framed galaxy over ~3.2s with
+user controls locked (`initialFramedRef` guards it to once per open). The Observatory must
+**compose with** this, not replace it:
+
+- The cinematic swoop stays exactly as-is — it is the "arrival."
+- The Observatory cards **fade in over the galaxy as the swoop settles** (start the fade near the
+  tail of the 3.2s intro so the galaxy is already beautiful behind them). The dimmed/blurred
+  backdrop the wireframe calls for = the just-arrived galaxy, slightly dimmed.
+- Respect the intro's controls-lock window: don't re-enable controls early; the Observatory sits on
+  top while the camera is locked, and "Enter the galaxy →" hands full control back.
+- The Observatory must never disable or short-circuit the cinematic (no touching `isIntro`/
+  `initialFramedRef`). If the Observatory is skipped (returning user preference), the cinematic
+  still plays.
+
 ## UX (Phase 4.5) — wireframe
 
 A centered stack of ≤5 calm cards over a dimmed/blurred galaxy backdrop:
