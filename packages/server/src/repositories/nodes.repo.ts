@@ -12,6 +12,7 @@ export interface NewNode {
   emotionalWeight?: number;
   importance?: number;
   color?: string;
+  origin?: "user" | "agent";
   kind?: "memory" | "action" | "moc";
   expiresAt?: string;
   occurredAt?: string;
@@ -29,6 +30,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     emotionalWeight: row.emotionalWeight ?? undefined,
     importance: row.importance ?? undefined,
     color: row.color ?? undefined,
+    origin: (row.origin as "user" | "agent" | null) ?? undefined,
     kind: (row.kind as "memory" | "action" | "moc" | null) ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
@@ -87,6 +89,7 @@ export class NodesRepo {
           emotionalWeight: input.emotionalWeight ?? null,
           importance: input.importance ?? null,
           color: input.color ?? null,
+          origin: input.origin ?? null,
           kind: input.kind ?? null,
           expiresAt: input.expiresAt ?? null,
           occurredAt: input.occurredAt ?? null,

@@ -66,6 +66,7 @@ export function constellationRoutes(ctx: AppContext): Router {
         content: summary,
         importance: 0.7, // hubs are weighty by nature → renders large
         color: "#ffe9a8", // starlight gold so a constellation reads as special
+        origin: "agent", // Soumaya authored this hub's summary
       },
       vec,
     );

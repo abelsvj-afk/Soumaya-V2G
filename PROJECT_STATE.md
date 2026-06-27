@@ -32,6 +32,10 @@
     scoped. Insights tab gains an inline "✦ Save as constellation"; the hub renders as a bright golden
     body with its name as a macro label, and clicking it shows summary + members. Gate green (94 tests).
     Deferred: Soumaya *auto-proposing* hubs at the squeeze point (manual human-curated promotion ships now).
+  - [Stage 3 — Provenance & hygiene](./docs/specs/stage-3-provenance.md) 🔴 — **IMPLEMENTED.** Additive
+    `nodes.origin` column (bootstrap + migration); `GraphNode.origin`; MOC hubs created as `origin:"agent"`.
+    NodeInspector shows a "✦ Charted by Soumaya" badge on agent-authored nodes; List tab gains a
+    "🪐 drifting" orphan-lint filter (link-less memories). Gate green (94 tests).
   - [Stage 2 — The Observatory (home)](./docs/specs/stage-2-observatory.md) 🟢 — **IMPLEMENTED.**
     `components/Observatory.tsx` fades in ~3.4s after load (after the cinematic settles; intro
     untouched): greeting + streak, capture, Soumaya's latest connection, your constellations

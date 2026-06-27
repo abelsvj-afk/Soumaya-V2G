@@ -117,6 +117,7 @@ describe("REST API", () => {
     expect(body.type).toBe("moc");
     expect(body.label).toBe("Coffee Craft");
     expect(body.memberCount).toBe(2);
+    expect(body.origin).toBe("agent"); // Soumaya authored the hub
 
     // The hub now exists in the graph and links to both members.
     const graph = (await get("/api/graph")).body as GraphData;
