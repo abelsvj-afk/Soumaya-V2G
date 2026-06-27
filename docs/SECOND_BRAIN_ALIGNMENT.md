@@ -85,7 +85,9 @@ Companies) also unlock relationship views later.
 
 
 Ordered by ROI × alignment with what already exists. Each stage is gated by the workflow:
-spec → approval → implement → test → review.
+spec → approval → implement → test → review. **Specs drafted (awaiting approval):**
+[Stage 0 — Taxonomy](./specs/stage-0-taxonomy.md) · [Stage 1 — MOCs](./specs/stage-1-mocs.md) ·
+[Stage 2 — Observatory](./specs/stage-2-observatory.md).
 
 ### Stage 1 — Constellation hubs (MOC layer) 🔴 closes the one real gap
 Promote a dense detected cluster into a **persistent, named, annotated "constellation"
