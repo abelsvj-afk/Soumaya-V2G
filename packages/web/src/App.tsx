@@ -43,7 +43,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
-import { Toasts, pushToast, cleanupNotifications } from "./components/Toasts.js";
+import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
 import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
@@ -77,6 +77,9 @@ export default function App() {
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
   const obsShownRef = useRef(false);
+  // True once we're past the Observatory gate (it was shown+closed, or won't show).
+  // Until then, toasts are buffered so a celebration never hides behind the cards.
+  const [obsSettled, setObsSettled] = useState(false);
   const [tab, setTab] = useState<DockTab>("details");
 
   // Hangar system equipped states
@@ -468,10 +471,23 @@ export default function App() {
     if (obsShownRef.current || demo || !space || !loaded) return;
     const t = window.setTimeout(() => {
       obsShownRef.current = true;
-      setShowObs((cur) => (panel === null ? true : cur));
+      if (panel === null) setShowObs(true);
+      else setObsSettled(true); // a panel's already open → Observatory won't show; release toasts
     }, 3400);
     return () => window.clearTimeout(t);
   }, [space, loaded, demo, panel]);
+
+  // Buffer celebratory toasts until the Observatory gate resolves (so they don't
+  // pop behind the cards). Demo / signed-out never gates. Flushes on settle.
+  useEffect(() => {
+    setToastsPaused(!demo && !!space && (showObs || !obsSettled));
+  }, [demo, space, showObs, obsSettled]);
+
+  // Close the Observatory and release any buffered toasts. The 🔭 FAB reopens it.
+  const dismissObs = useCallback(() => {
+    setShowObs(false);
+    setObsSettled(true);
+  }, []);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -994,19 +1010,19 @@ export default function App() {
           memories={(data.nodes as GraphNode[]).filter((n) => n.kind !== "action")}
           streak={streak?.current ?? 0}
           onCapture={() => {
-            setShowObs(false);
+            dismissObs();
             setPanel("ingest");
           }}
           onFocus={(id) => {
-            setShowObs(false);
+            dismissObs();
             focus(id);
           }}
           onOpenInsights={() => {
-            setShowObs(false);
+            dismissObs();
             setTab("insights");
             setPanel("dock");
           }}
-          onEnter={() => setShowObs(false)}
+          onEnter={dismissObs}
         />
       )}
 
