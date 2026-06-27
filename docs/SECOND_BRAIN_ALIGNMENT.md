@@ -45,7 +45,44 @@ So the highest-value features are the ones that make the **substance** match the
 already have — turning detected clusters into real, named **constellation hub nodes**, and
 giving the galaxy a calm **observatory** to enter from.
 
+## The user's target taxonomy — "Wire the Brain" (handwritten note, 2026-06-27)
+
+The user sketched the concrete vault structure to build toward. It mirrors the briefing's
+AI-native layout (`/people (CRM) /projects /daily /synthesis …`):
+
+| # | Desired category | Today in Soumaya | Action |
+|---|------------------|------------------|--------|
+| 1 | **People** | `person` node type ✓ | keep |
+| 2 | **Projects** | — (closest: `business_idea`) | **add node kind** |
+| 3 | **Decisions** | — | **add node kind** |
+| 4 | **Companies** | — | **add node kind** |
+| 5 | **Meetings** | — | **add node kind** |
+| 6 | **Daily** | `daily_logs` table + `random_thought` | surface as a kind/view |
+| 7 | **Knowledge** | `knowledge_docs` (Companion) + `concept` | unify under a kind |
+| 8 | **MOCs** (Maps of Content — summaries of bodies of work, consolidations) | detected clusters only, no hub node | **= Stage 1 below** |
+| 16 | **Self-Healing** | autonomous maintenance agent ✓ (synthesis, dedup, entropy/decay, link repair) | keep / extend |
+
+**Implication — a Stage 0 the briefing didn't surface:** expand `NodeType` from the current
+6 to a taxonomy that covers People · Projects · Decisions · Companies · Meetings · Daily ·
+Knowledge (+ keep `concept`/`other`). This is **Red Zone**: it touches `shared` `NodeType` +
+the zod `responseSchema`, the LLM extraction prompt + heuristic classifier (so raw thoughts get
+typed into these kinds), the celestial color map, and the List/Sector filters. No DB migration
+needed (node `type` is already free `TEXT`), but it is a core-model reshape and gets its own spec.
+
+Folders in Obsidian → **node kinds + MOC hubs** here (we stay link-first per the briefing; we do
+NOT add a filesystem folder tree). "Daily" and "Knowledge" partly exist as their own tables today;
+the design question is whether to fold them into the node taxonomy or keep them as adjacent stores.
+
 ## Staged growth plan (design-only — each stage gets its own spec before code)
+
+### Stage 0 — Taxonomy expansion (the "Wire the Brain" kinds) 🔴 prerequisite for the rest
+Expand `NodeType` to People · Project · Decision · Company · Meeting · Daily · Knowledge ·
+Concept · Other; teach the extractor + heuristic to classify into them; give each a distinct
+celestial color/aura; expose them as filters in List/Sectors. CRM-flavored kinds (People,
+Companies) also unlock relationship views later.
+- *Benchmark:* a dumped thought about a meeting with a person at a company yields correctly-typed
+  Meeting / Person / Company nodes, filterable in the UI.
+
 
 Ordered by ROI × alignment with what already exists. Each stage is gated by the workflow:
 spec → approval → implement → test → review.
