@@ -128,13 +128,20 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
-  async research(node: LinkCandidate): Promise<{ label: string; content: string }> {
-    if (this.blocked) return this.fallback.research(node);
+  async research(
+    node: LinkCandidate,
+    userAnswers?: string,
+  ): Promise<{ label: string; content: string; questions?: string[] }> {
+    if (this.blocked) return this.fallback.research(node, userAnswers);
     try {
-      return await withTimeout(this.primary.research(node), this.timeoutMs, "research");
+      return await withTimeout(
+        this.primary.research(node, userAnswers),
+        this.timeoutMs,
+        "research",
+      );
     } catch (err) {
       this.note(err, "research");
-      return this.fallback.research(node);
+      return this.fallback.research(node, userAnswers);
     }
   }
 

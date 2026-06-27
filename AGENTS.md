@@ -79,11 +79,15 @@ Make real changes here, no permission needed beyond the gate + log:
 - **Research & staging** — investigate the codebase, draft plans/diffs for Claude.
 
 ### 🆕 New Green-Zone superpowers (use these — Gemini CLI couldn't)
-- **Browser-subagent visual QA (huge for this 3D app).** Spin up the headless-Chrome
-  subagent against local dev (`npm run dev`) or the deployed URL, click through the
-  galaxy, and **prove a visual change renders**: screenshots + a `.webm` walkthrough +
-  a UX/design-review pass. Attach the evidence to your `GEMINI_CHANGES.md` entry. This
-  is how you satisfy the **Visual Honesty** rule with proof, not claims.
+- **Browser-subagent visual QA (huge for this 3D app)** — *only where a headless Chrome is
+  available.* ⚠️ **It does NOT run on the user's Termux (android-arm64): no compatible headless
+  Chrome there (confirmed 2026-06-21, issue #10), so the browser subagent can't capture the galaxy
+  on the phone.** Use it from a desktop/CI context; on Termux, fall back to a desktop browser or the
+  USER for live visual checks, and verify behavior by **headless reproduction/measurement** instead
+  (e.g. `npx tsx` over `orbits.ts`/`celestial.ts` and assert the numbers). When it IS available:
+  spin it up against local dev (`npm run dev`) or the deployed URL, click through the galaxy, and
+  **prove a visual change renders** (screenshots + `.webm`). Either way, never "verify" visuals by
+  re-describing the code — that's not proof.
 - **Parallel / async subagents.** Fan out well-specified mechanical work (rename a CSS
   class everywhere, apply one pattern across many components, batch-process assets) and
   multi-topic research in the background while the main session keeps moving. Reserve

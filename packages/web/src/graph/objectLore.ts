@@ -14,6 +14,85 @@ interface BrainSignals {
   watch?: string; // label of the most-neglected memory (always set if any exist)
 }
 
+interface StoryArc {
+  type: "paradox" | "muse" | "resolution" | "complication" | "analogy";
+  sourceLabel: string;
+  targetLabel: string;
+}
+
+function findStoryArcs(graph: GraphData): StoryArc[] {
+  const arcs: StoryArc[] = [];
+  const nodes = graph.nodes;
+  const links = graph.links;
+  const nodeMap = new Map<number | string, any>();
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+  }
+
+  for (const l of links) {
+    const srcId = typeof l.source === "object" ? (l.source as any).id : l.source;
+    const tgtId = typeof l.target === "object" ? (l.target as any).id : l.target;
+    const src = nodeMap.get(srcId);
+    const tgt = nodeMap.get(tgtId);
+    if (!src || !tgt) continue;
+
+    // 1. Paradox Arc (extreme positive + negative)
+    if (
+      src.emotionalWeight !== undefined &&
+      tgt.emotionalWeight !== undefined &&
+      Math.abs(src.emotionalWeight - tgt.emotionalWeight) >= 1.2
+    ) {
+      arcs.push({
+        type: "paradox",
+        sourceLabel: src.label,
+        targetLabel: tgt.label,
+      });
+    }
+
+    // 2. Muse Arc (person + business_idea/concept/random_thought)
+    if (
+      (src.type === "person" && (tgt.type === "business_idea" || tgt.type === "concept" || tgt.type === "random_thought")) ||
+      (tgt.type === "person" && (src.type === "business_idea" || src.type === "concept" || src.type === "random_thought"))
+    ) {
+      const personNode = src.type === "person" ? src : tgt;
+      const ideaNode = src.type === "person" ? tgt : src;
+      arcs.push({
+        type: "muse",
+        sourceLabel: personNode.label,
+        targetLabel: ideaNode.label,
+      });
+    }
+
+    // 3. Resolution Arc
+    if (l.relationship === "resolves") {
+      arcs.push({
+        type: "resolution",
+        sourceLabel: src.label,
+        targetLabel: tgt.label,
+      });
+    }
+
+    // 4. Complication Arc
+    if (l.relationship === "complicates") {
+      arcs.push({
+        type: "complication",
+        sourceLabel: src.label,
+        targetLabel: tgt.label,
+      });
+    }
+
+    // 5. Analogy Arc
+    if (l.relationship === "is_analogous_to") {
+      arcs.push({
+        type: "analogy",
+        sourceLabel: src.label,
+        targetLabel: tgt.label,
+      });
+    }
+  }
+  return arcs;
+}
+
 /** Parse sqlite ("YYYY-MM-DD HH:MM:SS", UTC) or ISO timestamps safely. */
 function parseTs(ts?: string): number | null {
   if (!ts) return null;
@@ -95,6 +174,10 @@ export function objectLoreFor(
   const tone = toneWord(s.tone);
   const hub = s.hub ? `“${s.hub}”` : "an unnamed first light";
 
+  const arcs = findStoryArcs(graph);
+  const arcIndex = (s.count + s.links) % (arcs.length || 1);
+  const arc = arcs.length > 0 ? arcs[arcIndex] : null;
+
   if (kind === "ship") {
     const title = "Soumaya · Voyager-class scout";
     const intro = `I'm Soumaya — a lone scout threading your memory galaxy, ${age}.`;
@@ -107,7 +190,23 @@ export function objectLoreFor(
             ? `${s.count} worlds, ${s.links} routes: a real constellation now, and I keep returning to ${hub}.`
             : `${s.count} worlds and ${s.links} routes — a vast, humming galaxy. I rarely sleep; there's always a new orbit to plot.`;
     const mood = `The currents out here run ${tone}.`;
-    return { title, log: `${intro} ${state} ${mood}` };
+    
+    let arcStory = "";
+    if (arc) {
+      if (arc.type === "paradox") {
+        arcStory = ` I've noticed a high-tension rift between the bright resonance of “${arc.sourceLabel}” and the dark gravity of “${arc.targetLabel}”. Flying this corridor tests my stabilizer coils, but it's the only way to thread your thoughts.`;
+      } else if (arc.type === "muse") {
+        arcStory = ` The orbit around “${arc.targetLabel}” is shaped by the presence of “${arc.sourceLabel}”. It feels like inspiration; I've charted a custom flight path to watch them sync.`;
+      } else if (arc.type === "resolution") {
+        arcStory = ` I observed “${arc.sourceLabel}” resolving the tension of “${arc.targetLabel}”. It cleared a major sector storm on my maps — things feel quieter now.`;
+      } else if (arc.type === "complication") {
+        arcStory = ` The connection between “${arc.sourceLabel}” and “${arc.targetLabel}” is complicated. I've logged increased signal noise along this route — proceed with caution.`;
+      } else if (arc.type === "analogy") {
+        arcStory = ` I found a strange mirror: “${arc.sourceLabel}” is analogous to “${arc.targetLabel}”. They spin in parallel, reflecting each other across the deep.`;
+      }
+    }
+    
+    return { title, log: `${intro} ${state} ${mood}${arcStory}` };
   }
 
   if (kind === "satellite") {
@@ -137,5 +236,21 @@ export function objectLoreFor(
           ? `A busy port: ${s.count} worlds, ${s.links} lanes, and a steady tide of craft cycling past ${hub}.`
           : `A vast hub — ${s.count} worlds, ${s.links} lanes — its bays never quiet, ${hub} the brightest beacon on its boards.`;
   const mood = `Its sensors read ${tone} across the sector.`;
-  return { title, log: `${intro} ${purpose} ${mood}` };
+
+  let arcStory = "";
+  if (arc) {
+    if (arc.type === "paradox") {
+      arcStory = ` Sensors warn of an emotional paradox shear between “${arc.sourceLabel}” and “${arc.targetLabel}”. Docking bays 4 and 5 are on alert.`;
+    } else if (arc.type === "muse") {
+      arcStory = ` Waystation logs show heavy traffic between the presence of “${arc.sourceLabel}” and the idea of “${arc.targetLabel}” — a highly productive resonance corridor.`;
+    } else if (arc.type === "resolution") {
+      arcStory = ` A resolution alert: “${arc.sourceLabel}” has settled the node of “${arc.targetLabel}”. Core stability index is up 12%.`;
+    } else if (arc.type === "complication") {
+      arcStory = ` Lanes between “${arc.sourceLabel}” and “${arc.targetLabel}” are flagged with warning beacons; the relationship is complicated and congesting traffic.`;
+    } else if (arc.type === "analogy") {
+      arcStory = ` Our sub-space mapping shows parallel orbits for “${arc.sourceLabel}” and “${arc.targetLabel}” — twins mirroring each other across the sector.`;
+    }
+  }
+
+  return { title, log: `${intro} ${purpose} ${mood}${arcStory}` };
 }

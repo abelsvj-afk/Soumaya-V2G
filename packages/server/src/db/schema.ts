@@ -34,6 +34,8 @@ export const nodes = sqliteTable("nodes", {
   remindAt: text("remind_at"),
   // JSON array of tag strings (curated + free-form).
   tags: text("tags"),
+  researchQuestions: text("research_questions"),
+  researchAnswers: text("research_answers"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),
@@ -213,7 +215,8 @@ export const spaceMeta = sqliteTable("space_meta", {
 /** A private brain ("space"), opened by name + passcode (works across devices). */
 export const spaces = sqliteTable("spaces", {
   id: text("id").primaryKey(),
-  name: text("name").notNull().unique(),
+  name: text("name").notNull(),
+  gamerTag: text("gamer_tag").notNull().unique(),
   passcodeHash: text("passcode_hash").notNull(),
   passcodeSalt: text("passcode_salt").notNull(),
   createdAt: text("created_at")

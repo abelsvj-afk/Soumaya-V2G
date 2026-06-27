@@ -1,8 +1,44 @@
-import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
+import { useState, useEffect } from "react";
 
 const API = "/api";
 
-// --- Per-brain identity (multi-tenancy) ---
+// --- Node processing state tracking ("Writing..." latency feedback) ---
+const processingNodes = new Set<number>();
+const nodeProcessingListeners = new Set<(nodes: Set<number>) => void>();
+
+export function isNodeProcessing(id: number): boolean {
+  return processingNodes.has(id);
+}
+
+export function onNodeProcessingChange(cb: (nodes: Set<number>) => void): () => void {
+  nodeProcessingListeners.add(cb);
+  cb(new Set(processingNodes));
+  return () => nodeProcessingListeners.delete(cb);
+}
+
+export function useProcessingNodes(): Set<number> {
+  const [processing, setProcessing] = useState<Set<number>>(new Set(processingNodes));
+  useEffect(() => {
+    return onNodeProcessingChange(setProcessing);
+  }, []);
+  return processing;
+}
+
+function setNodeProcessing(ids: number[], active: boolean): void {
+  for (const id of ids) {
+    if (active) processingNodes.add(id);
+    else processingNodes.delete(id);
+  }
+  for (const l of nodeProcessingListeners) {
+    try {
+      l(new Set(processingNodes));
+    } catch (e) {
+      console.error(e);
+    }
+  }
+}
+
 // The space id is the secret key to a private brain. We keep it in localStorage
 // so it persists on this device, and send it on every API call.
 const SPACE_KEY = "brain.spaceId";
@@ -51,27 +87,27 @@ export interface AuthResult {
 }
 
 /** Open a brain (log in) or create one. Persists the id on success. */
-export async function authSpace(name: string, passcode: string): Promise<AuthResult> {
+export async function authSpace(gamerTag: string, passcode: string, name?: string): Promise<AuthResult> {
   const res = await afetch(`${API}/space/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, passcode }),
+    body: JSON.stringify({ gamerTag, passcode, name }),
   });
   const body = (await res.json().catch(() => ({}))) as Partial<AuthResult> & { error?: string };
   if (!res.ok || !body.id) {
     throw new Error(body.error ?? `Couldn't open that brain (${res.status})`);
   }
   storeSpace(body.id, body.name);
-  return { id: body.id, name: body.name ?? name, created: !!body.created };
+  return { id: body.id, name: body.name ?? name ?? gamerTag, created: !!body.created };
 }
 
 /** Validate the stored id against the server; returns the brain or null. */
-export async function currentSpace(): Promise<{ id: string; name: string } | null> {
+export async function currentSpace(): Promise<{ id: string; name: string; gamerTag?: string } | null> {
   if (!getSpaceId()) return null;
   try {
     const res = await afetch(`${API}/space/me`);
     if (!res.ok) return null;
-    const body = (await res.json()) as { id: string; name: string };
+    const body = (await res.json()) as { id: string; name: string; gamerTag?: string };
     storeSpace(body.id, body.name);
     return body;
   } catch {
@@ -178,16 +214,21 @@ export async function search(q: string): Promise<SearchHit[]> {
 
 /** Ask the AI to piece a memory + its connections into a fresh insight. */
 export async function synthesizeNode(id: number): Promise<{ text: string; connected: number }> {
-  return tracked(
-    (async () => {
-      const res = await afetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error ?? `Synthesis failed (${res.status})`);
-      }
-      return res.json() as Promise<{ text: string; connected: number }>;
-    })(),
-  );
+  setNodeProcessing([id], true);
+  try {
+    return await tracked(
+      (async () => {
+        const res = await afetch(`${API}/nodes/${id}/synthesize`, { method: "POST" });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error ?? `Synthesis failed (${res.status})`);
+        }
+        return res.json() as Promise<{ text: string; connected: number }>;
+      })(),
+    );
+  } finally {
+    setNodeProcessing([id], false);
+  }
 }
 
 /** Manually set a memory's weight (0..1), or null to reset to the auto rating. */
@@ -306,6 +347,18 @@ export async function getFuel(): Promise<Fuel | null> {
   }
 }
 
+/** This brain's daily-tending streak (consecutive days fed a memory). */
+export async function getStreak(): Promise<Streak | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/streak`);
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && typeof d.current === "number" ? (d as Streak) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** "Tend" a memory (reset its entropy) — called when you focus it. Fire-and-forget. */
 export async function tendNode(id: number): Promise<void> {
   try {
@@ -373,12 +426,17 @@ export async function getNextMaintenanceJob(): Promise<MaintenanceJob> {
 }
 
 export async function completeMaintenanceJob(type: string, targets: number[]): Promise<{ ok: boolean }> {
-  const res = await afetch(`${API}/maintenance/complete-job`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type, targets }),
-  });
-  return res.json() as Promise<{ ok: boolean }>;
+  setNodeProcessing(targets, true);
+  try {
+    const res = await afetch(`${API}/maintenance/complete-job`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type, targets }),
+    });
+    return await res.json() as Promise<{ ok: boolean }>;
+  } finally {
+    setNodeProcessing(targets, false);
+  }
 }
 
 export interface AgentLog {
@@ -640,4 +698,22 @@ export async function getVisitorActivity(): Promise<VisitedMemory[]> {
   } catch {
     return [];
   }
+}
+
+/** Submit answers to clarifying research questions. */
+export async function answerResearch(id: number, answers: Record<string, string>): Promise<{ node: GraphNode }> {
+  return tracked(
+    (async () => {
+      const res = await afetch(`${API}/nodes/${id}/answer-research`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `Answering research failed (${res.status})`);
+      }
+      return res.json() as Promise<{ node: GraphNode }>;
+    })()
+  );
 }

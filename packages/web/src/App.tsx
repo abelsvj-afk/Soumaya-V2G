@@ -1,11 +1,38 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { GraphData, GraphNode } from "@brain/shared";
+import type { GraphData, GraphNode, Fuel, Streak } from "@brain/shared";
+import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
 
 /** Pop-up offset for an item in the focus cluster (stacks upward when open). */
 function focusItemStyle(index: number, open: boolean): CSSProperties {
   return open
     ? { transform: `translateY(${-(index + 1) * 54}px)`, opacity: 1, pointerEvents: "auto" }
     : { transform: "translateY(0) scale(0.4)", opacity: 0, pointerEvents: "none" };
+}
+
+function getFigurineIcon(type: string): string {
+  switch (type) {
+    case "station": return "🌐";
+    case "satellite": return "🛰️";
+    case "star_center": return "🌟";
+    case "dyson_sphere": return "🪐";
+    case "quantum_core": return "🌌";
+    case "hyper_array": return "📡";
+    case "shield_spire": return "🛡️";
+    default: return "🗿";
+  }
+}
+
+function getFigurineLabel(type: string): string {
+  switch (type) {
+    case "station": return "Waystation Figurine";
+    case "satellite": return "Aura Beacon Figurine";
+    case "star_center": return "Solar Monument";
+    case "dyson_sphere": return "Dyson Megastructure";
+    case "quantum_core": return "Quantum Singularity Core";
+    case "hyper_array": return "Synapse Hyper-Array";
+    case "shield_spire": return "Aegis Shield Spire";
+    default: return type;
+  }
 }
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
@@ -15,11 +42,16 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { LoginScreen } from "./components/LoginScreen.js";
+import { Toasts, pushToast, cleanupNotifications } from "./components/Toasts.js";
+import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
+import { NotificationsBar } from "./components/NotificationsBar.js";
 import {
   currentSpace,
   getGraph,
   getHealth,
+  getFuel,
+  getStreak,
   logoutSpace,
   onAiActivity,
   tendNode,
@@ -34,8 +66,92 @@ export default function App() {
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
+  const [fuel, setFuel] = useState<Fuel | null>(null);
+  const [fuelPops, setFuelPops] = useState<{ id: number; text: string }[]>([]);
+  const prevFuelRef = useRef<number | null>(null);
+  // Daily-tending streak (flame on the HUD + Awards tab) — polled while signed in.
+  const [streak, setStreak] = useState<Streak | null>(null);
   const [tab, setTab] = useState<DockTab>("details");
+
+  // Hangar system equipped states
+  const [equippedShip, setEquippedShip] = useState<string>("default");
+  const [equippedTrail, setEquippedTrail] = useState<string>("blue");
+  const [equippedFig1, setEquippedFig1] = useState<string>("none");
+  const [equippedFig2, setEquippedFig2] = useState<string>("none");
+  const [showFocusFig1, setShowFocusFig1] = useState<boolean>(true);
+  const [showFocusFig2, setShowFocusFig2] = useState<boolean>(true);
+
+  // Simulated stats for testing achievements progression in demo mode
+  const [simulatedMemoriesCount, setSimulatedMemoriesCount] = useState<number>(0);
+  const [simulatedLinksCount, setSimulatedLinksCount] = useState<number>(0);
+  const [demoBypass, setDemoBypass] = useState<boolean>(true);
+
+  // Load equipped customizations and demo stats when the space changes
+  useEffect(() => {
+    if (!space) return;
+    localStorage.setItem("current_space_id", space.id);
+    const shipKey = `brain.hangar.ship.${space.id}`;
+    const trailKey = `brain.hangar.trail.${space.id}`;
+    const fig1Key = `brain.hangar.fig1.${space.id}`;
+    const fig2Key = `brain.hangar.fig2.${space.id}`;
+    const focusFig1Key = `brain.hangar.focusFig1.${space.id}`;
+    const focusFig2Key = `brain.hangar.focusFig2.${space.id}`;
+    const simMemKey = `brain.demo.sim_memories.${space.id}`;
+    const simLinkKey = `brain.demo.sim_links.${space.id}`;
+    const bypassKey = `brain.demo.bypass.${space.id}`;
+
+    setEquippedShip(localStorage.getItem(shipKey) || "default");
+    setEquippedTrail(localStorage.getItem(trailKey) || "blue");
+    setEquippedFig1(localStorage.getItem(fig1Key) || "none");
+    setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+    setShowFocusFig1(localStorage.getItem(focusFig1Key) !== "false");
+    setShowFocusFig2(localStorage.getItem(focusFig2Key) !== "false");
+    setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
+    setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
+    setDemoBypass(localStorage.getItem(bypassKey) !== "0");
+
+    // Clean up expired notifications on space load
+    cleanupNotifications(space.id);
+  }, [space]);
+
   const [demo, setDemo] = useState(false);
+  // Poll fuel for the main-HUD gauge while signed in (skips the demo galaxy).
+  useEffect(() => {
+    if (!space || demo) return;
+    let alive = true;
+    const load = () => {
+      getFuel().then((f) => alive && setFuel(f));
+      getStreak().then((s) => alive && setStreak(s));
+    };
+    load();
+    const iv = window.setInterval(load, 30000);
+    return () => {
+      alive = false;
+      window.clearInterval(iv);
+    };
+  }, [space, demo]);
+
+  // Fuel tracking for visual pops
+  useEffect(() => {
+    if (fuel === null) {
+      prevFuelRef.current = null;
+      return;
+    }
+    if (prevFuelRef.current !== null) {
+      const diff = fuel.fuel - prevFuelRef.current;
+      if (diff > 0.05) {
+        const text = `+${Math.round(diff * 10) / 10}`;
+        const id = Date.now() + Math.random();
+        setFuelPops((prev) => [...prev, { id, text }]);
+        window.setTimeout(() => {
+          setFuelPops((prev) => prev.filter((p) => p.id !== id));
+        }, 1600);
+      }
+    }
+    prevFuelRef.current = fuel.fuel;
+  }, [fuel?.fuel]);
+
   const [panel, setPanel] = useState<Panel>(null);
   const [loaded, setLoaded] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
@@ -47,6 +163,8 @@ export default function App() {
   const [satelliteCount, setSatelliteCount] = useState(0);
   const [visitorCount, setVisitorCount] = useState(0);
   const [followVisitor, setFollowVisitor] = useState(false);
+  const [followFig1, setFollowFig1] = useState(false);
+  const [followFig2, setFollowFig2] = useState(false);
   // Lore card dismissed independently of the camera follow (× closes the card but
   // keeps focus). Reset to false whenever a new focus target is chosen.
   const [loreDismissed, setLoreDismissed] = useState(false);
@@ -55,6 +173,12 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("ship.task", showShipTask ? "1" : "0");
   }, [showShipTask]);
+  const [shipViewMode, setShipViewMode] = useState<"orbit" | "cockpit">("orbit");
+  const [tasks, setTasks] = useState<any[]>([]);
+  const handleReorderTasks = useCallback((newOrder: any[]) => {
+    graphRef.current?.reorderTasks(newOrder);
+    setTasks(newOrder);
+  }, []);
   // Transient glow on the focus button when a NEW beacon launches (not constant).
   const [beaconPulse, setBeaconPulse] = useState(false);
   const prevSatRef = useRef(0);
@@ -63,6 +187,28 @@ export default function App() {
   const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
+
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const triggerInstall = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") {
+      setInstallPrompt(null);
+    }
+  };
 
   useEffect(() => onAiActivity(setAiBusy), []);
 
@@ -82,9 +228,14 @@ export default function App() {
   const view = demo ? demoData : data;
 
   const refresh = useCallback(async (newIds?: number[], fuelEarned?: number) => {
+    if (demo) {
+      setLoaded(true);
+      return;
+    }
     try {
       const g = await getGraph();
       setData(g);
+      getFuel().then((f) => f && setFuel(f)).catch(() => {});
       if (newIds && newIds.length > 0) {
         // Give the graph a moment to render the new nodes before rippling them.
         setTimeout(() => {
@@ -93,6 +244,9 @@ export default function App() {
           if (fuelEarned && fuelEarned > 0)
             for (const id of newIds) graphRef.current?.spawnBurst(id, "fuel");
         }, 150);
+        // Gamification: celebrate the fuel earned with a toast (Wave 1).
+        if (fuelEarned && fuelEarned > 0)
+          pushToast(`+${Math.round(fuelEarned * 10) / 10} fuel earned`, "⛽");
         // Then fly the camera to the new memory so you can SEE where it populated.
         setTimeout(() => {
           graphRef.current?.focusNode(newIds[0]!);
@@ -105,7 +259,7 @@ export default function App() {
     getHealth()
       .then(setHealth)
       .catch(() => {});
-  }, []);
+  }, [demo]);
 
   // If every beacon fades (its memory got tended) while we're watching one, the
   // beacon button vanishes — so release the follow + close its lore card too.
@@ -138,7 +292,17 @@ export default function App() {
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
     currentSpace()
-      .then(setSpace)
+      .then((sp) => {
+        setSpace(sp);
+        const params = new URLSearchParams(window.location.search);
+        // Only allow demo mode if logged in as "soumaya" (case-insensitive)
+        if (sp && sp.name.toLowerCase() === "soumaya" && params.get("demo") === "1") {
+          setDemo(true);
+        } else {
+          setDemo(false);
+        }
+      })
+      .catch(() => {})
       .finally(() => setAuthChecked(true));
   }, []);
 
@@ -146,6 +310,119 @@ export default function App() {
   useEffect(() => {
     if (space) refresh();
   }, [space]);
+
+  // Gamification (Wave 1): greet the pilot once per session when their galaxy
+  // first loads — by name, with what changed while they were away.
+  const greetedRef = useRef(false);
+  useEffect(() => {
+    if (greetedRef.current || demo || !space || !loaded) return;
+    greetedRef.current = true;
+    const memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
+    if (memories.length === 0) {
+      pushToast(`Welcome, ${space.name}. Drop your first thought to begin.`, "🛰️", 10000);
+      return;
+    }
+    const cooling = memories.filter((n) => (n.entropy ?? 0) >= 0.45).length;
+    const tail = cooling > 0 ? ` · ${cooling} cooling` : "";
+    const word = memories.length === 1 ? "memory" : "memories";
+    pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 10000);
+  }, [space, loaded, demo, data.nodes]);
+
+  // Gamification (Wave 1): celebrate crossing a memory-count milestone (once each,
+  // per brain, remembered on this device).
+  useEffect(() => {
+    if (demo || !space || !loaded) return;
+    const count = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action").length;
+    const MILES = MEMORY_MILESTONES;
+    const key = `brain.milestone.${space.id}`;
+    let last = 0;
+    try {
+      last = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+    } catch {
+      /* storage unavailable */
+    }
+    const crossed = MILES.filter((m) => m <= count && m > last);
+    if (crossed.length === 0) return;
+    const top = crossed[crossed.length - 1]!;
+    try {
+      localStorage.setItem(key, String(top));
+    } catch {
+      /* ignore */
+    }
+    pushToast(`${top} memories — your galaxy is growing.`, "🎉", 10000);
+  }, [space, loaded, demo, data.nodes]);
+
+  // Gamification (Wave 1): celebrate when a memory GROWS a tier (asteroid→…→star)
+  // as it earns mass over time — the payoff of the slow-growth model. The first
+  // snapshot is silent (baseline); only later promotions toast (capped, planet+).
+  const tierRef = useRef<Map<number, number>>(new Map());
+  const tierInitedRef = useRef(false);
+  useEffect(() => {
+    if (demo || !loaded) return;
+    const idx = (c?: string) => Math.max(0, CELESTIAL_CLASSES.indexOf((c ?? "asteroid") as never));
+    const planetIdx = CELESTIAL_CLASSES.indexOf("planet");
+    const prev = tierRef.current;
+    const next = new Map<number, number>();
+    const ups: GraphNode[] = [];
+    for (const n of data.nodes as GraphNode[]) {
+      if (n.kind === "action") continue;
+      const t = idx(n.celestial);
+      next.set(n.id, t);
+      const p = prev.get(n.id);
+      if (tierInitedRef.current && p != null && t > p && t >= planetIdx) ups.push(n);
+    }
+    tierRef.current = next;
+    tierInitedRef.current = true;
+    for (const n of ups.slice(0, 2)) {
+      const label = n.label.length > 30 ? `${n.label.slice(0, 30)}…` : n.label;
+      pushToast(`"${label}" grew into a ${CELESTIAL_LABEL[n.celestial ?? "planet"]}`, "✦", 10000);
+    }
+  }, [data.nodes, demo, loaded]);
+
+  // Gamification (Wave 2): achievements — qualitative feats unlocked once each,
+  // per brain, remembered on this device. Offline-safe (pure over loaded state).
+  // The first pass after sign-in is silent (seeds already-earned ones) so we
+  // don't spam a returning user with a backlog of toasts on every launch.
+  const achvInitedRef = useRef(false);
+  useEffect(() => {
+    if (!space || !loaded) return;
+    
+    // Evaluate achievements either using real data or simulated data
+    let memories: GraphNode[];
+    let linksCount: number;
+    let linkObjects: any[] = [];
+    
+    if (demo) {
+      if (demoBypass) return; // skip checking if everything is already unlocked
+      memories = Array.from({ length: simulatedMemoriesCount }).map((_, i) => ({ id: i, kind: "memory" } as GraphNode));
+      linksCount = simulatedLinksCount;
+    } else {
+      memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
+      linksCount = data.links.length;
+      linkObjects = data.links;
+    }
+
+    const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects });
+    const key = achvKey(space.id);
+    const seen = loadUnlocked(space.id);
+    const fresh = now.filter((id) => !seen.has(id));
+    if (fresh.length === 0) return;
+    try {
+      localStorage.setItem(key, JSON.stringify([...seen, ...fresh]));
+    } catch {
+      /* ignore */
+    }
+    // Seed silently the first time we ever evaluate this brain on this device.
+    if (!achvInitedRef.current && seen.size === 0) {
+      achvInitedRef.current = true;
+      return;
+    }
+    achvInitedRef.current = true;
+    for (const id of fresh.slice(0, 3)) {
+      const a = ACHIEVEMENTS.find((x) => x.id === id);
+      if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000, "high");
+    }
+  }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -158,9 +435,15 @@ export default function App() {
       setPanel("dock");
       graphRef.current?.focusNode(id);
       if (ripple) graphRef.current?.spawnBurst(id, "user");
-      if (!demo) void tendNode(id); // revisiting a memory warms it back up (entropy)
+      if (!demo && space) {
+        void tendNode(id); // revisiting a memory warms it back up (entropy)
+        const tendKey = `stat.memories_tended.${space.id}`;
+        localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
+        // Force evaluation of achievements
+        setTimeout(() => handleChanged(-1), 100);
+      }
     },
-    [view, selected, demo],
+    [view, selected, demo, space],
   );
 
   const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);
@@ -210,14 +493,40 @@ export default function App() {
   // After a weight edit: re-pull the graph (mass/celestial recompute), keep
   // the node selected, no camera move.
   const handleChanged = useCallback(async (id: number) => {
+    if (id === -1) {
+      if (space) {
+        const shipKey = `brain.hangar.ship.${space.id}`;
+        const trailKey = `brain.hangar.trail.${space.id}`;
+        const fig1Key = `brain.hangar.fig1.${space.id}`;
+        const fig2Key = `brain.hangar.fig2.${space.id}`;
+        const focusFig1Key = `brain.hangar.focusFig1.${space.id}`;
+        const focusFig2Key = `brain.hangar.focusFig2.${space.id}`;
+        const simMemKey = `brain.demo.sim_memories.${space.id}`;
+        const simLinkKey = `brain.demo.sim_links.${space.id}`;
+        const bypassKey = `brain.demo.bypass.${space.id}`;
+
+        setEquippedShip(localStorage.getItem(shipKey) || "default");
+        setEquippedTrail(localStorage.getItem(trailKey) || "blue");
+        setEquippedFig1(localStorage.getItem(fig1Key) || "none");
+        setEquippedFig2(localStorage.getItem(fig2Key) || "none");
+        setShowFocusFig1(localStorage.getItem(focusFig1Key) !== "false");
+        setShowFocusFig2(localStorage.getItem(focusFig2Key) !== "false");
+        setSimulatedMemoriesCount(parseInt(localStorage.getItem(simMemKey) || "0", 10));
+        setSimulatedLinksCount(parseInt(localStorage.getItem(simLinkKey) || "0", 10));
+        setDemoBypass(localStorage.getItem(bypassKey) !== "0");
+      }
+      return;
+    }
+    if (demo) return;
     const g = await getGraph();
     setData(g);
+    getFuel().then((f) => f && setFuel(f)).catch(() => {});
     const n = g.nodes.find((x) => x.id === id);
     if (n) {
       setSelected(n);
       graphRef.current?.spawnBurst(id, "user");
     }
-  }, []);
+  }, [space, demo]);
 
   const handleDeleted = useCallback(() => {
     setSelected(null);
@@ -251,13 +560,21 @@ export default function App() {
 
   return (
     <div className="app">
+      <Toasts />
       <Graph3D
         ref={graphRef}
         data={view}
         onSelect={(node) => focus(node.id)}
         onSoumayaClick={() => {
-          setTab("chat"); // tapping her ship = talk to Soumaya
+          setTab("soumaya"); // tapping her ship = talk to Soumaya
           setPanel("dock");
+          setFollowShip(true);
+          setFollowStation(false);
+          setFollowSatellite(false);
+          setFollowVisitor(false);
+          setFollowFig1(false);
+          setFollowFig2(false);
+          graphRef.current?.toggleFollowShip(true);
         }}
         onSatelliteCount={setSatelliteCount}
         onVisitorCount={setVisitorCount}
@@ -265,6 +582,15 @@ export default function App() {
         bottomInset={panel === "dock"}
         demo={demo}
         showShipTask={showShipTask}
+        loaded={loaded}
+        onTasksChange={setTasks}
+        shipViewMode={shipViewMode}
+        fuel={fuel}
+        equippedShip={equippedShip}
+        equippedTrail={equippedTrail}
+        equippedFig1={equippedFig1}
+        equippedFig2={equippedFig2}
+        spaceId={space?.id ?? ""}
       />
 
       {!loaded && (
@@ -276,30 +602,67 @@ export default function App() {
 
       {aiBusy > 0 && (
         <div className="ai-busy">
-          <span className="ai-dot" /> Soumaya is thinking…
+          <span className="ai-dot" /> {space?.name ?? "Soumaya"} is thinking…
         </div>
       )}
 
       <header className="brand">
         <h1>
-          Soumaya <span className="sep">·</span> Second Brain
+          {space?.name ?? "Soumaya"} <span className="sep">·</span> Second Brain
         </h1>
         <div className="brand-row">
-          <button
-            className="chip-btn"
-            onClick={() => {
-              setSelected(null);
-              setClustered(false);
-              graphRef.current?.exitCluster();
-              setDemo((d) => !d);
-            }}
-          >
-            {demo ? "← Back to mine" : "✨ Demo galaxy"}
-          </button>
+          {space && space.name.toLowerCase() === "soumaya" && (
+            <button
+              className="chip-btn"
+              onClick={() => {
+                setSelected(null);
+                setClustered(false);
+                graphRef.current?.exitCluster();
+                setDemo((d) => !d);
+              }}
+            >
+              {demo ? "← Back to mine" : "✨ Demo galaxy"}
+            </button>
+          )}
           {health && (
             <span className="status">
               {(demo ? demoData : data).nodes.length} memories · {llmStatus}
             </span>
+          )}
+          {fuel && !demo && (
+            <span
+              className="status fuel-chip"
+              title={`⛽ Fuel ${fuel.fuel}/${fuel.capacity} — Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). EARN it by logging memories, forging links & clearing action items; it also slowly refills on its own. Her core upkeep + the living galaxy never need fuel.`}
+              style={{
+                background: `linear-gradient(90deg, rgba(255, 207, 107, 0.16) ${(fuel.fuel / fuel.capacity) * 100}%, rgba(255, 207, 107, 0.02) ${(fuel.fuel / fuel.capacity) * 100}%)`
+              }}
+            >
+              ⛽ {Math.round(fuel.fuel)}/{fuel.capacity}
+              {fuelPops.map((pop) => (
+                <span key={pop.id} className="fuel-pop">
+                  {pop.text}
+                </span>
+              ))}
+            </span>
+          )}
+          {streak && streak.current > 0 && !demo && (
+            <span
+              className="status streak-chip"
+              title={`🔥 ${streak.current}-day streak — consecutive days you've fed your brain a memory${
+                streak.best > streak.current ? ` (best: ${streak.best})` : ""
+              }. Keep it alive: log at least one memory a day.`}
+            >
+              🔥 {streak.current}
+            </span>
+          )}
+          {installPrompt && (
+            <button
+              className="chip-btn install-btn"
+              title="Install app to your home screen"
+              onClick={triggerInstall}
+            >
+              📲 Install App
+            </button>
           )}
           <button
             className="chip-btn"
@@ -317,7 +680,27 @@ export default function App() {
         </div>
       </header>
 
-      {help && <HelpPanel onClose={() => setHelp(false)} />}
+      {space && (
+        <NotificationsBar
+          fuel={fuel}
+          nodes={view.nodes as GraphNode[]}
+          health={health}
+          onFocusNode={goTo}
+          onOpenTab={(t) => {
+            setTab(t);
+            setPanel("dock");
+          }}
+          demo={demo}
+        />
+      )}
+
+      {help && (
+        <HelpPanel
+          onClose={() => setHelp(false)}
+          installPrompt={installPrompt}
+          onInstall={triggerInstall}
+        />
+      )}
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}
@@ -363,6 +746,9 @@ export default function App() {
               setFollowShip(false);
               setFollowStation(false);
               setFollowSatellite(false);
+              setFollowVisitor(false);
+              setFollowFig1(false);
+              setFollowFig2(false);
               setFocusMenuOpen(false);
               setClustered(false);
             }}
@@ -389,84 +775,147 @@ export default function App() {
             －
           </button>
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
-          <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
-            <button
-              className={`fab focus-item ${followShip ? "on" : ""}`}
-              style={focusItemStyle(0, focusMenuOpen)}
-              onClick={() => {
-                setLoreDismissed(false);
-                setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
-                setFollowStation(false);
-                setFollowSatellite(false);
-                setFocusMenuOpen(false);
-              }}
-              aria-label="Focus Soumaya"
-              title="Focus Soumaya's ship"
-            >
-              🛸
-            </button>
-            <button
-              className={`fab focus-item ${followStation ? "on" : ""}`}
-              style={focusItemStyle(1, focusMenuOpen)}
-              onClick={() => {
-                setLoreDismissed(false);
-                setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
-                setFollowShip(false);
-                setFollowSatellite(false);
-                setFocusMenuOpen(false);
-              }}
-              aria-label="Focus space station"
-              title="Focus the space station"
-            >
-              🌐
-            </button>
-            {satelliteCount > 0 && (
-              <button
-                className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
-                style={focusItemStyle(2, focusMenuOpen)}
-                onClick={() => {
-                  setLoreDismissed(false);
-                  const on = graphRef.current?.cycleFollowSatellite() ?? false;
-                  setFollowSatellite(on);
-                  setFollowShip(false);
-                  setFollowStation(false);
-                  setFollowVisitor(false);
-                  // keep menu open so you can cycle through multiple beacons
-                }}
-                aria-label="Jump to an Aura beacon"
-                title={`Jump to a beacon (${satelliteCount} deployed over cooling memories)`}
-              >
-                🛰️
-              </button>
-            )}
-            {visitorCount > 0 && (
-              <button
-                className={`fab focus-item visitor-item ${followVisitor ? "on" : ""}`}
-                style={focusItemStyle(satelliteCount > 0 ? 3 : 2, focusMenuOpen)}
-                onClick={() => {
-                  const on = graphRef.current?.cycleFollowVisitor() ?? false;
-                  setFollowVisitor(on);
-                  setFollowShip(false);
-                  setFollowStation(false);
-                  setFollowSatellite(false);
-                }}
-                aria-label="Jump to a visitor"
-                title={`Jump to a visitor (${visitorCount} drifting in)`}
-              >
-                👽
-              </button>
-            )}
-            <button
-              className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
-                (followShip || followStation || followSatellite || followVisitor) && !focusMenuOpen ? "on" : ""
-              } ${beaconPulse ? "pulse" : ""}`}
-              onClick={() => setFocusMenuOpen((o) => !o)}
-              aria-label="Camera focus targets"
-              title="Focus targets (ship · station · beacons)"
-            >
-              {focusMenuOpen ? "✕" : "🎯"}
-            </button>
-          </div>
+          {(() => {
+            let focusIdx = 0;
+            const shipIdx = focusIdx++;
+            const stationIdx = focusIdx++;
+            const satelliteIdx = satelliteCount > 0 ? focusIdx++ : -1;
+            const visitorIdx = visitorCount > 0 ? focusIdx++ : -1;
+            const fig1Idx = (showFocusFig1 && equippedFig1 !== "none") ? focusIdx++ : -1;
+            const fig2Idx = (showFocusFig2 && equippedFig2 !== "none") ? focusIdx++ : -1;
+
+            return (
+              <div className={`focus-cluster ${focusMenuOpen ? "open" : ""}`}>
+                <button
+                  className={`fab focus-item ${followShip ? "on" : ""}`}
+                  style={focusItemStyle(shipIdx, focusMenuOpen)}
+                  onClick={() => {
+                    setLoreDismissed(false);
+                    setFollowShip(graphRef.current?.toggleFollowShip() ?? false);
+                    setFollowStation(false);
+                    setFollowSatellite(false);
+                    setFollowVisitor(false);
+                    setFollowFig1(false);
+                    setFollowFig2(false);
+                    setFocusMenuOpen(false);
+                  }}
+                  aria-label={`Focus ${space?.name ?? "Soumaya"}`}
+                  title={`Focus ${space?.name ?? "Soumaya"}'s ship`}
+                >
+                  🛸
+                </button>
+                <button
+                  className={`fab focus-item ${followStation ? "on" : ""}`}
+                  style={focusItemStyle(stationIdx, focusMenuOpen)}
+                  onClick={() => {
+                    setLoreDismissed(false);
+                    setFollowStation(graphRef.current?.toggleFollowStation() ?? false);
+                    setFollowShip(false);
+                    setFollowSatellite(false);
+                    setFollowVisitor(false);
+                    setFollowFig1(false);
+                    setFollowFig2(false);
+                    setFocusMenuOpen(false);
+                  }}
+                  aria-label="Focus space station"
+                  title="Focus the space station"
+                >
+                  🌐
+                </button>
+                {satelliteIdx >= 0 && (
+                  <button
+                    className={`fab focus-item beacon-item ${followSatellite ? "on" : ""}`}
+                    style={focusItemStyle(satelliteIdx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.cycleFollowSatellite() ?? false;
+                      setFollowSatellite(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowVisitor(false);
+                      setFollowFig1(false);
+                      setFollowFig2(false);
+                    }}
+                    aria-label="Jump to an Aura beacon"
+                    title={`Jump to a beacon (${satelliteCount} deployed over cooling memories)`}
+                  >
+                    🛰️
+                  </button>
+                )}
+                {visitorIdx >= 0 && (
+                  <button
+                    className={`fab focus-item visitor-item ${followVisitor ? "on" : ""}`}
+                    style={focusItemStyle(visitorIdx, focusMenuOpen)}
+                    onClick={() => {
+                      const on = graphRef.current?.cycleFollowVisitor() ?? false;
+                      setFollowVisitor(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowFig1(false);
+                      setFollowFig2(false);
+                    }}
+                    aria-label="Jump to a visitor"
+                    title={`Jump to a visitor (${visitorCount} drifting in)`}
+                  >
+                    👽
+                  </button>
+                )}
+                {fig1Idx >= 0 && (
+                  <button
+                    className={`fab focus-item ${followFig1 ? "on" : ""}`}
+                    style={focusItemStyle(fig1Idx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.toggleFollowFig1() ?? false;
+                      setFollowFig1(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowVisitor(false);
+                      setFollowFig2(false);
+                      setFocusMenuOpen(false);
+                    }}
+                    aria-label={`Focus ${getFigurineLabel(equippedFig1)}`}
+                    title={`Focus ${getFigurineLabel(equippedFig1)}`}
+                  >
+                    {getFigurineIcon(equippedFig1)}
+                  </button>
+                )}
+                {fig2Idx >= 0 && (
+                  <button
+                    className={`fab focus-item ${followFig2 ? "on" : ""}`}
+                    style={focusItemStyle(fig2Idx, focusMenuOpen)}
+                    onClick={() => {
+                      setLoreDismissed(false);
+                      const on = graphRef.current?.toggleFollowFig2() ?? false;
+                      setFollowFig2(on);
+                      setFollowShip(false);
+                      setFollowStation(false);
+                      setFollowSatellite(false);
+                      setFollowVisitor(false);
+                      setFollowFig1(false);
+                      setFocusMenuOpen(false);
+                    }}
+                    aria-label={`Focus ${getFigurineLabel(equippedFig2)}`}
+                    title={`Focus ${getFigurineLabel(equippedFig2)}`}
+                  >
+                    {getFigurineIcon(equippedFig2)}
+                  </button>
+                )}
+                <button
+                  className={`fab focus-main ${focusMenuOpen ? "active" : ""} ${
+                    (followShip || followStation || followSatellite || followVisitor || followFig1 || followFig2) && !focusMenuOpen ? "on" : ""
+                  } ${beaconPulse ? "pulse" : ""}`}
+                  onClick={() => setFocusMenuOpen((o) => !o)}
+                  aria-label="Camera focus targets"
+                  title="Focus targets (ship · station · beacons · figurines)"
+                >
+                  {focusMenuOpen ? "✕" : "🎯"}
+                </button>
+              </div>
+            );
+          })()}
           <button
             className={`fab fab-music ${music ? "on" : ""}`}
             onClick={toggleMusic}
@@ -476,7 +925,7 @@ export default function App() {
             {music ? "🔊" : "🔈"}
           </button>
           <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
-            ＋
+            📝
           </button>
         </>
       )}
@@ -487,12 +936,13 @@ export default function App() {
       )}
       {panel === "dock" && (
         <RightDock
+          spaceName={space?.name ?? "Soumaya"}
           tab={tab}
           setTab={setTab}
           selected={selected}
           graph={view}
           onFocus={focus}
-          onChanged={demo ? undefined : handleChanged}
+          onChanged={handleChanged}
           onDeleted={demo ? undefined : handleDeleted}
           onIsolate={(id) => {
             graphRef.current?.isolateSystem(id);
@@ -507,6 +957,13 @@ export default function App() {
           showShipTask={showShipTask}
           setShowShipTask={setShowShipTask}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
+          shipViewMode={shipViewMode}
+          setShipViewMode={setShipViewMode}
+          tasks={tasks}
+          onReorderTasks={handleReorderTasks}
+          fuel={fuel}
+          streak={streak}
+          spaceId={space?.id ?? ""}
         />
       )}
     </div>

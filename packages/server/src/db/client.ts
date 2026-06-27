@@ -32,6 +32,8 @@ export function bootstrapSchema(sqlite: RawDb): void {
       occurred_at TEXT,
       remind_at TEXT,
       tags TEXT,
+      research_questions TEXT,
+      research_answers TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS edges (
@@ -77,7 +79,8 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE TABLE IF NOT EXISTS spaces (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      gamer_tag TEXT NOT NULL UNIQUE,
       passcode_hash TEXT NOT NULL,
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -85,6 +88,9 @@ export function bootstrapSchema(sqlite: RawDb): void {
     CREATE TABLE IF NOT EXISTS space_meta (
       space_id TEXT PRIMARY KEY,
       fuel REAL NOT NULL DEFAULT 25,
+      streak INTEGER NOT NULL DEFAULT 0,
+      streak_best INTEGER NOT NULL DEFAULT 0,
+      last_active_date TEXT,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     -- Telegram: bind a chat to a brain so messages route to the right space and
@@ -201,6 +207,12 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "tags")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN tags TEXT`);
   }
+  if (!cols.some((c) => c.name === "research_questions")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN research_questions TEXT`);
+  }
+  if (!cols.some((c) => c.name === "research_answers")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN research_answers TEXT`);
+  }
 
   // Multi-tenancy: add space_id to every per-user table on existing volumes.
   // Pre-existing rows keep the 'legacy' default and are claimed on first signup.
@@ -212,10 +224,48 @@ function migrateSchema(sqlite: RawDb): void {
   };
   for (const t of ["nodes", "edges", "insights", "agent_logs", "daily_logs"]) addSpaceId(t);
   sqlite.exec(`CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id)`);
+  // Migrate spaces table to non-unique name + unique gamer_tag if needed
+  const spaceCols = sqlite.prepare(`PRAGMA table_info(spaces)`).all() as { name: string }[];
+  if (spaceCols.length > 0 && !spaceCols.some((c) => c.name === "gamer_tag")) {
+    sqlite.transaction(() => {
+      sqlite.exec(`ALTER TABLE spaces RENAME TO spaces_old`);
+      sqlite.exec(`
+        CREATE TABLE spaces (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          gamer_tag TEXT NOT NULL UNIQUE,
+          passcode_hash TEXT NOT NULL,
+          passcode_salt TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      sqlite.exec(`
+        INSERT INTO spaces (id, name, gamer_tag, passcode_hash, passcode_salt, created_at)
+        SELECT id, name, name, passcode_hash, passcode_salt, created_at FROM spaces_old
+      `);
+      sqlite.exec(`DROP TABLE spaces_old`);
+    })();
+  }
+
+  // Daily-tending streak columns on existing space_meta volumes (additive).
+  const metaCols = sqlite.prepare(`PRAGMA table_info(space_meta)`).all() as { name: string }[];
+  if (metaCols.length > 0) {
+    if (!metaCols.some((c) => c.name === "streak")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!metaCols.some((c) => c.name === "streak_best")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak_best INTEGER NOT NULL DEFAULT 0`);
+    }
+    if (!metaCols.some((c) => c.name === "last_active_date")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_active_date TEXT`);
+    }
+  }
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS spaces (
       id TEXT PRIMARY KEY,
-      name TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      gamer_tag TEXT NOT NULL UNIQUE,
       passcode_hash TEXT NOT NULL,
       passcode_salt TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP

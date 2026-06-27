@@ -8,7 +8,7 @@ import {
   CELESTIAL_CLASSES,
 } from "@brain/shared";
 import { TYPE_COLORS } from "../graph/theme.js";
-import { getConstellations, getVisitorActivity, type VisitedMemory } from "../api/client.js";
+import { getConstellations, getVisitorActivity, useProcessingNodes, type VisitedMemory } from "../api/client.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -68,6 +68,7 @@ function bucket(t: number): { key: string; label: string; rank: number } {
  * planet, cooling, from a while back"). All data is already derived on each node.
  */
 export function NodeList({ nodes, onFocus, demo }: Props) {
+  const processing = useProcessingNodes();
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<CelestialClass | "all">("all");
   const [emotion, setEmotion] = useState<Emotion>("all");
@@ -166,12 +167,16 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     const when = relative(n.occurredAt ?? n.createdAt);
     const v = visitorMap.get(n.id);
     const constel = constellationMap.get(n.id);
+    const isProcessing = processing.has(n.id);
     return (
-      <li key={n.id}>
+      <li key={n.id} className={isProcessing ? "processing" : ""}>
         <button onClick={() => onFocus(n.id)}>
           <span className="dot" style={{ background: TYPE_COLORS[n.type] }} />
           <span className="nl-main">
-            <span className="nl-label">{n.label}</span>
+            <span className="nl-label">
+              {n.label}
+              {isProcessing && <span className="nl-writing">⚙️ Writing...</span>}
+            </span>
             <span className="nl-meta2">
               <span title="growth stage">{CELESTIAL_ICON[cls]} {CELESTIAL_LABEL[cls]}</span>
               {(n.degree ?? 0) > 0 && <span title="connections">· {n.degree} link{n.degree === 1 ? "" : "s"}</span>}

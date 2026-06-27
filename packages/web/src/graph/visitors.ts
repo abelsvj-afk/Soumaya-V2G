@@ -15,6 +15,7 @@ interface Variant {
   glow: string;
 }
 import { bodyColor } from "./theme.js";
+import { gltfLoader } from "./gltf.js";
 
 const FRIENDLY: Variant = { name: "Luminous Traveler", hull: "#dfe9ff", glow: "#7af9ff" };
 const NEUTRAL: Variant = { name: "Drifter", hull: "#cfd0e0", glow: "#b388ff" };
@@ -22,7 +23,7 @@ const OMINOUS: Variant = { name: "Void Wanderer", hull: "#3a2030", glow: "#ff5a6
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
 
-function makeCraft(): {
+function makeCraft(index: number): {
   group: THREE.Group;
   setColor: (hull: string, glow: string) => void;
 } {
@@ -52,6 +53,35 @@ function makeCraft(): {
 
   group.scale.setScalar(1.4);
   group.visible = false;
+
+  let loadedModel: THREE.Object3D | null = null;
+
+  if (index === 0) {
+    // Replace Visitor 0 completely with the organic spaceship GLB, or procedural fallback
+    gltfLoader().load(
+      "/organic-spaceship.glb",
+      (gltf) => {
+        const model = gltf.scene;
+        const box = new THREE.Box3().setFromObject(model);
+        const dim = new THREE.Vector3();
+        box.getSize(dim);
+        const maxDim = Math.max(dim.x, dim.y, dim.z) || 1;
+        const k = 6.0 / maxDim; // match visitor scale
+        model.scale.setScalar(k);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        model.position.copy(center.multiplyScalar(-k));
+        
+        body.visible = false;
+        ring.visible = false;
+        loadedModel = model;
+        group.add(model);
+      },
+      undefined,
+      (err) => console.log("[visitor] organic spaceship failed to load; using procedural fallback", err)
+    );
+  }
+
   return {
     group,
     setColor: (hull, glow) => {
@@ -98,7 +128,7 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
   const visitsMap = new Map<number, number>();
   const slots: Slot[] = [];
   for (let i = 0; i < maxConcurrent; i++) {
-    const craft = makeCraft();
+    const craft = makeCraft(i);
     group.add(craft.group);
     slots.push({ craft, phase: "idle", targetId: null, loiter: 0, angle: 0, exit: new THREE.Vector3(), variant: NEUTRAL });
   }

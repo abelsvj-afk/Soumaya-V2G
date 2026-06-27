@@ -28,7 +28,7 @@ beforeAll(async () => {
   const auth = await fetch(`${base}/api/space/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "tester", passcode: "secret123" }),
+    body: JSON.stringify({ gamerTag: "tester", passcode: "secret123", name: "tester" }),
   });
   spaceId = ((await auth.json()) as { id: string }).id;
 });
@@ -70,7 +70,7 @@ describe("REST API", () => {
     const other = await fetch(`${base}/api/space/auth`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "relative", passcode: "different" }),
+      body: JSON.stringify({ gamerTag: "relative", passcode: "different", name: "relative" }),
     });
     const otherId = ((await other.json()) as { id: string }).id;
     expect(otherId).not.toBe(spaceId);

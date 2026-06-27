@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import type { AppContext } from "../context.js";
 import { findCandidates } from "../synthesis/engine.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -198,10 +198,27 @@ export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
     }
   }
 
-  // 1. Synthesis — connecting the dots is her PRIMARY intelligent act: a latent
-  // link between related-but-distant memories. Prioritized above research because
-  // weaving old + new together benefits the user more than expanding any one node.
-  const c0 = findCandidates(ctx.handle, { threshold: 0.85, k: 5, minHops: 3, maxCandidates: 1 }, spaceId)[0];
+  const candidates = findCandidates(ctx.handle, { threshold: 0.85, k: 5, minHops: 3, maxCandidates: 15 }, spaceId);
+  let c0 = null;
+  for (const candidate of candidates) {
+    const exists = ctx.handle.db
+      .select()
+      .from(insights)
+      .where(
+        and(
+          eq(insights.spaceId, spaceId),
+          or(
+            and(eq(insights.nodeA, candidate.a), eq(insights.nodeB, candidate.b)),
+            and(eq(insights.nodeA, candidate.b), eq(insights.nodeB, candidate.a))
+          )
+        )
+      )
+      .get();
+    if (!exists) {
+      c0 = candidate;
+      break;
+    }
+  }
   if (llmOn && c0) {
     return mkJob(
       ctx,
@@ -348,6 +365,24 @@ export async function executeJob(
     const a = nodesRepo.getById(t0);
     const b = nodesRepo.getById(t1);
     if (a && b) {
+      // Check if insight already exists to prevent duplicate synthesis!
+      const exists = ctx.handle.db
+        .select()
+        .from(insights)
+        .where(
+          and(
+            eq(insights.spaceId, spaceId),
+            or(
+              and(eq(insights.nodeA, t0), eq(insights.nodeB, t1)),
+              and(eq(insights.nodeA, t1), eq(insights.nodeB, t0))
+            )
+          )
+        )
+        .get();
+      if (exists) {
+        return `Insight already exists between "${a.label}" and "${b.label}".`;
+      }
+
       const { text, score } = await ctx.llm.synthesize(
         { label: a.label, content: a.content },
         { label: b.label, content: b.content },
@@ -383,16 +418,27 @@ export async function executeJob(
     const original = nodesRepo.getById(t0);
     if (original) {
       const research = await ctx.llm.research({ label: original.label, content: original.content });
-      const expandedContent = `${original.content}\n\n--- Research Deep Dive ---\n${research.content}`;
-      const newImp = Math.min(1.0, (original.importance ?? 0.5) + 0.2);
-      ctx.handle.db
-        .update(nodes)
-        .set({ content: expandedContent, importance: newImp })
-        .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
-        .run();
-      upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
-      nodesRepo.tend(original.id);
-      description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
+      if (research.questions && research.questions.length > 0) {
+        nodesRepo.updateResearch(original.id, research.questions, {});
+        description = `Researched "${original.label}" and found information gaps. Generated ${research.questions.length} clarifying questions for the pilot.`;
+      } else {
+        const expandedContent = `${original.content}\n\n--- Research Deep Dive ---\n${research.content}`;
+        const newImp = Math.min(1.0, (original.importance ?? 0.5) + 0.2);
+        ctx.handle.db
+          .update(nodes)
+          .set({
+            content: expandedContent,
+            importance: newImp,
+            label: research.label || original.label,
+            researchQuestions: null,
+            researchAnswers: null
+          })
+          .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
+          .run();
+        upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
+        nodesRepo.tend(original.id);
+        description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
+      }
     }
   } else if (type === "merging" && targets.length === 2) {
     const a = nodesRepo.getById(t0);

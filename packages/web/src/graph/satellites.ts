@@ -194,17 +194,28 @@ interface Slot {
   fade: number; // 0..1 visibility ease
   guard: boolean; // true = guarding a heavy hub (nothing cold); false = warming a cold memory
   launchedFor: number | null; // which target this probe was last launched (from the station) toward
+  released: boolean; // false if assigned but waiting for Soumaya ship dispatch
 }
 
 export interface SatelliteSystem {
   group: THREE.Group;
-  update: (dt: number, nodes: any[], stationPos?: THREE.Vector3 | null) => void;
+  update: (
+    dt: number,
+    nodes: any[],
+    stationPos?: THREE.Vector3 | null,
+    soumayaPos?: THREE.Vector3 | null,
+    onLaunch?: (pos: THREE.Vector3) => void
+  ) => void;
   /** Active beacons (currently beaming a memory) — for the focus button. */
   getActive: () => { object: THREE.Object3D; targetId: number }[];
   /** Ids of memories currently under a beam (drifters avoid these). */
   getBeaconedIds: () => Set<number>;
   /** World positions of active beacons (drifters flee these). */
   getPositions: () => THREE.Vector3[];
+  /** Ids of targets whose beacons are queued but not yet released. */
+  getPendingDispatches: () => number[];
+  /** Mark a beacon target as released. */
+  release: (targetId: number) => void;
 }
 
 export function makeSatellites(maxCount = 3): SatelliteSystem {
@@ -216,7 +227,18 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
     const impact = makeGlowSprite("rgba(255,235,190,0.95)", "rgba(255,180,90,0.45)");
     impact.visible = false;
     group.add(probe.group, beam, impact);
-    slots.push({ probe, beam, impact, targetId: null, angle: Math.random() * Math.PI * 2, spin: 0, fade: 0, guard: false, launchedFor: null });
+    slots.push({
+      probe,
+      beam,
+      impact,
+      targetId: null,
+      angle: Math.random() * Math.PI * 2,
+      spin: 0,
+      fade: 0,
+      guard: false,
+      launchedFor: null,
+      released: true,
+    });
   }
 
   let retarget = 0;
@@ -248,19 +270,32 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
     // Drop slots whose target is no longer wanted; keep the ones still in the set.
     const taken = new Set<number>();
     for (const s of slots) {
-      if (s.targetId != null && wanted.has(s.targetId)) taken.add(s.targetId);
-      else s.targetId = null;
+      if (s.targetId != null && wanted.has(s.targetId)) {
+        taken.add(s.targetId);
+      } else {
+        s.targetId = null;
+        s.released = true; // reset to true when empty
+      }
     }
     // Fill free slots with the wanted memories not already covered.
     const fill = ranked.slice(0, desired).filter((n) => !taken.has(n.id));
     let fi = 0;
     for (const s of slots) {
       if (s.targetId != null) continue;
-      if (fi < fill.length) s.targetId = fill[fi++]!.id;
+      if (fi < fill.length) {
+        s.targetId = fill[fi++]!.id;
+        s.released = false; // assigned but not yet dispatched by ship!
+      }
     }
   };
 
-  const update = (dt: number, nodes: any[], stationPos?: THREE.Vector3 | null) => {
+  const update = (
+    dt: number,
+    nodes: any[],
+    stationPos?: THREE.Vector3 | null,
+    soumayaPos?: THREE.Vector3 | null,
+    onLaunch?: (pos: THREE.Vector3) => void
+  ) => {
     try {
       retarget -= dt;
       if (retarget <= 0) {
@@ -272,11 +307,30 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 
-        // Dispatched FROM the station: when a probe is newly assigned a target, it
-        // launches from the station position and flies out to the cold memory.
+        if (s.targetId != null && !s.released) {
+          // Pinned to launcher (ship or station) until released by Soumaya
+          const launchPos = soumayaPos || stationPos;
+          if (launchPos) {
+            g.position.copy(launchPos);
+          }
+          s.fade = 0;
+          g.visible = false;
+          s.beam.visible = false;
+          s.impact.visible = false;
+          continue;
+        }
+
+        // Dispatched FROM Soumaya's ship: when a probe is newly assigned a target, it
+        // launches from her ship position and flies out to the cold memory.
         if (target && s.targetId != null && s.launchedFor !== s.targetId) {
           s.launchedFor = s.targetId;
-          if (stationPos && s.fade < 0.05) g.position.copy(stationPos);
+          if (s.fade < 0.05) {
+            const launchPos = soumayaPos || stationPos;
+            if (launchPos) {
+              g.position.copy(launchPos);
+              onLaunch?.(launchPos);
+            }
+          }
         }
 
         const wantVisible = tp != null;
@@ -369,5 +423,15 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
   const getPositions = () =>
     slots.filter((s) => s.fade > 0.3).map((s) => s.probe.group.position.clone());
 
-  return { group, update, getActive, getBeaconedIds, getPositions };
+  const getPendingDispatches = () =>
+    slots.filter((s) => s.targetId != null && !s.released).map((s) => s.targetId as number);
+
+  const release = (targetId: number) => {
+    const slot = slots.find((s) => s.targetId === targetId);
+    if (slot) {
+      slot.released = true;
+    }
+  };
+
+  return { group, update, getActive, getBeaconedIds, getPositions, getPendingDispatches, release };
 }

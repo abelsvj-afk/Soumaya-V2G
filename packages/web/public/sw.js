@@ -6,9 +6,11 @@
  *  - Navigations are network-first, falling back to the cached shell when offline.
  *  - Other same-origin GETs (JS/CSS/images/models/decoder) are cache-first with a
  *    background network fill, so the galaxy loads instantly and works offline.
- * Bump CACHE when the shell changes to evict the old one on activate.
+ * CACHE is stamped with a unique build id at build time (scripts/stamp-sw.mjs),
+ * so every deploy gets a fresh cache name and `activate` evicts the old one —
+ * no installed PWA can keep serving a stale shell.
  */
-const CACHE = "soumaya-v2";
+const CACHE = "soumaya-__BUILD_ID__";
 const SHELL = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (e) => {

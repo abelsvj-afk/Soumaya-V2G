@@ -1,7 +1,9 @@
 import { Router } from "express";
 import { z } from "zod";
+import { and, eq } from "drizzle-orm";
 import type { AppContext } from "../../context.js";
-import { insights } from "../../db/schema.js";
+import { insights, nodes } from "../../db/schema.js";
+import { upsertEmbedding } from "../../db/vec.js";
 import { GraphService } from "../../graph/service.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
@@ -54,24 +56,48 @@ export function nodesRoutes(ctx: AppContext): Router {
       .filter((n): n is NonNullable<typeof n> => !!n);
 
     const cluster = [node, ...neighbors].map((n) => ({ label: n.label, content: n.content }));
-    let text: string;
+    let text = "";
+    let questions: string[] | undefined = undefined;
+
     try {
-      text =
-        neighbors.length > 0
-          ? await ctx.llm.summarizeSector(cluster)
-          : (await ctx.llm.research({ label: node.label, content: node.content })).content;
+      if (neighbors.length > 0) {
+        text = await ctx.llm.summarizeSector(cluster);
+        ctx.handle.db
+          .insert(insights)
+          .values({ spaceId, nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
+          .run();
+      } else {
+        const research = await ctx.llm.research({ label: node.label, content: node.content });
+        if (research.questions && research.questions.length > 0) {
+          questions = research.questions;
+          new NodesRepo(ctx.handle, spaceId).updateResearch(id, questions, {});
+          text = "Information gaps detected. Please answer the clarifying questions to complete research.";
+        } else {
+          text = research.content;
+          const expandedContent = `${node.content}\n\n--- Research Deep Dive ---\n${text}`;
+          const newImp = Math.min(1.0, (node.importance ?? 0.5) + 0.2);
+          ctx.handle.db
+            .update(nodes)
+            .set({
+              content: expandedContent,
+              importance: newImp,
+              label: research.label || node.label,
+              researchQuestions: null,
+              researchAnswers: null
+            })
+            .where(and(eq(nodes.id, id), eq(nodes.spaceId, spaceId)))
+            .run();
+          upsertEmbedding(ctx.handle.sqlite, id, await ctx.embeddings.embed(expandedContent));
+        }
+      }
     } catch (err) {
       res.status(500).json({ error: (err as Error).message });
       return;
     }
 
-    ctx.handle.db
-      .insert(insights)
-      .values({ spaceId, nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
-      .run();
     new NodesRepo(ctx.handle, spaceId).tend(id); // synthesizing tends the memory
 
-    res.json({ text, connected: neighbors.length });
+    res.json({ text, connected: neighbors.length, questions });
   });
 
   // PATCH /api/nodes/:id  { importance: number|null } -> adjust gravitational weight
@@ -128,6 +154,64 @@ export function nodesRoutes(ctx: AppContext): Router {
       return;
     }
     res.json(node);
+  });
+
+  const AnswerResearchBody = z.object({
+    answers: z.record(z.string(), z.string()),
+  });
+
+  // POST /api/nodes/:id/answer-research -> finalize research using user answers
+  r.post("/:id/answer-research", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = AnswerResearchBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Body must be { answers: Record<string, string> }" });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    const nodesRepo = new NodesRepo(ctx.handle, spaceId);
+    const node = nodesRepo.getById(id);
+    if (!node) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+
+    const answersMap = parsed.data.answers;
+    const lines: string[] = [];
+    for (const [q, a] of Object.entries(answersMap)) {
+      lines.push(`Question: ${q}\nAnswer: ${a}`);
+    }
+    const userAnswersText = lines.join("\n\n");
+
+    try {
+      const research = await ctx.llm.research({ label: node.label, content: node.content }, userAnswersText);
+      const expandedContent = `${node.content}\n\n--- Research Deep Dive ---\n${research.content}`;
+      const newImp = Math.min(1.0, (node.importance ?? 0.5) + 0.2);
+
+      ctx.handle.db
+        .update(nodes)
+        .set({
+          content: expandedContent,
+          importance: newImp,
+          label: research.label || node.label,
+          researchQuestions: null,
+          researchAnswers: JSON.stringify(answersMap),
+        })
+        .where(and(eq(nodes.id, id), eq(nodes.spaceId, spaceId)))
+        .run();
+
+      upsertEmbedding(ctx.handle.sqlite, id, await ctx.embeddings.embed(expandedContent));
+      nodesRepo.tend(id);
+
+      const updatedNode = graphFor(res).getNode(id);
+      res.json({ node: updatedNode });
+    } catch (err) {
+      res.status(500).json({ error: (err as Error).message });
+    }
   });
 
   // GET /api/nodes/:id/neighbors?depth=2 -> multi-hop neighborhood subgraph

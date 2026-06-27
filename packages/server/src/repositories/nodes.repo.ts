@@ -35,8 +35,19 @@ function toGraphNode(row: NodeRow): GraphNode {
     occurredAt: row.occurredAt ?? undefined,
     remindAt: row.remindAt ?? undefined,
     tags: parseTags(row.tags),
+    researchQuestions: parseJson<string[]>(row.researchQuestions),
+    researchAnswers: parseJson<Record<string, string>>(row.researchAnswers),
     createdAt: row.createdAt,
   };
+}
+
+function parseJson<T>(raw: string | null): T | undefined {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Tags are stored as a JSON array string; tolerate null/legacy/malformed values. */
@@ -209,5 +220,18 @@ export class NodesRepo {
       .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL AND space_id = ?`)
       .get(this.spaceId) as { c: number };
     return r.c;
+  }
+
+  updateResearch(id: number, questions: string[] | null, answers: Record<string, string> | null): GraphNode | undefined {
+    const row = this.h.db
+      .update(nodes)
+      .set({
+        researchQuestions: questions ? JSON.stringify(questions) : null,
+        researchAnswers: answers ? JSON.stringify(answers) : null,
+      })
+      .where(and(eq(nodes.id, id), eq(nodes.spaceId, this.spaceId)))
+      .returning()
+      .get();
+    return row ? toGraphNode(row) : undefined;
   }
 }

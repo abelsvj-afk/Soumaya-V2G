@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES } from "@brain/shared";
-import { deleteNode, setImportance, synthesizeNode } from "../api/client.js";
+import { deleteNode, setImportance, synthesizeNode, answerResearch } from "../api/client.js";
 import { TYPE_COLORS } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { Chronicle } from "./Chronicle.js";
@@ -49,9 +49,15 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
   const [synthBusy, setSynthBusy] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [researchSubmitting, setResearchSubmitting] = useState(false);
+  const [researchError, setResearchError] = useState("");
+
   // Clear any shown insight when switching memories.
   useEffect(() => {
     setInsight("");
+    setAnswers({});
+    setResearchError("");
   }, [node?.id]);
 
   const runSynthesis = () => {
@@ -117,6 +123,82 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </p>
       )}
       <p className="content">{node.content}</p>
+
+      {node.researchQuestions && node.researchQuestions.length > 0 && (
+        <div className="research-questions-box" style={{
+          marginTop: "1.25rem",
+          marginBottom: "1.25rem",
+          padding: "1rem",
+          borderRadius: "8px",
+          background: "rgba(255, 171, 0, 0.08)",
+          border: "1px solid rgba(255, 171, 0, 0.25)",
+        }}>
+          <h3 style={{ margin: "0 0 0.5rem 0", color: "#ffab00", fontSize: "0.95rem" }}>
+            🛸 Clarifying Research Questions
+          </h3>
+          <p style={{ fontSize: "0.82rem", opacity: 0.85, margin: "0 0 1rem 0" }}>
+            Soumaya needs more context to finalize the deep-dive research for this memory.
+          </p>
+          {researchError && (
+            <p style={{ color: "#ff5252", fontSize: "0.82rem", margin: "0 0 0.75rem 0" }}>
+              {researchError}
+            </p>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            {node.researchQuestions.map((q) => (
+              <div key={q} style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                <label style={{ fontSize: "0.82rem", fontWeight: 500, color: "#eaf2ff" }}>{q}</label>
+                <textarea
+                  style={{
+                    width: "100%",
+                    background: "rgba(10, 12, 28, 0.6)",
+                    border: "1px solid rgba(122, 200, 255, 0.25)",
+                    borderRadius: "4px",
+                    color: "#fff",
+                    padding: "0.5rem",
+                    fontSize: "0.86rem",
+                    fontFamily: "inherit",
+                    resize: "vertical",
+                    minHeight: "50px",
+                  }}
+                  value={answers[q] ?? ""}
+                  onChange={(e) => {
+                    setAnswers((prev) => ({ ...prev, [q]: e.target.value }));
+                  }}
+                  placeholder="Type your response..."
+                />
+              </div>
+            ))}
+          </div>
+          <button
+            className="synth-btn"
+            style={{
+              marginTop: "1rem",
+              background: "linear-gradient(135deg, #ffab00 0%, #ff8f00 100%)",
+              color: "#0a0c1c",
+              fontWeight: "bold",
+              borderColor: "transparent",
+            }}
+            disabled={researchSubmitting || node.researchQuestions.some(q => !(answers[q] ?? "").trim())}
+            onClick={() => {
+              setResearchSubmitting(true);
+              setResearchError("");
+              answerResearch(node.id, answers)
+                .then(() => {
+                  onChanged?.(node.id);
+                })
+                .catch((e) => {
+                  setResearchError((e as Error).message);
+                })
+                .finally(() => {
+                  setResearchSubmitting(false);
+                });
+            }}
+          >
+            {researchSubmitting ? "Submitting Context..." : "Submit Clarification"}
+          </button>
+        </div>
+      )}
 
       {(node.tags?.length || node.occurredAt || node.remindAt) && (
         <div className="node-meta">

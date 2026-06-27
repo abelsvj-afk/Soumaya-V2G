@@ -6,7 +6,10 @@ import { multiHopNeighbors } from "../graph/traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InstructionProfilesRepo } from "../repositories/instructions.repo.js";
 import { KnowledgeRepo } from "../repositories/knowledge.repo.js";
+import { InsightsRepo } from "../repositories/insights.repo.js";
 import { refreshPersona } from "../persona/derive.js";
+import { UsageTracker } from "../usage.js";
+import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import type { LlmProvider } from "../llm/adapter.js";
 
@@ -73,11 +76,99 @@ export async function chat(
     );
   }
   const chosen = active.filter((p) => p.mode !== "auto" || routedAuto.has(p.id));
-  const systemExtra =
-    chosen.length > 0
-      ? "ACTIVE CUSTOM INSTRUCTIONS (stacked, highest priority first — adopt these as your operating frame):\n" +
-        chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n")
-      : undefined;
+
+  // --- Live Telemetry & App State (for all app tabs/pages context) ---
+  const usage = new UsageTracker(h).summary();
+  const resilient = deps.llm as any;
+  const llmStatus = {
+    model: deps.llm.model,
+    available: resilient.available !== false,
+    degraded: resilient.degraded === true,
+    disabledUntil: resilient.disabledUntil ? new Date(resilient.disabledUntil).toLocaleTimeString() : null,
+  };
+  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
+  const hasOpenaiKey = !!process.env.OPENAI_API_KEY;
+  const apiMode = process.env.GEMINI_API_KEY ? "Shared Gemini API Key (System)" : "Shared OpenAI API Key (System)";
+
+  const economy = new EconomyRepo(h, spaceId).toFuel();
+
+  let recentLogs: { action: string; description: string; created_at: string }[] = [];
+  try {
+    recentLogs = h.sqlite
+      .prepare(`SELECT action, description, created_at FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 5`)
+      .all(spaceId) as any[];
+  } catch (err) {
+    console.error("[chat] failed to fetch agent logs for telemetry:", err);
+  }
+
+  const allNodes = nodesRepo.all();
+  const totalMemories = allNodes.length;
+  const mainHubs = allNodes
+    .filter((n) => typeof n.importance === "number" && n.importance >= 0.7)
+    .map((n) => `"${n.label}" (Type: ${n.type}, Mass: ${n.importance})`);
+
+  const typeCounts: Record<string, number> = {};
+  for (const n of allNodes) {
+    typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
+  }
+
+  const activeActions = allNodes.filter((n) => n.kind === "action");
+
+  let recentInsights: string[] = [];
+  try {
+    recentInsights = new InsightsRepo(h, spaceId).recent(5).map((i) => `- Insight: ${i.text}`);
+  } catch (err) {
+    console.error("[chat] failed to fetch insights for telemetry:", err);
+  }
+
+  const telemetryContext = `
+=== CURRENT APP STATE & SYSTEM TELEMETRY (AWARENESS OF ALL APP TABS/PAGES) ===
+You have full access to read every tab and page of this application. Here is the current live state of all tabs:
+
+1. COMPANION & SYSTEM SETTINGS TAB:
+- Cloud LLM Model: ${llmStatus.model}
+- Cloud API Key Status: ${llmStatus.available ? "ACTIVE & RUNNING" : "DEGRADED (On temporary fallback/cooldown)"}
+- API Error Cooldown: ${llmStatus.degraded ? `YES (Quota/billing limit hit, cooling down until ${llmStatus.disabledUntil})` : "None (fully functional)"}
+- API Key Configured: ${apiMode} (Gemini Key Set: ${hasGeminiKey}, OpenAI Key Set: ${hasOpenaiKey})
+- Celestial Economy Budget: Used $${usage.estCostUsd} of your $${usage.budgetUsd} budget limit (${(usage.fractionUsed * 100).toFixed(1)}% spent)
+- Remaining API Balance: $${usage.remainingUsd}
+
+2. SOUMAYA & FLEET TAB:
+- Ship Fuel level: ${economy.fuel.toFixed(1)} / ${economy.capacity} units
+- Ship Upkeep job cost: ${economy.jobCost} fuel per deep-dive research/scan
+- Low Fuel distress trigger: ${economy.fuel < 20 ? "⚠️ CRITICAL LOW FUEL DISTRESS TRIGGERED" : "Optimal (above distress threshold)"}
+- Recent Autonomy Log:
+${recentLogs.map((l) => `  * [${l.created_at || "recent"}] ${l.action.toUpperCase()}: ${l.description}`).join("\n")}
+
+3. LIST & SECTORS TAB:
+- Total Memory Nodes in Space: ${totalMemories}
+- Sector/Type Distribution of Memories:
+${Object.entries(typeCounts).map(([type, count]) => `  * Type "${type}": ${count} nodes`).join("\n")}
+- Celestial Hubs (Mass >= 0.70):
+${mainHubs.length > 0 ? mainHubs.map((h) => `  * ${h}`).join("\n") : "  * (No high mass hubs cataloged)"}
+
+4. AGENDA / ACTIONS TAB:
+- Unresolved Action Items/Tasks:
+${activeActions.length > 0 ? activeActions.map((a) => `  * [ ] "${a.label}" (Priority weight: ${a.importance ?? 0.4})`).join("\n") : "  * (No action items pending)"}
+
+5. INSIGHTS / DIGEST TAB:
+- Recent Latent Cross-Cluster Insights:
+${recentInsights.length > 0 ? recentInsights.join("\n") : "  * (No latent connection insights synthesized yet)"}
+
+Use this telemetry to guide the user! For example:
+- If fuel is low (<20) and they ask how you're doing, tell them you're in distress or need them to log memories / clear agenda to refill fuel.
+- If the API key is out of credits (degraded/cooldown or near budget limit), explain why and advise them to refill credits or adjust the budget limit.
+- If they ask about their tasks/agenda, summarize the active action items.
+- If they ask about sectors/galaxy size, talk about node counts and hubs.
+- You can suggest they look at specific tabs (e.g. "Go to the Agenda tab and complete task X to gain fuel", or "Check out the Insights tab to see the latest connections I forged").
+`;
+
+  let systemExtra = chosen.length > 0
+    ? "ACTIVE CUSTOM INSTRUCTIONS (stacked, highest priority first — adopt these as your operating frame):\n" +
+      chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n")
+    : "";
+
+  systemExtra += (systemExtra ? "\n\n" : "") + telemetryContext;
 
   // "About Me" awareness (auto-derived; she's aware of who you are, never becomes you).
   const persona = refreshPersona(h, spaceId) || undefined;

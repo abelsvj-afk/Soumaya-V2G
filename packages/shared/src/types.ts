@@ -77,6 +77,8 @@ export interface GraphNode {
   remindAt?: string;
   /** Free + curated labels for filtering/context (e.g. "Work", "Idea", "Anxious"). */
   tags?: string[];
+  researchQuestions?: string[];
+  researchAnswers?: Record<string, string>;
   createdAt: string;
 }
 
@@ -121,6 +123,16 @@ export interface Fuel {
   capacity: number;
   /** Cost the agent pays per autonomous LLM job. */
   jobCost: number;
+}
+
+/** Daily-tending streak — consecutive days the brain was fed a memory. */
+export interface Streak {
+  /** Current live streak in days (0 if it has lapsed). */
+  current: number;
+  /** Best streak ever reached for this brain. */
+  best: number;
+  /** Whether the brain has already been tended today. */
+  today: boolean;
 }
 
 export interface GraphEdge {

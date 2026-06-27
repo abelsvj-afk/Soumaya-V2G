@@ -1,5 +1,17 @@
 # CLAUDE.md
 
+**MANDATORY — development process.** All substantive work follows the full
+[`docs/AI_ENGINEERING_WORKFLOW.md`](./docs/AI_ENGINEERING_WORKFLOW.md) lifecycle —
+**Rule #1: no code is written until the design/spec is complete.** ([`WORKFLOW.md`](./WORKFLOW.md)
+is the lighter day-to-day loop derived from it.) This is standing policy; it does not need to be
+re-stated each session.
+
+**MANDATORY — product north star.** We are building Soumaya toward the patterns in
+[`docs/SECOND_BRAIN_BRIEFING.md`](./docs/SECOND_BRAIN_BRIEFING.md) (Obsidian "second brain"
+adaptation; the research calls us "Sarmiah" — same product). The live gap analysis + staged growth
+plan is [`docs/SECOND_BRAIN_ALIGNMENT.md`](./docs/SECOND_BRAIN_ALIGNMENT.md) — consult it when
+planning new feature growth.
+
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
@@ -101,12 +113,17 @@ never crosses brains. Pre-existing data lives under `legacy` and is claimed by t
 
 Single container (Fly.io): `Dockerfile` builds the web app, bakes the MiniLM
 embedding model into the image, and the Express server serves both the API and the
-static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`. **Deploys are
-push-triggered by Fly's GitHub integration** (Fly builds the Dockerfile on push —
-no GitHub Actions involved). See `DEPLOYMENT.md`. There is intentionally no CI
-workflow: this account's Actions runners don't provision, so a workflow only added
-red noise; `DEPLOYMENT.md` carries a ready-to-restore `ci.yml` for when Actions
-works. Migrations must be additive + idempotent so a push can never crash boot on
+static web (`WEB_DIR`). SQLite persists on a Fly volume at `/data`.
+
+**How deploys actually happen (verified 2026-06-20):** GitHub Actions is **blocked on
+this account** — runs `startup_failure` with 0 jobs (private-repo Actions minutes/
+runner unavailable), so `.github/workflows/fly-deploy.yml` never ships anything. The
+working path is a **manual `fly deploy --remote-only`** (run by `agy` from Termux, who
+has the `FLY_API_TOKEN`; this sandbox has no flyctl/Fly network). The durable fix is to
+reconnect **Fly's native GitHub auto-deploy** (Fly dashboard → app → GitHub), which
+builds the Dockerfile on push without Actions. Either way: pushing alone does NOT deploy
+right now — trigger a `fly deploy` (delegate to `agy`) after pushing branch changes you
+want live. Migrations must be additive + idempotent so a deploy can never crash boot on
 the existing volume (`migrateSchema`; covered by `migration.test.ts`).
 
 LLM is optional — without a key the app runs in heuristic mode. To use a key:
@@ -134,8 +151,11 @@ delegate it and consume only the conclusion.
 - Bulk/mechanical, well-specified edits — rename a thing everywhere, apply one pattern
   across many `components/*` or `graph/*` files, batch asset/CSS work.
 - **Browser-based visual QA** — load the app, click through the galaxy, screenshot, record
-  a `.webm` walkthrough, run a UX/design review. (Far cheaper than Claude reasoning about
-  whether a visual change "probably" works.)
+  a `.webm` walkthrough, run a UX/design review. ⚠️ **NOT available on the user's Termux
+  (android-arm64 has no compatible headless Chrome — confirmed 2026-06-21, issue #10).** From
+  this hosted sandbox you also can't reach the live site. So live pixel verification falls to the
+  USER (or a desktop browser); for everything else, verify behavior by headless
+  reproduction/measurement (see "Verify before you build"), not by eyeballing.
 - **Research & doc ingestion** — web research with citations; URL/PDF/docx/image → Markdown.
 - **Broad codebase exploration** that would otherwise dump many files into Claude's context.
 - Long-running **gate/build** runs and routine git ops, especially from mobile.
@@ -161,6 +181,23 @@ ambiguous/underspecified features, security/data-integrity, and the **final audi
 
 Both agents share the **same gate**, the **same deploy branch**
 (`claude/soumaya-second-brain-v1-m4z4hc`), and the **same change log** (`GEMINI_CHANGES.md`).
+
+## Verify before you build (and before you claim it works)
+
+The gate (`typecheck && test && build`) proves code *compiles*, not that it *behaves*. Two
+standards, learned the hard way (shipping "the code should spread the bodies" fixes that didn't):
+
+1. **Prove behavior by reproduction/measurement, not assertion.** Before changing logic — especially
+   visual/spatial/numeric code you can't see rendered from here (`graph/orbits.ts`, `shared/celestial.ts`,
+   layout/mass math) — first *reproduce and measure* it: `npx tsx` a throwaway script that feeds real or
+   synthetic data through the actual functions and prints the numbers (e.g. run `makeOrbitSystem` over
+   `makeDemoGalaxy` + a single-cluster graph and assert min nearest-neighbour distance / 0 overlaps), or
+   add a unit test. Decide the fix from the measured output, not from reading the code. State the
+   measurement in your summary.
+2. **Rule out delivery (stale deploy / PWA service-worker / cache) before re-editing correct code.** When
+   "it didn't change," first confirm the new build is what's actually rendering (Actions is blocked → a
+   `fly deploy` must run; the service worker can serve old cached JS even on a fresh server). Never "fix"
+   code that measurement shows is already correct to chase a deploy/cache problem.
 
 ## House rules
 

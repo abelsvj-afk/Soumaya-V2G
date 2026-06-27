@@ -219,6 +219,14 @@ function makeMoonSurface(): THREE.CanvasTexture {
   return toMap(c);
 }
 
+let cachedMoonTexture: THREE.CanvasTexture | null = null;
+function getMoonTexture(): THREE.CanvasTexture {
+  if (!cachedMoonTexture) {
+    cachedMoonTexture = makeMoonSurface();
+  }
+  return cachedMoonTexture;
+}
+
 /**
  * Build a node as a celestial body. Mass (derived server-side from importance +
  * connections + emotion) sets size and class. Bodies are textured spheres so a
@@ -346,7 +354,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
         metalness: 0.05,
       });
       try {
-        m.map = makeMoonSurface();
+        m.map = getMoonTexture();
       } catch {
         /* solid rock */
       }
@@ -386,15 +394,17 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   fidelity.userData.spinSpeed = 0.0015 + 0.05 / (size + 4);
   fidelity.add(mesh);
 
-  // Rings: always on gas giants + giants, on ~a third of planets.
-  if (cls === "gas_giant" || cls === "giant" || (cls === "planet" && node.id % 3 === 0)) {
+  // Rings are a SIGNATURE of a RARE, special body — not every gas giant. On an
+  // established brain many memories land in the gas-giant band, so gate rings to a
+  // stable ~1/5 of them (hashed on id) so a ringed world reads as a standout.
+  if (cls === "gas_giant" && ((node.id * 2654435761) >>> 0) % 5 === 0) {
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(size * 1.5, size * 2.3, 48),
+      new THREE.RingGeometry(size * 1.6, size * 2.4, 48),
       new THREE.MeshBasicMaterial({
         color,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.28,
         depthWrite: false,
       }),
     );

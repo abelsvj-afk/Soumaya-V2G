@@ -12,6 +12,7 @@ import { DEFAULT_SPACE, spaces, type SpaceRow } from "../db/schema.js";
 export interface SpacePublic {
   id: string;
   name: string;
+  gamerTag: string;
 }
 
 const TABLES_WITH_SPACE = ["nodes", "edges", "insights", "agent_logs", "daily_logs"] as const;
@@ -20,7 +21,7 @@ function hash(passcode: string, salt: string): Buffer {
   return scryptSync(passcode, salt, 64);
 }
 
-const toPublic = (row: SpaceRow): SpacePublic => ({ id: row.id, name: row.name });
+const toPublic = (row: SpaceRow): SpacePublic => ({ id: row.id, name: row.name, gamerTag: row.gamerTag });
 
 export class SpacesRepo {
   constructor(private readonly h: DbHandle) {}
@@ -30,8 +31,8 @@ export class SpacesRepo {
     return row ? toPublic(row) : undefined;
   }
 
-  private getByName(name: string): SpaceRow | undefined {
-    return this.h.db.select().from(spaces).where(eq(spaces.name, name)).get();
+  getByGamerTag(gamerTag: string): SpaceRow | undefined {
+    return this.h.db.select().from(spaces).where(eq(spaces.gamerTag, gamerTag)).get();
   }
 
   count(): number {
@@ -47,8 +48,11 @@ export class SpacesRepo {
    * ("legacy") data — that's how the owner keeps the memories that were already
    * in the database before multi-tenancy.
    */
-  authOrCreate(name: string, passcode: string): { space: SpacePublic; created: boolean } | null {
-    const existing = this.getByName(name);
+  authOrCreate(gamerTag: string, passcode: string, name?: string): { space: SpacePublic; created: boolean } | null {
+    const trimmedGamerTag = gamerTag.trim();
+    const trimmedName = (name ?? gamerTag).trim();
+
+    const existing = this.getByGamerTag(trimmedGamerTag);
     if (existing) {
       const attempt = hash(passcode, existing.passcodeSalt);
       const stored = Buffer.from(existing.passcodeHash, "hex");
@@ -57,13 +61,25 @@ export class SpacesRepo {
     }
 
     const isFirst = this.count() === 0;
+
+    // New registration validations:
+    // Reject if gamerTag is case-insensitively "soumaya" (unless it is the first brain)
+    if (!isFirst) {
+      if (trimmedGamerTag.toLowerCase() === "soumaya") {
+        throw new Error("The name/gamer tag 'Soumaya' is reserved.");
+      }
+      // Reject if name is case-insensitively "soumaya" (unless it is the first brain)
+      if (trimmedName.toLowerCase() === "soumaya") {
+        throw new Error("The name/gamer tag 'Soumaya' is reserved.");
+      }
+    }
     const id = randomBytes(16).toString("hex");
     const salt = randomBytes(16).toString("hex");
     const passcodeHash = hash(passcode, salt).toString("hex");
     const tx = this.h.sqlite.transaction(() => {
       this.h.db
         .insert(spaces)
-        .values({ id, name, passcodeHash, passcodeSalt: salt })
+        .values({ id, name: trimmedName, gamerTag: trimmedGamerTag, passcodeHash, passcodeSalt: salt })
         .run();
       if (isFirst) {
         for (const t of TABLES_WITH_SPACE) {
@@ -74,6 +90,6 @@ export class SpacesRepo {
       }
     });
     tx();
-    return { space: { id, name }, created: true };
+    return { space: { id, name: trimmedName, gamerTag: trimmedGamerTag }, created: true };
   }
 }

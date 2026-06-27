@@ -38,13 +38,24 @@ export interface OrbitSystem {
   getDescendants: (id: number) => Set<number>;
   /** Current extent of the galaxy from the origin (camera + starfield enclosure). */
   getRadius: () => number;
+  /** Current world position a node would occupy in its orbit (its "slot"). */
+  slotOf: (id: number) => THREE.Vector3 | null;
+  /** Temporarily stop the orbit system from controlling a node, so Soumaya can
+   *  ferry it into place. `release` hands it back to normal orbiting. */
+  hold: (id: number) => void;
+  release: (id: number) => void;
 }
 
 const massOf = (n: any): number => n.mass ?? 0.3;
-/** Approximate visual radius of a body (matches the render sizing by mass). */
-const bodySize = (n: any): number => 24 + massOf(n) * 60;
+/**
+ * Spacing proxy for orbit layout (NOT the rendered size — that's set in
+ * nodeObject). A generous floor keeps the galaxy spread out even when most
+ * memories are small/young (the slow-growth model means low masses), so bodies
+ * never collapse into one tight overlapping clump.
+ */
+const bodySize = (n: any): number => 34 + massOf(n) * 54;
 
-const MARGIN = 26; // breathing room between any two bodies
+const MARGIN = 32; // breathing room between any two bodies
 const TOP_STEP = 360; // max radial spacing between top-level systems
 const TOP_MIN_STEP = 260; // min spacing — keeps systems apart when the galaxy is busy
 // Realistic gap between the Sun's surface and the innermost orbit — no body ever
@@ -62,11 +73,15 @@ export function makeOrbitSystem(): OrbitSystem {
 
   // The Sun: a fixed anchor at the origin that every top-level cluster orbits.
   const SUN = { x: 0, y: 0, z: 0 };
+  // Nodes Soumaya is currently ferrying into place — the orbit system leaves these
+  // alone (she sets their position) until she drops them and calls `release`.
+  const held = new Set<number>();
 
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
     order = [];
     childIds.clear();
+    held.clear(); // never carry a stale hold across a data reload
     if (nodes.length === 0) return;
 
     const byId = new Map<number, any>(nodes.map((n) => [n.id, n]));
@@ -222,11 +237,15 @@ export function makeOrbitSystem(): OrbitSystem {
     }
   };
 
-  const update = (dt: number, _nodes: any[]) => {
+  const update = (dt: number, nodes: any[]) => {
     if (params.size === 0) return;
-    for (const n of order) {
+    const currentById = new Map<number, any>(nodes.map((n) => [n.id, n]));
+    for (const orderNode of order) {
+      const n = currentById.get(orderNode.id);
+      if (!n) continue;
       const p = params.get(n.id);
       if (!p) continue;
+      if (held.has(n.id)) continue; // being ferried by Soumaya — she controls it
       if (p.top) {
         // The whole cluster revolves around the Sun (origin), gently breathing in
         // and out (comets swing wide, then return — all bounded).
@@ -243,9 +262,13 @@ export function makeOrbitSystem(): OrbitSystem {
         p.angle += p.speed * dt;
         const c = Math.cos(p.angle);
         const s = Math.sin(p.angle);
-        n.x = (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius;
-        n.y = (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius;
-        n.z = (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius;
+        const currParent = p.parent ? currentById.get(p.parent.id) : null;
+        const parentX = currParent ? (currParent.x ?? 0) : 0;
+        const parentY = currParent ? (currParent.y ?? 0) : 0;
+        const parentZ = currParent ? (currParent.z ?? 0) : 0;
+        n.x = parentX + (p.u.x * c + p.v.x * s) * p.radius;
+        n.y = parentY + (p.u.y * c + p.v.y * s) * p.radius;
+        n.z = parentZ + (p.u.z * c + p.v.z * s) * p.radius;
       }
       // Pin so the force engine can't move (or collapse) them.
       n.fx = n.x;
@@ -271,5 +294,33 @@ export function makeOrbitSystem(): OrbitSystem {
 
   const getRadius = (): number => galaxyRadius;
 
-  return { rebuild, update, getDescendants, getRadius };
+  // Read-only: where a node sits in its orbit right now (no angle advance), so the
+  // ferry has a live destination that tracks the moving parent cluster.
+  const slotOf = (id: number): THREE.Vector3 | null => {
+    const p = params.get(id);
+    if (!p) return null;
+    const c = Math.cos(p.angle);
+    const s = Math.sin(p.angle);
+    if (p.top) {
+      const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.sin(p.radialPhase ?? 0));
+      return new THREE.Vector3(
+        SUN.x + (p.u.x * c + p.v.x * s) * r,
+        SUN.y + (p.u.y * c + p.v.y * s) * r,
+        SUN.z + (p.u.z * c + p.v.z * s) * r,
+      );
+    }
+    return new THREE.Vector3(
+      (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius,
+      (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius,
+      (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius,
+    );
+  };
+  const hold = (id: number): void => {
+    held.add(id);
+  };
+  const release = (id: number): void => {
+    held.delete(id);
+  };
+
+  return { rebuild, update, getDescendants, getRadius, slotOf, hold, release };
 }

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { EconomyRepo } from "../../economy.js";
+import { StreakRepo } from "../../streak.js";
 import { agentLogs, settings, dailyLogs } from "../../db/schema.js";
 import { spaceOf } from "../middleware.js";
 import { eq, desc } from "drizzle-orm";
@@ -89,6 +90,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    */
   r.get("/fuel", (_req, res) => {
     res.json(new EconomyRepo(ctx.handle, spaceOf(res)).toFuel());
+  });
+
+  /**
+   * GET /api/maintenance/streak -> this brain's daily-tending streak.
+   */
+  r.get("/streak", (_req, res) => {
+    res.json(new StreakRepo(ctx.handle, spaceOf(res)).get());
   });
 
   /**

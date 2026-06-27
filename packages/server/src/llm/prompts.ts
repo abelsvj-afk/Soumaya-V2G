@@ -139,14 +139,30 @@ summarization. You must:
 2. Identify non-obvious implications or actionable "next steps" for the user.
 3. Write in a tone that is intellectual yet personal, as if advising the user
    on how to deepen their understanding of this specific memory center.
+4. TAILOR THE FORMATTING of the findings (content) based on the domain/topic:
+   - BUSINESS/IDEAS: Format as a business outline/plan with a value proposition, target segments, SWOT points, and concrete objectives.
+   - HEALTH/WELLNESS: Format as a structured health summary with verified medical/science facts, potential risk factors, and actionable dietary/exercise/lifestyle recommendations.
+   - CREATIVE/ARTISTIC: Format as a narrative structural outline covering style, characters, key themes, and metaphors.
+   - TECHNICAL/ENGINEERING: Format as a system spec with architecture components, data flow, tech stack, and logic breakdowns.
+   - RELATIONSHIPS/PERSONAL: Format as a reflective narrative analyzing behaviors, communication patterns, values, and emotional dynamics.
+   - OTHER/GENERAL: Format with background, key points, and future directions.
+5. IDENTIFY INFORMATION GAPS:
+   - If there is not enough detail in the memory to produce a complete, finalized report, you MUST ask clarifying questions. Include up to 3 short, specific questions in the "questions" array. Do not guess or assume.
+   - If user answers are provided in the prompt, synthesize them into the final report and leave the "questions" array empty.
+   - If enough information is already present, leave the "questions" array empty.
 
-Format the result as a focused analytical report.
+Format the result as a JSON object:
 - label: a short, distinct name (e.g. "Analytical Expansion: [Original Label]")
-- content: the research findings (2-4 paragraphs of high-density information)
+- content: the formatted findings (in high-density Markdown structure)
+- questions: (optional) array of 1 to 3 short, specific clarifying questions.
 Output JSON only.`;
 
-export function buildResearchPrompt(node: LinkCandidate): string {
-  return `ORIGINAL MEMORY: ${node.label} — ${node.content}`;
+export function buildResearchPrompt(node: LinkCandidate, userAnswers?: string): string {
+  let prompt = `ORIGINAL MEMORY: ${node.label} — ${node.content}`;
+  if (userAnswers) {
+    prompt += `\n\nUSER ANSWERS TO CLARIFYING QUESTIONS:\n${userAnswers}`;
+  }
+  return prompt;
 }
 
 /** Sector Summary: Generate a vibe description for a cluster of nodes. */

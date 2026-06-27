@@ -66,7 +66,7 @@ export interface LlmProvider {
     opts?: AnswerOptions,
   ): Promise<{ answer: string; citations: number[] }>;
   /** Perform autonomous research on a single node to expand the knowledge base. */
-  research(node: LinkCandidate): Promise<{ label: string; content: string }>;
+  research(node: LinkCandidate, userAnswers?: string): Promise<{ label: string; content: string; questions?: string[] }>;
   /** Generate a vibe description for a cluster of nodes. */
   summarizeSector(nodes: LinkCandidate[]): Promise<string>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */

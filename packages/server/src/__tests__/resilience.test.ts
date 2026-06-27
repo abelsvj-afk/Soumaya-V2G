@@ -73,11 +73,17 @@ describe("manual weight override", () => {
 
     const heavy = graph.setImportance(id, 0.95)!;
     expect(heavy.importance).toBeCloseTo(0.95);
-    expect(heavy.mass!).toBeGreaterThan(0.45);
+    // Growth model: maxing importance is a meaningful lever (lifts a fresh memory
+    // to at least a planet + raises its ceiling) but no longer an instant giant —
+    // real size is EARNED over time via connections, latent insights, and age.
+    expect(heavy.mass!).toBeGreaterThan(0.22);
+    expect(["planet", "gas_giant", "giant", "star", "supergiant"]).toContain(heavy.celestial);
 
-    // null -> recompute offline from content (a trivial note stays light).
+    // null -> recompute offline from content. A trivial, fresh, unconnected note is
+    // correctly a small body now (asteroid/moon), and lighter than the maxed one.
     const reset = graph.setImportance(id, null)!;
     expect(reset.importance).toBeLessThan(0.6);
-    expect(reset.celestial).toBe("moon");
+    expect(reset.mass!).toBeLessThan(heavy.mass!);
+    expect(["asteroid", "moon"]).toContain(reset.celestial);
   });
 });
