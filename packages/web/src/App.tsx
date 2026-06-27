@@ -38,6 +38,7 @@ import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
 import { IngestPanel } from "./components/IngestPanel.js";
+import { Observatory } from "./components/Observatory.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -72,6 +73,9 @@ export default function App() {
   const prevFuelRef = useRef<number | null>(null);
   // Daily-tending streak (flame on the HUD + Awards tab) — polled while signed in.
   const [streak, setStreak] = useState<Streak | null>(null);
+  // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
+  const [showObs, setShowObs] = useState(false);
+  const obsShownRef = useRef(false);
   const [tab, setTab] = useState<DockTab>("details");
 
   // Hangar system equipped states
@@ -423,6 +427,18 @@ export default function App() {
       if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000, "high");
     }
   }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
+
+  // Reveal the Observatory home once per app open, AFTER the cinematic fly-in
+  // (~3.2s) has settled — never touches the intro itself. Skips the demo galaxy
+  // and won't pop over a panel the user already opened during the swoop.
+  useEffect(() => {
+    if (obsShownRef.current || demo || !space || !loaded) return;
+    const t = window.setTimeout(() => {
+      obsShownRef.current = true;
+      setShowObs((cur) => (panel === null ? true : cur));
+    }, 3400);
+    return () => window.clearTimeout(t);
+  }, [space, loaded, demo, panel]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(
@@ -927,7 +943,37 @@ export default function App() {
           <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
             📝
           </button>
+          <button
+            className="fab fab-observatory"
+            onClick={() => setShowObs(true)}
+            aria-label="Open the Observatory home"
+            title="Observatory — your home view"
+          >
+            🔭
+          </button>
         </>
+      )}
+
+      {showObs && !demo && space && (
+        <Observatory
+          spaceName={space.name}
+          memories={(data.nodes as GraphNode[]).filter((n) => n.kind !== "action")}
+          streak={streak?.current ?? 0}
+          onCapture={() => {
+            setShowObs(false);
+            setPanel("ingest");
+          }}
+          onFocus={(id) => {
+            setShowObs(false);
+            focus(id);
+          }}
+          onOpenInsights={() => {
+            setShowObs(false);
+            setTab("insights");
+            setPanel("dock");
+          }}
+          onEnter={() => setShowObs(false)}
+        />
       )}
 
       {panel === "search" && <SearchBox onFocus={focus} onClose={() => setPanel(null)} />}
