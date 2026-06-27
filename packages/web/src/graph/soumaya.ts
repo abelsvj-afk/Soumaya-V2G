@@ -57,6 +57,9 @@ export interface SoumayaHandle {
   reorderTasks: (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => void;
   setShipSkin?: (skin: string) => void;
   setTrailColor?: (color: string) => void;
+  /** Progression speed multiplier (~1.0 new pilot → ~1.9 seasoned). Scales every
+   *  travel/ferry/delete velocity so she gets faster the more you use the brain. */
+  setPilotSpeed?: (v: number) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -357,6 +360,18 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let curve: THREE.QuadraticBezierCurve3 | null = null;
   let t = 0;
   let speed = 0.25;
+  // Progression multiplier: she flies faster the more you've grown the brain.
+  // Set from App via setPilotSpeed (memories + streak). Clamped for sanity.
+  let pilotSpeed = 1;
+  // Distance-aware cruise → a curve-fraction-per-second rate. We bound the TRIP
+  // TIME between minT and maxT: a short hop holds a gentle minimum; a normal hop
+  // cruises at ~baseVel u/s; a very long haul caps at maxT, so her top speed RISES
+  // with distance (she "warps" across open stretches). pilotSpeed shortens every
+  // trip (progression). smooth() still eases accel/decel within each hop.
+  const cruise = (dist: number, baseVel: number, minT: number, maxT: number): number => {
+    const time = Math.min(maxT, Math.max(minT, (dist || 1) / baseVel)) / pilotSpeed;
+    return 1 / time;
+  };
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
@@ -500,7 +515,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
     curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
     t = 0;
-    speed = Math.min(0.4, 50 / (from.distanceTo(endpoint) || 1));
+    speed = cruise(from.distanceTo(endpoint), 160, 0.7, 5.5);
     mode = "travel";
     group.visible = true;
     return true;
@@ -523,7 +538,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       .add(new THREE.Vector3((Math.random() - 0.5) * 60, 50 + Math.random() * 50, (Math.random() - 0.5) * 60));
     curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
     t = 0;
-    speed = Math.min(0.32, 70 / (from.distanceTo(endpoint) || 1));
+    speed = cruise(from.distanceTo(endpoint), 130, 0.9, 6.5);
     mode = "dockTravel";
     group.visible = true;
   };
@@ -547,7 +562,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
     curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
     t = 0;
-    speed = Math.min(0.5, 60 / (from.distanceTo(endpoint) || 1));
+    speed = cruise(from.distanceTo(endpoint), 170, 0.6, 5);
     group.visible = true;
     return true;
   };
@@ -601,7 +616,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       .add(new THREE.Vector3((Math.random() - 0.5) * 40, 20 + Math.random() * 30, (Math.random() - 0.5) * 40));
     curve = new THREE.QuadraticBezierCurve3(from, mid, to);
     t = 0;
-    speed = Math.min(0.5, 60 / (from.distanceTo(to) || 1));
+    speed = cruise(from.distanceTo(to), 170, 0.6, 5);
     activeRemoval = task;
     mode = "removeTravel";
     group.visible = true;
@@ -715,7 +730,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
             const mid = from.clone().add(dest).multiplyScalar(0.5).add(new THREE.Vector3((Math.random() - 0.5) * 30, 20, (Math.random() - 0.5) * 30));
             curve = new THREE.QuadraticBezierCurve3(from, mid, dest);
             t = 0;
-            speed = Math.min(0.4, 60 / (from.distanceTo(dest) || 1));
+            speed = cruise(from.distanceTo(dest), 150, 0.7, 6);
             mode = "distressTravel";
             distressTarget = dest;
             return;
@@ -749,7 +764,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
               const mid = from.clone().add(endpoint).multiplyScalar(0.5).add(new THREE.Vector3((Math.random() - 0.5) * 50, 40, (Math.random() - 0.5) * 50));
               curve = new THREE.QuadraticBezierCurve3(from, mid, endpoint);
               t = 0;
-              speed = Math.min(0.4, 50 / (from.distanceTo(endpoint) || 1));
+              speed = cruise(from.distanceTo(endpoint), 160, 0.7, 5.5);
               mode = "removeTravel";
               return;
             }
@@ -926,7 +941,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
           const np = vecOf(target);
           const toSlot = slot.clone().sub(np);
           const dist = toSlot.length();
-          const step = Math.min(dist, (40 + dist) * dt * 0.9);
+          const step = Math.min(dist, (40 + dist) * dt * 0.9 * pilotSpeed);
           if (dist < 5) {
             target.x = slot.x; target.y = slot.y; target.z = slot.z;
             target.fx = slot.x; target.fy = slot.y; target.fz = slot.z;
@@ -960,7 +975,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
           currentVel = 0;
         } else {
           const dirIn = cargoPos.clone().multiplyScalar(-1).normalize();
-          const step = Math.min(dist - SUN_RADIUS_MAX, (70 + dist * 0.4) * dt);
+          const step = Math.min(dist - SUN_RADIUS_MAX, (70 + dist * 0.4) * dt * pilotSpeed);
           const nc = cargoPos.addScaledVector(dirIn, step);
           cargo.position.copy(nc);
           const standoff = Math.max(nc.length() + 50, SUN_RADIUS_MAX + 120);
@@ -1178,6 +1193,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     if (!v) taskLabel.sprite.visible = false;
   };
 
+  const setPilotSpeed = (v: number) => {
+    pilotSpeed = Number.isFinite(v) ? Math.max(0.6, Math.min(2.4, v)) : 1;
+  };
+
   const getTasks = (nodes: any[]) => {
     const now = Date.now();
     const activeCompleted = completedTasks.filter((t) => now - t.time < 12000);
@@ -1393,6 +1412,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     cargo,
     taskLabel: taskLabel.sprite,
     setTaskVisible,
+    setPilotSpeed,
     getTasks,
     reorderTasks,
     setShipSkin,

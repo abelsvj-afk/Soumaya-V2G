@@ -76,6 +76,8 @@ interface Props {
   demo?: boolean;
   /** Show the floating "current task" label above Soumaya's ship. */
   showShipTask?: boolean;
+  /** Progression flight-speed multiplier for Soumaya (~1.0 → ~1.9). */
+  pilotSpeed?: number;
   /** True when the initial API fetch of the real galaxy is done. */
   loaded?: boolean;
   onTasksChange?: (tasks: any[]) => void;
@@ -292,6 +294,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     bottomInset,
     demo,
     showShipTask,
+    pilotSpeed,
     loaded,
     onTasksChange,
     shipViewMode,
@@ -331,6 +334,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     showShipTaskRef.current = !!showShipTask;
     soumayaHandleRef.current?.setTaskVisible(!!showShipTask);
   }, [showShipTask]);
+
+  // Progression flight speed — pushed to Soumaya so she flies faster as you grow
+  // the brain. Re-applied on change and once on (re)creation via the same handle.
+  const pilotSpeedRef = useRef(1);
+  useEffect(() => {
+    pilotSpeedRef.current = pilotSpeed ?? 1;
+    soumayaHandleRef.current?.setPilotSpeed?.(pilotSpeed ?? 1);
+  }, [pilotSpeed]);
 
   // Hangar customization states and refs
   const fig1GroupRef = useRef<THREE.Group | null>(null);
@@ -640,6 +651,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(soumaya.taskLabel);
       scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
       soumaya.setTaskVisible(!!showShipTaskRef.current);
+      soumaya.setPilotSpeed?.(pilotSpeedRef.current);
       soumayaObjRef.current = soumaya.object;
       // The Sun: the gigantic central body every cluster revolves around.
       const sun = makeSun();

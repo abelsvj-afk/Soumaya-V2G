@@ -231,6 +231,15 @@ export default function App() {
   const demoData = useMemo(() => makeDemoGalaxy(), []);
   const view = demo ? demoData : data;
 
+  // Soumaya's flight speed grows as you use the brain: more memories + a live
+  // streak make her a faster, more seasoned pilot (1.0 → ~1.9×). Distance-aware
+  // cruising + her per-task speeds are handled in graph/soumaya.ts.
+  const pilotSpeed = useMemo(() => {
+    const mem = (view.nodes as GraphNode[]).filter((n) => n.kind !== "action" && n.kind !== "moc").length;
+    const lvl = 1 + Math.min(0.7, mem / 200) + Math.min(0.2, (streak?.current ?? 0) / 20);
+    return Math.round(lvl * 100) / 100;
+  }, [view.nodes, streak]);
+
   const refresh = useCallback(async (newIds?: number[], fuelEarned?: number) => {
     if (demo) {
       setLoaded(true);
@@ -598,6 +607,7 @@ export default function App() {
         bottomInset={panel === "dock"}
         demo={demo}
         showShipTask={showShipTask}
+        pilotSpeed={pilotSpeed}
         loaded={loaded}
         onTasksChange={setTasks}
         shipViewMode={shipViewMode}
