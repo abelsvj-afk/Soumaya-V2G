@@ -1,13 +1,44 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, runDigest } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDigest, promoteConstellation, runDigest } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
+import { pushToast } from "./Toasts.js";
 
-export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
+export function DigestPanel({
+  onFocus,
+  onPromoted,
+}: {
+  onFocus: (id: number) => void;
+  /** Called after a cluster is promoted to a constellation hub, so the galaxy refreshes. */
+  onPromoted?: () => void;
+}) {
   const [items, setItems] = useState<Insight[]>([]);
   const [daily, setDaily] = useState<DailyDigest | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
   const [busy, setBusy] = useState(false);
+  // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
+  const [promotingId, setPromotingId] = useState<number | null>(null);
+  const [draftName, setDraftName] = useState("");
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  async function savePromotion(c: Constellation) {
+    const name = draftName.trim();
+    if (!name) return;
+    setSavingId(c.id);
+    try {
+      const hub = await promoteConstellation(name, c.nodes.map((n) => n.id));
+      if (hub) {
+        pushToast(`Constellation "${name}" charted ✦`, "🌌", 5500);
+        setPromotingId(null);
+        setDraftName("");
+        onPromoted?.();
+      } else {
+        pushToast("Couldn't chart that constellation — try again.", "⚠️", 4500);
+      }
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   useEffect(() => {
     getDigest()
@@ -122,6 +153,36 @@ export function DigestPanel({ onFocus }: { onFocus: (id: number) => void }) {
                   ))}
                   {c.nodes.length > 8 && <span className="pill-more">+{c.nodes.length - 8}</span>}
                 </div>
+                {promotingId === c.id ? (
+                  <div className="constellation-promote">
+                    <input
+                      className="list-filter"
+                      value={draftName}
+                      autoFocus
+                      maxLength={60}
+                      placeholder="Name this constellation…"
+                      onChange={(e) => setDraftName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && savePromotion(c)}
+                    />
+                    <button className="mini" disabled={savingId === c.id || !draftName.trim()} onClick={() => savePromotion(c)}>
+                      {savingId === c.id ? "Charting…" : "✦ Save"}
+                    </button>
+                    <button className="mini ghost" onClick={() => setPromotingId(null)}>
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="mini constellation-make"
+                    title="Make this a permanent, named constellation hub in your galaxy"
+                    onClick={() => {
+                      setPromotingId(c.id);
+                      setDraftName(c.name);
+                    }}
+                  >
+                    ✦ Save as constellation
+                  </button>
+                )}
               </li>
             ))}
           </ul>

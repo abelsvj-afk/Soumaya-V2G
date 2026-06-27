@@ -103,6 +103,40 @@ describe("REST API", () => {
     expect(status).toBe(400);
   });
 
+  it("promotes a cluster into a constellation hub (MOC) with member links", async () => {
+    const a = await post("/api/ingest", { text: "Notes on espresso extraction and grind size" });
+    const b = await post("/api/ingest", { text: "Tasting log for a new single-origin roast" });
+    const ids = [a.body.nodes[0].id as number, b.body.nodes[0].id as number];
+
+    const { status, body } = await post("/api/constellations/promote", {
+      name: "Coffee Craft",
+      nodeIds: ids,
+    });
+    expect(status).toBe(200);
+    expect(body.kind).toBe("moc");
+    expect(body.type).toBe("moc");
+    expect(body.label).toBe("Coffee Craft");
+    expect(body.memberCount).toBe(2);
+
+    // The hub now exists in the graph and links to both members.
+    const graph = (await get("/api/graph")).body as GraphData;
+    const hub = graph.nodes.find((n) => n.label === "Coffee Craft");
+    expect(hub?.kind).toBe("moc");
+    const memberLinks = graph.links.filter(
+      (l: any) => (typeof l.source === "object" ? l.source.id : l.source) === hub!.id,
+    );
+    expect(memberLinks.length).toBe(2);
+  });
+
+  it("rejects a constellation with fewer than two members", async () => {
+    const a = await post("/api/ingest", { text: "a lone thought" });
+    const { status } = await post("/api/constellations/promote", {
+      name: "Too small",
+      nodeIds: [a.body.nodes[0].id],
+    });
+    expect(status).toBe(400);
+  });
+
   it("semantic search returns the relevant node with a similarity score", async () => {
     const { status, body } = await get(`/api/search?q=${encodeURIComponent("coffee subscription")}`);
     expect(status).toBe(200);

@@ -20,7 +20,8 @@ export type NodeType =
   | "daily"
   | "knowledge"
   | "concept"
-  | "other";
+  | "other"
+  | "moc"; // a constellation hub (Map of Content) — structural, not LLM-extracted
 
 /** Old stored type values → their canonical kind (display/classification only). */
 export const LEGACY_NODE_TYPE_ALIASES: Record<string, NodeType> = {
@@ -40,6 +41,7 @@ export const NODE_TYPE_LABEL: Record<NodeType, string> = {
   knowledge: "Knowledge",
   concept: "Concept",
   other: "Other",
+  moc: "Constellation",
 };
 
 /** One-line guidance per kind — fed to the extraction prompt for classification. */
@@ -53,6 +55,7 @@ export const NODE_TYPE_GUIDE: Record<NodeType, string> = {
   knowledge: "a reference fact, concept explainer, or learning worth keeping",
   concept: "an abstract idea, theme, or principle",
   other: "anything that fits none of the above",
+  moc: "(structural hub — created by promotion, never extracted)",
 };
 
 /** Normalize any stored/raw type string to a canonical kind (legacy-tolerant). */
@@ -70,7 +73,8 @@ export type RelationshipType =
   | "relates_to"
   | "contradicts"
   | "caused_by"
-  | "documentation";
+  | "documentation"
+  | "summarizes"; // a constellation hub → one of its member memories
 
 /** Convenience runtime lists (also exercised by the seed script). */
 export const NODE_TYPES: readonly NodeType[] = [
@@ -83,7 +87,11 @@ export const NODE_TYPES: readonly NodeType[] = [
   "knowledge",
   "concept",
   "other",
+  "moc",
 ];
+
+/** Kinds the extraction LLM may assign (excludes the structural `moc` hub). */
+export const EXTRACTABLE_NODE_TYPES: readonly NodeType[] = NODE_TYPES.filter((t) => t !== "moc");
 
 export const RELATIONSHIP_TYPES: readonly RelationshipType[] = [
   "resolves",
@@ -116,8 +124,10 @@ export interface GraphNode {
   celestial?: import("./celestial.js").CelestialClass;
   /** react-force-graph node size hint (mirrors mass). */
   val?: number;
-  /** "action" = a day-to-day to-do that expires; otherwise a normal memory. */
-  kind?: "memory" | "action";
+  /** "action" = a transient to-do; "moc" = a constellation hub; else a normal memory. */
+  kind?: "memory" | "action" | "moc";
+  /** For a `moc` hub: how many member memories it consolidates (enriched on read). */
+  memberCount?: number;
   /** ISO timestamp when an action item times out (only for kind === "action"). */
   expiresAt?: string;
   /** ISO timestamp this memory was last "tended" (created/visited/edited/linked). */

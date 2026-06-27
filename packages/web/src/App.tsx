@@ -1010,6 +1010,7 @@ export default function App() {
           fuel={fuel}
           streak={streak}
           spaceId={space?.id ?? ""}
+          onPromoted={() => void refresh()}
         />
       )}
     </div>

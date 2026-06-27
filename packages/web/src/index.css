@@ -2473,3 +2473,11 @@ button {
 .kind-key:hover { background: rgba(120, 160, 220, 0.2); }
 .kind-key.on { background: rgba(91, 214, 255, 0.18); border-color: rgba(91, 214, 255, 0.45); color: #eaf2ff; }
 .kind-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+
+/* Constellation promotion (Stage 1 MOCs) — inline "save as constellation". */
+.constellation-make { margin-top: 6px; opacity: 0.85; }
+.constellation-make:hover { opacity: 1; }
+.constellation-promote { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
+.constellation-promote .list-filter { flex: 1 1 auto; margin: 0; }
+.mini.ghost { background: transparent; opacity: 0.7; }
+.mini.ghost:hover { opacity: 1; }

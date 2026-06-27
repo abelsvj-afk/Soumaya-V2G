@@ -379,6 +379,24 @@ export async function getConstellations(): Promise<Constellation[]> {
   }
 }
 
+/** Promote a detected cluster into a persistent, named constellation hub (MOC). */
+export async function promoteConstellation(name: string, nodeIds: number[]): Promise<GraphNode | null> {
+  try {
+    const res = await afetch(`${API}/constellations/promote`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, nodeIds }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(body.error ?? `Couldn't create constellation (${res.status})`);
+    }
+    return (await res.json()) as GraphNode;
+  } catch {
+    return null;
+  }
+}
+
 export async function runDigest(): Promise<Insight[]> {
   return tracked(
     (async () => {

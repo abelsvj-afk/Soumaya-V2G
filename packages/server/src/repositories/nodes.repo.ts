@@ -12,7 +12,7 @@ export interface NewNode {
   emotionalWeight?: number;
   importance?: number;
   color?: string;
-  kind?: "memory" | "action";
+  kind?: "memory" | "action" | "moc";
   expiresAt?: string;
   occurredAt?: string;
   remindAt?: string;
@@ -29,7 +29,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     emotionalWeight: row.emotionalWeight ?? undefined,
     importance: row.importance ?? undefined,
     color: row.color ?? undefined,
-    kind: (row.kind as "memory" | "action" | null) ?? undefined,
+    kind: (row.kind as "memory" | "action" | "moc" | null) ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
     occurredAt: row.occurredAt ?? undefined,

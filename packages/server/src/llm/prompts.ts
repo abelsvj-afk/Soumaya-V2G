@@ -1,8 +1,8 @@
-import { NODE_TYPES, NODE_TYPE_GUIDE, RELATIONSHIP_TYPES } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, NODE_TYPE_GUIDE, RELATIONSHIP_TYPES } from "@brain/shared";
 import type { ContextNode, LinkCandidate } from "./adapter.js";
 
 /** Bulleted "kind — definition" guide, so the model classifies into the taxonomy. */
-const NODE_TYPE_LIST = NODE_TYPES.map((t) => `  • ${t} — ${NODE_TYPE_GUIDE[t]}`).join("\n");
+const NODE_TYPE_LIST = EXTRACTABLE_NODE_TYPES.map((t) => `  • ${t} — ${NODE_TYPE_GUIDE[t]}`).join("\n");
 
 /**
  * System instruction for ontological extraction. Forces the model to act as a
