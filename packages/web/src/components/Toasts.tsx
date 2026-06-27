@@ -27,6 +27,20 @@ type Listener = (t: Toast) => void;
 const listeners = new Set<Listener>();
 let nextId = 1;
 
+// Transient-display gate: while paused (e.g. the Observatory home is open over the
+// galaxy), toasts are buffered instead of shown — they still get logged to the
+// inbox — then flushed once unpaused, so a celebration never hides behind the cards.
+let paused = false;
+const buffer: Toast[] = [];
+export function setToastsPaused(p: boolean): void {
+  if (p === paused) return;
+  paused = p;
+  if (!paused && buffer.length) {
+    const flush = buffer.splice(0, buffer.length);
+    for (const t of flush) for (const l of listeners) l(t);
+  }
+}
+
 /** Prune notifications: seen items > 5 minutes, normal unseen items > 24 hours. Important ones are kept. */
 export function cleanupNotifications(spaceId: string): void {
   const logKey = `brain.notifications.${spaceId}`;
@@ -62,7 +76,8 @@ export function pushToast(
   priority: "low" | "normal" | "high" = "normal"
 ): void {
   const t: Toast = { id: nextId++, text, icon, ttl, priority };
-  for (const l of listeners) l(t);
+  if (paused) buffer.push(t); // hold the on-screen toast until unpaused (still logged below)
+  else for (const l of listeners) l(t);
 
   // Write to notification inbox log (scoped to space)
   const spaceId = localStorage.getItem("current_space_id") || "default";
