@@ -1,5 +1,8 @@
-import { NODE_TYPES, RELATIONSHIP_TYPES } from "@brain/shared";
+import { NODE_TYPES, NODE_TYPE_GUIDE, RELATIONSHIP_TYPES } from "@brain/shared";
 import type { ContextNode, LinkCandidate } from "./adapter.js";
+
+/** Bulleted "kind — definition" guide, so the model classifies into the taxonomy. */
+const NODE_TYPE_LIST = NODE_TYPES.map((t) => `  • ${t} — ${NODE_TYPE_GUIDE[t]}`).join("\n");
 
 /**
  * System instruction for ontological extraction. Forces the model to act as a
@@ -12,7 +15,10 @@ Parse the user's raw, unstructured thought into a knowledge graph.
 Identify discrete entities/ideas as NODES. For each node set:
 - label: a short, distinct name (2-6 words)
 - celestialTitle: a poetic, space-themed name for this thought (e.g. "The Sustenance Nebula", "Domestic Orbit #14")
-- type: one of ${NODE_TYPES.join(", ")}
+- type: classify into exactly one of these kinds:
+${NODE_TYPE_LIST}
+  (A single thought can split into several nodes — e.g. "Met Sara from Acme about
+   the launch, decided to delay" → a person, a company, a meeting, and a decision.)
 - content: the relevant text/summary for that node
 - emotionalWeight: optional, -1 (very negative) to 1 (very positive)
 - importance: 0..1 — how heavy/serious/life-impacting this thought is. A fleeting

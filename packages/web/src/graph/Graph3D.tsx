@@ -24,7 +24,7 @@ import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { isNodeProcessing, logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { makeSubAgents, type SubAgentSystem, type SubAgentHazard } from "./subAgents.js";
-import { BG, TYPE_COLORS } from "./theme.js";
+import { BG, colorForType } from "./theme.js";
 
 /** Live status of each fleet unit, read by the Fleet panel. */
 export type FleetStatus = Record<string, { active: boolean; detail: string }>;
@@ -484,7 +484,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               x: old.x,
               y: old.y,
               z: old.z ?? 0,
-              color: TYPE_COLORS[old.type as keyof typeof TYPE_COLORS] ?? "#cfe0ff",
+              color: colorForType(old.type),
               size: 4 + (old.mass ?? 0.3) * 5,
             });
           }

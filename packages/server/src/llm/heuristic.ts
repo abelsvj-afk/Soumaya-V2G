@@ -57,17 +57,21 @@ export class HeuristicProvider implements LlmProvider {
 
   private guessType(text: string): NodeType {
     const t = text.toLowerCase();
-    // Stem-based substring matching (no word boundaries) so "arguing",
-    // "anxious", "venture" etc. are caught.
-    if (/(business|startup|idea|product|market|revenue|customer|saas|launch|venture|profit)/.test(t))
-      return "business_idea";
-    if (
-      /(sister|brother|mother|father|\bmom\b|\bdad\b|wife|husband|girlfriend|boyfriend|relationship|friend|family|partner|\blove\b|argu|feel|anxious|emotion|lonely|\bshe\b|\bhe\b|\bthey\b)/.test(
-        t,
-      )
-    )
-      return "relationship_reflection";
-    return "random_thought";
+    // Ordered substring rules (no word boundaries) so "arguing", "meeting",
+    // "deciding" etc. are caught. First match wins; falls through to "daily".
+    if (/(met with|meeting|call with|spoke with|spoke to|sync|stand-?up|1:1|interview|zoom call|caught up with|chatted with)/.test(t))
+      return "meeting";
+    if (/(decided|decision|going with|i'?ll go with|chose|choosing|opted|made up my mind|pros and cons|weigh(ing)? the options)/.test(t))
+      return "decision";
+    if (/(\binc\b|\bllc\b|\bcorp\b|\bltd\b|\bco\.\b|\bcompany\b|the firm|organization|organisation|\bemployer\b|\bvendor\b|\bclient\b)/.test(t))
+      return "company";
+    if (/(sister|brother|mother|father|\bmom\b|\bdad\b|wife|husband|girlfriend|boyfriend|relationship|friend|family|partner|colleague|co-?worker|\blove\b|argu|anxious|lonely)/.test(t))
+      return "person";
+    if (/(business|startup|idea|product|market|revenue|customer|saas|launch|venture|profit|project|build(ing)?|shipping|roadmap|milestone|initiative)/.test(t))
+      return "project";
+    if (/(definition|concept|means that|how to|learned|reference|principle|framework|theory|\bfact\b|note on)/.test(t))
+      return "knowledge";
+    return "daily";
   }
 
   private deriveLabel(text: string): string {

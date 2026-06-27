@@ -54,18 +54,18 @@ export interface SeedIds {
 
 /** Seed a small, deterministic graph with a chain and a cycle. */
 export function seed(sqlite: RawDb): SeedIds {
-  const a = insertNode(sqlite, "Foundational idea", "business_idea", "The seed of it all.");
-  const b = insertNode(sqlite, "Refinement", "business_idea", "Builds on the foundation.");
-  const c = insertNode(sqlite, "Pivot", "business_idea", "A consequence of the refinement.");
-  const d = insertNode(sqlite, "Launch", "business_idea", "The eventual outcome.");
+  const a = insertNode(sqlite, "Foundational idea", "project", "The seed of it all.");
+  const b = insertNode(sqlite, "Refinement", "project", "Builds on the foundation.");
+  const c = insertNode(sqlite, "Pivot", "project", "A consequence of the refinement.");
+  const d = insertNode(sqlite, "Launch", "project", "The eventual outcome.");
 
   insertEdge(sqlite, a, b, "builds_on", 0.9);
   insertEdge(sqlite, b, c, "builds_on", 0.8);
   insertEdge(sqlite, c, d, "resolves", 0.7);
 
-  const x = insertNode(sqlite, "Worry", "relationship_reflection", "A recurring worry.");
-  const y = insertNode(sqlite, "Avoidance", "relationship_reflection", "Avoiding the worry.");
-  const z = insertNode(sqlite, "Resentment", "relationship_reflection", "Which feeds back.");
+  const x = insertNode(sqlite, "Worry", "person", "A recurring worry.");
+  const y = insertNode(sqlite, "Avoidance", "person", "Avoiding the worry.");
+  const z = insertNode(sqlite, "Resentment", "person", "Which feeds back.");
 
   insertEdge(sqlite, x, y, "complicates", 0.6);
   insertEdge(sqlite, y, z, "complicates", 0.6);

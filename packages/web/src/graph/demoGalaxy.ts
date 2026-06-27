@@ -27,55 +27,55 @@ interface Theme {
 
 const THEMES: Theme[] = [
   {
-    hub: { label: "Launching my coffee startup", type: "business_idea", emotion: 0.55 },
+    hub: { label: "Launching my coffee startup", type: "project", emotion: 0.55 },
     members: [
-      { label: "Partner with local roasters", type: "business_idea", emotion: 0.4, rel: "builds_on" },
+      { label: "Partner with local roasters", type: "project", emotion: 0.4, rel: "builds_on" },
       { label: "Subscription pricing model", type: "concept", emotion: 0.2, rel: "builds_on" },
       { label: "Budget runway is tight", type: "concept", emotion: -0.5, rel: "complicates" },
-      { label: "Quitting the day job", type: "random_thought", emotion: 0.1, rel: "caused_by" },
-      { label: "Brand name brainstorm", type: "random_thought", emotion: 0.5, rel: "relates_to" },
-      { label: "First pop-up stall idea", type: "business_idea", emotion: 0.45, rel: "builds_on" },
+      { label: "Quitting the day job", type: "daily", emotion: 0.1, rel: "caused_by" },
+      { label: "Brand name brainstorm", type: "daily", emotion: 0.5, rel: "relates_to" },
+      { label: "First pop-up stall idea", type: "project", emotion: 0.45, rel: "builds_on" },
       { label: "Sourcing ethical beans", type: "concept", emotion: 0.3, rel: "relates_to" },
     ],
   },
   {
-    hub: { label: "Family & the people I love", type: "relationship_reflection", emotion: 0.6 },
+    hub: { label: "Family & the people I love", type: "person", emotion: 0.6 },
     members: [
       { label: "Mom's birthday in October", type: "person", emotion: 0.7, rel: "relates_to" },
-      { label: "That hard talk with Dad", type: "relationship_reflection", emotion: -0.3, rel: "complicates" },
+      { label: "That hard talk with Dad", type: "person", emotion: -0.3, rel: "complicates" },
       { label: "Old friend I should call", type: "person", emotion: 0.3, rel: "relates_to" },
-      { label: "Forgiving an old grudge", type: "relationship_reflection", emotion: 0.2, rel: "resolves" },
-      { label: "Sunday dinners we used to have", type: "random_thought", emotion: 0.4, rel: "relates_to" },
+      { label: "Forgiving an old grudge", type: "person", emotion: 0.2, rel: "resolves" },
+      { label: "Sunday dinners we used to have", type: "daily", emotion: 0.4, rel: "relates_to" },
     ],
   },
   {
     hub: { label: "What gives my life meaning", type: "concept", emotion: 0.4 },
     members: [
-      { label: "Fear of running out of time", type: "random_thought", emotion: -0.7, rel: "complicates" },
+      { label: "Fear of running out of time", type: "daily", emotion: -0.7, rel: "complicates" },
       { label: "Faith and doubt", type: "concept", emotion: 0.0, rel: "relates_to" },
-      { label: "A recurring dream of flying", type: "random_thought", emotion: 0.6, rel: "is_analogous_to" },
-      { label: "Why I keep avoiding the gym", type: "random_thought", emotion: -0.4, rel: "contradicts" },
-      { label: "The trip to Lisbon", type: "random_thought", emotion: 0.8, rel: "resolves" },
+      { label: "A recurring dream of flying", type: "daily", emotion: 0.6, rel: "is_analogous_to" },
+      { label: "Why I keep avoiding the gym", type: "daily", emotion: -0.4, rel: "contradicts" },
+      { label: "The trip to Lisbon", type: "daily", emotion: 0.8, rel: "resolves" },
     ],
   },
   {
     hub: { label: "Becoming a writer", type: "concept", emotion: 0.5 },
     members: [
-      { label: "The novel I keep restarting", type: "random_thought", emotion: -0.2, rel: "complicates" },
+      { label: "The novel I keep restarting", type: "daily", emotion: -0.2, rel: "complicates" },
       { label: "Morning pages habit", type: "concept", emotion: 0.4, rel: "builds_on" },
-      { label: "A short story about the sea", type: "random_thought", emotion: 0.6, rel: "builds_on" },
-      { label: "Imposter syndrome", type: "relationship_reflection", emotion: -0.5, rel: "complicates" },
-      { label: "Rejection from the magazine", type: "random_thought", emotion: -0.4, rel: "caused_by" },
+      { label: "A short story about the sea", type: "daily", emotion: 0.6, rel: "builds_on" },
+      { label: "Imposter syndrome", type: "person", emotion: -0.5, rel: "complicates" },
+      { label: "Rejection from the magazine", type: "daily", emotion: -0.4, rel: "caused_by" },
       { label: "Finding my voice", type: "concept", emotion: 0.3, rel: "resolves" },
     ],
   },
   {
     hub: { label: "Health & my body", type: "concept", emotion: 0.1 },
     members: [
-      { label: "Sleep has been terrible", type: "random_thought", emotion: -0.6, rel: "complicates" },
-      { label: "Started running again", type: "random_thought", emotion: 0.5, rel: "resolves" },
+      { label: "Sleep has been terrible", type: "daily", emotion: -0.6, rel: "complicates" },
+      { label: "Started running again", type: "daily", emotion: 0.5, rel: "resolves" },
       { label: "Cut back on sugar", type: "concept", emotion: 0.2, rel: "builds_on" },
-      { label: "That scary doctor visit", type: "random_thought", emotion: -0.7, rel: "caused_by" },
+      { label: "That scary doctor visit", type: "daily", emotion: -0.7, rel: "caused_by" },
       { label: "Meditation actually helps", type: "concept", emotion: 0.4, rel: "resolves" },
     ],
   },
@@ -84,33 +84,33 @@ const THEMES: Theme[] = [
     members: [
       { label: "Emergency fund goal", type: "concept", emotion: 0.3, rel: "builds_on" },
       { label: "Credit card debt", type: "concept", emotion: -0.6, rel: "complicates" },
-      { label: "Investing for the first time", type: "business_idea", emotion: 0.2, rel: "builds_on" },
-      { label: "The raise I never asked for", type: "relationship_reflection", emotion: -0.3, rel: "caused_by" },
+      { label: "Investing for the first time", type: "project", emotion: 0.2, rel: "builds_on" },
+      { label: "The raise I never asked for", type: "person", emotion: -0.3, rel: "caused_by" },
     ],
   },
   {
     hub: { label: "Where home is", type: "concept", emotion: 0.3 },
     members: [
-      { label: "Should I move cities?", type: "random_thought", emotion: 0.0, rel: "complicates" },
-      { label: "The apartment with the light", type: "random_thought", emotion: 0.6, rel: "relates_to" },
-      { label: "Missing my hometown", type: "relationship_reflection", emotion: 0.2, rel: "relates_to" },
-      { label: "Building a reading nook", type: "random_thought", emotion: 0.5, rel: "builds_on" },
+      { label: "Should I move cities?", type: "daily", emotion: 0.0, rel: "complicates" },
+      { label: "The apartment with the light", type: "daily", emotion: 0.6, rel: "relates_to" },
+      { label: "Missing my hometown", type: "person", emotion: 0.2, rel: "relates_to" },
+      { label: "Building a reading nook", type: "daily", emotion: 0.5, rel: "builds_on" },
     ],
   },
   {
-    hub: { label: "Learning to let go", type: "relationship_reflection", emotion: 0.2 },
+    hub: { label: "Learning to let go", type: "person", emotion: 0.2 },
     members: [
-      { label: "The breakup, a year on", type: "relationship_reflection", emotion: -0.2, rel: "caused_by" },
+      { label: "The breakup, a year on", type: "person", emotion: -0.2, rel: "caused_by" },
       { label: "Therapy is working", type: "concept", emotion: 0.5, rel: "resolves" },
-      { label: "Anger I still carry", type: "random_thought", emotion: -0.5, rel: "complicates" },
+      { label: "Anger I still carry", type: "daily", emotion: -0.5, rel: "complicates" },
       { label: "Who I'm becoming", type: "concept", emotion: 0.6, rel: "resolves" },
     ],
   },
   {
-    hub: { label: "Side project: a tiny game", type: "business_idea", emotion: 0.55 },
+    hub: { label: "Side project: a tiny game", type: "project", emotion: 0.55 },
     members: [
-      { label: "Pixel art is hard", type: "random_thought", emotion: -0.2, rel: "complicates" },
-      { label: "The mechanic clicked today", type: "random_thought", emotion: 0.7, rel: "resolves" },
+      { label: "Pixel art is hard", type: "daily", emotion: -0.2, rel: "complicates" },
+      { label: "The mechanic clicked today", type: "daily", emotion: 0.7, rel: "resolves" },
       { label: "Scope creep again", type: "concept", emotion: -0.3, rel: "complicates" },
       { label: "Showing a friend the build", type: "person", emotion: 0.5, rel: "relates_to" },
     ],
@@ -118,8 +118,8 @@ const THEMES: Theme[] = [
   {
     hub: { label: "The kind of person I want to be", type: "concept", emotion: 0.5 },
     members: [
-      { label: "More patient with people", type: "relationship_reflection", emotion: 0.4, rel: "builds_on" },
-      { label: "Less time on my phone", type: "random_thought", emotion: 0.1, rel: "builds_on" },
+      { label: "More patient with people", type: "person", emotion: 0.4, rel: "builds_on" },
+      { label: "Less time on my phone", type: "daily", emotion: 0.1, rel: "builds_on" },
       { label: "Keeping promises to myself", type: "concept", emotion: 0.3, rel: "builds_on" },
       { label: "Generosity over fear", type: "concept", emotion: 0.6, rel: "is_analogous_to" },
     ],
@@ -137,7 +137,7 @@ const FRAGMENTS = [
   "a question with no answer", "the shape of an old fear", "a melody I hummed", "what the light did",
 ];
 
-const FRAG_TYPES: NodeType[] = ["random_thought", "concept", "person"];
+const FRAG_TYPES: NodeType[] = ["daily", "concept", "person"];
 
 /**
  * A synthetic "what it could look like" galaxy — generated client-side, never

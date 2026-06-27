@@ -49,10 +49,12 @@ function findStoryArcs(graph: GraphData): StoryArc[] {
       });
     }
 
-    // 2. Muse Arc (person + business_idea/concept/random_thought)
+    // 2. Muse Arc (a person paired with an idea/project/concept/note)
+    const isMuseIdea = (ty: string) =>
+      ty === "project" || ty === "concept" || ty === "knowledge" || ty === "daily" || ty === "decision";
     if (
-      (src.type === "person" && (tgt.type === "business_idea" || tgt.type === "concept" || tgt.type === "random_thought")) ||
-      (tgt.type === "person" && (src.type === "business_idea" || src.type === "concept" || src.type === "random_thought"))
+      (src.type === "person" && isMuseIdea(tgt.type)) ||
+      (tgt.type === "person" && isMuseIdea(src.type))
     ) {
       const personNode = src.type === "person" ? src : tgt;
       const ideaNode = src.type === "person" ? tgt : src;

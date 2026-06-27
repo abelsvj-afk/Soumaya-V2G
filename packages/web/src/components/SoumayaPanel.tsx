@@ -16,7 +16,7 @@ import {
   type JobRationale,
   type Usage,
 } from "../api/client.js";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { colorForType } from "../graph/theme.js";
 import {
   isVoiceEnabled,
   isVoiceSupported,
@@ -333,7 +333,7 @@ export function SoumayaPanel({
                   <button
                     key={c.id}
                     className="pill"
-                    style={{ borderColor: TYPE_COLORS[c.type] }}
+                    style={{ borderColor: colorForType(c.type) }}
                     onClick={() => onFocus(c.id)}
                   >
                     {c.label}
