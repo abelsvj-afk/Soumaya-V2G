@@ -120,6 +120,25 @@ export function DigestPanel({
             </div>
           )}
 
+          {daily.reminders && daily.reminders.length > 0 && (
+            <div className="digest-reminders">
+              <h4>⏰ Reminders due</h4>
+              <div className="pills">
+                {daily.reminders.map((r) => (
+                  <button
+                    key={r.node.id}
+                    className="pill"
+                    style={{ borderColor: colorForType(r.node.type) }}
+                    onClick={() => onFocus(r.node.id)}
+                    title="You asked to be reminded of this"
+                  >
+                    {r.node.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {daily.closing && <p className="digest-closing">{daily.closing}</p>}
         </section>
       )}

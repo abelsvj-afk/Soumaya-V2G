@@ -23,7 +23,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [ ] 🔴 **LLM planning agent: replace fixed job-selection ladder** — swap the if/else chain in `maintenance/agent.ts` with a tools-based LLM planner; keep the deterministic ladder as a fallback. Touches LlmProvider seam.
 - [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
 - [ ] 🟡 **Request-Maintenance high-priority queue** — `POST /api/nodes/:id/tend` is partial. Route contract / priority field = Red; UI trigger button = Green.
-- [ ] 🟡 **Surface `remind_at` reminders in daily digest + Telegram** — `DailyDigest` service touch = Red-ish; Telegram message formatting = Green. Noted in GEMINI_CHANGES.md as a known follow-up.
+- [x] 🟡 **Surface `remind_at` reminders in daily digest** — ✅ done (digest). `buildDailyDigest` adds a
+  `reminders` field (memories whose `remind_at` ≤ now), rendered as an "⏰ Reminders due" section in the
+  Insights panel + folded into her closing line. (Telegram formatting of the same still pending.)
 
 ---
 

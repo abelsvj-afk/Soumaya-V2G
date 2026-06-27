@@ -97,6 +97,28 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
     .slice(0, 5)
     .map((n) => ({ node: refOf(n), entropy: n.entropy ?? 0 }));
 
+  // Due reminders: memories whose user-set remind_at has arrived (ISO compares
+  // lexicographically). Surfaced so a scheduled nudge actually resurfaces.
+  const nowIso = new Date().toISOString();
+  let reminders: { node: NodeRef; remindAt: string }[] = [];
+  try {
+    const due = h.sqlite
+      .prepare(
+        `SELECT id, remind_at FROM nodes
+         WHERE space_id = ? AND deleted_at IS NULL AND remind_at IS NOT NULL AND remind_at <= ?
+         ORDER BY remind_at ASC LIMIT 5`,
+      )
+      .all(spaceId, nowIso) as { id: number; remind_at: string }[];
+    reminders = due
+      .map((r) => {
+        const n = nodesRepo.getById(r.id);
+        return n ? { node: refOf(n), remindAt: r.remind_at } : null;
+      })
+      .filter((x): x is { node: NodeRef; remindAt: string } => x !== null);
+  } catch {
+    reminders = [];
+  }
+
   const newCount = fresh.length;
   const greeting =
     newCount > 0
@@ -110,10 +132,12 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
     bits.push(`${expiredActions.length} action item${expiredActions.length === 1 ? "" : "s"} burned up on schedule`);
   if (cooling.length > 0)
     bits.push(`${cooling.length} memor${cooling.length === 1 ? "y is" : "ies are"} going cold — drop by to warm ${cooling.length === 1 ? "it" : "them"}`);
+  if (reminders.length > 0)
+    bits.push(`${reminders.length} reminder${reminders.length === 1 ? "" : "s"} you set ${reminders.length === 1 ? "has" : "have"} come due`);
   const closing =
     bits.length > 0
       ? `${bits.join("; ")}. Course steady — I'll keep watch from up here.`
       : "All quiet on the charts. I'll keep drifting and let you know what I find.";
 
-  return { date: today, greeting, fresh, connections, expiredActions, cooling, closing };
+  return { date: today, greeting, fresh, connections, expiredActions, cooling, reminders, closing };
 }

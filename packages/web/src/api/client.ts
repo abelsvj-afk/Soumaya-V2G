@@ -315,6 +315,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
     connections: [],
     expiredActions: [],
     cooling: [],
+    reminders: [],
     closing: "",
   };
   try {
@@ -328,6 +329,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
       connections: Array.isArray(d.connections) ? d.connections : [],
       expiredActions: Array.isArray(d.expiredActions) ? d.expiredActions : [],
       cooling: Array.isArray(d.cooling) ? d.cooling : [],
+      reminders: Array.isArray(d.reminders) ? d.reminders : [],
       closing: typeof d.closing === "string" ? d.closing : "",
     };
   } catch {
