@@ -2526,3 +2526,25 @@ button {
   transition: width 0.5s ease;
 }
 .rank-sub { font-size: 0.74rem; color: #9fd0ff; font-variant-numeric: tabular-nums; }
+
+/* Daily quests / tend list in the Observatory (Wave 2). */
+.obs-quests { cursor: default; }
+.obs-quests:hover { transform: none; border-color: rgba(122, 200, 255, 0.18); }
+.obs-questlist { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.obs-quest {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  text-align: left;
+  padding: 7px 10px;
+  border-radius: 9px;
+  background: rgba(91, 214, 255, 0.08);
+  border: 1px solid rgba(122, 200, 255, 0.2);
+  color: #eaf2ff;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.18s;
+}
+.obs-quest:hover { background: rgba(91, 214, 255, 0.18); }
+.obs-quest.done { opacity: 0.6; color: #9fe0b8; cursor: default; }
+.obs-quest-ic { flex: 0 0 auto; font-size: 0.95rem; }

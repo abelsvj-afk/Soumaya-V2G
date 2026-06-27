@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { GraphNode, Constellation, Insight } from "@brain/shared";
 import { getConstellations, getDigest } from "../api/client.js";
+import { dailyQuests } from "./quests.js";
 
 /**
  * The Observatory — a calm home that fades in *after* the cinematic fly-in settles
@@ -14,6 +15,7 @@ export function Observatory({
   spaceName,
   memories,
   streak,
+  fedToday,
   onCapture,
   onFocus,
   onOpenInsights,
@@ -22,6 +24,7 @@ export function Observatory({
   spaceName: string;
   memories: GraphNode[]; // non-action nodes
   streak: number;
+  fedToday: boolean;
   onCapture: () => void;
   onFocus: (id: number) => void;
   onOpenInsights: () => void;
@@ -81,6 +84,31 @@ export function Observatory({
             <span className="obs-line">Add to your galaxy — it links itself.</span>
           </span>
         </button>
+
+        {(() => {
+          const quests = dailyQuests(memories, fedToday);
+          return (
+            <div className="obs-card obs-quests">
+              <span className="obs-ic">🎯</span>
+              <span className="obs-body">
+                <span className="obs-title">Today's tending</span>
+                <span className="obs-questlist">
+                  {quests.map((q) => (
+                    <button
+                      key={q.id}
+                      className={`obs-quest ${q.done ? "done" : ""}`}
+                      onClick={() => (q.action === "capture" ? onCapture() : q.focusId != null ? onFocus(q.focusId) : onOpenInsights())}
+                      disabled={q.done && q.action === "capture"}
+                    >
+                      <span className="obs-quest-ic">{q.done ? "✓" : q.icon}</span>
+                      {q.text}
+                    </button>
+                  ))}
+                </span>
+              </span>
+            </div>
+          );
+        })()}
 
         {insight && (
           <button

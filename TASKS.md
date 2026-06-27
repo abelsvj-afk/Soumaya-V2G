@@ -127,8 +127,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   bootstrap + idempotent migration), advanced on ingest with a once-per-day +2 fuel bonus
   (`STREAK_DAY_BONUS`), exposed at `GET /api/maintenance/streak`. UI: 🔥 HUD chip + a banner atop the
   Awards tab; lapses to 0 (shown honestly) but keeps your best. Space-scoped, offline-safe, 4 tests.
-- [ ] 🟡 **Daily quests / tend list** — 1–3 concrete nudges ("warm 2 cooling memories", "review Soumaya's
-  newest insight"); completing earns fuel. Built from `entropy` + `insights` (server read) + UI.
+- [x] 🟡 **Daily quests / tend list** — ✅ done (Wave 2, v1). `components/quests.ts` derives 1–3 live
+  click-through nudges (feed today / warm a cooling memory / revisit a drifting one) from graph state,
+  shown as a "Today's tending" card in the Observatory. (Deferred: per-day fuel reward on completion —
+  needs server-side daily counters.)
 - [x] 🟢 **Achievements** — ✅ done (Wave 2). 7 qualitative feats (First Light, Synapse, Connector, Nexus,
   Star Born, Gardener, Fully Fueled) in `components/achievements.ts`; unlock-detect effect in `App.tsx`
   persists per-brain in localStorage (`brain.achv.${space.id}`), seeds silently on first eval, toasts new

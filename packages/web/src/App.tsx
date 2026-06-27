@@ -1009,6 +1009,7 @@ export default function App() {
           spaceName={space.name}
           memories={(data.nodes as GraphNode[]).filter((n) => n.kind !== "action")}
           streak={streak?.current ?? 0}
+          fedToday={!!streak?.today}
           onCapture={() => {
             dismissObs();
             setPanel("ingest");
