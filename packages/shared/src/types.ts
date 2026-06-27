@@ -299,6 +299,8 @@ export interface DailyDigest {
   expiredActions: ExpiredAction[];
   /** Memories cooling from neglect — revisit them to warm them back up. */
   cooling: { node: NodeRef; entropy: number }[];
+  /** Memories whose user-set reminder time has come due (remind_at ≤ now). */
+  reminders: { node: NodeRef; remindAt: string }[];
   /** Closing reflection in her voice. */
   closing: string;
 }
