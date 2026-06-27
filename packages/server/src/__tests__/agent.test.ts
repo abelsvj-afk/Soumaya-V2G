@@ -72,6 +72,20 @@ describe("maintenance agent (server-side autonomy core)", () => {
     expect(selectJob(ctx, "legacy")).toBeNull();
   });
 
+  it("claims a job so concurrent pollers don't double-run it (idempotency)", async () => {
+    const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "claim alpha", "claimspace")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "claim beta", "claimspace")).nodes[0]!.id;
+    // A weak edge makes "pruning" the deterministic free job (no Research Mode needed).
+    handle.sqlite
+      .prepare(`INSERT INTO edges (space_id, source, target, relationship, weight) VALUES ('claimspace', ?, ?, 'relates_to', 0.1)`)
+      .run(a, b);
+    const first = selectJob(ctx, "claimspace");
+    expect(first!.type).toBe("pruning");
+    // A second poll within the claim window gets a harmless patrol, not the same job.
+    const second = selectJob(ctx, "claimspace");
+    expect(second!.type).toBe("patrol");
+  });
+
   it("attaches an explainable rationale to every job and persists it to the log", async () => {
     const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "rationale alpha")).nodes[0]!.id;
 

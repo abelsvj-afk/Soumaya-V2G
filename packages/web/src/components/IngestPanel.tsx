@@ -19,7 +19,7 @@ export function IngestPanel({
   onIngested,
   onClose,
 }: {
-  onIngested: (newIds?: number[], fuelEarned?: number) => void;
+  onIngested: (newIds?: number[], fuelEarned?: number, linkCount?: number) => void;
   onClose?: () => void;
 }) {
   const [text, setText] = useState("");
@@ -75,7 +75,7 @@ export function IngestPanel({
       setOccurred("");
       setRemind("");
       setShowWhen(false);
-      onIngested(r.nodes.map((x: any) => x.id), r.fuelEarned);
+      onIngested(r.nodes.map((x: any) => x.id), r.fuelEarned, e);
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
