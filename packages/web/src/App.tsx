@@ -54,6 +54,7 @@ import {
   getHealth,
   getFuel,
   getStreak,
+  flushIngestQueue,
   logoutSpace,
   onAiActivity,
   tendNode,
@@ -498,6 +499,20 @@ export default function App() {
     setShowObs(false);
     setObsSettled(true);
   }, []);
+
+  // Offline ingest queue: flush anything captured offline once signed in / back
+  // online, then refresh the galaxy + celebrate what synced.
+  useEffect(() => {
+    if (!space || demo) return;
+    void flushIngestQueue();
+    const onSynced = (e: Event) => {
+      const detail = (e as CustomEvent).detail as { newIds?: number[]; synced?: number };
+      void refresh(detail?.newIds);
+      if (detail?.synced) pushToast(`Synced ${detail.synced} memor${detail.synced === 1 ? "y" : "ies"} you saved offline.`, "📡", 6000);
+    };
+    window.addEventListener("brain-ingest-synced", onSynced);
+    return () => window.removeEventListener("brain-ingest-synced", onSynced);
+  }, [space, demo, refresh]);
 
   // Navigate to a memory, recording where we came from so Back works.
   const goTo = useCallback(

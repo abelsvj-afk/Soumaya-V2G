@@ -176,23 +176,103 @@ export async function getGraph(limit = 300): Promise<GraphData> {
   }
 }
 
-export async function ingestText(
-  text: string,
-  opts?: {
-    kind?: "memory" | "action";
-    ttlHours?: number;
-    occurredAt?: string;
-    remindAt?: string;
-    tags?: string[];
-  },
-): Promise<IngestResult> {
-  return tracked(
-    (async () => {
+type IngestOpts = {
+  kind?: "memory" | "action";
+  ttlHours?: number;
+  occurredAt?: string;
+  remindAt?: string;
+  tags?: string[];
+};
+
+/** localStorage queue of ingests captured while offline, per brain. */
+const ingestQueueKey = (): string => `brain.ingestQueue.${getSpaceId() ?? "default"}`;
+
+/** Thrown when an ingest is saved offline instead of reaching the server. */
+export class OfflineQueuedError extends Error {
+  constructor() {
+    super("You're offline — saved. I'll sync it the moment you're back online.");
+    this.name = "OfflineQueuedError";
+  }
+}
+
+function enqueueIngest(text: string, opts?: IngestOpts): void {
+  try {
+    const key = ingestQueueKey();
+    const q = JSON.parse(localStorage.getItem(key) || "[]") as { text: string; opts?: IngestOpts }[];
+    q.push({ text, opts });
+    localStorage.setItem(key, JSON.stringify(q.slice(-200)));
+  } catch {
+    /* storage unavailable — nothing more we can do */
+  }
+}
+
+/**
+ * Drain the offline ingest queue, POSTing each saved thought. Dispatches
+ * "brain-ingest-synced" (with the new node ids) so the app can refresh + celebrate.
+ * Safe to call repeatedly; re-queues anything that still fails.
+ */
+export async function flushIngestQueue(): Promise<number> {
+  const key = ingestQueueKey();
+  let q: { text: string; opts?: IngestOpts }[];
+  try {
+    q = JSON.parse(localStorage.getItem(key) || "[]");
+  } catch {
+    return 0;
+  }
+  if (!q.length || (typeof navigator !== "undefined" && navigator.onLine === false)) return 0;
+  const remaining: typeof q = [];
+  const newIds: number[] = [];
+  for (const item of q) {
+    try {
       const res = await afetch(`${API}/ingest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, ...opts }),
+        body: JSON.stringify({ text: item.text, ...item.opts }),
       });
+      if (!res.ok) throw new Error(String(res.status));
+      const r = (await res.json()) as IngestResult;
+      for (const n of r.nodes) newIds.push(n.id);
+    } catch {
+      remaining.push(item); // still failing — keep it for the next flush
+    }
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(remaining));
+  } catch {
+    /* ignore */
+  }
+  const synced = q.length - remaining.length;
+  if (synced > 0 && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("brain-ingest-synced", { detail: { newIds, synced } }));
+  }
+  return synced;
+}
+
+// Auto-flush whenever connectivity returns.
+if (typeof window !== "undefined") {
+  window.addEventListener("online", () => void flushIngestQueue());
+}
+
+export async function ingestText(text: string, opts?: IngestOpts): Promise<IngestResult> {
+  return tracked(
+    (async () => {
+      // Offline up front → queue immediately, don't even try the network.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        enqueueIngest(text, opts);
+        throw new OfflineQueuedError();
+      }
+      let res: Response;
+      try {
+        res = await afetch(`${API}/ingest`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, ...opts }),
+        });
+      } catch {
+        // Network blip mid-request → save it for the next flush.
+        enqueueIngest(text, opts);
+        throw new OfflineQueuedError();
+      }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Ingest failed (${res.status})`);
