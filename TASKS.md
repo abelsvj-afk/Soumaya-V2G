@@ -24,7 +24,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   gemini impl; heuristic omits; resilient forwards). `selectJob` is now async: when a cloud planner is
   available it chooses between the deterministic ladder's pick and a strategic research-gap alternative —
   the ladder stays the always-available fallback (absent/erroring planner → unchanged behavior, 97 tests).
-- [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
+- [x] 🟡 **Sub-agents running real maintenance jobs** — ✅ done (Red half). Additive `nodes.agent` column
+  (bootstrap + migration) + `GraphNode.agent` + `NodesRepo.setAgent`; research deep-dives stamp
+  `agent='soumaya'`. The visual Scout-loop attribution in `graph/subAgents` (Green) can read it next.
 - [x] 🟡 **Request-Maintenance high-priority queue** — ✅ done. `POST /api/nodes/:id/request-maintenance`
   enqueues a node into an in-memory per-space queue that `selectJob` drains first (research → connect →
   recalibrate by availability); NodeInspector has an "🛰️ Ask Soumaya to tend this" button. +1 test.

@@ -25,6 +25,8 @@ export const nodes = sqliteTable("nodes", {
   color: text("color"),
   // Provenance: "agent" = Soumaya-authored (e.g. a constellation hub); null/"user" = yours.
   origin: text("origin"),
+  // Which autonomous agent last worked this node (e.g. "soumaya", "scout"); null = none.
+  agent: text("agent"),
   deletedAt: text("deleted_at"),
   mergedInto: integer("merged_into"),
   kind: text("kind"),

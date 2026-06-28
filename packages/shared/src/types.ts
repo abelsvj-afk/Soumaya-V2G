@@ -116,6 +116,8 @@ export interface GraphNode {
   color?: string;
   /** Who authored this node: "agent" = Soumaya (e.g. a constellation hub), else yours. */
   origin?: "user" | "agent";
+  /** Which autonomous agent last worked this node (e.g. "soumaya", "scout"). */
+  agent?: string;
   /** 0..1 significance/seriousness/life-impact, rated at ingestion. */
   importance?: number;
   /** Connection count — enriched by the graph service on read. */
