@@ -219,7 +219,8 @@ export function makeComets(count = 6, spread = 4200): THREE.Group {
 function makeSpiralGalaxy(): THREE.Points {
   const count = 1400;
   const arms = 2 + Math.floor(Math.random() * 4);
-  const radius = 380 + Math.random() * 520;
+  // Bigger so they stay grand at their farther distance (see makeGalaxies).
+  const radius = 700 + Math.random() * 950;
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
   const core = new THREE.Color("#ffe9c0");
@@ -248,11 +249,11 @@ function makeSpiralGalaxy(): THREE.Points {
   const points = new THREE.Points(
     geom,
     new THREE.PointsMaterial({
-      size: 3,
+      size: 4.5,
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.7,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     }),
@@ -268,7 +269,9 @@ function makeSpiralGalaxy(): THREE.Points {
  * A few spiral galaxies on a far shell, well beyond the memory galaxy so they
  * never collide with / overlap your brain — just distant scenery.
  */
-export function makeGalaxies(count = 3, minDist = 6500, maxDist = 9000): THREE.Group {
+// Distances are well beyond the camera's zoom-out ceiling (~6200) so these spinning
+// clusters are pure backdrop — you can never reach or orbit behind them.
+export function makeGalaxies(count = 3, minDist = 10500, maxDist = 15000): THREE.Group {
   const group = new THREE.Group();
   for (let i = 0; i < count; i++) {
     const g = makeSpiralGalaxy();
