@@ -95,6 +95,11 @@ export function formatDigest(digest: DailyDigest, spaceName: string): string {
     for (const c of digest.cooling.slice(0, 5)) lines.push(`• ${c.node.label}`);
   }
 
+  if (digest.reminders && digest.reminders.length > 0) {
+    lines.push("", "⏰ Reminders due:");
+    for (const r of digest.reminders.slice(0, 5)) lines.push(`• ${r.node.label}`);
+  }
+
   if (digest.expiredActions.length > 0) {
     lines.push("", "⌛ Action items that timed out:");
     for (const a of digest.expiredActions.slice(0, 5)) lines.push(`• ${a.label}`);

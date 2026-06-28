@@ -34,11 +34,13 @@ describe("maintenance agent (server-side autonomy core)", () => {
     await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "a thought about the ocean");
     await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "a thought about the deep sea");
     setResearch(false);
-    const llmTypes = new Set(["synthesis", "merging", "research", "sector_vibe", "daily_log"]);
+    // Paid / cloud-LLM jobs that must never run with Research Mode off. (The genesis
+    // daily_log is free — it uses the offline heuristic — so it's allowed.)
+    const paidTypes = new Set(["synthesis", "merging", "research", "sector_vibe"]);
     for (let i = 0; i < 8; i++) {
       const job = selectJob(ctx, "legacy");
       expect(job).not.toBeNull();
-      expect(llmTypes.has(job!.type)).toBe(false);
+      expect(paidTypes.has(job!.type)).toBe(false);
     }
   });
 
@@ -79,6 +81,10 @@ describe("maintenance agent (server-side autonomy core)", () => {
     handle.sqlite
       .prepare(`INSERT INTO edges (space_id, source, target, relationship, weight) VALUES ('claimspace', ?, ?, 'relates_to', 0.1)`)
       .run(a, b);
+    // Pre-seed a daily log so the genesis-log job doesn't take priority.
+    handle.sqlite
+      .prepare(`INSERT INTO daily_logs (space_id, content, date) VALUES ('claimspace', 'seed', '2000-01-01')`)
+      .run();
     const first = selectJob(ctx, "claimspace");
     expect(first!.type).toBe("pruning");
     // A second poll within the claim window gets a harmless patrol, not the same job.

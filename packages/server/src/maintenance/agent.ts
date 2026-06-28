@@ -208,8 +208,23 @@ function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
     .from(dailyLogs)
     .where(and(eq(dailyLogs.spaceId, spaceId), eq(dailyLogs.date, today)))
     .get();
-  if (llmOn && !logExists && nodesRepo.count() > 5) {
-    return mkJob(ctx, spaceId, "daily_log", [], "Captain's Log: Summarizing today's brain evolution.");
+  // Genesis log: a brand-new brain (no log ever) gets its first Captain's Log as
+  // soon as it has a memory — even offline (heuristic generateDailyLog works with
+  // no key), so a new user immediately sees Soumaya narrating their galaxy.
+  const everLogged = ctx.handle.db
+    .select()
+    .from(dailyLogs)
+    .where(eq(dailyLogs.spaceId, spaceId))
+    .get();
+  const nodeCount = nodesRepo.count();
+  if (!logExists && nodeCount >= 1 && (llmOn ? nodeCount > 5 : !everLogged)) {
+    return mkJob(
+      ctx,
+      spaceId,
+      "daily_log",
+      [],
+      everLogged ? "Captain's Log: Summarizing today's brain evolution." : "Genesis Log: Soumaya's first entry for this brain.",
+    );
   }
 
   // 0. Merging — near-duplicate memories (similarity > 0.96). Only the most
