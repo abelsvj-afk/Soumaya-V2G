@@ -31,6 +31,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     importance: row.importance ?? undefined,
     color: row.color ?? undefined,
     origin: (row.origin as "user" | "agent" | null) ?? undefined,
+    agent: row.agent ?? undefined,
     kind: (row.kind as "memory" | "action" | "moc" | null) ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
@@ -159,6 +160,13 @@ export class NodesRepo {
       .prepare(`UPDATE nodes SET last_tended_at = ? WHERE id = ? AND space_id = ?`)
       .run(new Date().toISOString(), id, this.spaceId);
     return info.changes > 0;
+  }
+
+  /** Attribute which autonomous agent last worked this node (e.g. after research). */
+  setAgent(id: number, agent: string): void {
+    this.h.sqlite
+      .prepare(`UPDATE nodes SET agent = ? WHERE id = ? AND space_id = ?`)
+      .run(agent, id, this.spaceId);
   }
 
   /** Active action items whose timeout has passed (for the expiry sweep). */

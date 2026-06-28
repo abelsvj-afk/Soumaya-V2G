@@ -590,6 +590,7 @@ export async function executeJob(
           .run();
         upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
         nodesRepo.tend(original.id);
+        nodesRepo.setAgent(original.id, "soumaya"); // attribute the deep-dive to her
         description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
       }
     }

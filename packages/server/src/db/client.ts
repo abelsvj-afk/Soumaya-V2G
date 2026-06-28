@@ -182,6 +182,10 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "origin")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN origin TEXT`);
   }
+  // Which autonomous agent last worked a node (attribution; e.g. "soumaya"/"scout").
+  if (!cols.some((c) => c.name === "agent")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN agent TEXT`);
+  }
   // Soft-delete safety (merged/redundant memories are flagged, not erased).
   if (!cols.some((c) => c.name === "deleted_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN deleted_at TEXT`);
