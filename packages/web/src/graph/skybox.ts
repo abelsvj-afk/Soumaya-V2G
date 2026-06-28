@@ -180,7 +180,9 @@ const CONSTELLATIONS: Constellation[] = [
  * faint connecting lines (THREE.LineSegments). Each is given a random orientation
  * so they scatter naturally around the galaxy.
  */
-export function makeConstellations(radius = 5000, scale = 150): THREE.Group {
+// radius is set well beyond the camera's zoom-out ceiling (~6200) so you can never
+// orbit out behind a constellation; scale/size are bumped to stay big at that distance.
+export function makeConstellations(radius = 9500, scale = 290): THREE.Group {
   const group = new THREE.Group();
 
   for (const con of CONSTELLATIONS) {
@@ -218,10 +220,10 @@ export function makeConstellations(radius = 5000, scale = 150): THREE.Group {
         starGeom,
         new THREE.PointsMaterial({
           color: "#dfe9ff",
-          size: 9,
+          size: 17, // larger so they read clearly at the farther radius
           sizeAttenuation: true,
           transparent: true,
-          opacity: 0.85,
+          opacity: 0.9,
           depthWrite: false,
         }),
       ),
@@ -239,7 +241,7 @@ export function makeConstellations(radius = 5000, scale = 150): THREE.Group {
         new THREE.LineBasicMaterial({
           color: "#7aa0ff",
           transparent: true,
-          opacity: 0.22,
+          opacity: 0.3,
           depthWrite: false,
         }),
       ),
