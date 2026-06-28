@@ -92,4 +92,33 @@ export class SpacesRepo {
     tx();
     return { space: { id, name: trimmedName, gamerTag: trimmedGamerTag }, created: true };
   }
+
+  /**
+   * Update a brain's display name and/or gamer tag. Gamer tag must stay UNIQUE
+   * (case-insensitive) and isn't the reserved "Soumaya"; name can be anything.
+   * Throws a user-facing message on conflict/validation.
+   */
+  updateProfile(id: string, opts: { gamerTag?: string; name?: string }): SpacePublic {
+    const cur = this.h.db.select().from(spaces).where(eq(spaces.id, id)).get();
+    if (!cur) throw new Error("No such brain.");
+    const next: { gamerTag?: string; name?: string } = {};
+
+    if (opts.gamerTag !== undefined) {
+      const tag = opts.gamerTag.trim();
+      if (tag.length < 2 || tag.length > 40) throw new Error("Gamer tag must be 2–40 characters.");
+      if (tag.toLowerCase() === "soumaya") throw new Error("The gamer tag 'Soumaya' is reserved.");
+      const taken = this.getByGamerTag(tag);
+      if (taken && taken.id !== id) throw new Error("That gamer tag is already taken — pick another.");
+      next.gamerTag = tag;
+    }
+    if (opts.name !== undefined) {
+      const nm = opts.name.trim();
+      if (nm.length < 1 || nm.length > 40) throw new Error("Name must be 1–40 characters.");
+      next.name = nm;
+    }
+    if (Object.keys(next).length === 0) return toPublic(cur);
+
+    this.h.db.update(spaces).set(next).where(eq(spaces.id, id)).run();
+    return toPublic({ ...cur, ...next });
+  }
 }

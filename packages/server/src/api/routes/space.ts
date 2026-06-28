@@ -9,6 +9,11 @@ const AuthBody = z.object({
   name: z.string().trim().min(2).max(40).optional(),
 });
 
+const ProfileBody = z.object({
+  gamerTag: z.string().trim().min(2).max(40).optional(),
+  name: z.string().trim().min(1).max(40).optional(),
+});
+
 export function spaceRoutes(ctx: AppContext): Router {
   const r = Router();
   const repo = new SpacesRepo(ctx.handle);
@@ -44,6 +49,26 @@ export function spaceRoutes(ctx: AppContext): Router {
       return;
     }
     res.json({ id: space.id, name: space.name, gamerTag: space.gamerTag });
+  });
+
+  // PATCH /api/space/profile { gamerTag?, name? } -> update this brain's identity.
+  // gamerTag stays unique; name is free. Uses the x-space-id header.
+  r.patch("/profile", (req, res) => {
+    const id = (res.req.header("x-space-id") ?? "").trim();
+    if (!id || !repo.getById(id)) {
+      res.status(401).json({ error: "No valid brain selected." });
+      return;
+    }
+    const parsed = ProfileBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Body must be { gamerTag?, name? }" });
+      return;
+    }
+    try {
+      res.json(repo.updateProfile(id, parsed.data));
+    } catch (err) {
+      res.status(409).json({ error: (err as Error).message });
+    }
   });
 
   return r;
