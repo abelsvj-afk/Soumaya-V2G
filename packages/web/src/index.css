@@ -990,6 +990,19 @@ body,
   right: 14px;
   font-size: 26px;
 }
+.fab-observatory {
+  bottom: 186px;
+  right: 14px;
+  font-size: 22px;
+}
+/* Keep the bottom FAB rows clear of the mobile home indicator / safe area. */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .fab-ingest, .fab-dock { bottom: calc(18px + env(safe-area-inset-bottom)); }
+  .fab-recenter, .fab-zoom-out { bottom: calc(74px + env(safe-area-inset-bottom)); }
+  .fab-music, .fab-zoom-in { bottom: calc(130px + env(safe-area-inset-bottom)); }
+  .fab-observatory { bottom: calc(186px + env(safe-area-inset-bottom)); }
+  .focus-cluster { bottom: calc(186px + env(safe-area-inset-bottom)); }
+}
 /* Game-style focus cluster: a single button that pops its targets upward. */
 .focus-cluster {
   position: fixed;

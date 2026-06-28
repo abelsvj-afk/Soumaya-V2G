@@ -182,7 +182,9 @@ persistence) are 🔴 additive `space_meta`/migration; all the feedback/visual j
   `fg.graphData()` calls per frame — cache once per tick. (3) `SoumayaPanel.moveTask()` should null-guard
   `tasks[index]`. All cosmetic/defensive; verified not to cause current bugs (2026-06-21 audit).
 
-- [ ] 🟢 **Fix UI layout overlaps** (bottom-menu / "Add thought" button / volume controls) — user said "forget it for now" on 2026-06-20.
+- [x] 🟢 **Fix UI layout overlaps** — ✅ done. Positioned the previously-unplaced 🔭 Observatory FAB into the
+  free right-column slot (was overlapping the header), and added `env(safe-area-inset-bottom)` to every
+  bottom FAB row so they clear the mobile home indicator.
 - [ ] **`InstancedMesh` renderer rewrite (phase-1-density-core.md)** — full spec committed and ready but hold until real devices drop below ~50fps. Not blocking anything.
 
 ---
