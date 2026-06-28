@@ -22,7 +22,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   for a multi-instance deploy — noted in code.) +1 test.
 - [ ] 🔴 **LLM planning agent: replace fixed job-selection ladder** — swap the if/else chain in `maintenance/agent.ts` with a tools-based LLM planner; keep the deterministic ladder as a fallback. Touches LlmProvider seam.
 - [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
-- [ ] 🟡 **Request-Maintenance high-priority queue** — `POST /api/nodes/:id/tend` is partial. Route contract / priority field = Red; UI trigger button = Green.
+- [x] 🟡 **Request-Maintenance high-priority queue** — ✅ done. `POST /api/nodes/:id/request-maintenance`
+  enqueues a node into an in-memory per-space queue that `selectJob` drains first (research → connect →
+  recalibrate by availability); NodeInspector has an "🛰️ Ask Soumaya to tend this" button. +1 test.
 - [x] 🟡 **Surface `remind_at` reminders in daily digest** — ✅ done (digest). `buildDailyDigest` adds a
   `reminders` field (memories whose `remind_at` ≤ now), rendered as an "⏰ Reminders due" section in the
   Insights panel + folded into her closing line. (Telegram formatting of the same still pending.)
@@ -35,7 +37,9 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [ ] 🟡 **Visitor craft models (`visitor-traveler.glb` / `visitor-wanderer.glb`)** — procedural saucers are placeholders. Asset = user provides; GLB loader swap = Green.
 - [x] 🟢 **Literal beacon dispatch animation** — Soumaya flies to position and releases a beacon visually. Pure `graph/soumaya.ts` animation work, no backend touch.
 - [x] 🟢 **Defender live drifter intercept** — wire real visitor positions from `visitors.ts` into `subAgents.update` so the Defender actually flies to intercept drifters. `graph/subAgents` only.
-- [ ] 🟡 **Formalize alien attraction scoring function** — `visitors.ts` scoring logic (emotional intensity, rarity, mass, degree, recency, revisit frequency). Server service = Red-adjacent; visual feedback on hover / in List = Green.
+- [x] 🟡 **Formalize alien attraction scoring function** — ✅ done (in `graph/visitors.ts`): a weighted score over
+  emotional intensity, emotional rarity vs the brain average, mass, link density, recency decay, and a revisit
+  penalty, with a geometric pick over the top candidates. Visitor activity surfaced in the List (👽 counts).
 
 ---
 

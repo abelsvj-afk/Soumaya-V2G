@@ -370,6 +370,16 @@ export async function tendNode(id: number): Promise<void> {
   }
 }
 
+/** Ask Soumaya to prioritize tending this memory on her next round. Best-effort. */
+export async function requestMaintenance(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/nodes/${id}/request-maintenance`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** ML constellations (k-means over embeddings). Safe array on error. */
 export async function getConstellations(): Promise<Constellation[]> {
   try {

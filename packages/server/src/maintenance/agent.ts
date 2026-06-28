@@ -2,6 +2,7 @@ import { and, eq, or } from "drizzle-orm";
 import type { AppContext } from "../context.js";
 import { findCandidates } from "../synthesis/engine.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
+import { EdgesRepo } from "../repositories/edges.repo.js";
 import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
 import { GraphService } from "../graph/service.js";
 import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
@@ -187,11 +188,56 @@ function withClaim(ctx: AppContext, spaceId: string, job: AgentJob | null): Agen
 }
 
 /**
+ * User-requested high-priority maintenance: a small per-space queue of node ids
+ * the user asked Soumaya to tend NOW. selectJob drains this before its normal
+ * ladder, so a "tend this" tap gets attention on the next tick. In-memory (one
+ * Fly process); requests are best-effort and naturally expire when drained.
+ */
+const requestedJobs = new Map<string, number[]>();
+
+/** Enqueue a node for priority maintenance (called by the route). */
+export function requestMaintenance(spaceId: string, nodeId: number): void {
+  const q = requestedJobs.get(spaceId) ?? [];
+  if (!q.includes(nodeId)) q.push(nodeId);
+  requestedJobs.set(spaceId, q.slice(-20)); // cap the backlog
+}
+
+/** Build the best available job for a user-requested node, or null to skip it. */
+function jobForRequest(ctx: AppContext, spaceId: string, id: number): AgentJob | null {
+  const nodesRepo = new NodesRepo(ctx.handle, spaceId);
+  const node = nodesRepo.getById(id);
+  if (!node) return null;
+  const economy = new EconomyRepo(ctx.handle, spaceId);
+  const expansionOn = researchEnabled(ctx) && !ctx.usage.overBudget() && economy.canRunJob();
+  // Richest action first: deep-dive research (if Research Mode + fuel allow).
+  if (expansionOn) {
+    return mkJob(ctx, spaceId, "research", [id], `On request: deep-dive research on "${node.label}".`);
+  }
+  // Else pair it with its nearest not-yet-linked neighbour for synthesis.
+  const emb = getEmbedding(ctx.handle.sqlite, id);
+  if (emb && researchEnabled(ctx) && !ctx.usage.overBudget()) {
+    const edges = new EdgesRepo(ctx.handle, spaceId);
+    const hit = knn(ctx.handle.sqlite, emb, 4, spaceId).find(
+      (h) => h.nodeId !== id && !edges.exists(id, h.nodeId) && !edges.exists(h.nodeId, id),
+    );
+    if (hit) return mkJob(ctx, spaceId, "synthesis", [id, hit.nodeId], `On request: connecting "${node.label}".`);
+  }
+  // Free fallback — recalibrate its mass so something visibly happens offline.
+  return mkJob(ctx, spaceId, "calibration", [id], `On request: recalibrating "${node.label}".`);
+}
+
+/**
  * Choose the next meaningful job for a brain, or null if there's nothing to do.
- * Wraps the selection ladder with an idempotency claim so concurrent pollers
- * don't double-execute the same job.
+ * Drains user-requested priority work first, then the normal ladder, all wrapped
+ * with an idempotency claim so concurrent pollers don't double-execute.
  */
 export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
+  const q = requestedJobs.get(spaceId);
+  while (q && q.length > 0) {
+    const id = q.shift()!;
+    const job = jobForRequest(ctx, spaceId, id);
+    if (job) return withClaim(ctx, spaceId, job);
+  }
   return withClaim(ctx, spaceId, selectJobInner(ctx, spaceId));
 }
 

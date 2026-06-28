@@ -7,6 +7,7 @@ import { upsertEmbedding } from "../../db/vec.js";
 import { GraphService } from "../../graph/service.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
+import { requestMaintenance } from "../../maintenance/agent.js";
 import { spaceOf } from "../middleware.js";
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
@@ -27,6 +28,23 @@ export function nodesRoutes(ctx: AppContext): Router {
     }
     const ok = new NodesRepo(ctx.handle, spaceOf(res)).tend(id);
     res.json({ ok });
+  });
+
+  // POST /api/nodes/:id/request-maintenance -> ask Soumaya to prioritize tending
+  // this memory on her next round (research / connect / recalibrate). Best-effort.
+  r.post("/:id/request-maintenance", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    if (!new NodesRepo(ctx.handle, spaceId).getById(id)) {
+      res.status(404).json({ error: "No such memory" });
+      return;
+    }
+    requestMaintenance(spaceId, id);
+    res.json({ ok: true });
   });
 
   // POST /api/nodes/:id/synthesize -> AI pieces this memory + its connections into

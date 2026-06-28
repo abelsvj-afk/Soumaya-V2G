@@ -8,7 +8,7 @@ import { GraphService } from "../graph/service.js";
 import { UsageTracker } from "../usage.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { EconomyRepo } from "../economy.js";
-import { selectJob, executeJob, researchEnabled } from "../maintenance/agent.js";
+import { selectJob, executeJob, researchEnabled, requestMaintenance } from "../maintenance/agent.js";
 import { settings } from "../db/schema.js";
 
 let handle: DbHandle;
@@ -72,6 +72,15 @@ describe("maintenance agent (server-side autonomy core)", () => {
 
   it("selectJob returns null for an empty brain", () => {
     expect(selectJob(ctx, "legacy")).toBeNull();
+  });
+
+  it("prioritizes a user-requested node on the next round", async () => {
+    const id = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "tend me please", "reqspace")).nodes[0]!.id;
+    handle.sqlite.prepare(`INSERT INTO daily_logs (space_id, content, date) VALUES ('reqspace','seed','2000-01-01')`).run();
+    requestMaintenance("reqspace", id);
+    const job = selectJob(ctx, "reqspace");
+    expect(job).not.toBeNull();
+    expect(job!.targets).toContain(id); // her next job is the one you asked for
   });
 
   it("claims a job so concurrent pollers don't double-run it (idempotency)", async () => {
