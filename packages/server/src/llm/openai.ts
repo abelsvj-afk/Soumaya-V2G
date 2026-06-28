@@ -8,6 +8,7 @@ import {
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
   LOG_SYSTEM,
+  CHRONICLE_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -15,6 +16,7 @@ import {
   buildResearchPrompt,
   buildSectorPrompt,
   buildLogPrompt,
+  buildChroniclePrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -253,5 +255,20 @@ export class OpenAiProvider implements LlmProvider {
       "log",
     );
     return raw.log;
+  }
+
+  async chronicle(subject: string, context: string): Promise<string> {
+    const raw = await this.json<{ lore: string }>(
+      CHRONICLE_SYSTEM,
+      buildChroniclePrompt(subject, context),
+      {
+        type: "object",
+        properties: { lore: { type: "string" } },
+        required: ["lore"],
+        additionalProperties: false,
+      },
+      "chronicle",
+    );
+    return raw.lore;
   }
 }

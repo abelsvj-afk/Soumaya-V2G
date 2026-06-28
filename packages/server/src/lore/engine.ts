@@ -59,6 +59,11 @@ export class LoreRepo {
     return row ? toEntry(row) : null;
   }
 
+  /** Overwrite a chapter's text in place (e.g. upgrade the heuristic prose with LLM lore). */
+  updateText(id: number, text: string): void {
+    this.h.sqlite.prepare(`UPDATE lore SET text = ? WHERE id = ? AND space_id = ?`).run(text, id, this.spaceId);
+  }
+
   append(subjectType: LoreSubjectType, subjectId: string, text: string, trigger: string): LoreEntry {
     const prev = this.current(subjectType, subjectId);
     const version = (prev?.version ?? 0) + 1;

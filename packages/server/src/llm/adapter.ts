@@ -71,6 +71,9 @@ export interface LlmProvider {
   research(node: LinkCandidate, userAnswers?: string): Promise<{ label: string; content: string; questions?: string[] }>;
   /** Generate a vibe description for a cluster of nodes. */
   summarizeSector(nodes: LinkCandidate[]): Promise<string>;
+  /** Optional: richer LLM-authored lore prose. Absent on the heuristic provider
+   *  (the lore engine's offline chronicler is the always-available fallback). */
+  chronicle?(subject: string, context: string): Promise<string>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
   generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
 }
