@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
-import { type ChatResponse, type Fuel, NEUTRAL_TONE } from "@brain/shared";
+import { useEffect, useState } from "react";
+import { type Fuel } from "@brain/shared";
 import {
   getAgentLogs,
   getDailyLog,
@@ -10,44 +10,13 @@ import {
   setBudget as apiSetBudget,
   resetUsage,
   getSpaceId,
-  askChat,
   type AgentLog,
   type DailyLog,
   type JobRationale,
   type Usage,
 } from "../api/client.js";
-import { colorForType } from "../graph/theme.js";
-import {
-  isVoiceEnabled,
-  isVoiceSupported,
-  setVoiceEnabled as persistVoice,
-  speak,
-  stopSpeaking,
-} from "../voice.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Tiny, very quiet "terminal key" tick for the typewriter effect.
-let actx: AudioContext | null = null;
-function playTick() {
-  try {
-    const AC = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AC) return;
-    if (!actx) actx = new AC();
-    const t = actx.currentTime;
-    const o = actx.createOscillator();
-    const g = actx.createGain();
-    o.type = "square";
-    o.frequency.value = 1400 + Math.random() * 500;
-    g.gain.setValueAtTime(0.0009, t);
-    g.gain.exponentialRampToValueAtTime(0.00001, t + 0.03);
-    o.connect(g);
-    g.connect(actx.destination);
-    o.start(t);
-    o.stop(t + 0.035);
-  } catch {
-    /* audio not available */
-  }
-}
 
 export function SoumayaPanel({
   spaceName = "Soumaya",
@@ -78,17 +47,6 @@ export function SoumayaPanel({
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [budgetInput, setBudgetInput] = useState("");
   const [loading, setLoading] = useState(true);
-
-  // Chat state
-  const [q, setQ] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [resp, setResp] = useState<ChatResponse | null>(null);
-  const [displayed, setDisplayed] = useState("");
-  const [typing, setTyping] = useState(false);
-  const [voiceOn, setVoiceOn] = useState(isVoiceEnabled());
-  const [speaking, setSpeaking] = useState(false);
-  const soundRef = useRef(true);
-  const voiceSupported = isVoiceSupported();
 
   const moveTask = (index: number, direction: "up" | "down") => {
     if (!tasks || !onReorderTasks || !tasks[index]) return;
@@ -139,72 +97,12 @@ export function SoumayaPanel({
     return () => clearInterval(timer);
   }, []);
 
-  // Speech and voice hooks
-  useEffect(() => () => stopSpeaking(), []);
-
-  useEffect(() => {
-    if (!resp?.answer || !voiceOn) return;
-    speak(resp.answer, resp.tone ?? NEUTRAL_TONE, {
-      onStart: () => setSpeaking(true),
-      onEnd: () => setSpeaking(false),
-    });
-  }, [resp]);
-
-  const toggleVoice = () => {
-    const next = !voiceOn;
-    setVoiceOn(next);
-    persistVoice(next);
-    if (!next) setSpeaking(false);
-    else if (resp?.answer)
-      speak(resp.answer, resp.tone ?? NEUTRAL_TONE, {
-        onStart: () => setSpeaking(true),
-        onEnd: () => setSpeaking(false),
-      });
-  };
-
-  // Typewriter effect
-  useEffect(() => {
-    const full = resp?.answer ?? "";
-    if (!full) {
-      setDisplayed("");
-      return;
-    }
-    let i = 0;
-    setDisplayed("");
-    setTyping(true);
-    const id = setInterval(() => {
-      i += 2;
-      setDisplayed(full.slice(0, i));
-      if (soundRef.current && i % 4 === 0) playTick();
-      if (i >= full.length) {
-        clearInterval(id);
-        setTyping(false);
-      }
-    }, 16);
-    return () => clearInterval(id);
-  }, [resp]);
-
   const toggleResearch = async () => {
     const newVal = !researchEnabled;
     setResearchEnabled(newVal);
     await updateSetting("research_enabled", String(newVal));
   };
 
-  async function ask(e: FormEvent) {
-    e.preventDefault();
-    if (!q.trim()) return;
-    setBusy(true);
-    try {
-      const response = await askChat(q);
-      setResp(response);
-      if (response.citations && response.citations.length > 0) {
-        const ids = response.citations.map((c) => c.id);
-        onRecall?.(ids);
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
 
   if (loading) {
     return (
@@ -217,7 +115,7 @@ export function SoumayaPanel({
   return (
     <div className="dock-body">
       <div className="dock-head">
-        <h3>{spaceName} {speaking && <span className="speaking-dot" title="Speaking…">◗</span>}</h3>
+        <h3>{spaceName}</h3>
         <div className="head-tools">
           {setShipViewMode && (
             <button
@@ -239,22 +137,6 @@ export function SoumayaPanel({
               🏷️
             </button>
           )}
-          {voiceSupported && (
-            <button
-              className={`link-btn ${voiceOn ? "active" : ""}`}
-              title={voiceOn ? `${spaceName}'s voice: ON` : `${spaceName}'s voice: OFF`}
-              onClick={toggleVoice}
-            >
-              {voiceOn ? "🗣️" : "🔇"}
-            </button>
-          )}
-          <button
-            className="link-btn"
-            title="Toggle typing sound"
-            onClick={() => (soundRef.current = !soundRef.current)}
-          >
-            ⌨️
-          </button>
         </div>
       </div>
 
@@ -312,40 +194,7 @@ export function SoumayaPanel({
         )}
       </div>
 
-      {/* 2. Chat Interface */}
-      <div className="chat-section" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
-        <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Talk to {spaceName}
-        </h4>
-        <form onSubmit={ask} className="chat-form">
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Ask ${spaceName}…`} />
-          <button disabled={busy}>{busy ? "…" : "Ask"}</button>
-        </form>
-        {resp && (
-          <div className="chat-answer" style={{ marginBottom: "12px" }}>
-            <p style={{ margin: "4px 0 8px" }}>
-              {displayed}
-              {typing && <span className="type-caret">▋</span>}
-            </p>
-            {!typing && resp.citations.length > 0 && (
-              <div className="pills">
-                {resp.citations.map((c) => (
-                  <button
-                    key={c.id}
-                    className="pill"
-                    style={{ borderColor: colorForType(c.type) }}
-                    onClick={() => onFocus(c.id)}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* 3. Operations & Telemetry */}
+      {/* Operations & Telemetry */}
       <div className="operations-section" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
           <h4 style={{ margin: 0, fontSize: "13px", color: "var(--accent)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
