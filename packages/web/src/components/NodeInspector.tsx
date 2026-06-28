@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
-import { deleteNode, setImportance, synthesizeNode, answerResearch } from "../api/client.js";
+import { deleteNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { Chronicle } from "./Chronicle.js";
@@ -47,6 +48,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
   const [synthBusy, setSynthBusy] = useState(false);
+  const [requested, setRequested] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -58,6 +60,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
     setInsight("");
     setAnswers({});
     setResearchError("");
+    setRequested(false);
   }, [node?.id]);
 
   const runSynthesis = () => {
@@ -313,6 +316,22 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         {synthBusy ? "Connecting…" : "✨ Connect the dots"}
       </button>
       {insight && <p className="insight-text">{insight}</p>}
+
+      {!demo && node.kind !== "action" && (
+        <button
+          className="synth-btn"
+          disabled={requested}
+          onClick={async () => {
+            const ok = await requestMaintenance(node.id);
+            if (ok) {
+              setRequested(true);
+              pushToast(`Soumaya will tend "${node.label.slice(0, 30)}" on her next round.`, "🛰️", 6000);
+            }
+          }}
+        >
+          {requested ? "🛰️ Queued for Soumaya" : "🛰️ Ask Soumaya to tend this"}
+        </button>
+      )}
 
       {onIsolate && (
         <button className="synth-btn" onClick={() => onIsolate(node.id)}>
