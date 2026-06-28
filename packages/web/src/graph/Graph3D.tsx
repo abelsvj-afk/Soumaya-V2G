@@ -652,6 +652,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(soumaya.object);
       scene.add(soumaya.taskLabel);
       scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
+      scene.add(soumaya.trail); // long fading engine trail (world-space)
+      scene.add(soumaya.streaks); // speed warp-streaks (world-space)
       soumaya.setTaskVisible(!!showShipTaskRef.current);
       soumaya.setPilotSpeed?.(pilotSpeedRef.current);
       soumayaObjRef.current = soumaya.object;
