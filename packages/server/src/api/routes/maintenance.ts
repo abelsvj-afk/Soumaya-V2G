@@ -22,8 +22,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    * ladder + all token/fuel gating live in maintenance/agent.ts so the browser
    * loop and the server-side 24/7 loop choose jobs identically.
    */
-  r.get("/next-job", (req, res) => {
-    const job = selectJob(ctx, spaceOf(res));
+  r.get("/next-job", async (req, res) => {
+    const job = await selectJob(ctx, spaceOf(res));
     if (!job) {
       res.status(404).json({ error: "No nodes available for maintenance." });
       return;

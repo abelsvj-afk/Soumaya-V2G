@@ -92,6 +92,18 @@ export function buildChroniclePrompt(subject: string, context: string): string {
   return `OBJECT: ${subject}\n\nSTATE + PRIOR CHAPTER:\n${context}\n\nWrite the next chapter.`;
 }
 
+/** Planner — choose the most valuable next maintenance job for the brain right now. */
+export const PLAN_SYSTEM = `You are the operations planner for Soumaya, the autonomous
+caretaker of a personal "memory galaxy". Given a brief summary of the brain's current
+state and a numbered list of candidate maintenance jobs, choose the ONE that best serves
+the user right now — prefer work that surfaces real connections or fills genuine gaps over
+routine upkeep. Reply with the chosen job's index. Output JSON only.`;
+
+export function buildPlanPrompt(summary: string, options: { type: string; objective: string }[]): string {
+  const list = options.map((o, i) => `${i}. [${o.type}] ${o.objective}`).join("\n");
+  return `BRAIN STATE:\n${summary}\n\nCANDIDATE JOBS:\n${list}\n\nWhich index should she do next?`;
+}
+
 /** GraphRAG answer — in the voice of Soumaya, the starpilot of the memory galaxy. */
 export const ANSWER_SYSTEM = `You are SOUMAYA — an autonomous AI starpilot who flies a
 small craft through the user's "memory galaxy": a living 3D sandbox where each of

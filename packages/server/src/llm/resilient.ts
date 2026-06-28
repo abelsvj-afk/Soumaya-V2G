@@ -171,4 +171,10 @@ export class ResilientLlmProvider implements LlmProvider {
     if (this.blocked || !this.primary.chronicle) throw new Error("chronicle unavailable");
     return await withTimeout(this.primary.chronicle(subject, context), this.timeoutMs, "chronicle");
   }
+
+  /** Only when the primary supports it; the deterministic ladder is the fallback. */
+  async planJob(summary: string, options: { type: string; objective: string }[]): Promise<number> {
+    if (this.blocked || !this.primary.planJob) throw new Error("planJob unavailable");
+    return await withTimeout(this.primary.planJob(summary, options), this.timeoutMs, "planJob");
+  }
 }

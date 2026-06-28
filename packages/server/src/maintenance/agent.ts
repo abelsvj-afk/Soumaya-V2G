@@ -226,19 +226,74 @@ function jobForRequest(ctx: AppContext, spaceId: string, id: number): AgentJob |
   return mkJob(ctx, spaceId, "calibration", [id], `On request: recalibrating "${node.label}".`);
 }
 
+/** The research-gap job as a standalone option for the planner (or null). */
+function researchGapJob(ctx: AppContext, spaceId: string): AgentJob | null {
+  const economy = new EconomyRepo(ctx.handle, spaceId);
+  if (!(researchEnabled(ctx) && !ctx.usage.overBudget() && economy.canRunJob())) return null;
+  const target = ctx.handle.sqlite
+    .prepare(
+      `SELECT n.id FROM nodes n
+       LEFT JOIN (
+         SELECT node_id, COUNT(*) as deg FROM (
+           SELECT source as node_id FROM edges WHERE space_id = ?
+           UNION ALL SELECT target as node_id FROM edges WHERE space_id = ?
+         ) GROUP BY node_id
+       ) d ON d.node_id = n.id
+       WHERE n.space_id = ? AND n.deleted_at IS NULL
+       AND n.content NOT LIKE '%--- Research Deep Dive ---%'
+       AND n.importance >= 0.45 AND COALESCE(d.deg, 0) <= 1
+       ORDER BY n.importance DESC LIMIT 1`,
+    )
+    .get(spaceId, spaceId, spaceId) as { id: number } | undefined;
+  if (!target) return null;
+  return mkJob(ctx, spaceId, "research", [target.id], "Gap-filling: deep-dive research on an important but under-connected memory.");
+}
+
+/** Compact, cheap brain summary for the planner's decision. */
+function brainSummary(ctx: AppContext, spaceId: string): string {
+  const s = ctx.handle.sqlite;
+  const nodes = (s.prepare(`SELECT COUNT(*) c FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND (kind IS NULL OR kind NOT IN ('action','moc'))`).get(spaceId) as { c: number }).c;
+  const edges = (s.prepare(`SELECT COUNT(*) c FROM edges WHERE space_id = ?`).get(spaceId) as { c: number }).c;
+  const cold = (s.prepare(`SELECT COUNT(*) c FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND last_tended_at IS NOT NULL AND julianday('now') - julianday(last_tended_at) > 14`).get(spaceId) as { c: number }).c;
+  return `${nodes} memories, ${edges} connections, ${cold} cooling from neglect.`;
+}
+
 /**
  * Choose the next meaningful job for a brain, or null if there's nothing to do.
- * Drains user-requested priority work first, then the normal ladder, all wrapped
- * with an idempotency claim so concurrent pollers don't double-execute.
+ * Drains user-requested priority work first, then the deterministic ladder. When a
+ * cloud LLM with a planner is available, it may choose between the ladder's pick and
+ * a strategic alternative (the ladder is always the fallback). All wrapped with an
+ * idempotency claim so concurrent pollers don't double-execute.
  */
-export function selectJob(ctx: AppContext, spaceId: string): AgentJob | null {
+export async function selectJob(ctx: AppContext, spaceId: string): Promise<AgentJob | null> {
   const q = requestedJobs.get(spaceId);
   while (q && q.length > 0) {
     const id = q.shift()!;
     const job = jobForRequest(ctx, spaceId, id);
     if (job) return withClaim(ctx, spaceId, job);
   }
-  return withClaim(ctx, spaceId, selectJobInner(ctx, spaceId));
+
+  const base = selectJobInner(ctx, spaceId);
+  // Optional LLM planner: pick between the deterministic choice and a research-gap
+  // alternative. Absent/erroring → the ladder stands (always-available fallback).
+  if (base && ctx.llm.planJob && researchEnabled(ctx) && !ctx.usage.overBudget()) {
+    const options: AgentJob[] = [base];
+    const alt = researchGapJob(ctx, spaceId);
+    if (alt && alt.targets.join(",") !== base.targets.join(",")) options.push(alt);
+    if (options.length > 1) {
+      try {
+        const idx = await ctx.llm.planJob(
+          brainSummary(ctx, spaceId),
+          options.map((o) => ({ type: o.type, objective: o.rationale?.objective ?? o.description })),
+        );
+        const chosen = options[idx] ?? base;
+        return withClaim(ctx, spaceId, chosen);
+      } catch {
+        /* planner failed — the deterministic ladder stands */
+      }
+    }
+  }
+  return withClaim(ctx, spaceId, base);
 }
 
 function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {

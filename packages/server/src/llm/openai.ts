@@ -9,6 +9,7 @@ import {
   SECTOR_SYSTEM,
   LOG_SYSTEM,
   CHRONICLE_SYSTEM,
+  PLAN_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -17,6 +18,7 @@ import {
   buildSectorPrompt,
   buildLogPrompt,
   buildChroniclePrompt,
+  buildPlanPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -270,5 +272,20 @@ export class OpenAiProvider implements LlmProvider {
       "chronicle",
     );
     return raw.lore;
+  }
+
+  async planJob(summary: string, options: { type: string; objective: string }[]): Promise<number> {
+    const raw = await this.json<{ index: number }>(
+      PLAN_SYSTEM,
+      buildPlanPrompt(summary, options),
+      {
+        type: "object",
+        properties: { index: { type: "integer" } },
+        required: ["index"],
+        additionalProperties: false,
+      },
+      "plan",
+    );
+    return raw.index;
   }
 }

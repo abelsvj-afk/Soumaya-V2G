@@ -38,7 +38,7 @@ describe("maintenance agent (server-side autonomy core)", () => {
     // daily_log is free — it uses the offline heuristic — so it's allowed.)
     const paidTypes = new Set(["synthesis", "merging", "research", "sector_vibe"]);
     for (let i = 0; i < 8; i++) {
-      const job = selectJob(ctx, "legacy");
+      const job = await selectJob(ctx, "legacy");
       expect(job).not.toBeNull();
       expect(paidTypes.has(job!.type)).toBe(false);
     }
@@ -70,15 +70,15 @@ describe("maintenance agent (server-side autonomy core)", () => {
     expect(detail).toBeNull();
   });
 
-  it("selectJob returns null for an empty brain", () => {
-    expect(selectJob(ctx, "legacy")).toBeNull();
+  it("selectJob returns null for an empty brain", async () => {
+    expect(await selectJob(ctx, "legacy")).toBeNull();
   });
 
   it("prioritizes a user-requested node on the next round", async () => {
     const id = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "tend me please", "reqspace")).nodes[0]!.id;
     handle.sqlite.prepare(`INSERT INTO daily_logs (space_id, content, date) VALUES ('reqspace','seed','2000-01-01')`).run();
     requestMaintenance("reqspace", id);
-    const job = selectJob(ctx, "reqspace");
+    const job = await selectJob(ctx, "reqspace");
     expect(job).not.toBeNull();
     expect(job!.targets).toContain(id); // her next job is the one you asked for
   });
@@ -94,17 +94,17 @@ describe("maintenance agent (server-side autonomy core)", () => {
     handle.sqlite
       .prepare(`INSERT INTO daily_logs (space_id, content, date) VALUES ('claimspace', 'seed', '2000-01-01')`)
       .run();
-    const first = selectJob(ctx, "claimspace");
+    const first = await selectJob(ctx, "claimspace");
     expect(first!.type).toBe("pruning");
     // A second poll within the claim window gets a harmless patrol, not the same job.
-    const second = selectJob(ctx, "claimspace");
+    const second = await selectJob(ctx, "claimspace");
     expect(second!.type).toBe("patrol");
   });
 
   it("attaches an explainable rationale to every job and persists it to the log", async () => {
     const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "rationale alpha")).nodes[0]!.id;
 
-    const job = selectJob(ctx, "legacy"); // research OFF → a free job, still explained
+    const job = await selectJob(ctx, "legacy"); // research OFF → a free job, still explained
     expect(job).not.toBeNull();
     expect(job!.rationale?.objective).toBeTruthy();
     expect(job!.rationale?.why).toBeTruthy();
