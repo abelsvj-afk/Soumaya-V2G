@@ -11,7 +11,6 @@ import {
   uploadDocument,
   renameDocument,
   deleteDocument,
-  askChat,
   type InstructionProfile,
   type KnowledgeDoc,
 } from "../api/client.js";
@@ -33,11 +32,12 @@ const ROLE_PRESETS = [
 /**
  * The 🧠 Companion tab: configure WHO Soumaya is to you.
  *  - About Me: auto-derived, who you are (she's aware, never becomes you).
- *  - Custom Instructions: stackable roles she adopts (editable; preset or custom name).
- *  - Knowledge: reference docs she retrieves from.
- *  - Try it: chat right here using the active roles + knowledge.
+ *  - Custom Instructions: stackable roles she adopts (collapsible; editable).
+ *  - Knowledge: reference docs she retrieves from (txt/md/pdf/docx).
+ * (There's no chat here on purpose — talk to her in the 🛰️ Soumaya tab, which
+ *  already uses these active roles + knowledge. Kept single to avoid redundancy.)
  */
-export function CompanionPanel({ demo }: { demo?: boolean }) {
+export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean; spaceName?: string }) {
   if (demo) {
     return <p className="empty">The Companion is available in your own brain — sign in to configure it.</p>;
   }
@@ -46,7 +46,9 @@ export function CompanionPanel({ demo }: { demo?: boolean }) {
       <AboutMe />
       <Instructions />
       <Knowledge />
-      <CompanionChat />
+      <p className="companion-hint companion-tryhint">
+        💬 Try your active roles + knowledge by talking to her in the 🛰️ {spaceName} tab.
+      </p>
     </div>
   );
 }
@@ -91,10 +93,13 @@ function Instructions() {
   const [mode, setMode] = useState<"always" | "auto">("always");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [adding, setAdding] = useState(false); // the "new profile" form is collapsed by default
+  const [expandedId, setExpandedId] = useState<number | null>(null); // which item shows its full body
   // Inline edit state.
   const [editId, setEditId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [editMode, setEditMode] = useState<"always" | "auto">("always");
 
   const refresh = () => getInstructions().then(setList);
   useEffect(() => {
@@ -113,6 +118,7 @@ function Instructions() {
       setName("");
       setBody("");
       setMode("always");
+      setAdding(false);
       await refresh();
       setMsg("Added.");
       setTimeout(() => setMsg(""), 1500);
@@ -126,11 +132,12 @@ function Instructions() {
     setEditId(p.id);
     setEditName(p.name);
     setEditBody(p.body);
+    setEditMode(p.mode === "auto" ? "auto" : "always");
   };
   const saveEdit = async () => {
     if (editId == null) return;
     try {
-      await updateInstruction(editId, { name: editName.trim(), body: editBody.trim() });
+      await updateInstruction(editId, { name: editName.trim(), body: editBody.trim(), mode: editMode });
       setEditId(null);
       refresh();
     } catch (err) {
@@ -138,8 +145,6 @@ function Instructions() {
     }
   };
   const toggle = (p: InstructionProfile) => updateInstruction(p.id, { enabled: !p.enabled }).then(refresh);
-  const cycleMode = (p: InstructionProfile) =>
-    updateInstruction(p.id, { mode: p.mode === "always" ? "auto" : "always" }).then(refresh);
   const remove = (p: InstructionProfile) => deleteInstruction(p.id).then(refresh);
 
   return (
@@ -147,7 +152,7 @@ function Instructions() {
       <h3>🎭 Custom Instructions</h3>
       <p className="companion-hint">
         Roles she can adopt. Toggle them on to stack them. <b>Always</b> = every message;
-        <b> Auto</b> = she brings it in when the topic fits. Put in as much detail as you like.
+        <b> Auto</b> = she brings it in when the topic fits. Tap a role to expand it.
       </p>
       <datalist id="role-presets">
         {ROLE_PRESETS.map((r) => (
@@ -166,11 +171,15 @@ function Instructions() {
               />
               <textarea
                 className="companion-textarea"
-                rows={4}
+                rows={5}
                 value={editBody}
                 onChange={(e) => setEditBody(e.target.value)}
               />
               <div className="row">
+                <select value={editMode} onChange={(e) => setEditMode(e.target.value as "always" | "auto")}>
+                  <option value="always">always on</option>
+                  <option value="auto">auto (route by topic)</option>
+                </select>
                 <button onClick={saveEdit}>Save</button>
                 <button className="mini" onClick={() => setEditId(null)}>
                   Cancel
@@ -178,8 +187,16 @@ function Instructions() {
               </div>
             </li>
           ) : (
-            <li key={p.id} className="companion-item">
+            <li key={p.id} className={`companion-item ${expandedId === p.id ? "open" : ""}`}>
               <div className="companion-item-head">
+                <button
+                  className="companion-expand"
+                  onClick={() => setExpandedId(expandedId === p.id ? null : p.id)}
+                  aria-label={expandedId === p.id ? "Collapse" : "Expand"}
+                  title={expandedId === p.id ? "Collapse" : "Expand"}
+                >
+                  {expandedId === p.id ? "▾" : "▸"}
+                </button>
                 <button
                   className={`tag-chip ${p.enabled ? "on" : ""}`}
                   onClick={() => toggle(p)}
@@ -187,9 +204,7 @@ function Instructions() {
                 >
                   {p.enabled ? "●" : "○"} {p.name}
                 </button>
-                <button className="companion-mode" onClick={() => cycleMode(p)} title="Switch always/auto">
-                  {p.mode}
-                </button>
+                <span className="companion-mode-tag" title={`${p.mode} mode`}>{p.mode}</span>
                 <button className="companion-edit" onClick={() => beginEdit(p)} aria-label="Edit">
                   ✎
                 </button>
@@ -197,38 +212,50 @@ function Instructions() {
                   ×
                 </button>
               </div>
-              <p className="companion-body">{p.body}</p>
+              <p className={`companion-body ${expandedId === p.id ? "" : "clamp"}`} onClick={() => setExpandedId(p.id)}>
+                {p.body}
+              </p>
             </li>
           ),
         )}
-        {list.length === 0 && <li className="empty small">No profiles yet — create one below.</li>}
+        {list.length === 0 && <li className="empty small">No profiles yet — add one below.</li>}
       </ul>
-      <div className="companion-new">
-        <input
-          className="tag-input wide"
-          list="role-presets"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Role name (pick a preset or type your own)"
-        />
-        <textarea
-          className="companion-textarea"
-          rows={4}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          placeholder="How should she behave in this role? Frameworks, tone, decision rules, an entire operating manual — as much as you want…"
-        />
-        <div className="row">
-          <select value={mode} onChange={(e) => setMode(e.target.value as "always" | "auto")}>
-            <option value="always">always on</option>
-            <option value="auto">auto (route by topic)</option>
-          </select>
-          <button onClick={add} disabled={busy}>
-            {busy ? "Adding…" : "Add profile"}
-          </button>
-          <span className="msg">{msg}</span>
+
+      {adding ? (
+        <div className="companion-new">
+          <input
+            className="tag-input wide"
+            list="role-presets"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Role name (pick a preset or type your own)"
+          />
+          <textarea
+            className="companion-textarea"
+            rows={5}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="How should she behave in this role? Frameworks, tone, decision rules, an entire operating manual — as much as you want…"
+          />
+          <div className="row">
+            <select value={mode} onChange={(e) => setMode(e.target.value as "always" | "auto")}>
+              <option value="always">always on</option>
+              <option value="auto">auto (route by topic)</option>
+            </select>
+            <button onClick={add} disabled={busy}>
+              {busy ? "Adding…" : "Save profile"}
+            </button>
+            <button className="mini" onClick={() => { setAdding(false); setMsg(""); }}>
+              Cancel
+            </button>
+            <span className="msg">{msg}</span>
+          </div>
         </div>
-      </div>
+      ) : (
+        <button className="companion-add-btn" onClick={() => setAdding(true)}>
+          + New role
+        </button>
+      )}
     </section>
   );
 }
@@ -239,6 +266,8 @@ function Knowledge() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [renameId, setRenameId] = useState<number | null>(null);
+  const [renameVal, setRenameVal] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const refresh = () => getDocuments().then(setDocs);
   useEffect(() => {
@@ -277,12 +306,13 @@ function Knowledge() {
       setBusy(false);
     }
   };
-  const rename = async (d: KnowledgeDoc) => {
-    const next = prompt("Rename document", d.name);
-    if (next && next.trim() && next.trim() !== d.name) {
-      await renameDocument(d.id, next.trim());
-      refresh();
+  const saveRename = async (d: KnowledgeDoc) => {
+    const next = renameVal.trim();
+    if (next && next !== d.name) {
+      await renameDocument(d.id, next);
+      await refresh();
     }
+    setRenameId(null);
   };
   const remove = (d: KnowledgeDoc) => deleteDocument(d.id).then(refresh);
 
@@ -290,22 +320,40 @@ function Knowledge() {
     <section className="companion-section">
       <h3>📚 Knowledge</h3>
       <p className="companion-hint">
-        Reference docs she draws from when answering (frameworks, notes, research). Text &amp;
-        Markdown for now.
+        Reference docs she draws from when answering (frameworks, notes, research). Text, Markdown,
+        PDF &amp; Word (.docx) — or paste text directly.
       </p>
       <ul className="companion-list">
         {docs.map((d) => (
           <li key={d.id} className="companion-item">
-            <div className="companion-item-head">
-              <span className="companion-doc-name">📄 {d.name}</span>
-              <span className="companion-doc-meta">{d.chunks ?? 0} chunks</span>
-              <button className="companion-edit" onClick={() => rename(d)} aria-label="Rename">
-                ✎
-              </button>
-              <button className="companion-del" onClick={() => remove(d)} aria-label="Delete">
-                ×
-              </button>
-            </div>
+            {renameId === d.id ? (
+              <div className="companion-item-head">
+                <input
+                  className="tag-input wide"
+                  value={renameVal}
+                  autoFocus
+                  onChange={(e) => setRenameVal(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveRename(d)}
+                />
+                <button className="mini" onClick={() => saveRename(d)}>Save</button>
+                <button className="mini ghost" onClick={() => setRenameId(null)}>Cancel</button>
+              </div>
+            ) : (
+              <div className="companion-item-head">
+                <span className="companion-doc-name">📄 {d.name}</span>
+                <span className="companion-doc-meta">{d.chunks ?? 0} chunks</span>
+                <button
+                  className="companion-edit"
+                  onClick={() => { setRenameId(d.id); setRenameVal(d.name); }}
+                  aria-label="Rename"
+                >
+                  ✎
+                </button>
+                <button className="companion-del" onClick={() => remove(d)} aria-label="Delete">
+                  ×
+                </button>
+              </div>
+            )}
           </li>
         ))}
         {docs.length === 0 && <li className="empty small">No documents yet.</li>}
@@ -335,51 +383,6 @@ function Knowledge() {
             {busy ? "Embedding…" : "Add document"}
           </button>
           <span className="msg">{msg}</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function CompanionChat() {
-  const [q, setQ] = useState("");
-  const [answer, setAnswer] = useState("");
-  const [busy, setBusy] = useState(false);
-  const send = async () => {
-    if (!q.trim()) return;
-    setBusy(true);
-    setAnswer("");
-    try {
-      const r = await askChat(q.trim());
-      setAnswer(r.answer || "(no answer)");
-    } catch (err) {
-      setAnswer((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section className="companion-section companion-try">
-      <h3>💬 Try it</h3>
-      <p className="companion-hint">
-        Talk to Soumaya using your active roles + knowledge (same as the Chat tab).
-      </p>
-      {answer && <p className="companion-answer">{answer}</p>}
-      <div className="companion-new">
-        <textarea
-          className="companion-textarea"
-          rows={2}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Ask something…"
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") send();
-          }}
-        />
-        <div className="row">
-          <button onClick={send} disabled={busy}>
-            {busy ? "Thinking…" : "Send"}
-          </button>
         </div>
       </div>
     </section>

@@ -223,7 +223,7 @@ export function RightDock({
         {tab === "fleet" && (
           <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
         )}
-        {tab === "companion" && <CompanionPanel demo={demo} />}
+        {tab === "companion" && <CompanionPanel demo={demo} spaceName={spaceName} />}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
         {tab === "awards" && (
           <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
