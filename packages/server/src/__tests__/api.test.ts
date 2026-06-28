@@ -103,6 +103,21 @@ describe("REST API", () => {
     expect(status).toBe(400);
   });
 
+  it("distills a conversation into memory-worthy notes (heuristic offline)", async () => {
+    const { status, body } = await post("/api/chat/distill", {
+      messages: [
+        { role: "you", text: "I decided to move the product launch to the third quarter for safety." },
+        { role: "soumaya", text: "Noted — a careful call." },
+        { role: "you", text: "ok?" },
+      ],
+    });
+    expect(status).toBe(200);
+    expect(Array.isArray(body.summaries)).toBe(true);
+    // The substantive line is kept; the trivial "ok?" question is dropped.
+    expect(body.summaries.some((s: string) => s.includes("third quarter"))).toBe(true);
+    expect(body.summaries.some((s: string) => s.trim() === "ok?")).toBe(false);
+  });
+
   it("updates the profile name freely and keeps the gamer tag unique", async () => {
     const patch = (id: string, body: unknown) =>
       fetch(`${base}/api/space/profile`, {

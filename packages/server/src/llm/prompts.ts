@@ -92,6 +92,18 @@ export function buildChroniclePrompt(subject: string, context: string): string {
   return `OBJECT: ${subject}\n\nSTATE + PRIOR CHAPTER:\n${context}\n\nWrite the next chapter.`;
 }
 
+/** Distill — pull memory-worthy notes out of a finished conversation. */
+export const DISTILL_SYSTEM = `You are Soumaya reviewing a finished conversation with the
+user. Extract the few genuinely memory-worthy things the user revealed or decided —
+facts about them, decisions, plans, feelings, people, preferences — that are worth keeping
+in their second brain. Write each as ONE short, self-contained note in the user's own
+third-person-free voice (e.g. "Decided to delay the launch to Q3", not "The user decided…").
+Return 0–3 notes; fewer is fine; skip small talk and questions. Output JSON only.`;
+
+export function buildDistillPrompt(transcript: string): string {
+  return `CONVERSATION:\n${transcript}\n\nList the memory-worthy notes (0–3).`;
+}
+
 /** Planner — choose the most valuable next maintenance job for the brain right now. */
 export const PLAN_SYSTEM = `You are the operations planner for Soumaya, the autonomous
 caretaker of a personal "memory galaxy". Given a brief summary of the brain's current

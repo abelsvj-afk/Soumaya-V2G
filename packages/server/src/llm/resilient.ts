@@ -177,4 +177,10 @@ export class ResilientLlmProvider implements LlmProvider {
     if (this.blocked || !this.primary.planJob) throw new Error("planJob unavailable");
     return await withTimeout(this.primary.planJob(summary, options), this.timeoutMs, "planJob");
   }
+
+  /** Only when the primary supports it; the caller's heuristic extraction is the fallback. */
+  async distill(transcript: string): Promise<string[]> {
+    if (this.blocked || !this.primary.distill) throw new Error("distill unavailable");
+    return await withTimeout(this.primary.distill(transcript), this.timeoutMs, "distill");
+  }
 }

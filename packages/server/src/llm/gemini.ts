@@ -11,6 +11,7 @@ import {
   LOG_SYSTEM,
   CHRONICLE_SYSTEM,
   PLAN_SYSTEM,
+  DISTILL_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -20,6 +21,7 @@ import {
   buildLogPrompt,
   buildChroniclePrompt,
   buildPlanPrompt,
+  buildDistillPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -128,6 +130,14 @@ const planSchema = {
     index: { type: Type.INTEGER },
   },
   required: ["index"],
+};
+
+const distillSchema = {
+  type: Type.OBJECT,
+  properties: {
+    summaries: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ["summaries"],
 };
 
 export class GeminiProvider implements LlmProvider {
@@ -262,5 +272,14 @@ export class GeminiProvider implements LlmProvider {
       planSchema,
     );
     return raw.index;
+  }
+
+  async distill(transcript: string): Promise<string[]> {
+    const raw = await this.json<{ summaries: string[] }>(
+      DISTILL_SYSTEM,
+      buildDistillPrompt(transcript),
+      distillSchema,
+    );
+    return Array.isArray(raw.summaries) ? raw.summaries : [];
   }
 }

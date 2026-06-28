@@ -529,6 +529,21 @@ export async function askChat(question: string): Promise<ChatResponse> {
   );
 }
 
+/** Ask the server to distill a finished chat into 0–3 memory-worthy notes. */
+export async function distillChat(messages: { role: "you" | "soumaya"; text: string }[]): Promise<string[]> {
+  try {
+    const res = await afetch(`${API}/chat/distill`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages }),
+    });
+    const d = (await res.json().catch(() => ({}))) as { summaries?: string[] };
+    return Array.isArray(d.summaries) ? d.summaries : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface JobRationale {
   objective: string;
   why: string;

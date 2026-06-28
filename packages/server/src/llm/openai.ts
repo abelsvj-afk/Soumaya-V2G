@@ -10,6 +10,7 @@ import {
   LOG_SYSTEM,
   CHRONICLE_SYSTEM,
   PLAN_SYSTEM,
+  DISTILL_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -19,6 +20,7 @@ import {
   buildLogPrompt,
   buildChroniclePrompt,
   buildPlanPrompt,
+  buildDistillPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -287,5 +289,20 @@ export class OpenAiProvider implements LlmProvider {
       "plan",
     );
     return raw.index;
+  }
+
+  async distill(transcript: string): Promise<string[]> {
+    const raw = await this.json<{ summaries: string[] }>(
+      DISTILL_SYSTEM,
+      buildDistillPrompt(transcript),
+      {
+        type: "object",
+        properties: { summaries: { type: "array", items: { type: "string" } } },
+        required: ["summaries"],
+        additionalProperties: false,
+      },
+      "distill",
+    );
+    return Array.isArray(raw.summaries) ? raw.summaries : [];
   }
 }
