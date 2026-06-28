@@ -56,6 +56,7 @@ import {
   getHealth,
   getFuel,
   getStreak,
+  getDigest,
   flushIngestQueue,
   logoutSpace,
   onAiActivity,
@@ -79,6 +80,8 @@ export default function App() {
   const [streak, setStreak] = useState<Streak | null>(null);
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
+  const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
+  const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
@@ -498,6 +501,26 @@ export default function App() {
   useEffect(() => {
     setToastsPaused(!demo && !!space && (showObs || !obsSettled));
   }, [demo, space, showObs, obsSettled]);
+
+  // Autonomous hail: once per app open, if Soumaya has surfaced something worth
+  // seeing (a latent insight), she flies into view with a message and the 💬 FAB
+  // pulses — tap to talk. Fires after the Observatory settles so it never stacks.
+  useEffect(() => {
+    if (hailedRef.current || demo || !space || !loaded) return;
+    const t = window.setTimeout(async () => {
+      hailedRef.current = true;
+      try {
+        const insights = await getDigest();
+        if (insights && insights.length > 0 && !showChat) {
+          graphRef.current?.hailSoumaya("I found a connection worth seeing — tap to talk ✦");
+          setChatPulse(true);
+        }
+      } catch {
+        /* best-effort */
+      }
+    }, 7000);
+    return () => window.clearTimeout(t);
+  }, [space, loaded, demo]);
 
   // Close the Observatory and release any buffered toasts. The 🔭 FAB reopens it.
   const dismissObs = useCallback(() => {
@@ -1032,8 +1055,11 @@ export default function App() {
             🔭
           </button>
           <button
-            className={`fab fab-chat ${showChat ? "on" : ""}`}
-            onClick={() => setShowChat((v) => !v)}
+            className={`fab fab-chat ${showChat ? "on" : ""} ${chatPulse ? "pulse" : ""}`}
+            onClick={() => {
+              setShowChat((v) => !v);
+              setChatPulse(false);
+            }}
             aria-label="Talk to Soumaya"
             title={`Talk to ${space?.name ?? "Soumaya"}`}
           >
