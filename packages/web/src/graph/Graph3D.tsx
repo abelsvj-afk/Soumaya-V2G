@@ -652,8 +652,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(soumaya.object);
       scene.add(soumaya.taskLabel);
       scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
-      scene.add(soumaya.trail); // long fading engine trail (world-space)
-      scene.add(soumaya.streaks); // speed warp-streaks (world-space)
+      scene.add(soumaya.trail); // engine plume (world-space)
       soumaya.setTaskVisible(!!showShipTaskRef.current);
       soumaya.setPilotSpeed?.(pilotSpeedRef.current);
       soumayaObjRef.current = soumaya.object;
@@ -835,6 +834,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let last = performance.now() * 0.001;
     let lastDist = 0;
     let lastRefreshTime = 0;
+    let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
+    let starBlur = 0;
     const followAnchor = new THREE.Vector3();
     let followAnchorId: number | null = null;
     const followPos = new THREE.Vector3();
@@ -1042,9 +1043,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         fig2GroupRef.current.rotation.y += 0.0008;
       }
 
+      // Camera speed → starfield blur: stars smear past when you rush by close up.
+      // Per-frame camera move, normalized; eased so it ramps instead of snapping.
+      {
+        const cam = fgRef.current?.camera();
+        if (cam) {
+          if (prevCamPos) {
+            const move = cam.position.distanceTo(prevCamPos);
+            const target = Math.min(1, move / 26); // ~26 u/frame = full blur
+            starBlur += (target - starBlur) * 0.25;
+            prevCamPos.copy(cam.position);
+          } else {
+            prevCamPos = cam.position.clone();
+          }
+        }
+      }
+
       // 1. Update background / global objects
       scene.traverse((o: any) => {
-        if (typeof o.userData?.update === "function") o.userData.update(now);
+        if (typeof o.userData?.update === "function") o.userData.update(now, starBlur);
       });
 
       // 2. Optimized node updates (LOD + Pulse + Corona)

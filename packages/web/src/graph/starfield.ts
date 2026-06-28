@@ -5,28 +5,24 @@ import * as THREE from "three";
  * spherical shell (so it reads as a sky, never a cube) that slowly drifts and
  * twinkles instead of sitting dead-still.
  */
-export function makeStarfield(count = 4000, spread = 7000): THREE.Points {
+export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   const colors = new Float32Array(count * 3);
+  const phase = new Float32Array(count); // per-star twinkle phase
+  const tw = new Float32Array(count); // per-star twinkle speed
+  const baseSize = new Float32Array(count); // per-star base size (varied)
   const palette = [
     new THREE.Color("#ffffff"),
     new THREE.Color("#9dd9ff"),
     new THREE.Color("#ffd9f0"),
     new THREE.Color("#cabfff"),
+    new THREE.Color("#fff0c8"),
   ];
 
-  // Begin close enough that the galaxy AND the space station's orbit (which sits
-  // just outside the bodies) are both wrapped in stars, not floating in a void.
   const inner = spread * 0.18;
   for (let i = 0; i < count; i++) {
-    // Distribute on a thick spherical shell (uniform direction + radius in a band)
-    // so there are no visible cube edges/corners to "see the box".
-    const dir = new THREE.Vector3(
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1,
-      Math.random() * 2 - 1,
-    );
+    const dir = new THREE.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1);
     if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
     dir.normalize().multiplyScalar(inner + Math.random() * (spread - inner));
     positions[i * 3] = dir.x;
@@ -36,27 +32,62 @@ export function makeStarfield(count = 4000, spread = 7000): THREE.Points {
     colors[i * 3] = c.r;
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
+    phase[i] = Math.random() * Math.PI * 2;
+    tw[i] = 0.6 + Math.random() * 2.4; // each twinkles at its own rate
+    baseSize[i] = 2.0 + Math.random() * Math.random() * 6.0; // mostly small, a few big
   }
 
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  geometry.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
+  geometry.setAttribute("aTw", new THREE.BufferAttribute(tw, 1));
+  geometry.setAttribute("aSize", new THREE.BufferAttribute(baseSize, 1));
 
-  const material = new THREE.PointsMaterial({
-    size: 2.2,
-    sizeAttenuation: true,
-    vertexColors: true,
+  // Per-star twinkle + speed blur via a small ShaderMaterial. uBlur (camera speed,
+  // 0..1) enlarges + softens points so stars smear past when you rush by close up.
+  const uniforms = { uTime: { value: 0 }, uBlur: { value: 0 } };
+  const material = new THREE.ShaderMaterial({
+    uniforms,
     transparent: true,
-    opacity: 0.9,
     depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    vertexColors: true,
+    vertexShader: `
+      attribute float aPhase; attribute float aTw; attribute float aSize;
+      uniform float uTime; uniform float uBlur;
+      varying vec3 vColor; varying float vBright;
+      void main() {
+        vColor = color;
+        vBright = 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * aTw + aPhase));
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        float att = 300.0 / max(1.0, -mv.z);
+        gl_PointSize = aSize * att * (1.0 + uBlur * 5.0);
+        gl_Position = projectionMatrix * mv;
+      }
+    `,
+    fragmentShader: `
+      precision mediump float;
+      uniform float uBlur;
+      varying vec3 vColor; varying float vBright;
+      void main() {
+        float d = length(gl_PointCoord - vec2(0.5));
+        if (d > 0.5) discard;
+        float soft = smoothstep(0.5, 0.0, d);
+        float a = soft * vBright * (0.95 - uBlur * 0.45);
+        gl_FragColor = vec4(vColor, a);
+      }
+    `,
   });
 
   const stars = new THREE.Points(geometry, material);
-  // Gentle parallax drift + a soft collective twinkle so the sky feels alive.
-  stars.userData.update = (t: number) => {
+  stars.frustumCulled = false;
+  // t = elapsed seconds-ish (ms*…); blur = camera-speed factor 0..1 from Graph3D.
+  stars.userData.update = (t: number, blur = 0) => {
     stars.rotation.y = t * 0.004;
     stars.rotation.x = Math.sin(t * 0.02) * 0.03;
-    material.opacity = 0.78 + Math.sin(t * 0.8) * 0.12;
-    material.size = 2.2 + Math.sin(t * 1.3) * 0.35;
+    uniforms.uTime.value = t;
+    // ease toward the incoming blur so it ramps smoothly as she accelerates past.
+    uniforms.uBlur.value += (blur - uniforms.uBlur.value) * 0.2;
   };
   return stars;
 }
