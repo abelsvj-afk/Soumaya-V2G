@@ -86,7 +86,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   (or on a network blip), throws a friendly `OfflineQueuedError`; `flushIngestQueue` drains on reconnect
   (`online` event) + on sign-in, re-queueing failures, and dispatches `brain-ingest-synced` → App refreshes
   + toasts what synced. Uses the existing /ingest endpoint (no new server contract needed).
-- [ ] 🟡 **PDF/DOCX parsing for knowledge docs** — server-side parser addition = Red; upload UI = Green. Currently deferred per original roadmap.
+- [x] 🟡 **PDF/DOCX parsing for knowledge docs** — ✅ done (client-side). `lib/extractFileText.ts` extracts
+  text in the browser: PDF via pdf.js, DOCX via mammoth (both dynamically imported → code-split, lazy),
+  .txt/.md as before. Keeps the server dependency-free (sends extracted text through the existing
+  /documents endpoint). CompanionPanel accepts .pdf/.docx and shows char count.
 
 ---
 

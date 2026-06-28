@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { extractFileText } from "../lib/extractFileText.js";
 import {
   getPersona,
   refreshPersona,
@@ -244,14 +245,16 @@ function Knowledge() {
     refresh();
   }, []);
 
-  const onFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      setText(String(reader.result ?? ""));
-      // Always populate the name from the chosen file (strip extension).
-      setName(file.name.replace(/\.(txt|md|markdown)$/i, ""));
-    };
-    reader.readAsText(file);
+  const onFile = async (file: File) => {
+    setMsg("Reading file…");
+    try {
+      const { text: extracted, name: suggested } = await extractFileText(file);
+      setText(extracted);
+      setName(suggested); // populate the name from the chosen file (extension stripped)
+      setMsg(`Loaded "${file.name}" (${extracted.length.toLocaleString()} chars). Review + name it, then Add.`);
+    } catch (err) {
+      setMsg((err as Error).message);
+    }
   };
 
   const upload = async () => {
@@ -311,8 +314,8 @@ function Knowledge() {
         <input
           ref={fileRef}
           type="file"
-          accept=".txt,.md,.markdown,text/plain,text/markdown"
-          onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])}
+          accept=".txt,.md,.markdown,.pdf,.docx,text/plain,text/markdown,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+          onChange={(e) => e.target.files?.[0] && void onFile(e.target.files[0])}
         />
         <input
           className="tag-input wide"
