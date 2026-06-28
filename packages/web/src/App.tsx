@@ -39,6 +39,7 @@ import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
 import { IngestPanel } from "./components/IngestPanel.js";
 import { Observatory } from "./components/Observatory.js";
+import { ChatDock } from "./components/ChatDock.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -75,6 +76,8 @@ export default function App() {
   const prevFuelRef = useRef<number | null>(null);
   // Daily-tending streak (flame on the HUD + Awards tab) — polled while signed in.
   const [streak, setStreak] = useState<Streak | null>(null);
+  // Floating chat with Soumaya (opened by the 💬 FAB).
+  const [showChat, setShowChat] = useState(false);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
   const obsShownRef = useRef(false);
@@ -1026,7 +1029,24 @@ export default function App() {
           >
             🔭
           </button>
+          <button
+            className={`fab fab-chat ${showChat ? "on" : ""}`}
+            onClick={() => setShowChat((v) => !v)}
+            aria-label="Talk to Soumaya"
+            title={`Talk to ${space?.name ?? "Soumaya"}`}
+          >
+            💬
+          </button>
         </>
+      )}
+
+      {showChat && space && !demo && (
+        <ChatDock
+          spaceName={space.name}
+          onClose={() => setShowChat(false)}
+          onFocus={(id) => focus(id)}
+          onRecall={(ids) => graphRef.current?.fireRecall(ids)}
+        />
       )}
 
       {showObs && !demo && space && (
