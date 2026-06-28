@@ -50,7 +50,8 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 - [x] 🟢 **Neural recall-signal animation** — fire synapse-style pulses along the path from seed node to each cited node during a chat response (`fireRecall(citationIds)` in `Graph3D.tsx`).
 - [x] 🟢 **Per-memory story arcs in object lore** — space station + ship lore tied to specific memory relationships (`graph/objectLore.ts`). Explicitly Green Zone file.
 - [x] 🟢 **In-app PWA Install button** — capture `beforeinstallprompt` event and show an "Install" button in the UI. Frontend only.
-- [ ] 🟡 **Daily Log Onboarding / Genesis Log** — lower threshold for brand-new brains + a welcome log entry. Ingestion heuristic tweak = Red; onboarding UI screen = Green.
+- [x] 🟡 **Daily Log Onboarding / Genesis Log** — ✅ done (log). A brand-new brain gets its first Captain's Log
+  offline as soon as it has a memory (`selectJob` genesis branch). New-brain UI hero already lives in the Observatory.
 - [x] 🟢 **Make link curvature/opacity zoom-bias live** — `linkColor`/`linkCurvature` read `camera.position.length()`, but react-force-graph only re-evaluates link accessors on `refresh()`/data change, so the "curve more when zoomed out" bias is currently inert during a pinch/scroll. Drive it from the tick (or periodic `refresh()`) if we want it continuous. (Claude review note, 2026-06-20.)
 - [x] 🟢 **Cap idle-pulse density for very large brains** — `idlePulse` scales links/frequency by node count (`floor(numNodes/10)` links, down to every 1s). Fine now; add an upper clamp before brains hit thousands of nodes so it can't flood `emitParticle`. (Claude review note, 2026-06-20.)
 
@@ -58,8 +59,12 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 
 ## AI Companion & Persona
 
-- [ ] 🟡 **Behavioral "Knows Me" persona deepening** — fold conversation history + interaction patterns into the auto-derived persona (`persona/derive.ts`). Server service = Red; any UI display of persona depth = Green.
-- [ ] 🔴 **LLM-authored lore prose** — optional `chronicle?` method on the `LlmProvider` seam so cloud providers can generate richer narrative lore text. Provider seam extension = Claude only.
+- [x] 🟡 **Behavioral "Knows Me" persona deepening** — ✅ done. `persona/derive.ts` now folds capture cadence
+  (memories/week), recent focus (themes from the freshest memories), and link-density connectivity into the
+  auto-derived persona.
+- [x] 🔴 **LLM-authored lore prose** — ✅ done. Optional `chronicle?` on the LlmProvider seam (openai + gemini
+  impl; heuristic omits it; resilient forwards). The lore evolve route best-effort upgrades the heuristic
+  chapter to richer LLM prose when a cloud key is present — offline chronicler stays the always-on base.
 
 ---
 

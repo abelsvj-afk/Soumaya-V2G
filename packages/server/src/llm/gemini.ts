@@ -9,6 +9,7 @@ import {
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
   LOG_SYSTEM,
+  CHRONICLE_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -16,6 +17,7 @@ import {
   buildResearchPrompt,
   buildSectorPrompt,
   buildLogPrompt,
+  buildChroniclePrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -108,6 +110,14 @@ const logSchema = {
     log: { type: Type.STRING },
   },
   required: ["log"],
+};
+
+const chronicleSchema = {
+  type: Type.OBJECT,
+  properties: {
+    lore: { type: Type.STRING },
+  },
+  required: ["lore"],
 };
 
 export class GeminiProvider implements LlmProvider {
@@ -224,5 +234,14 @@ export class GeminiProvider implements LlmProvider {
       logSchema,
     );
     return raw.log;
+  }
+
+  async chronicle(subject: string, context: string): Promise<string> {
+    const raw = await this.json<{ lore: string }>(
+      CHRONICLE_SYSTEM,
+      buildChroniclePrompt(subject, context),
+      chronicleSchema,
+    );
+    return raw.lore;
   }
 }

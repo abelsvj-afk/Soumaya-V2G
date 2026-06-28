@@ -164,4 +164,11 @@ export class ResilientLlmProvider implements LlmProvider {
       return this.fallback.generateDailyLog(newNodes, actions, persona);
     }
   }
+
+  /** Only available when the primary provider supports it; the lore engine's
+   *  offline chronicler is the real fallback, so we throw rather than degrade here. */
+  async chronicle(subject: string, context: string): Promise<string> {
+    if (this.blocked || !this.primary.chronicle) throw new Error("chronicle unavailable");
+    return await withTimeout(this.primary.chronicle(subject, context), this.timeoutMs, "chronicle");
+  }
 }

@@ -81,6 +81,17 @@ COSINE_SIMILARITY: ${similarity.toFixed(3)}
 Write the dream-like insight connecting A and B.`;
 }
 
+/** Lore chronicler — richer narrative prose for an object's evolving story. */
+export const CHRONICLE_SYSTEM = `You are the chronicler of a personal "memory galaxy" — you
+write the evolving legend of a single celestial body (a memory) or one of its agents.
+Given the object's current state + the prior chapter, write ONE vivid, concise chapter
+(1-2 sentences) that CONTINUES the story — space-mythic, a little poetic, never breaking the
+celestial metaphor. Build on the prior chapter; don't restate it. Output JSON only.`;
+
+export function buildChroniclePrompt(subject: string, context: string): string {
+  return `OBJECT: ${subject}\n\nSTATE + PRIOR CHAPTER:\n${context}\n\nWrite the next chapter.`;
+}
+
 /** GraphRAG answer — in the voice of Soumaya, the starpilot of the memory galaxy. */
 export const ANSWER_SYSTEM = `You are SOUMAYA — an autonomous AI starpilot who flies a
 small craft through the user's "memory galaxy": a living 3D sandbox where each of
