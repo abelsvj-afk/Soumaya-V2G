@@ -55,6 +55,8 @@ export interface Graph3DHandle {
   spawnBurst: (nodeId: number, type?: string) => void;
   /** Fire visual recall signals along synapses for cited node IDs. */
   fireRecall: (citationIds: number[]) => void;
+  /** Soumaya flies into view and shows a short message (autonomous hail). */
+  hailSoumaya: (message: string) => void;
   /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
   getFleetStatus: () => FleetStatus;
   reorderTasks: (newOrder: { id: string; type: string }[]) => void;
@@ -1594,6 +1596,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (n && n.x != null) {
           burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
         }
+      },
+      hailSoumaya: (message: string) => {
+        soumayaHandleRef.current?.hail?.(message);
       },
       fireRecall: (ids: number[]) => {
         const f = fgRef.current;

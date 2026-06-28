@@ -60,6 +60,9 @@ export interface SoumayaHandle {
   /** Progression speed multiplier (~1.0 new pilot → ~1.9 seasoned). Scales every
    *  travel/ferry/delete velocity so she gets faster the more you use the brain. */
   setPilotSpeed?: (v: number) => void;
+  /** Autonomously fly into view and show a short message to get the user's
+   *  attention (she has something to say). No-op until she's free to do it. */
+  hail: (message: string) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -416,6 +419,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   const plannedMaintenance: MaintenanceJob[] = [];
   const taskOrder: string[] = [];
   let distressTarget: THREE.Vector3 | null = null;
+  // Autonomous "hail": when she has something to say she flies into view (reusing
+  // the distress fly-to-camera path) and shows the message, then resumes.
+  let hailPending: string | null = null;
+  let hailLabel: string | null = null;
 
   const getUniquePatrol = (nodes: any[], excludeIds: Set<number>): MaintenanceJob | null => {
     const candidates = nodes.filter((n) => n.x != null && !excludeIds.has(n.id));
@@ -650,7 +657,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     } else if (mode === "linkToSource" || mode === "linkToTarget") {
       taskText = "Forging a new connection";
     } else if (mode === "distressTravel" || mode === "distressHover") {
-      taskText = "🚨 Fuel depleted! Help me refuel.";
+      taskText = hailLabel ?? "🚨 Fuel depleted! Help me refuel.";
     } else if (currentJob) {
       taskText =
         currentJob.description ||
@@ -667,7 +674,9 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     const pos = group.position.clone().addScaledVector(upVec, 6.0).addScaledVector(fwdVec, -2.5);
     taskLabel.sprite.position.copy(pos);
     taskLabel.tick(dt);
-    taskLabel.sprite.visible = taskEnabled && group.visible && taskText !== "";
+    // Hails + distress always show (attention grab); routine task labels honor the toggle.
+    const forceShow = hailLabel != null || mode === "distressTravel" || mode === "distressHover";
+    taskLabel.sprite.visible = (taskEnabled || forceShow) && group.visible && taskText !== "";
   };
 
   // Done tasks cache
@@ -713,6 +722,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
           currentJob = null;
           curve = null;
           mode = "idle";
+          hailLabel = null; // priority work wins — drop any in-flight hail
         }
       }
 
@@ -735,6 +745,26 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
             distressTarget = dest;
             return;
           }
+        }
+
+        // Hail: she has something to say → fly into view and show it (reuses the
+        // distress fly-to-camera path). Consumed once; resumes normal work after.
+        if (hailPending && cameraTarget && !hasPriority) {
+          const dest = cameraTarget.clone().add(new THREE.Vector3(
+            (Math.random() - 0.5) * 30,
+            15 + (Math.random() - 0.5) * 10,
+            (Math.random() - 0.5) * 30,
+          ));
+          const from = group.position.clone();
+          const mid = from.clone().add(dest).multiplyScalar(0.5).add(new THREE.Vector3((Math.random() - 0.5) * 30, 20, (Math.random() - 0.5) * 30));
+          curve = new THREE.QuadraticBezierCurve3(from, mid, dest);
+          t = 0;
+          speed = cruise(from.distanceTo(dest), 150, 0.7, 6);
+          mode = "distressTravel";
+          distressTarget = dest;
+          hailLabel = hailPending;
+          hailPending = null;
+          return;
         }
 
         // Clean taskOrder to remove IDs that are no longer in any queue
@@ -880,7 +910,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         group.rotation.y += dt * 0.6; // slow dramatic spin
         currentVel = 0;
         if (jobTimer <= 0) {
-          if (haveStation) {
+          if (hailLabel) {
+            hailLabel = null; // hail delivered — back to normal work
+            mode = "idle";
+          } else if (haveStation) {
             planDock();
           } else {
             mode = "idle";
@@ -1197,6 +1230,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     pilotSpeed = Number.isFinite(v) ? Math.max(0.6, Math.min(2.4, v)) : 1;
   };
 
+  const hail = (message: string) => {
+    hailPending = message.slice(0, 80);
+  };
+
   const getTasks = (nodes: any[]) => {
     const now = Date.now();
     const activeCompleted = completedTasks.filter((t) => now - t.time < 12000);
@@ -1413,6 +1450,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     taskLabel: taskLabel.sprite,
     setTaskVisible,
     setPilotSpeed,
+    hail,
     getTasks,
     reorderTasks,
     setShipSkin,

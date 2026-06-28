@@ -2777,3 +2777,13 @@ button {
 }
 .chatdock-prop-add { background: rgba(91, 224, 138, 0.2); border: 1px solid rgba(91, 224, 138, 0.5); color: #b6f5cf; }
 .chatdock-prop-skip { background: transparent; border: 1px solid rgba(255, 255, 255, 0.18); color: #aebbd6; }
+
+/* Chat FAB pulses when Soumaya is hailing (she has something to say). */
+.fab-chat.pulse {
+  border-color: rgba(91, 214, 255, 0.8);
+  animation: chatfab-pulse 1.4s ease-in-out infinite;
+}
+@keyframes chatfab-pulse {
+  0%, 100% { box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(91,214,255,0.5); }
+  50% { box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 0 10px rgba(91,214,255,0); }
+}
