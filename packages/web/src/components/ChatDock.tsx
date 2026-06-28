@@ -101,7 +101,7 @@ export function ChatDock({
       const r = await ingestText(text);
       const ids = (r.nodes ?? []).map((n) => n.id);
       setSaved((s) => new Set(s).add(idx));
-      pushToast(`Saved to your galaxy ✦`, "🌱", 4500);
+      pushToast(`Soumaya is charting it into your galaxy ✦`, "🛰️", 4500);
       if (ids.length) onCreated?.(ids);
     } catch (err) {
       pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4500);
@@ -175,7 +175,7 @@ export function ChatDock({
       const r = await ingestText(text);
       const ids = (r.nodes ?? []).map((n) => n.id);
       if (ids.length) onCreated?.(ids);
-      pushToast("Added to your galaxy ✦", "🌱", 4000);
+      pushToast("Soumaya is charting it into your galaxy ✦", "🛰️", 4000);
     } catch (err) {
       pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4000);
     }
