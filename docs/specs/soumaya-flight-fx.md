@@ -24,7 +24,17 @@ when a path would otherwise dive into the Sun, turning a fly-through into a graz
 *Verify:* a throwaway check that sampling a from→dest curve through the origin yields no
 point inside `SUN_CLEAR` after clamping.
 
-### 2. Engine trail
+### REVISION (user feedback)
+- **Removed** the ship-attached warp streaks (disliked the look).
+- **Starfield** instead: per-star independent twinkle (ShaderMaterial with per-star
+  phase/rate/size), more stars (4000→6500), and a camera-speed `uBlur` uniform (driven
+  from Graph3D's loop) that enlarges/softens points so real stars smear past when you
+  rush by close up.
+- **Trail** changed from a thin additive line to a **plume**: a pool of soft additive
+  puffs dropped at the exhaust, each living ~0.55s, expanding + fading where it was born
+  → reads as a thicker cylinder that dissipates fast and lingers a moment when she stops.
+
+### 2. Engine trail (superseded by the plume above)
 A world-space `THREE.Line` (additive, vertex-colored, `depthWrite:false`, `frustumCulled:false`).
 Ring buffer of recent exhaust points (behind the nose). Push a point when she's moved
 ≥ `STEP` (1.5u) since the last; when nearly stationary, shift the oldest off so it dissipates.
