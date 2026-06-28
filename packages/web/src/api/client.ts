@@ -119,6 +119,19 @@ export function logoutSpace(): void {
   storeSpace(null);
 }
 
+/** Update this brain's gamer tag and/or display name (tag stays unique). */
+export async function updateProfile(opts: { gamerTag?: string; name?: string }): Promise<{ id: string; name: string; gamerTag: string }> {
+  const res = await afetch(`${API}/space/profile`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(opts),
+  });
+  const body = (await res.json().catch(() => ({}))) as { id?: string; name?: string; gamerTag?: string; error?: string };
+  if (!res.ok || !body.id) throw new Error(body.error ?? `Couldn't update profile (${res.status})`);
+  storeSpace(body.id, body.name); // keep the cached name in sync
+  return { id: body.id, name: body.name ?? "", gamerTag: body.gamerTag ?? "" };
+}
+
 // --- Global "AI is working" signal (ingest / chat / synthesis) ---
 type ActivityListener = (active: number) => void;
 let activeCount = 0;

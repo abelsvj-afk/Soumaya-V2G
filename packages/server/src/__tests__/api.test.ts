@@ -103,6 +103,32 @@ describe("REST API", () => {
     expect(status).toBe(400);
   });
 
+  it("updates the profile name freely and keeps the gamer tag unique", async () => {
+    const patch = (id: string, body: unknown) =>
+      fetch(`${base}/api/space/profile`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-space-id": id },
+        body: JSON.stringify(body),
+      });
+    // Name can be anything.
+    const r1 = await patch(spaceId, { name: "Renamed Brain" });
+    expect(r1.status).toBe(200);
+    expect(((await r1.json()) as { name: string }).name).toBe("Renamed Brain");
+    // A second brain, then try to steal its gamer tag → 409.
+    const other = await fetch(`${base}/api/space/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gamerTag: "takenTag", passcode: "pw1234", name: "Other" }),
+    });
+    expect(((await other.json()) as { id: string }).id).toBeTruthy();
+    const conflict = await patch(spaceId, { gamerTag: "takenTag" });
+    expect(conflict.status).toBe(409);
+    // A free tag works.
+    const ok = await patch(spaceId, { gamerTag: "myFreshTag" });
+    expect(ok.status).toBe(200);
+    expect(((await ok.json()) as { gamerTag: string }).gamerTag).toBe("myFreshTag");
+  });
+
   it("promotes a cluster into a constellation hub (MOC) with member links", async () => {
     const a = await post("/api/ingest", { text: "Notes on espresso extraction and grind size" });
     const b = await post("/api/ingest", { text: "Tasting log for a new single-origin roast" });

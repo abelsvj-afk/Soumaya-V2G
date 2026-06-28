@@ -40,6 +40,7 @@ import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
 import { IngestPanel } from "./components/IngestPanel.js";
 import { Observatory } from "./components/Observatory.js";
 import { ChatDock } from "./components/ChatDock.js";
+import { SettingsPanel } from "./components/SettingsPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -78,6 +79,7 @@ export default function App() {
   const [streak, setStreak] = useState<Streak | null>(null);
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
   const obsShownRef = useRef(false);
@@ -1037,7 +1039,24 @@ export default function App() {
           >
             💬
           </button>
+          <button
+            className="fab fab-settings"
+            onClick={() => setShowSettings(true)}
+            aria-label="Settings"
+            title="Settings"
+          >
+            ⚙️
+          </button>
         </>
+      )}
+
+      {showSettings && space && (
+        <SettingsPanel
+          onClose={() => setShowSettings(false)}
+          onProfileUpdated={(name) => setSpace((s) => (s ? { ...s, name } : s))}
+          showShipTask={showShipTask}
+          setShowShipTask={setShowShipTask}
+        />
       )}
 
       {showChat && space && !demo && (
