@@ -48,6 +48,10 @@ export interface SoumayaHandle {
   /** The body she's currently dragging to the Sun — added to the scene by Graph3D
    *  so it animates in world space (not parented to the banking ship). */
   cargo: THREE.Object3D;
+  /** Long fading engine trail (world-space) — added to the scene by Graph3D. */
+  trail: THREE.Object3D;
+  /** Speed warp-streaks (world-space) — added to the scene by Graph3D. */
+  streaks: THREE.Object3D;
   /** Floating "current task" billboard — added to the scene by Graph3D so the
    *  ship's banking never tilts it. Toggle its visibility via setTaskVisible. */
   taskLabel: THREE.Object3D;
@@ -290,11 +294,19 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     }),
   );
   
+  // Engine-trail tint (RGB 0..1), kept in sync with the chosen trail color below.
+  let trailRGB = new THREE.Color(0.71, 0.86, 1);
+
   const setTrailColor = (color: string) => {
     const ctx = glowCanvas.getContext("2d")!;
     ctx.clearRect(0, 0, 64, 64);
     const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-    
+    trailRGB =
+      color === "neon" ? new THREE.Color(1, 0.25, 0.6)
+      : color === "gold" ? new THREE.Color(1, 0.78, 0.2)
+      : color === "purple" ? new THREE.Color(0.7, 0.55, 1)
+      : new THREE.Color(0.71, 0.86, 1);
+
     if (color === "neon") {
       // Hot pink / cyan neon
       grad.addColorStop(0, "rgba(255, 20, 147, 0.95)");
@@ -327,6 +339,41 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   group.scale.setScalar(1.5);
   group.visible = false;
 
+  // --- Long fading engine trail (world-space line; added to the scene by Graph3D) ---
+  const TRAIL_MAX = 80;
+  const TRAIL_STEP = 1.5; // min world distance between recorded points
+  const trailPts: THREE.Vector3[] = [];
+  const trailGeo = new THREE.BufferGeometry();
+  const trailPos = new Float32Array(TRAIL_MAX * 3);
+  const trailCol = new Float32Array(TRAIL_MAX * 3);
+  const trailPosAttr = new THREE.BufferAttribute(trailPos, 3);
+  const trailColAttr = new THREE.BufferAttribute(trailCol, 3);
+  trailGeo.setAttribute("position", trailPosAttr);
+  trailGeo.setAttribute("color", trailColAttr);
+  const trail = new THREE.Line(
+    trailGeo,
+    new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  trail.frustumCulled = false;
+  trail.visible = false;
+
+  // --- Warp streaks: short additive segments that stream past when she's fast ---
+  const STREAK_N = 48;
+  const streakGeo = new THREE.BufferGeometry();
+  const streakPos = new Float32Array(STREAK_N * 2 * 3); // 2 verts per segment
+  const streakPosAttr = new THREE.BufferAttribute(streakPos, 3);
+  streakGeo.setAttribute("position", streakPosAttr);
+  const streaks = new THREE.LineSegments(
+    streakGeo,
+    new THREE.LineBasicMaterial({ color: 0xcfe6ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }),
+  );
+  streaks.frustumCulled = false;
+  streaks.visible = false;
+  // Each streak's offset around the ship + its travel phase (seeded once).
+  const streakState = Array.from({ length: STREAK_N }, (_, i) => ({
+    off: new THREE.Vector3((((i * 73) % 100) / 100 - 0.5) * 120, (((i * 37) % 100) / 100 - 0.5) * 80, (((i * 91) % 100) / 100) * 260 - 30),
+  }));
+
   // The doomed memory she drags to the Sun (world-space; added to scene by Graph3D).
   const cargo = new THREE.Mesh(
     new THREE.SphereGeometry(1, 16, 16),
@@ -344,6 +391,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let taskEnabled = false;
   let lastTaskText = "";
   let bank = 0; // current banked roll (smoothed toward target each frame)
+  let currentVel = 0; // her current speed (units/sec) — drives propulsion glow, trail, streaks
 
   let mode:
     | "travel"
@@ -699,6 +747,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   ) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     if (orbit) orbitApi = orbit;
+    currentVel = 0; // reset each frame; modes set it; trail/streaks/clamp read it in `finally`
     try {
       if (stationPos) {
         stationLoc.copy(stationPos);
@@ -879,8 +928,6 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         }
         return;
       }
-
-      let currentVel = 0;
 
       // DISTRESS MODES: Fly to screen and bob/hover asking for help
       if (mode === "distressTravel") {
@@ -1164,11 +1211,82 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       /* skip this frame */
     } finally {
       try {
+        // Hard safeguard: never inside the Sun. Orbits/station/dock are all well
+        // outside SUN_CLEAR, so this only acts to turn a fly-through into a graze.
+        const SUN_CLEAR = SUN_RADIUS_MAX + 80;
+        if (group.position.lengthSq() > 1 && group.position.length() < SUN_CLEAR) {
+          group.position.setLength(SUN_CLEAR);
+        }
+        updateTrail();
+        updateStreaks(dt);
+      } catch {
+        /* fx are non-critical */
+      }
+      try {
         syncLabel(dt);
       } catch {
         /* non-critical */
       }
     }
+  };
+
+  /** Append the engine-exhaust point and rebuild the fading additive trail line. */
+  const updateTrail = () => {
+    if (!group.visible) {
+      if (trailPts.length) trailPts.shift();
+    } else {
+      const exhaust = group.position.clone().add(new THREE.Vector3(0, 0, -3).applyQuaternion(group.quaternion));
+      const last = trailPts[trailPts.length - 1];
+      if (!last || last.distanceTo(exhaust) >= TRAIL_STEP) {
+        trailPts.push(exhaust);
+      } else if (currentVel < 1 && trailPts.length) {
+        trailPts.shift(); // stationary → drain the tail so it fades away
+      }
+    }
+    while (trailPts.length > TRAIL_MAX) trailPts.shift();
+
+    const n = trailPts.length;
+    for (let i = 0; i < n; i++) {
+      const p = trailPts[i]!;
+      trailPos[i * 3] = p.x;
+      trailPos[i * 3 + 1] = p.y;
+      trailPos[i * 3 + 2] = p.z;
+      const a = n > 1 ? i / (n - 1) : 0; // 0 = tail (dark) → 1 = head (bright)
+      trailCol[i * 3] = trailRGB.r * a;
+      trailCol[i * 3 + 1] = trailRGB.g * a;
+      trailCol[i * 3 + 2] = trailRGB.b * a;
+    }
+    trailGeo.setDrawRange(0, n);
+    trailPosAttr.needsUpdate = true;
+    trailColAttr.needsUpdate = true;
+    trail.visible = group.visible && n > 2;
+  };
+
+  /** Warp streaks that stream past the ship, scaled by speed (only visible fast). */
+  const updateStreaks = (dt: number) => {
+    const mat = streaks.material as THREE.LineBasicMaterial;
+    const vRatio = Math.min(1, currentVel / 80); // 0..1 over her cruise range
+    if (!group.visible || vRatio < 0.25) {
+      mat.opacity = Math.max(0, mat.opacity - dt * 3);
+      streaks.visible = mat.opacity > 0.01;
+      return;
+    }
+    mat.opacity = Math.min(0.6, mat.opacity + dt * 2) * vRatio;
+    streaks.visible = true;
+    const back = new THREE.Vector3(0, 0, -1).applyQuaternion(group.quaternion).normalize();
+    const speed = 220 + currentVel * 4;
+    const len = 8 + vRatio * 60; // streak length grows with speed
+    for (let i = 0; i < STREAK_N; i++) {
+      const s = streakState[i]!;
+      s.off.addScaledVector(back, speed * dt); // stream backward along heading
+      // Recycle once it has passed well behind her — respawn ahead.
+      if (s.off.dot(back) > 140) s.off.addScaledVector(back, -300);
+      const head = group.position.clone().add(s.off);
+      const tail = head.clone().addScaledVector(back, -len);
+      streakPos[i * 6] = head.x; streakPos[i * 6 + 1] = head.y; streakPos[i * 6 + 2] = head.z;
+      streakPos[i * 6 + 3] = tail.x; streakPos[i * 6 + 4] = tail.y; streakPos[i * 6 + 5] = tail.z;
+    }
+    streakPosAttr.needsUpdate = true;
   };
 
   const enqueueLinks = (tasks: LinkTask[]) => {
@@ -1447,6 +1565,8 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     enqueueBeacons,
     enqueueRemovals,
     cargo,
+    trail,
+    streaks,
     taskLabel: taskLabel.sprite,
     setTaskVisible,
     setPilotSpeed,
