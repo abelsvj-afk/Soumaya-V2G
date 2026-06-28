@@ -10,6 +10,7 @@ import {
   SECTOR_SYSTEM,
   LOG_SYSTEM,
   CHRONICLE_SYSTEM,
+  PLAN_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -18,6 +19,7 @@ import {
   buildSectorPrompt,
   buildLogPrompt,
   buildChroniclePrompt,
+  buildPlanPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -118,6 +120,14 @@ const chronicleSchema = {
     lore: { type: Type.STRING },
   },
   required: ["lore"],
+};
+
+const planSchema = {
+  type: Type.OBJECT,
+  properties: {
+    index: { type: Type.INTEGER },
+  },
+  required: ["index"],
 };
 
 export class GeminiProvider implements LlmProvider {
@@ -243,5 +253,14 @@ export class GeminiProvider implements LlmProvider {
       chronicleSchema,
     );
     return raw.lore;
+  }
+
+  async planJob(summary: string, options: { type: string; objective: string }[]): Promise<number> {
+    const raw = await this.json<{ index: number }>(
+      PLAN_SYSTEM,
+      buildPlanPrompt(summary, options),
+      planSchema,
+    );
+    return raw.index;
   }
 }

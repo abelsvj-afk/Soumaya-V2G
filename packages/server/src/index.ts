@@ -123,7 +123,7 @@ if (process.env.AUTONOMY === "on") {
         } catch (e) {
           console.error("[autonomy] persona refresh failed:", e);
         }
-        const job = selectJob(ctx, spaceId);
+        const job = await selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
         const detail = await executeJob(ctx, spaceId, job);
         if (detail) {

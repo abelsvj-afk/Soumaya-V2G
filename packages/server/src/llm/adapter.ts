@@ -74,6 +74,10 @@ export interface LlmProvider {
   /** Optional: richer LLM-authored lore prose. Absent on the heuristic provider
    *  (the lore engine's offline chronicler is the always-available fallback). */
   chronicle?(subject: string, context: string): Promise<string>;
+  /** Optional: pick the best next maintenance job from candidate options, given a
+   *  brain summary. Returns the chosen index. Absent on heuristic → the deterministic
+   *  ladder decides (the always-available fallback). */
+  planJob?(summary: string, options: { type: string; objective: string }[]): Promise<number>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
   generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
 }

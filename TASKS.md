@@ -20,7 +20,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
   each issued job's signature for 20s; a concurrent poller (server loop + browser tab on the one Fly
   process) gets a harmless patrol instead of re-running it. (A DB `claimed_at` lock would be needed only
   for a multi-instance deploy — noted in code.) +1 test.
-- [ ] 🔴 **LLM planning agent: replace fixed job-selection ladder** — swap the if/else chain in `maintenance/agent.ts` with a tools-based LLM planner; keep the deterministic ladder as a fallback. Touches LlmProvider seam.
+- [x] 🔴 **LLM planning agent** — ✅ done (planner hook). Optional `planJob?` on the LlmProvider seam (openai +
+  gemini impl; heuristic omits; resilient forwards). `selectJob` is now async: when a cloud planner is
+  available it chooses between the deterministic ladder's pick and a strategic research-gap alternative —
+  the ladder stays the always-available fallback (absent/erroring planner → unchanged behavior, 97 tests).
 - [ ] 🟡 **Sub-agents running real maintenance jobs** — Scout sub-agent should feed Research Mode targets via the `agent` column on nodes. The `agent` column wiring is Red; visual subagent loop update in `graph/subAgents` is Green.
 - [x] 🟡 **Request-Maintenance high-priority queue** — ✅ done. `POST /api/nodes/:id/request-maintenance`
   enqueues a node into an in-memory per-space queue that `selectJob` drains first (research → connect →
