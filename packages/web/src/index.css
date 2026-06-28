@@ -2561,3 +2561,47 @@ button {
 .obs-quest:hover { background: rgba(91, 214, 255, 0.18); }
 .obs-quest.done { opacity: 0.6; color: #9fe0b8; cursor: default; }
 .obs-quest-ic { flex: 0 0 auto; font-size: 0.95rem; }
+
+/* Companion: collapsible instruction items + tidier controls. */
+.companion-expand {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 2px;
+  flex: 0 0 auto;
+}
+.companion-mode-tag {
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(120, 160, 220, 0.12);
+  flex: 0 0 auto;
+}
+.companion-body.clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  opacity: 0.6;
+  cursor: pointer;
+  margin: 4px 0 0;
+}
+.companion-add-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: 9px;
+  background: rgba(91, 214, 255, 0.1);
+  border: 1px dashed rgba(122, 200, 255, 0.35);
+  color: #cfe6ff;
+  cursor: pointer;
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+.companion-add-btn:hover { background: rgba(91, 214, 255, 0.18); }
+.companion-tryhint { margin-top: 14px; opacity: 0.75; font-style: italic; }
+.mini.ghost { background: transparent; opacity: 0.7; }
