@@ -38,7 +38,9 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
   }
 
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  // Custom-named attributes so we don't depend on three's built-in `color`/USE_COLOR
+  // wiring (which differs between materials and silently dropped the whole field).
+  geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
   geometry.setAttribute("aPhase", new THREE.BufferAttribute(phase, 1));
   geometry.setAttribute("aTw", new THREE.BufferAttribute(tw, 1));
   geometry.setAttribute("aSize", new THREE.BufferAttribute(baseSize, 1));
@@ -51,22 +53,20 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    vertexColors: true,
     vertexShader: `
-      attribute float aPhase; attribute float aTw; attribute float aSize;
+      attribute vec3 aColor; attribute float aPhase; attribute float aTw; attribute float aSize;
       uniform float uTime; uniform float uBlur;
       varying vec3 vColor; varying float vBright;
       void main() {
-        vColor = color;
+        vColor = aColor;
         vBright = 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * aTw + aPhase));
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         float att = 300.0 / max(1.0, -mv.z);
-        gl_PointSize = aSize * att * (1.0 + uBlur * 5.0);
+        gl_PointSize = max(1.0, aSize * att * (1.0 + uBlur * 5.0));
         gl_Position = projectionMatrix * mv;
       }
     `,
     fragmentShader: `
-      precision mediump float;
       uniform float uBlur;
       varying vec3 vColor; varying float vBright;
       void main() {
