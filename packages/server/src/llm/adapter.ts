@@ -78,6 +78,9 @@ export interface LlmProvider {
    *  brain summary. Returns the chosen index. Absent on heuristic → the deterministic
    *  ladder decides (the always-available fallback). */
   planJob?(summary: string, options: { type: string; objective: string }[]): Promise<number>;
+  /** Optional: distill a finished conversation into 0–3 memory-worthy notes. Absent
+   *  on heuristic → the caller falls back to a simple extraction. */
+  distill?(transcript: string): Promise<string[]>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
   generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
 }
