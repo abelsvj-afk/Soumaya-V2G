@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { NodeRef } from "@brain/shared";
-import { askChat, getSpaceId } from "../api/client.js";
+import { askChat, getSpaceId, ingestText } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
+import { pushToast } from "./Toasts.js";
 import { isVoiceSupported, isVoiceEnabled, setVoiceEnabled, speak, stopSpeaking } from "../voice.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -32,11 +33,14 @@ export function ChatDock({
   onClose,
   onFocus,
   onRecall,
+  onCreated,
 }: {
   spaceName?: string;
   onClose: () => void;
   onFocus: (id: number) => void;
   onRecall?: (ids: number[]) => void;
+  /** Called with the new node ids after a message is saved as a memory. */
+  onCreated?: (newIds: number[]) => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
@@ -49,6 +53,7 @@ export function ChatDock({
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [speakOn, setSpeakOn] = useState(isVoiceEnabled());
+  const [saved, setSaved] = useState<Set<number>>(new Set()); // message indices saved as memories
   const listRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<any>(null);
   const voiceSupported = isVoiceSupported();
@@ -82,6 +87,20 @@ export function ChatDock({
       setMessages((m) => [...m, { role: "soumaya", text: (err as Error).message }]);
     } finally {
       setBusy(false);
+    }
+  };
+
+  // Save a line of the conversation into the galaxy as a real memory.
+  const saveMemory = async (text: string, idx: number) => {
+    if (saved.has(idx)) return;
+    try {
+      const r = await ingestText(text);
+      const ids = (r.nodes ?? []).map((n) => n.id);
+      setSaved((s) => new Set(s).add(idx));
+      pushToast(`Saved to your galaxy ✦`, "🌱", 4500);
+      if (ids.length) onCreated?.(ids);
+    } catch (err) {
+      pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4500);
     }
   };
 
@@ -158,12 +177,24 @@ export function ChatDock({
       <div className="chatdock-msgs" ref={listRef}>
         {messages.length === 0 && (
           <p className="chatdock-empty">
-            Ask {spaceName} anything about your galaxy — she answers from your memories and cites them.
+            Talk to {spaceName} about your galaxy — she answers from your memories and cites them. Tap
+            ＋ on anything worth keeping to save it as a new memory.
           </p>
         )}
         {messages.map((m, i) => (
           <div key={i} className={`chatdock-msg ${m.role}`}>
-            <div className="chatdock-bubble">{m.text}</div>
+            <div className="chatdock-bubble">
+              {m.text}
+              <button
+                className={`chatdock-save ${saved.has(i) ? "done" : ""}`}
+                onClick={() => saveMemory(m.text, i)}
+                disabled={saved.has(i)}
+                title={saved.has(i) ? "Saved as a memory" : "Save this as a memory"}
+                aria-label="Save as memory"
+              >
+                {saved.has(i) ? "✓" : "＋"}
+              </button>
+            </div>
             {m.citations && m.citations.length > 0 && (
               <div className="chatdock-cites">
                 {m.citations.map((c) => (

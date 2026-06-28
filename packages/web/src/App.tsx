@@ -1046,6 +1046,7 @@ export default function App() {
           onClose={() => setShowChat(false)}
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
+          onCreated={(ids) => void refresh(ids)}
         />
       )}
 
