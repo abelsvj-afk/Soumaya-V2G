@@ -70,11 +70,47 @@ export function derivePersona(h: DbHandle, spaceId: string = DEFAULT_SPACE): str
   const topHubs = [...rows].sort((a, b) => b.degree - a.degree || (b.importance ?? 0) - (a.importance ?? 0)).slice(0, 3).map((r) => r.label);
   const topTypes = topCounts(rows.map((r) => r.type.replace(/_/g, " ")), 3);
 
+  // Behavioral signals (Wave 3 "knows me"): how they tend the brain, not just what.
+  const avgDegree = rows.reduce((s, r) => s + r.degree, 0) / count;
+  const perWeek = spanDays > 6 ? Math.max(1, Math.round(count / (spanDays / 7))) : count;
+  const cadence =
+    spanDays <= 6
+      ? "They've just started — still finding their rhythm."
+      : perWeek >= 15
+        ? `They're a heavy daily user — roughly ${perWeek} memories a week.`
+        : perWeek >= 4
+          ? `They tend the brain steadily — about ${perWeek} memories a week.`
+          : "They check in occasionally rather than daily.";
+  const connectivity =
+    avgDegree >= 3
+      ? "Their thinking is densely interlinked — they connect ideas readily."
+      : avgDegree >= 1
+        ? "Their memories are moderately connected."
+        : "Their memories are still mostly islands — connections are only beginning to form.";
+  const recent = [...rows]
+    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""))
+    .slice(0, 8);
+  const recentTags = topCounts(
+    recent.flatMap((r) => {
+      if (!r.tags) return [];
+      try {
+        const arr = JSON.parse(r.tags);
+        return Array.isArray(arr) ? (arr as string[]) : [];
+      } catch {
+        return [];
+      }
+    }),
+    3,
+  );
+
   const parts: string[] = [];
   parts.push(`This person's galaxy holds ${count} memories, gathered ${spanText}.`);
   if (topTags.length) parts.push(`Recurring themes they tag: ${topTags.join(", ")}.`);
   if (topHubs.length) parts.push(`Their heaviest, most-connected memories center on: ${topHubs.join("; ")}.`);
   if (topTypes.length) parts.push(`They mostly capture ${topTypes.join(", ")}.`);
+  if (recentTags.length) parts.push(`Lately they've been focused on: ${recentTags.join(", ")}.`);
+  parts.push(cadence);
+  parts.push(connectivity);
   parts.push(`Emotionally, the brain is ${emotionalTone(avgEw)}.`);
   parts.push("Use this to tailor how you speak to them — you are aware of who they are, but you are not them.");
   return parts.join(" ");
