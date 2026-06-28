@@ -77,7 +77,10 @@ Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone a
 ## Infrastructure
 
 - [ ] 🟢 **Restore CI (`ci.yml`)** — typecheck → test → build, no deploy step. Template documented in `DEPLOYMENT.md`. Green Zone infra/YAML work; only unblock when GitHub Actions runners are available on this account.
-- [ ] 🟡 **Richer offline ingestion queue** — queue ingests while offline, sync to server when back online. Service worker + client queue = Green; server sync endpoint = Red.
+- [x] 🟡 **Richer offline ingestion queue** — ✅ done (client). `ingestText` queues to localStorage when offline
+  (or on a network blip), throws a friendly `OfflineQueuedError`; `flushIngestQueue` drains on reconnect
+  (`online` event) + on sign-in, re-queueing failures, and dispatches `brain-ingest-synced` → App refreshes
+  + toasts what synced. Uses the existing /ingest endpoint (no new server contract needed).
 - [ ] 🟡 **PDF/DOCX parsing for knowledge docs** — server-side parser addition = Red; upload UI = Green. Currently deferred per original roadmap.
 
 ---
