@@ -59,7 +59,11 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
    returns null (the "no research zone") when only noise remains. Wired into both `selectJobInner`'s
    research rung and `researchGapJob`; the chosen factors show in the job description (visible in the
    Soumaya activity log) and a Help entry explains it. 4 tests; gate green (114 server tests).
-4. **Dormant recovery (#4)** + **temporal linking chains (#8)** — pattern-over-time layer.
+4. **Dormant recovery (#4)** — ✅ **SHIPPED 2026-06-30.** `analysis/dormant.ts` surfaces once-important
+   skills/goals/projects (by type or language) gone quiet past a dormancy window (`lastTendedAt` recency),
+   each with a "why it faded" hypothesis + a revive nudge, ranked by significance×staleness; `GET
+   /api/digest/dormant` (free, offline); Insights tab "💤 Dormant & worth reviving" section; Help entry.
+   5 tests; gate green (119 server tests). · **temporal linking chains (#8)** — next.
 5. Polish: insight compression (#7) + tiers (#10) + the "no research needed" string (#9).
 6. Optional later: life-area lens (#6, reframed) and the self-improvement loop (#12).
 

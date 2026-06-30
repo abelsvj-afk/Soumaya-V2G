@@ -165,6 +165,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Dormant / latent recovery (research-agent add-on #4)
+Fourth module from `docs/specs/research-agent-addons.md`. Surfaces skills/goals/projects you once
+invested in but have gone quiet.
+- **Analysis (offline, free):** `analysis/dormant.ts` `buildDormantList` — picks pursuits (type
+  project/decision/concept, or goal/skill language) that once mattered (`importance ≥ 0.45`) and
+  haven't been tended past a 30-day window (`lastTendedAt ?? occurredAt ?? createdAt`, since viewing
+  warms a memory), with a "why it faded" hypothesis (setback / moved-on / slipped-off-radar) + a
+  revive nudge, ranked by importance×staleness, capped at 8.
+- **API:** `GET /api/digest/dormant`. Shared `DormantItem` type.
+- **UI:** Insights tab "💤 Dormant & worth reviving" section — clickable memory pills (fly to + warm),
+  days-quiet, and the hypothesis.
+- **Help:** "Insights: dormant & worth reviving" entry (per the UI+Help rule).
+- 5 new tests; gate: typecheck clean · **119 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Scored research priority (research-agent add-on #2)
 Third module from `docs/specs/research-agent-addons.md`. Soumaya now researches the most
 *consequential* blind spot, not just the highest-importance one.

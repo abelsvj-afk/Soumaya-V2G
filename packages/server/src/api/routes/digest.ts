@@ -5,6 +5,7 @@ import { runSynthesis, DEFAULT_SYNTHESIS } from "../../synthesis/engine.js";
 import { runContradictionScan, DEFAULT_CONTRADICTION } from "../../synthesis/contradictions.js";
 import { buildDailyDigest } from "../../synthesis/dailyDigest.js";
 import { buildEmotionalTrajectory } from "../../analysis/emotional.js";
+import { buildDormantList } from "../../analysis/dormant.js";
 import { spaceOf } from "../middleware.js";
 
 export function digestRoutes(ctx: AppContext): Router {
@@ -23,6 +24,11 @@ export function digestRoutes(ctx: AppContext): Router {
   // GET /api/digest/emotional -> mood-over-time trajectory + detected patterns (free, offline)
   r.get("/emotional", (_req, res) => {
     res.json(buildEmotionalTrajectory(ctx.handle, spaceOf(res)));
+  });
+
+  // GET /api/digest/dormant -> dormant skills/goals/projects worth reviving (free, offline)
+  r.get("/dormant", (_req, res) => {
+    res.json(buildDormantList(ctx.handle, spaceOf(res)));
   });
 
   // POST /api/digest/run -> scan for latent connections and synthesize new insights

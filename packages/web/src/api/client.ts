@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, EmotionalTrajectory, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -540,6 +540,17 @@ export async function getEmotionalTrajectory(): Promise<EmotionalTrajectory> {
     };
   } catch {
     return empty;
+  }
+}
+
+/** Dormant skills/goals/projects worth reviving (free, offline-safe). */
+export async function getDormant(): Promise<DormantItem[]> {
+  try {
+    const res = await afetch(`${API}/digest/dormant`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
   }
 }
 

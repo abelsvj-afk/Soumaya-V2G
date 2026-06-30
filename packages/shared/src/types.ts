@@ -294,6 +294,20 @@ export interface EmotionalTrajectory {
   sampleSize: number;
 }
 
+/** A dormant memory worth reviving (research-agent add-on #4): a skill/goal/project
+ *  you once invested in but haven't touched in a while. */
+export interface DormantItem {
+  nodeId: number;
+  label: string;
+  type: NodeType;
+  /** Days since it was last tended/created. */
+  dormantDays: number;
+  /** Heuristic "why it disappeared". */
+  hypothesis: string;
+  /** A gentle reactivation nudge. */
+  prompt: string;
+}
+
 /** Answer from chat-with-your-brain (GraphRAG), with node citations. */
 export interface ChatResponse {
   answer: string;

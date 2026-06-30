@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Constellation, DailyDigest, EmotionalTrajectory, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, getEmotionalTrajectory, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
+import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, Insight } from "@brain/shared";
+import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -36,6 +36,7 @@ export function DigestPanel({
   const [daily, setDaily] = useState<DailyDigest | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
   const [emotional, setEmotional] = useState<EmotionalTrajectory | null>(null);
+  const [dormant, setDormant] = useState<DormantItem[]>([]);
   const [busy, setBusy] = useState(false);
   // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
   const [promotingId, setPromotingId] = useState<number | null>(null);
@@ -73,6 +74,9 @@ export function DigestPanel({
       .catch(() => {});
     getEmotionalTrajectory()
       .then(setEmotional)
+      .catch(() => {});
+    getDormant()
+      .then(setDormant)
       .catch(() => {});
   }, []);
 
@@ -279,6 +283,31 @@ export function DigestPanel({
           ) : (
             <p style={{ fontSize: "0.76rem", opacity: 0.7, margin: 0 }}>No strong patterns yet — your mood reads as steady.</p>
           )}
+        </section>
+      )}
+
+      {/* Dormant & worth reviving — once-active skills/goals gone quiet (offline, free). */}
+      {dormant.length > 0 && (
+        <section className="dormant" style={{ marginBottom: "1rem" }}>
+          <div className="dock-head">
+            <h3>💤 Dormant &amp; worth reviving</h3>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {dormant.map((d) => (
+              <li key={d.nodeId} style={{ borderLeft: "3px solid #6fb6ff", paddingLeft: "0.6rem" }}>
+                <button
+                  className="pill"
+                  style={{ borderColor: colorForType(d.type), fontWeight: 600 }}
+                  onClick={() => onFocus(d.nodeId)}
+                  title="Fly to this memory and revive it"
+                >
+                  {d.label}
+                </button>
+                <span style={{ fontSize: "0.72rem", opacity: 0.6, marginLeft: "0.4rem" }}>· quiet {d.dormantDays}d</span>
+                <div style={{ fontSize: "0.76rem", opacity: 0.85, marginTop: "0.2rem" }}>{d.hypothesis}</div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
