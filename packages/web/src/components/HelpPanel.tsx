@@ -68,6 +68,20 @@ const CATEGORIES: {
     ]
   },
   {
+    id: "structure",
+    title: "Structure & Taxonomy",
+    icon: "🗂️",
+    desc: "How your brain organizes itself — memory types, constellation hubs (MOCs), sectors, tags, and provenance. There are no folders; structure emerges.",
+    items: [
+      { icon: "🏷️", title: "Memory types (the taxonomy)", body: "Every memory is auto-classified into a kind so the galaxy is navigable by type, not folders: Person (someone you know), Company (an org/team), Project (an effort with an outcome), Decision (a choice + its rationale), Meeting (a conversation at a point in time), Daily (a journal note / to-do / fleeting thought), Knowledge (a reference fact or learning), Concept (an abstract idea or theme), and Other. Each kind has its own color in the galaxy and the List legend.", tags: ["taxonomy", "types", "kinds", "person", "project", "decision", "knowledge", "concept", "classify", "folders"] },
+      { icon: "🌌", title: "Constellations (Maps of Content / MOCs)", body: "When a cluster of related memories grows dense, you can promote it into a Constellation — a named, persistent hub memory (a 'Map of Content') that summarizes and anchors the whole group. From the Insights tab, tap '✦ Save as constellation', give it a name, and it renders as a bright golden hub you can navigate from. It's how big bodies of work get a single front door without imposing rigid folders.", tags: ["moc", "constellation", "hub", "map of content", "cluster", "promote", "summary"] },
+      { icon: "🌌", title: "Sectors (browse by type)", body: "The Sectors tab (🌌) groups the galaxy by memory type — all your People, Projects, Decisions, Daily notes, and so on — so you can explore one category of your mind at a time and isolate it in the 3D view. It's a lens over the same emergent galaxy, not a separate filing system.", tags: ["sectors", "browse", "type", "group", "category", "lens"] },
+      { icon: "🪟", title: "Tags & life-areas", body: "Tags are optional labels you add when dumping a thought (Work, Health, Money, People, Learning, plus moods). They nudge clustering and power the life-area lens in Insights, which groups your memories into broad areas of life (Work & Projects, Relationships, Health, Money, Identity & Growth) so you can see where your attention actually goes. Tagging is never required — meaning-based auto-linking does the heavy lifting.", tags: ["tags", "life-area", "lens", "labels", "work", "health", "money"] },
+      { icon: "✦", title: "Provenance (who charted it)", body: "Memories remember their origin. Ones you logged are yours; ones your companion created (a synthesized hub, a researched expansion) are marked '✦ Charted by Soumaya' in their details, so you always know what came from you versus from her.", tags: ["provenance", "origin", "charted", "agent", "soumaya", "authorship"] },
+      { icon: "🪐", title: "Drifting (orphan memories)", body: "Memories with no connections are 'drifting' — you can filter for them in the List tab (🪐). They're candidates to link, fold into a constellation, or revisit. It keeps stray thoughts from getting lost in the dark.", tags: ["drifting", "orphan", "isolated", "lint", "unlinked", "list"] }
+    ]
+  },
+  {
     id: "talk",
     title: "Talk & Companion",
     icon: "💬",

@@ -67,6 +67,19 @@ describe("contradiction detection (#3)", () => {
     expect(second.length).toBe(0); // already recorded → deduped
   });
 
+  it("recent() tags each insight with a significance tier (#10)", () => {
+    const repo = new InsightsRepo(handle, "legacy");
+    handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','P','person','p')`).run();
+    handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','K','knowledge','k')`).run();
+    handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','O1','other','o')`).run();
+    handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','O2','other','o')`).run();
+    repo.create(1, 2, "person-involving connection", 0.7, "synthesis"); // person → tier 1
+    repo.create(3, 4, "situational connection", 0.5, "synthesis"); // other/other → tier 3
+    const byText = new Map(repo.recent().map((i) => [i.text, i.tier]));
+    expect(byText.get("person-involving connection")).toBe(1);
+    expect(byText.get("situational connection")).toBe(3);
+  });
+
   it("synthesis and contradiction insights can coexist for the same pair", () => {
     const repo = new InsightsRepo(handle, "legacy");
     handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','A','other','a')`).run();

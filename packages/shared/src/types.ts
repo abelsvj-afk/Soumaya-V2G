@@ -254,6 +254,9 @@ export interface Insight {
   nodes: NodeRef[];
   /** Defaults to "synthesis" for pre-existing rows. */
   kind?: InsightKind;
+  /** Significance tier (#10): 1 = identity-shaping, 2 = behavioral pattern, 3 = situational.
+   *  Derived on read from the involved memories; lower number = surfaced first. */
+  tier?: 1 | 2 | 3;
 }
 
 /** One point on the emotional trajectory: a time bucket's average valence (−1..1). */

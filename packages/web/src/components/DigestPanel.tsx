@@ -39,6 +39,15 @@ export function DigestPanel({
   const [dormant, setDormant] = useState<DormantItem[]>([]);
   const [evolution, setEvolution] = useState<EvolutionLink[]>([]);
   const [busy, setBusy] = useState(false);
+  const [showAllInsights, setShowAllInsights] = useState(false);
+
+  // #10 tiers + #7 compression: surface the most significant insights first
+  // (identity → behavioral → situational, then most recent) and cap the list by
+  // default so the digest stays scannable.
+  const INSIGHT_CAP = 6;
+  const rankedInsights = [...items].sort((a, b) => (a.tier ?? 3) - (b.tier ?? 3) || b.id - a.id);
+  const shownInsights = showAllInsights ? rankedInsights : rankedInsights.slice(0, INSIGHT_CAP);
+  const TIER_LABEL: Record<number, string> = { 1: "identity", 2: "pattern", 3: "situational" };
   // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
   const [promotingId, setPromotingId] = useState<number | null>(null);
   const [draftName, setDraftName] = useState("");
@@ -355,18 +364,26 @@ export function DigestPanel({
         </p>
       )}
       <ul className="insights">
-        {items.map((it) => {
+        {shownInsights.map((it) => {
           const isConflict = it.kind === "contradiction";
           return (
             <li
               key={it.id}
               style={isConflict ? { borderLeft: "3px solid #ff7a59", paddingLeft: "0.6rem" } : undefined}
             >
-              {isConflict && (
-                <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#ff7a59", letterSpacing: "0.04em", marginBottom: "0.2rem" }}>
-                  ⚡ CONTRADICTION · RECONCILE
-                </div>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
+                {isConflict && (
+                  <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#ff7a59", letterSpacing: "0.04em" }}>
+                    ⚡ CONTRADICTION · RECONCILE
+                  </span>
+                )}
+                <span
+                  style={{ fontSize: "0.62rem", opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}
+                  title={`Tier ${it.tier ?? 3} — surfaced ${it.tier === 1 ? "first" : it.tier === 2 ? "after identity-level" : "last"}`}
+                >
+                  {TIER_LABEL[it.tier ?? 3]}
+                </span>
+              </div>
               <p className="insight-text">{it.text}</p>
               <div className="pills">
                 {it.nodes.map((n) => (
@@ -384,6 +401,11 @@ export function DigestPanel({
           );
         })}
       </ul>
+      {rankedInsights.length > INSIGHT_CAP && (
+        <button className="mini" style={{ marginTop: "0.4rem" }} onClick={() => setShowAllInsights((v) => !v)}>
+          {showAllInsights ? "Show fewer" : `Show all ${rankedInsights.length}`}
+        </button>
+      )}
     </div>
   );
 }

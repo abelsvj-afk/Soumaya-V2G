@@ -1,8 +1,18 @@
 import { desc, eq } from "drizzle-orm";
-import type { Insight, InsightKind, NodeRef } from "@brain/shared";
+import type { Insight, InsightKind, NodeRef, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { insights, DEFAULT_SPACE, type InsightRow } from "../db/schema.js";
 import { NodesRepo } from "./nodes.repo.js";
+
+/** Significance tier (#10) from an insight's kind + the memories it spans.
+ *  1 = identity-shaping, 2 = behavioral pattern, 3 = situational. */
+function insightTier(kind: InsightKind, types: NodeType[]): 1 | 2 | 3 {
+  // A contradiction is, by nature, about a belief/goal/identity tension.
+  if (kind === "contradiction") return 1;
+  if (types.some((t) => t === "person" || t === "concept")) return 1;
+  if (types.some((t) => t === "project" || t === "decision" || t === "daily" || t === "meeting")) return 2;
+  return 3;
+}
 
 export class InsightsRepo {
   private readonly nodes: NodesRepo;
@@ -54,13 +64,18 @@ export class InsightsRepo {
     const refs = new Map<number, NodeRef>(
       this.nodes.byIds(ids).map((n) => [n.id, { id: n.id, label: n.label, type: n.type }]),
     );
-    return rows.map((r) => ({
-      id: r.id,
-      text: r.text,
-      score: r.score,
-      createdAt: r.createdAt,
-      kind: (r.kind as InsightKind) ?? "synthesis",
-      nodes: [refs.get(r.nodeA), refs.get(r.nodeB)].filter((x): x is NodeRef => x !== undefined),
-    }));
+    return rows.map((r) => {
+      const kind = (r.kind as InsightKind) ?? "synthesis";
+      const nodes = [refs.get(r.nodeA), refs.get(r.nodeB)].filter((x): x is NodeRef => x !== undefined);
+      return {
+        id: r.id,
+        text: r.text,
+        score: r.score,
+        createdAt: r.createdAt,
+        kind,
+        tier: insightTier(kind, nodes.map((n) => n.type)),
+        nodes,
+      };
+    });
   }
 }
