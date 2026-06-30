@@ -165,6 +165,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Scored research priority (research-agent add-on #2)
+Third module from `docs/specs/research-agent-addons.md`. Soumaya now researches the most
+*consequential* blind spot, not just the highest-importance one.
+- **Scoring (offline, bounded):** `maintenance/researchPriority.ts` scores each under-connected
+  important memory: +strong emotion (|valence|≥0.7), +caught in a contradiction insight, +identity
+  statement, +long-term goal, +recurring theme; −low-signal factual, −isolated one-off. Picks the
+  best above a floor; returns null (the "no research zone") when only noise remains.
+- **Wiring:** both `selectJobInner`'s research rung and `researchGapJob` (planner option) use the
+  scored picker. The chosen factors are written into the job description ("prioritized for …"),
+  which already renders in the Soumaya activity log with its rationale — so the decision is visible.
+- **Help:** "How she prioritizes research" entry added (per the UI+Help rule).
+- 4 new tests; gate: typecheck clean · **114 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Emotional trajectory (research-agent add-on #5) + UI/help rule
 Second module from `docs/specs/research-agent-addons.md`. Turns the per-memory signed
 `emotionalWeight` (valence) + timestamps into a mood-over-time view with detected patterns.

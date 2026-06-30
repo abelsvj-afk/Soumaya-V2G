@@ -53,7 +53,12 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
    `GET /api/digest/emotional` (free, offline, heuristic — no token cost); Insights tab gains a
    "🌡️ Emotional weather" section (dependency-free SVG sparkline + pattern cards); Help entry added.
    5 tests; gate green (110 server tests).
-3. **Scored research priority (#2)** — fold the scoring model into `selectJobInner`.
+3. **Scored research priority (#2)** — ✅ **SHIPPED 2026-06-30.** `maintenance/researchPriority.ts`
+   scores under-connected important memories by emotion / contradiction-membership / identity / goal /
+   recurring-theme (minus low-signal-factual + isolated penalties), picks the best above a floor, and
+   returns null (the "no research zone") when only noise remains. Wired into both `selectJobInner`'s
+   research rung and `researchGapJob`; the chosen factors show in the job description (visible in the
+   Soumaya activity log) and a Help entry explains it. 4 tests; gate green (114 server tests).
 4. **Dormant recovery (#4)** + **temporal linking chains (#8)** — pattern-over-time layer.
 5. Polish: insight compression (#7) + tiers (#10) + the "no research needed" string (#9).
 6. Optional later: life-area lens (#6, reframed) and the self-improvement loop (#12).

@@ -1,6 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 import type { AppContext } from "../context.js";
 import { findCandidates } from "../synthesis/engine.js";
+import { pickResearchTarget } from "./researchPriority.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
@@ -232,27 +233,15 @@ function jobForRequest(ctx: AppContext, spaceId: string, id: number): AgentJob |
   return mkJob(ctx, spaceId, "calibration", [id], `On request: recalibrating "${node.label}".`);
 }
 
-/** The research-gap job as a standalone option for the planner (or null). */
+/** The research-gap job as a standalone option for the planner (or null). Uses the
+ *  same scored picker (#2) as the ladder rung. */
 function researchGapJob(ctx: AppContext, spaceId: string): AgentJob | null {
   const economy = new EconomyRepo(ctx.handle, spaceId);
   if (!(researchEnabled(ctx) && !ctx.usage.overBudget() && economy.canRunJob())) return null;
-  const target = ctx.handle.sqlite
-    .prepare(
-      `SELECT n.id FROM nodes n
-       LEFT JOIN (
-         SELECT node_id, COUNT(*) as deg FROM (
-           SELECT source as node_id FROM edges WHERE space_id = ?
-           UNION ALL SELECT target as node_id FROM edges WHERE space_id = ?
-         ) GROUP BY node_id
-       ) d ON d.node_id = n.id
-       WHERE n.space_id = ? AND n.deleted_at IS NULL
-       AND n.content NOT LIKE '%--- Research Deep Dive ---%'
-       AND n.importance >= 0.45 AND COALESCE(d.deg, 0) <= 1
-       ORDER BY n.importance DESC LIMIT 1`,
-    )
-    .get(spaceId, spaceId, spaceId) as { id: number } | undefined;
-  if (!target) return null;
-  return mkJob(ctx, spaceId, "research", [target.id], "Gap-filling: deep-dive research on an important but under-connected memory.");
+  const pick = pickResearchTarget(ctx, spaceId);
+  if (!pick) return null;
+  const why = pick.factors.length ? ` — prioritized for ${pick.factors.join(", ")}` : "";
+  return mkJob(ctx, spaceId, "research", [pick.id], `Gap-filling: deep-dive research on a high-priority memory${why}.`);
 }
 
 /** Compact, cheap brain summary for the planner's decision. */
@@ -388,35 +377,20 @@ function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
     );
   }
 
-  // 2. Research — NOT a default. Reserved for a genuine GAP: a memory that clearly
-  // matters to you (high importance) yet sits under-connected and undocumented — a
-  // blind spot worth filling in. If everything important is already well wired up,
-  // she does no research and lets synthesis keep connecting the dots instead.
+  // 2. Research — NOT a default. Reserved for a genuine GAP, and now SCORED (#2): among
+  // under-connected important memories, pick the most research-WORTHY by emotional
+  // intensity / contradiction / identity / goal / recurring theme (minus noise). If
+  // nothing clears the floor she does no research and lets synthesis keep connecting.
   if (expansionOn) {
-    const target = ctx.handle.sqlite
-      .prepare(
-        `SELECT n.id FROM nodes n
-         LEFT JOIN (
-           SELECT node_id, COUNT(*) as deg
-           FROM (
-             SELECT source as node_id FROM edges WHERE space_id = ?
-             UNION ALL SELECT target as node_id FROM edges WHERE space_id = ?
-           )
-           GROUP BY node_id
-         ) d ON d.node_id = n.id
-         WHERE n.space_id = ? AND n.deleted_at IS NULL
-         AND n.content NOT LIKE '%--- Research Deep Dive ---%'
-         AND n.importance >= 0.45 AND COALESCE(d.deg, 0) <= 1
-         ORDER BY n.importance DESC LIMIT 1`,
-      )
-      .get(spaceId, spaceId, spaceId) as { id: number } | undefined;
-    if (target) {
+    const pick = pickResearchTarget(ctx, spaceId);
+    if (pick) {
+      const why = pick.factors.length ? ` — prioritized for ${pick.factors.join(", ")}` : "";
       return mkJob(
         ctx,
         spaceId,
         "research",
-        [target.id],
-        "Gap-filling: deep-dive research on an important but under-connected memory.",
+        [pick.id],
+        `Gap-filling: deep-dive research on a high-priority memory${why}.`,
       );
     }
   }
