@@ -1,6 +1,15 @@
 import { Router } from "express";
+import { timingSafeEqual } from "node:crypto";
 import type { AppContext } from "../../context.js";
 import { handleTelegramUpdate, tgSend } from "../../telegram/bot.js";
+
+/** Constant-time string compare (length-safe) — avoids leaking the secret via timing. */
+function secretEq(a: string | undefined, b: string | undefined): boolean {
+  if (!a || !b) return false;
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  return ab.length === bb.length && timingSafeEqual(ab, bb);
+}
 
 /**
  * Telegram webhook (open route — auth is the secret, not an x-space-id). Telegram
@@ -17,8 +26,8 @@ export function telegramRoutes(ctx: AppContext): Router {
     if (
       !token ||
       !secret ||
-      req.params.secret !== secret ||
-      req.get("x-telegram-bot-api-secret-token") !== secret
+      !secretEq(req.params.secret, secret) ||
+      !secretEq(req.get("x-telegram-bot-api-secret-token"), secret)
     ) {
       res.status(403).json({ error: "forbidden" });
       return;

@@ -220,6 +220,8 @@ describe("REST API", () => {
   it("only discretionary expansion jobs burn fuel; core duties are free", async () => {
     const a = (await post("/api/ingest", { text: "fuel split memory alpha" })).body.nodes[0].id;
     const b = (await post("/api/ingest", { text: "fuel split memory beta" })).body.nodes[0].id;
+    // Paid jobs require Research Mode on (complete-job re-checks the maintenance gate).
+    await post("/api/maintenance/settings", { key: "research_enabled", value: "true" });
 
     // A CORE job (synthesis) must not spend fuel.
     const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
@@ -232,5 +234,22 @@ describe("REST API", () => {
     expect(rr.status).toBe(200);
     const f2 = (await get("/api/maintenance/fuel")).body.fuel as number;
     expect(f2).toBeLessThan(f1);
+  });
+
+  it("complete-job can't drain the budget with Research Mode off (paid jobs are no-ops)", async () => {
+    const a = (await post("/api/ingest", { text: "gate guard alpha" })).body.nodes[0].id;
+    await post("/api/ingest", { text: "gate guard beta" });
+    // Force Research Mode OFF (a prior test may have enabled this global toggle).
+    await post("/api/maintenance/settings", { key: "research_enabled", value: "false" });
+    // A crafted research call must not spend fuel or mutate.
+    const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    const rr = await post("/api/maintenance/complete-job", { type: "research", targets: [a] });
+    expect(rr.status).toBe(200);
+    expect(rr.body.ok).toBe(false); // no-op
+    const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f1).toBe(f0);
+    // And the global settings route rejects any key other than research_enabled.
+    const bad = await post("/api/maintenance/settings", { key: "usage_budget_usd", value: "0" });
+    expect(bad.status).toBe(400);
   });
 });

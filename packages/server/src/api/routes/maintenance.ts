@@ -13,6 +13,16 @@ const CompleteJobSchema = z.object({
   targets: z.array(z.number()),
 });
 
+// The `settings` table is deployment-GLOBAL (shared API budget, usage counters).
+// Only an explicit allow-list of safe, user-facing keys may be written through this
+// public route — otherwise any logged-in brain could zero `usage_budget_usd` (killing
+// cloud LLM for every brain) or flip internal counters. `research_enabled` is the one
+// legitimate shared toggle the client sets (Settings + Soumaya panels).
+const SettingsWriteSchema = z.object({
+  key: z.enum(["research_enabled"]),
+  value: z.string().max(64),
+});
+
 export function maintenanceRoutes(ctx: AppContext): Router {
   const r = Router();
 
@@ -112,7 +122,12 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    * POST /api/maintenance/settings
    */
   r.post("/settings", async (req, res) => {
-    const { key, value } = req.body;
+    const parsed = SettingsWriteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Unsupported setting.", issues: parsed.error.issues });
+      return;
+    }
+    const { key, value } = parsed.data;
     await ctx.handle.db.insert(settings)
       .values({ key, value })
       .onConflictDoUpdate({ target: settings.key, set: { value } })

@@ -247,9 +247,19 @@ function migrateSchema(sqlite: RawDb): void {
           created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      // gamer_tag is UNIQUE, but the old `name` column was not — copying name→gamer_tag
+      // verbatim would abort the migration (and crash boot on a real volume) if two old
+      // brains shared a name (case-insensitively). De-dupe: the earliest brain in each
+      // name-group keeps the bare name; later collisions get the unique id appended.
       sqlite.exec(`
         INSERT INTO spaces (id, name, gamer_tag, passcode_hash, passcode_salt, created_at)
-        SELECT id, name, name, passcode_hash, passcode_salt, created_at FROM spaces_old
+        SELECT id, name,
+               CASE WHEN rn = 1 THEN name ELSE name || '#' || id END AS gamer_tag,
+               passcode_hash, passcode_salt, created_at
+        FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY lower(name) ORDER BY created_at, id) AS rn
+          FROM spaces_old
+        )
       `);
       sqlite.exec(`DROP TABLE spaces_old`);
     })();

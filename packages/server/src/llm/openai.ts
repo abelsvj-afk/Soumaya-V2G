@@ -77,13 +77,17 @@ export class OpenAiProvider implements LlmProvider {
     });
     if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
     const body = (await res.json()) as {
-      choices: { message: { content: string } }[];
+      choices?: { message?: { content?: string | null } }[];
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
     if (this.recordUsage && body.usage) {
       this.recordUsage(MODEL, body.usage.prompt_tokens ?? 0, body.usage.completion_tokens ?? 0);
     }
-    return JSON.parse(body.choices[0]!.message.content) as T;
+    // A refusal or truncated response can yield null/empty content; surface a clear
+    // error so ResilientLlmProvider degrades to the heuristic instead of JSON.parse(undefined).
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) throw new Error("OpenAI returned no content (refusal or empty response).");
+    return JSON.parse(content) as T;
   }
 
   async extract(text: string, context: ContextNode[]): Promise<ExtractionResult> {

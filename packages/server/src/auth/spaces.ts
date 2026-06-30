@@ -1,5 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE, spaces, type SpaceRow } from "../db/schema.js";
 
@@ -32,7 +32,13 @@ export class SpacesRepo {
   }
 
   getByGamerTag(gamerTag: string): SpaceRow | undefined {
-    return this.h.db.select().from(spaces).where(eq(spaces.gamerTag, gamerTag)).get();
+    // Case-insensitive: "Alice" and "alice" are the same brain, so a different-case
+    // login can't silently create a duplicate account (mobile autocapitalize, etc.).
+    return this.h.db
+      .select()
+      .from(spaces)
+      .where(sql`lower(${spaces.gamerTag}) = lower(${gamerTag})`)
+      .get();
   }
 
   count(): number {

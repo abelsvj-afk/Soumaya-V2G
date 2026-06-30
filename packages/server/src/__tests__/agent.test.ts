@@ -54,6 +54,7 @@ describe("maintenance agent (server-side autonomy core)", () => {
     const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "fuel alpha memory")).nodes[0]!.id;
     const b = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "fuel beta memory")).nodes[0]!.id;
     const econ = new EconomyRepo(handle, "legacy");
+    setResearch(true); // paid jobs require Research Mode (executeJob now re-checks the gate)
 
     const f0 = econ.get();
     const synDetail = await executeJob(ctx, "legacy", { type: "synthesis", targets: [a, b], description: "" });
@@ -66,8 +67,22 @@ describe("maintenance agent (server-side autonomy core)", () => {
   });
 
   it("executeJob returns null (no-op) for a missing target instead of throwing", async () => {
+    setResearch(true);
     const detail = await executeJob(ctx, "legacy", { type: "synthesis", targets: [9991, 9992], description: "" });
     expect(detail).toBeNull();
+  });
+
+  it("executeJob refuses paid jobs when Research Mode is OFF (complete-job can't bypass the gate)", async () => {
+    const a = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "gate alpha")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings: ctx.embeddings, llm: ctx.llm }, "gate beta")).nodes[0]!.id;
+    const econ = new EconomyRepo(handle, "legacy");
+    const f0 = econ.get();
+    // Research Mode off (default): paid jobs must be no-ops and spend nothing.
+    expect(await executeJob(ctx, "legacy", { type: "synthesis", targets: [a, b], description: "" })).toBeNull();
+    expect(await executeJob(ctx, "legacy", { type: "research", targets: [a], description: "" })).toBeNull();
+    expect(econ.get()).toBe(f0);
+    // A free core duty (patrol) still runs regardless of Research Mode.
+    expect(await executeJob(ctx, "legacy", { type: "patrol", targets: [a], description: "" })).toBeTruthy();
   });
 
   it("selectJob returns null for an empty brain", async () => {

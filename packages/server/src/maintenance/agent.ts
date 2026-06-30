@@ -51,6 +51,12 @@ export interface AgentJob {
 
 /** Jobs that burn Fuel (discretionary expansion). Everything else is free. */
 const FUEL_JOBS = new Set<JobType>(["research", "sector_vibe"]);
+// Paid / discretionary cloud-LLM jobs. `selectJob` already refuses to hand these out
+// with Research Mode off, but `complete-job` reaches `executeJob` with client-supplied
+// type/targets, so we re-check the SAME gate here — otherwise a tenant could loop these
+// to drain the shared deployment budget with Research Mode off. The free core duties
+// (daily_log genesis, calibration/pruning/harmonization/patrol) stay ungated.
+const PAID_JOBS = new Set<JobType>(["synthesis", "merging", "research", "sector_vibe"]);
 
 /** Best-effort label for a node id (falls back to "#id" / "a memory"). */
 function labelOf(nodesRepo: NodesRepo, id: number | undefined): string {
@@ -506,6 +512,13 @@ export async function executeJob(
   job: { type: JobType; targets: number[]; description?: string },
 ): Promise<string | null> {
   const { type, targets } = job;
+  // Re-enforce the maintenance gate for paid jobs (defense for the public complete-job
+  // route): Research Mode on + under the USD budget, and — for fuel-cost jobs — enough
+  // Fuel. Without this a crafted complete-job request bypasses selectJob's gating.
+  if (PAID_JOBS.has(type)) {
+    if (!researchEnabled(ctx) || ctx.usage.overBudget()) return null;
+    if (FUEL_JOBS.has(type) && !new EconomyRepo(ctx.handle, spaceId).canRunJob()) return null;
+  }
   const [t0, t1] = targets as [number, number];
   const graph = new GraphService(ctx.handle, spaceId);
   const nodesRepo = new NodesRepo(ctx.handle, spaceId);
