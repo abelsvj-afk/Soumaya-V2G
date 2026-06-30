@@ -15,6 +15,22 @@ export interface AchievementCtx {
   linkObjects?: any[]; // full link array for pathfinding
 }
 
+/**
+ * The active brain id used for per-brain localStorage stats. Mirrors api/client's
+ * `brain.spaceId` (set synchronously at login, and the same id the writer in
+ * Graph3D keys its `stat.*` counters by), so stat-based achievements always read
+ * the bucket the stats were written to. Reading the effect-written `current_space_id`
+ * instead caused a startup race + a "demo-space" fallback that never matched the
+ * writer — so those achievements could never unlock from real play.
+ */
+export function statsSpaceId(): string {
+  try {
+    return localStorage.getItem("brain.spaceId") || "legacy";
+  } catch {
+    return "legacy";
+  }
+}
+
 export interface Achievement {
   id: string;
   name: string;
@@ -201,7 +217,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     test: (c) => {
       // Checked via stats loaded from localStorage in App
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.beacons_deployed.${spaceId}`) || "0", 10);
         return val >= 5;
       } catch {
@@ -210,7 +226,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     },
     progress: (c) => {
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.beacons_deployed.${spaceId}`) || "0", 10);
         return { cur: Math.min(val, 5), target: 5 };
       } catch {
@@ -248,7 +264,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     desc: "Soumaya completes 15+ travel hops on maintenance rounds. Unlocks Fusion Core Destroyer.",
     test: (c) => {
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.travel_hops.${spaceId}`) || "0", 10);
         return val >= 15;
       } catch {
@@ -257,7 +273,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     },
     progress: (c) => {
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.travel_hops.${spaceId}`) || "0", 10);
         return { cur: Math.min(val, 15), target: 15 };
       } catch {
@@ -288,7 +304,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     desc: "Tend/restore old high-entropy memories 10+ times. Unlocks Void Purple Trail.",
     test: (c) => {
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.memories_tended.${spaceId}`) || "0", 10);
         return val >= 10;
       } catch {
@@ -297,7 +313,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     },
     progress: (c) => {
       try {
-        const spaceId = localStorage.getItem("current_space_id") || "demo-space";
+        const spaceId = statsSpaceId();
         const val = parseInt(localStorage.getItem(`stat.memories_tended.${spaceId}`) || "0", 10);
         return { cur: Math.min(val, 10), target: 10 };
       } catch {

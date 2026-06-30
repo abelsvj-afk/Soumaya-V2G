@@ -38,8 +38,13 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put("/", copy));
+          // Only cache a GOOD shell. Without this, a 5xx maintenance page or a
+          // captive-portal interstitial would be written as the offline shell and
+          // then served on every later offline navigation.
+          if (res.ok && res.type === "basic") {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put("/", copy));
+          }
           return res;
         })
         .catch(() => caches.match("/").then((r) => r || caches.match(req))),

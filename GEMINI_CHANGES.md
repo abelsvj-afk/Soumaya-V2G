@@ -165,6 +165,34 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Web bug sweep fixes + colossal black hole + Soumaya hull colour
+Fixed every web issue from the project bug sweep, plus two user-reported asks.
+- **GPU/VRAM leak (`Graph3D.tsx`/`nodeObject.ts`):** cached node objects were rebuilt on
+  every degree/entropy change and never disposed. Added `disposeObject3D()` and call it on
+  cache overwrite, eviction, and unmount → no more steady VRAM climb / mobile jank.
+- **Stale `fuel` closure:** the one-shot engine effect captured the initial `null` fuel
+  forever. Mirrored `fuel` into `fuelRef` so the flight loop sees live fuel.
+- **Achievement stat-key mismatch:** stat reads fell back to `current_space_id || "demo-space"`
+  while the writer keys by the real `brain.spaceId` → Sentinel/Cosmic-Voyager/Grand-Restorer
+  could never unlock. Added `statsSpaceId()` (reads `brain.spaceId`, set at login) and routed
+  all 6 stat reads + Toasts notifications through the same canonical id (kills the startup race
+  too).
+- **Service worker:** only cache a navigation shell when `res.ok && type==="basic"`, so a 503/
+  captive-portal page can't become the offline shell.
+- **`frameGalaxy`:** guard a zero/invalid camera aspect (intro framing) that could divide by
+  sin(0). **Imperative handle:** `focusNode`/`spawnBurst` now read `dataRef.current` (live) so a
+  refresh race can't search a stale node list.
+- **Black hole made colossal (user ask):** a black hole must dwarf the sun (~600) and Dyson
+  (~1800) — bumped `targetSize` 2000 → **10000**, pushed it 1.6× deeper into the back so it
+  doesn't engulf the galaxy, enlarged the procedural fallback to match, and gave figurines a
+  per-object `userData.focusDist` (13000 for the hole) so the focus camera frames it from far
+  enough to not sit inside it. Added 🕳️/"The Singularity" icon+label for its HUD focus button.
+- **Soumaya's grey hull (user ask):** the ship GLBs ship with bare grey materials and only the
+  holographic skin was being re-materialised. Added a per-skin hull tint (default cool blue-steel
+  + cyan sheen; fusion orange; organic teal) applied to the loaded model — colours the body only;
+  the engine trail/plume/glow are separate effects and were left untouched.
+- Gate: typecheck clean · web build clean (SW re-stamped).
+
 ### 2026-06-30 (Claude): Help / Pilot Manual rewrite — cover the missing signature features
 - The "?" Galaxy Pilot Manual (`HelpPanel.tsx`) was badly out of date — it documented only
   flight/galaxy/fleet/hangar and **omitted every signature feature**: dumping thoughts, private

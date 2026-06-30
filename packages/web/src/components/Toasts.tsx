@@ -79,8 +79,10 @@ export function pushToast(
   if (paused) buffer.push(t); // hold the on-screen toast until unpaused (still logged below)
   else for (const l of listeners) l(t);
 
-  // Write to notification inbox log (scoped to space)
-  const spaceId = localStorage.getItem("current_space_id") || "default";
+  // Write to notification inbox log (scoped to space). Key off the canonical
+  // `brain.spaceId` (set at login) — the same id RightDock/InboxPanel read by — so
+  // notifications never land in a different bucket than the inbox reads from.
+  const spaceId = localStorage.getItem("brain.spaceId") || "default";
   const logKey = `brain.notifications.${spaceId}`;
   try {
     const listRaw = localStorage.getItem(logKey);

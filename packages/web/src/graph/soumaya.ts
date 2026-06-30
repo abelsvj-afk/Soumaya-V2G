@@ -251,8 +251,35 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
               });
             }
           });
+        } else {
+          // The shipped hull GLBs (soumaya-ship/organic/fusion) ship with bare gray
+          // materials, so the body renders flat grey. Tint the hull meshes per skin so
+          // the ship itself is coloured — this only touches the GLB body; the engine
+          // trail/plume/glow are separate code-added effects and stay untouched.
+          // Default skin: a cool blue-steel body with a faint cyan sheen (Soumaya's accent).
+          const tint =
+            skin === "fusion_core" ? new THREE.Color("#ff5a2a")
+            : skin === "organic" ? new THREE.Color("#8fe7c0")
+            : new THREE.Color("#c2d4f5");
+          const sheen =
+            skin === "fusion_core" ? new THREE.Color("#ff8c00")
+            : skin === "organic" ? new THREE.Color("#1f9e8f")
+            : new THREE.Color("#2f7bff");
+          model.traverse((o: any) => {
+            if (!o.isMesh || !o.material) return;
+            for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+              if (m.color) m.color.copy(tint);
+              if (m.emissive) {
+                m.emissive.copy(sheen);
+                m.emissiveIntensity = 0.3;
+              }
+              if ("metalness" in m) m.metalness = 0.35;
+              if ("roughness" in m) m.roughness = 0.45;
+              m.needsUpdate = true;
+            }
+          });
         }
-        
+
         const box = new THREE.Box3().setFromObject(model);
         const dim = new THREE.Vector3();
         box.getSize(dim);

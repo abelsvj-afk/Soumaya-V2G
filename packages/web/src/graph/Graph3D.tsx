@@ -120,6 +120,7 @@ function updateFigurine(
 
   group.visible = true;
   group.position.copy(position);
+  group.userData.focusDist = 4000; // default camera framing distance; big figurines override
 
   let fallbackMesh: THREE.Object3D;
   let modelPath = "";
@@ -138,11 +139,14 @@ function updateFigurine(
     fallbackMesh = new THREE.Mesh(new THREE.TorusGeometry(600, 100, 16, 48), mat);
   } else if (type === "blackhole") {
     // The Singularity — prestige unlock. Real glTF (converted to metallic-roughness +
-    // Draco; see docs/specs/blackhole-singularity.md). Bigger targetSize so the glowing
-    // accretion disk reads from the deep-space distance. Fallback: a black void sphere
-    // ringed by an emissive accretion torus for the pre-load / load-fail path.
+    // Draco; see docs/specs/blackhole-singularity.md). A black hole is the most massive
+    // object in any galaxy — it must DWARF the sun (~600) and every other figurine
+    // (Dyson ~1800), so it gets a colossal targetSize, is pushed deep into the back so
+    // it doesn't engulf the galaxy, and records its own (large) camera focus distance.
     modelPath = "/blackhole.glb";
-    targetSize = 2000;
+    targetSize = 10000; // ~5x the sun's visual extent — unmistakably the biggest thing
+    group.position.copy(position).multiplyScalar(1.6); // pushed far behind the galaxy
+    group.userData.focusDist = 13000; // camera frames it from this far so it fills the sky
     const voidMat = new THREE.MeshStandardMaterial({
       color: 0x000000,
       roughness: 1.0,
@@ -153,9 +157,10 @@ function updateFigurine(
       emissive: 0xff7722,
       emissiveIntensity: 2.4
     });
+    // Fallback void+disk sized to roughly match the loaded model so there's no pop.
     const subGroup = new THREE.Group();
-    const core = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 32), voidMat);
-    const disk = new THREE.Mesh(new THREE.TorusGeometry(820, 90, 12, 64), diskMat);
+    const core = new THREE.Mesh(new THREE.SphereGeometry(2100, 48, 48), voidMat);
+    const disk = new THREE.Mesh(new THREE.TorusGeometry(4100, 420, 16, 96), diskMat);
     disk.rotation.x = Math.PI / 2.4;
     subGroup.add(core);
     subGroup.add(disk);
@@ -309,6 +314,27 @@ function updateFigurine(
   );
 }
 
+/**
+ * Free the GPU resources held by a node/figurine object before we drop our last
+ * reference to it. react-force-graph swaps the scene object when nodeThreeObject
+ * returns a new instance, but it never disposes the old one's geometry/materials/
+ * textures — so without this, every content change (degree/entropy/label) on a busy
+ * brain leaks VRAM until the context is lost. Lights need no disposal.
+ */
+function disposeObject3D(obj: THREE.Object3D): void {
+  obj.traverse((o: any) => {
+    o.geometry?.dispose?.();
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) {
+      for (const k in m) {
+        const v = (m as any)[k];
+        if (v && v.isTexture) v.dispose?.();
+      }
+      m.dispose?.();
+    }
+  });
+}
+
 export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   {
     data,
@@ -383,6 +409,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     spaceIdRef.current = spaceId;
   }, [spaceId]);
 
+  // Fuel is polled async and updates over time; the engine loop is a one-shot effect,
+  // so read it through a ref or the loop would forever see the initial null and the
+  // fuel-gated flight behavior would never engage.
+  const fuelRef = useRef(fuel);
+  useEffect(() => {
+    fuelRef.current = fuel;
+  }, [fuel]);
+
   useEffect(() => {
     equippedShipRef.current = equippedShip;
     if (soumayaHandleRef.current?.setShipSkin) {
@@ -431,8 +465,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useEffect(() => {
     dataRef.current = data;
     const liveIds = new Set((data.nodes as any[]).map((n) => n.id));
-    for (const id of nodeThreeObjCacheRef.current.keys()) {
+    for (const [id, entry] of nodeThreeObjCacheRef.current) {
       if (!liveIds.has(id)) {
+        disposeObject3D(entry.obj); // free VRAM for deleted nodes
         nodeThreeObjCacheRef.current.delete(id);
       }
     }
@@ -1229,7 +1264,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             slotOf: (id: number) => orbitsRef.current.slotOf(id),
             release: (id: number) => orbitsRef.current.release(id),
           },
-          fuel,
+          fuelRef.current,
           controls?.target,
         );
       }
@@ -1270,10 +1305,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           followObjAnchored.current = false;
         } else if (followKindRef.current === "fig1" || followKindRef.current === "fig2") {
           // Figurine Focus: place camera in front of it and slightly below, looking up.
+          // The framing distance scales with the figurine (the black hole is huge, so a
+          // fixed -4000 would put the camera inside it).
           if (followSnapRef.current) {
+            const fd = (followObjRef.current as any)?.userData?.focusDist ?? 4000;
             const dir = sp.clone().normalize();
-            const camPos = sp.clone().addScaledVector(dir, -4000);
-            camPos.y -= 800; // Looking up from below
+            const camPos = sp.clone().addScaledVector(dir, -fd);
+            camPos.y -= fd * 0.2; // Looking up from below, scaled to size
             camera.position.copy(camPos);
             followObjAnchor.current.copy(sp);
             followObjAnchored.current = true;
@@ -1351,6 +1389,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     return () => {
       cancelAnimationFrame(raf);
       if (fg.__brainCleanupClick) fg.__brainCleanupClick();
+      // Free the VRAM held by every cached node object on unmount (e.g. logout →
+      // remount), so a new session doesn't start atop the old scene's leaked buffers.
+      for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
+      nodeThreeObjCacheRef.current.clear();
+      fg.__brainInited = false; // allow a clean re-init if this fg instance is reused
     };
   }, []);
 
@@ -1434,7 +1477,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     radius = Math.max(radius, center.length() + SUN_RADIUS_MAX) * 1.12;
     const cam = fg.camera() as THREE.PerspectiveCamera;
     const fov = ((cam.fov ?? 60) * Math.PI) / 180;
-    const aspect = cam.aspect ?? 1;
+    // Guard a zero/invalid aspect (canvas not yet sized during the intro framing),
+    // which would make hFit divide by sin(0) = Infinity.
+    const aspect = cam.aspect && cam.aspect > 0 ? cam.aspect : 1;
     // Fit by the tighter of vertical/horizontal FOV, with margin for labels/orbits.
     const vFit = radius / Math.sin(fov / 2);
     const hFit = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
@@ -1498,7 +1543,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   useImperativeHandle(
     ref,
     () => ({
-      focusNode: (id: number) => flyTo((data.nodes as any[]).find((x) => x.id === id)),
+      focusNode: (id: number) => flyTo((dataRef.current.nodes as any[]).find((x) => x.id === id)),
       recenter: () => {
         followRef.current = null; // release every follow-lock so we can frame all
         followObjRef.current = null;
@@ -1635,7 +1680,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         frameGalaxy(800);
       },
       spawnBurst: (id: number, type = "user") => {
-        const n = (data.nodes as any[]).find((x) => x.id === id);
+        const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
         if (n && n.x != null) {
           burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
         }
@@ -1786,6 +1831,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (cached && cached.key === cacheKey) {
           obj = cached.obj;
         } else {
+          if (cached) disposeObject3D(cached.obj); // free the superseded build's VRAM
           obj = makeNodeObject(node);
           nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
         }

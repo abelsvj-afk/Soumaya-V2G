@@ -18,6 +18,7 @@ function getFigurineIcon(type: string): string {
     case "quantum_core": return "🌌";
     case "hyper_array": return "📡";
     case "shield_spire": return "🛡️";
+    case "blackhole": return "🕳️";
     default: return "🗿";
   }
 }
@@ -31,6 +32,7 @@ function getFigurineLabel(type: string): string {
     case "quantum_core": return "Quantum Singularity Core";
     case "hyper_array": return "Synapse Hyper-Array";
     case "shield_spire": return "Aegis Shield Spire";
+    case "blackhole": return "The Singularity";
     default: return type;
   }
 }
