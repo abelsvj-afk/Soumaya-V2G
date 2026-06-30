@@ -70,11 +70,27 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
    (free, offline, read-only — no graph mutation); Insights tab "🔗 How your thinking evolved" section;
    Help entry. 4 tests; gate green (123 server tests). **Follow-up:** optionally materialize as
    `evolves_into` graph edges (deferred to avoid the orbits/mass Red Zone).
-5. Polish: insight compression (#7) + tiers (#10) + the "no research needed" string (#9).
-6. Optional later: life-area lens (#6, reframed) and the self-improvement loop (#12).
+5. **Insight compression (#7) + tiers (#10)** — ✅ **SHIPPED 2026-06-30.** `Insight.tier` derived on
+   read (`InsightsRepo.recent`, identity/behavioral/situational); DigestPanel sorts by tier then
+   recency, shows a tier tag, and caps the list (Show all/fewer). Help mention. Gate green.
+6. **"No research needed" string (#9)** — ✅ **SHIPPED 2026-06-30.** Client-only: after a dump the
+   IngestPanel shows "🔬 may deep-dive in Research Mode" (importance ≥ 0.6) or "🗃️ stored, no research
+   needed"; Help entry. (The gating behavior itself already existed.)
+7. **Life-area lens (#6, reframed) — overlay only** — ✅ **SHIPPED 2026-06-30.** `analysis/lifeAreas.ts`
+   classifies each memory (tags + type + language) into Identity & Growth / Relationships / Work &
+   Projects / Health / Money / Other; `GET /api/digest/life-areas`; Insights tab "🪟 Life-area lens"
+   distribution bars; Help entry. Emergent clustering remains the storage model — this is purely a lens.
+8. **Self-improvement loop (#12) — SAFE read-only interpretation** — ✅ **SHIPPED 2026-06-30.** Rather
+   than silently re-weighting her own logic (unstable + token-hungry), Soumaya reports a coverage
+   self-check: drifting memories, important blind spots, cooling neglect, unreconciled contradictions.
+   `analysis/selfReview.ts`; `GET /api/digest/self-review`; Insights tab "🔍 Soumaya's self-check"
+   section; Help entry. Pure SQL, offline.
 
-## Open questions for the user
-- Which slice first? (Recommend **#3 contradiction detection**.)
-- For #6: confirm we keep emergent clustering as the storage model and only add life-areas as an
-  optional overlay (not fixed buckets).
-- Appetite for the meta self-improvement loop (#12) given its token cost?
+## Already satisfied by the existing model (no new code — documented 2026-06-30)
+- **#1 Memory Object Standardization** — the extracted **`label` already IS the 1–2 line summary**, and
+  memories are fully structured (id/type/importance/emotionalWeight/tags/embedding). A separate `summary`
+  column would duplicate `label`, so it was intentionally not added.
+- **#11 Memory Retrieval Index** — `vec_nodes` knn (semantic search) + `tags` + cluster/constellation
+  membership already ARE the retrieval index. A parallel `search_keywords` store would be redundant.
+
+**All 12 modules are now resolved: #2,#3,#4,#5,#6,#7,#8,#9,#10,#12 shipped; #1,#11 already satisfied.**

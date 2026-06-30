@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
+import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
+import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -38,6 +38,8 @@ export function DigestPanel({
   const [emotional, setEmotional] = useState<EmotionalTrajectory | null>(null);
   const [dormant, setDormant] = useState<DormantItem[]>([]);
   const [evolution, setEvolution] = useState<EvolutionLink[]>([]);
+  const [lifeAreas, setLifeAreas] = useState<LifeAreaCount[]>([]);
+  const [selfReview, setSelfReview] = useState<SelfReviewItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [showAllInsights, setShowAllInsights] = useState(false);
 
@@ -90,6 +92,12 @@ export function DigestPanel({
       .catch(() => {});
     getEvolutionLinks()
       .then(setEvolution)
+      .catch(() => {});
+    getLifeAreas()
+      .then(setLifeAreas)
+      .catch(() => {});
+    getSelfReview()
+      .then(setSelfReview)
       .catch(() => {});
   }, []);
 
@@ -265,6 +273,57 @@ export function DigestPanel({
           </ul>
         </section>
       )}
+
+      {/* Soumaya's self-check — read-only coverage report (#12). */}
+      {selfReview.length > 0 && (
+        <section className="self-check" style={{ marginBottom: "1rem" }}>
+          <div className="dock-head">
+            <h3>🔍 Soumaya&apos;s self-check</h3>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+            {selfReview.map((s) => (
+              <li key={s.title} style={{ borderLeft: "3px solid #c9a0ff", paddingLeft: "0.6rem" }}>
+                <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>
+                  {s.title} <span style={{ opacity: 0.6, fontWeight: 400 }}>· {s.count}</span>
+                </div>
+                <div style={{ fontSize: "0.76rem", opacity: 0.85 }}>{s.detail}</div>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Life-area lens — optional overlay grouping memories by area of life (#6). */}
+      {lifeAreas.length > 0 && (() => {
+        const total = lifeAreas.reduce((s, a) => s + a.count, 0) || 1;
+        const AREA_COLOR: Record<string, string> = {
+          "Identity & Growth": "#9a7aff",
+          Relationships: "#ff8fb0",
+          "Work & Projects": "#7af9ff",
+          Health: "#5ee6a0",
+          Money: "#ffd36e",
+          Other: "#9aa7c7",
+        };
+        return (
+          <section className="life-areas" style={{ marginBottom: "1rem" }}>
+            <div className="dock-head">
+              <h3>🪟 Life-area lens</h3>
+              <span style={{ fontSize: "0.72rem", opacity: 0.6 }}>where your attention goes</span>
+            </div>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+              {lifeAreas.map((a) => (
+                <li key={a.area} style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                  <span style={{ fontSize: "0.76rem", width: "8.5rem", flexShrink: 0 }}>{a.area}</span>
+                  <span style={{ flex: 1, height: "8px", background: "rgba(255,255,255,0.08)", borderRadius: "4px", overflow: "hidden" }}>
+                    <span style={{ display: "block", height: "100%", width: `${Math.round((a.count / total) * 100)}%`, background: AREA_COLOR[a.area] ?? "#9aa7c7" }} />
+                  </span>
+                  <span style={{ fontSize: "0.72rem", opacity: 0.7, width: "2rem", textAlign: "right" }}>{a.count}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })()}
 
       {/* Emotional weather — mood trajectory + detected patterns (offline, free). */}
       {emotional && emotional.sampleSize >= 3 && (

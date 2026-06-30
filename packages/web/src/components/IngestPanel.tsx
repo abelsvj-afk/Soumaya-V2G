@@ -63,10 +63,14 @@ export function IngestPanel({
       const n = r.nodes.length;
       const e = r.extractedEdges.length + r.associativeEdges.length;
       const fuelBit = r.fuelEarned ? ` · +${r.fuelEarned.toFixed(1)} ⛽` : "";
+      // #9 "no research zone": tell the user whether this is worth a deep-dive. A
+      // weighty memory may get researched in Research Mode; a light one is just stored.
+      const weighty = r.nodes.some((x: any) => (x.importance ?? 0) >= 0.6);
+      const researchBit = action ? "" : weighty ? " · 🔬 may deep-dive in Research Mode" : " · 🗃️ stored, no research needed";
       setMsg(
         action
           ? `Action item added (expires in ${ttl}h)${fuelBit}`
-          : `+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}${fuelBit}`,
+          : `+${n} node${n !== 1 ? "s" : ""}, ${e} connection${e !== 1 ? "s" : ""}${fuelBit}${researchBit}`,
       );
       setText("");
       setDetails("");

@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -540,6 +540,28 @@ export async function getEmotionalTrajectory(): Promise<EmotionalTrajectory> {
     };
   } catch {
     return empty;
+  }
+}
+
+/** Distribution of memories across life-areas — the optional life-area lens (#6). */
+export async function getLifeAreas(): Promise<LifeAreaCount[]> {
+  try {
+    const res = await afetch(`${API}/digest/life-areas`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Soumaya's read-only coverage self-check (#12). */
+export async function getSelfReview(): Promise<SelfReviewItem[]> {
+  try {
+    const res = await afetch(`${API}/digest/self-review`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
   }
 }
 

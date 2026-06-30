@@ -7,6 +7,8 @@ import { buildDailyDigest } from "../../synthesis/dailyDigest.js";
 import { buildEmotionalTrajectory } from "../../analysis/emotional.js";
 import { buildDormantList } from "../../analysis/dormant.js";
 import { buildEvolutionLinks } from "../../analysis/temporalChains.js";
+import { buildLifeAreaCounts } from "../../analysis/lifeAreas.js";
+import { buildSelfReview } from "../../analysis/selfReview.js";
 import { spaceOf } from "../middleware.js";
 
 export function digestRoutes(ctx: AppContext): Router {
@@ -35,6 +37,16 @@ export function digestRoutes(ctx: AppContext): Router {
   // GET /api/digest/evolution -> how a thread of thinking evolved over time (free, offline)
   r.get("/evolution", (_req, res) => {
     res.json(buildEvolutionLinks(ctx.handle, spaceOf(res)));
+  });
+
+  // GET /api/digest/life-areas -> distribution of memories across life-areas (free, offline)
+  r.get("/life-areas", (_req, res) => {
+    res.json(buildLifeAreaCounts(ctx.handle, spaceOf(res)));
+  });
+
+  // GET /api/digest/self-review -> Soumaya's read-only coverage self-check (free, offline)
+  r.get("/self-review", (_req, res) => {
+    res.json(buildSelfReview(ctx.handle, spaceOf(res)));
   });
 
   // POST /api/digest/run -> scan for latent connections and synthesize new insights

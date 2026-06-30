@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Finish the research add-ons — life-area lens, self-check, #9/#7/#10 + Help taxonomy
+Closes out `docs/specs/research-agent-addons.md`. All 12 modules now resolved.
+- **#7 compression + #10 tiers:** `Insight.tier` (identity/behavioral/situational) derived on read in
+  `InsightsRepo.recent`; DigestPanel sorts by tier then recency, shows a tier tag, caps the list with
+  Show all/fewer.
+- **#6 life-area lens (overlay only):** `analysis/lifeAreas.ts` classifies each memory (tags+type+
+  language) into Identity & Growth / Relationships / Work & Projects / Health / Money / Other; `GET
+  /api/digest/life-areas`; Insights "🪟 Life-area lens" distribution bars. Emergent clustering stays
+  the storage model — purely a lens, per the approved reframe.
+- **#12 self-improvement (SAFE read-only):** `analysis/selfReview.ts` reports coverage gaps (drifting
+  memories, important blind spots, cooling neglect, unreconciled contradictions) instead of silently
+  re-weighting logic; `GET /api/digest/self-review`; Insights "🔍 Soumaya's self-check" section.
+- **#9 no-research string:** IngestPanel now shows "🔬 may deep-dive in Research Mode" or "🗃️ stored,
+  no research needed" after a dump (client-only).
+- **Help — Structure & Taxonomy (user request):** new Help category explaining memory types (the
+  taxonomy), Constellations/MOCs, Sectors, Tags & life-areas, provenance, and drifting orphans — plus
+  entries for the life-area lens, self-check, and the research signal.
+- **#1 & #11 documented as already-met:** `label` already is the 1-line summary; `vec_nodes` knn + tags
+  already are the retrieval index — no redundant columns added.
+- 5 new tests; gate: typecheck clean · **128 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Temporal evolution links (research-agent add-on #8)
 Fifth module from `docs/specs/research-agent-addons.md`. Shows how a thread of thinking evolved
 over time, rather than as a static snapshot.

@@ -297,6 +297,32 @@ export interface EmotionalTrajectory {
   sampleSize: number;
 }
 
+/** Broad areas of life used by the optional life-area lens (#6). An overlay over the
+ *  emergent galaxy — NOT a storage model (memories still cluster by association). */
+export const LIFE_AREAS = [
+  "Identity & Growth",
+  "Relationships",
+  "Work & Projects",
+  "Health",
+  "Money",
+  "Other",
+] as const;
+export type LifeArea = (typeof LIFE_AREAS)[number];
+
+/** A count of memories mapped to one life-area (#6). */
+export interface LifeAreaCount {
+  area: LifeArea;
+  count: number;
+}
+
+/** One line of Soumaya's read-only coverage self-check (#12): something she may be
+ *  missing or that's worth your attention. Informational — she never self-modifies. */
+export interface SelfReviewItem {
+  title: string;
+  detail: string;
+  count: number;
+}
+
 /** A temporal evolution link (research-agent add-on #8): an older memory and a newer
  *  one on the same theme, showing how a thread of thinking moved over time. */
 export interface EvolutionLink {
