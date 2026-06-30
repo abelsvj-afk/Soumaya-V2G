@@ -165,6 +165,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Help / Pilot Manual rewrite — cover the missing signature features
+- The "?" Galaxy Pilot Manual (`HelpPanel.tsx`) was badly out of date — it documented only
+  flight/galaxy/fleet/hangar and **omitted every signature feature**: dumping thoughts, private
+  brains, document ingestion, chat-with-your-brain (GraphRAG cited answers + save/distill),
+  the Companion (custom instructions/personas/knowledge/About-Me), Insights (synthesis digest),
+  Constellations/MOCs, Observatory, Inbox, Sectors, Agenda, Search, Settings — and its Hangar/Awards
+  copy was stale ("8 badges", no recent figurines).
+- Rewrote `CATEGORIES` into 7 accurate, searchable sections (Getting Started · Controls & Flight ·
+  Galaxy & Gravity · Talk & Companion · Organize & Explore · Economy & Fleet · Hangar, Awards &
+  Settings). Every entry verified against real components (RightDock tabs, ChatDock, IngestPanel,
+  CompanionPanel, DigestPanel, Observatory, SettingsPanel) — no invented features. Added the new
+  **The Singularity (365-memory black hole)** entry and the figurine HUD focus-button workflow.
+- Structure/styling unchanged (same card grid + tag search). Gate: typecheck clean · web build clean.
+
 ### 2026-06-30 (Claude): The Singularity — black-hole prestige figurine
 - Integrated a donated black-hole glTF as a new **background figurine**, "The Singularity",
   gated behind a prestige achievement (**365 memories — "A Year of Memories"**). Spec:

@@ -22,16 +22,32 @@ const CATEGORIES: {
   items: HelpItem[];
 }[] = [
   {
+    id: "start",
+    title: "Getting Started",
+    icon: "🌱",
+    desc: "Your private brain, dumping raw thoughts, bringing in documents, and how a thought becomes a star.",
+    items: [
+      { icon: "🔐", title: "Your private brain", body: "Each brain is a private space protected by a name + passcode (no email needed). Sign in and your galaxy is yours alone — memories, links and progress are scoped to your space and never mix with anyone else's. The passcode is the only key, so keep it safe.", tags: ["login", "private", "space", "passcode", "account", "brain"] },
+      { icon: "➕", title: "Dump a thought", body: "Tap the ＋ button to open 'Dump a thought' and write anything — a business idea, a reflection, a worry, a random spark. You don't organize it; the system reads it, extracts what matters, embeds it, and places it in your galaxy automatically. Brain-dump freely; structure emerges on its own.", tags: ["log", "memory", "capture", "ingest", "dump", "note", "add"] },
+      { icon: "🏷️", title: "Add context & tags", body: "The optional second field is for the why — backstory, related people, how it makes you feel. Add tags to nudge how it links and clusters. More context means richer auto-connections and a more accurate importance rating, but a one-line thought works perfectly too.", tags: ["context", "tags", "importance", "detail", "emotion"] },
+      { icon: "📄", title: "Bring in documents", body: "You can feed in existing material as well as fresh thoughts — paste long text, or import a document (PDF / Word / text). It's distilled into memories and woven into the same galaxy, so your notes and your knowledge live together.", tags: ["document", "pdf", "docx", "import", "file", "upload", "knowledge"] },
+      { icon: "✨", title: "From thought to star", body: "Every memory you log becomes a celestial body. The AI rates its importance, links it to related thoughts by meaning, and gives it mass — so it appears as anything from a tiny asteroid to a blazing supergiant. Watch new memories get ferried into place by your companion as you add them.", tags: ["star", "mass", "celestial", "ingest", "pipeline"] }
+    ]
+  },
+  {
     id: "navigation",
     title: "Controls & Flight",
     icon: "🛸",
-    desc: "How to steer your camera, orbit clusters, lock targets, and fly through space.",
+    desc: "How to steer your camera, orbit clusters, isolate systems, lock targets, and fly through space.",
     items: [
       { icon: "🖐️", title: "Move and Orbit", body: "Click and drag (or drag with touch) anywhere on the background space to orbit the camera around the active focal point, allowing you to view your thought constellations from any angle.", tags: ["camera", "drag", "orbit", "steer", "navigation"] },
       { icon: "＋/－", title: "Flight Zoom", body: "Click the ＋ or − zoom buttons on the HUD to FLY your camera forward and backward in 3D space, rather than just scaling. This allows you to fly directly into high-density sectors.", tags: ["zoom", "fly", "hud", "buttons"] },
       { icon: "⊙", title: "Recenter focal lock", body: "Click the recenter icon to release any active focus targets, re-frame the entire galaxy at the center of your screen, and restore default camera distances.", tags: ["recenter", "focus", "focal", "reset"] },
+      { icon: "🎯", title: "Focus & isolate a memory", body: "Click any memory to focus it and read its details. From the details panel you can 'isolate' its system — hiding the rest of the galaxy so you see just that memory and everything orbiting it, the cleanest way to study one cluster.", tags: ["focus", "isolate", "system", "cluster", "select"] },
       { icon: "🛸", title: "Focus Companion's ship", body: "Click the focus ship button (or select the companion ship in space) to lock the camera directly onto her flight path. The camera will follow her automatically, allowing you to inspect her tending tasks.", tags: ["ship", "camera", "follow", "focal"] },
+      { icon: "🎥", title: "Cockpit vs Orbit camera", body: "In the companion tab you can switch her follow camera between Orbit Follow (a cinematic chase view) and Cockpit Lock (ride along from the ship itself). Cockpit makes her maintenance runs feel like flying the galaxy first-person.", tags: ["cockpit", "camera", "view", "first-person", "orbit"] },
       { icon: "🌐", title: "Focus the Waystation", body: "Snap your camera focal lock onto Waystation Soumaya-Prime, the central megastructure orbiting the galaxy.", tags: ["station", "structure", "orbit", "focal"] },
+      { icon: "🪐", title: "Visit your Megastructures", body: "Background figurines you've unlocked (and the black-hole Singularity) sit far out in deep space. Enable their HUD focus button in the Hangar, then tap it to fly all the way out and see your monuments up close — including ones you're still working toward.", tags: ["figurine", "megastructure", "focus", "blackhole", "singularity", "monument"] },
       { icon: "🛰️", title: "Jump to Aura beacons", body: "Click the beacon hotkeys or click a beacon physically in space. Beacons take orbit over memories going cold, giving you quick jumping points to stars that need tending.", tags: ["beacon", "jump", "cooling", "tending"] },
       { icon: "☄️", title: "Flashback Comet", body: "Tap the comet icon in the HUD to trigger a random serendipitous jump, launching the camera on a fast flight to a high-importance memory from the past.", tags: ["comet", "flashback", "random", "serendipity"] },
       { icon: "🔈", title: "Ambient soundscapes", body: "Toggle the space drone soundtrack on and off directly from the audio control chip on the interface.", tags: ["audio", "music", "drone", "sound"] }
@@ -52,6 +68,38 @@ const CATEGORIES: {
     ]
   },
   {
+    id: "talk",
+    title: "Talk & Companion",
+    icon: "💬",
+    desc: "Chat with your brain for cited answers, save conversations as memories, and shape your companion's voice.",
+    items: [
+      { icon: "💬", title: "Chat with your brain", body: "Tap the 💬 button to talk to Soumaya. Ask questions in plain language ('what was I thinking about that project?', 'connect these two ideas') and she answers from YOUR memories, not the open web — a real back-and-forth conversation grounded in your own galaxy.", tags: ["chat", "ask", "conversation", "graphrag", "question"] },
+      { icon: "🔎", title: "Grounded, cited answers", body: "Her answers are drawn from the memories most related to your question and come with the sources she used, so you can click straight to the stars behind any reply. If your brain doesn't hold the answer, she'll say so rather than invent one.", tags: ["cited", "sources", "grounded", "answers", "retrieval"] },
+      { icon: "💾", title: "Save a reply as a memory", body: "Any line of a conversation can be saved into the galaxy as a real memory, so a good insight that surfaces mid-chat becomes a permanent star — linked into your brain like anything else you log.", tags: ["save", "memory", "chat", "capture"] },
+      { icon: "🪄", title: "Distilled notes", body: "At the end of a conversation she proposes a few memory-worthy notes distilled from what you discussed. Keep the ones that matter with a tap and they're woven into your galaxy — turning a chat into lasting knowledge.", tags: ["distill", "notes", "summary", "proposals", "keep"] },
+      { icon: "🎭", title: "Companion: Custom Instructions", body: "Open the Companion tab (🧠) to define custom instructions and personas — roles she can take on (coach, analyst, devil's advocate…). Enable, edit, or switch them so her tone and focus match what you need right now.", tags: ["companion", "instructions", "persona", "roles", "custom"] },
+      { icon: "📚", title: "Companion: Knowledge", body: "Give your companion reference material under Knowledge — documents and notes she should always consider when answering. It blends with your memories so replies reflect both your brain and the context you've handed her.", tags: ["knowledge", "documents", "reference", "companion"] },
+      { icon: "🪪", title: "Companion: About Me", body: "Fill in 'About Me' so your companion knows who you are — your goals, voice, and what you care about. She uses it to personalize how she talks to you and what she surfaces.", tags: ["about", "persona", "profile", "identity", "voice"] },
+      { icon: "🛰️", title: "Soumaya's daily digest", body: "Your companion writes a daily digest — a short captain's-log summary of how your galaxy evolved, what she tended, and what's worth your attention. Find it in her tab to stay in touch without scrolling the whole brain.", tags: ["digest", "daily", "summary", "captain's log", "soumaya"] }
+    ]
+  },
+  {
+    id: "explore",
+    title: "Organize & Explore",
+    icon: "🗂️",
+    desc: "Browse, search, group by sector, track action items, and surface the latent connections hiding in your brain.",
+    items: [
+      { icon: "ⓘ", title: "Memory details", body: "The Details tab (ⓘ) shows everything about the selected memory — its text, type, importance, connections, Chronicle, and actions to evolve, isolate, edit or delete it. It's the cockpit for working on a single thought.", tags: ["details", "inspector", "edit", "memory", "info"] },
+      { icon: "📋", title: "Memory list", body: "The List tab (📋) is a flat, scrollable index of every memory in your brain — handy for jumping straight to something by reading titles instead of hunting in 3D.", tags: ["list", "index", "browse", "all"] },
+      { icon: "🌌", title: "Sectors", body: "The Sectors tab (🌌) groups your galaxy by type — people, projects, decisions, daily logs, ideas and more — so you can explore one category of your mind at a time and isolate it in the view.", tags: ["sectors", "types", "categories", "group", "filter"] },
+      { icon: "✅", title: "Agenda & action items", body: "Thoughts that imply a to-do surface in the Agenda tab (✅) as action items you can tick off. Completing them tends your brain and earns fuel — your reflections turn into a working task list.", tags: ["agenda", "tasks", "action items", "todo", "reminders"] },
+      { icon: "✨", title: "Insights: latent connections", body: "The Insights tab (✨) is the synthesis digest — it surfaces non-obvious links between distant memories you'd never have spotted, the 'aha' connections that make a second brain worth having. Tap one to fly to it.", tags: ["insights", "synthesis", "latent", "connections", "digest", "serendipity"] },
+      { icon: "🔭", title: "The Observatory (home)", body: "The Observatory is your home view — a calm overview that greets you after the cinematic fly-in with the state of your brain. Reopen it any time from the 🔭 button to get your bearings.", tags: ["observatory", "home", "overview", "dashboard"] },
+      { icon: "🔔", title: "Inbox & reminders", body: "The Inbox tab (🔔) collects what needs you — reminders coming due, action items that cleared, memories going cold, and companion notices. A red badge shows how many are unseen.", tags: ["inbox", "notifications", "reminders", "alerts", "badge"] },
+      { icon: "🔍", title: "Search your galaxy", body: "Use search to find any memory by meaning, not just keywords — type what you remember and the closest thoughts surface, ready to focus.", tags: ["search", "find", "semantic", "lookup"] }
+    ]
+  },
+  {
     id: "fleet",
     title: "Economy & Fleet",
     icon: "⚡",
@@ -67,14 +115,17 @@ const CATEGORIES: {
   },
   {
     id: "hangar",
-    title: "Hangar & Awards",
+    title: "Hangar, Awards & Settings",
     icon: "🏆",
-    desc: "Unlock custom hulls, exhaust trails, deploy Dyson megastructures, and access the Sandbox.",
+    desc: "Unlock custom hulls and trails, mount deep-space megastructures, earn badges, and tune your preferences.",
     items: [
-      { icon: "🛠️", title: "The Hangar Customizer", body: "Click the Hangar tab (🛠️) to customize your ship. Change the hull skin (Default, Holographic Sentinel, Biomechanical Specimen, or Fusion Destroyer) and exhaust trail particles.", tags: ["hangar", "skins", "exhaust", "trails", "customization"] },
-      { icon: "🏆", title: "Achievements (Awards Tab)", body: "Earn 8 unique badges by expanding your brain. Unlocks include the Hyperdrive Trail (Consistent Pilot), Aegis Shield Spire (Pathfinder), and Solar Gold Exhaust (Sector Pioneer).", tags: ["achievements", "badges", "awards", "unlocks"] },
-      { icon: "🪐", title: "Megastructures (Solar & Dyson)", body: "Unlock giant background figurines at memory milestones (Solar Monument at 100 memories, Biomechanical Specimen at 150, and Dyson Sphere Megastructure at 250) floating in the deep background space.", tags: ["dyson", "sphere", "monument", "megastructures", "figurines"] },
-      { icon: "🎲", title: "Sandbox Simulation Deck", body: "Accessible inside the Hangar tab for the owner. Offers control sliders to trigger simulated unlocks, toast alerts, and progression states in real-time.", tags: ["sandbox", "simulator", "demo", "testing", "controls"] }
+      { icon: "🛠️", title: "The Hangar Customizer", body: "Open the Hangar tab (🛠️) to customize your companion's ship. Swap the hull skin (Default Scout, Organic Specimen, Fusion Core Destroyer, Holographic Sentinel) — each earned through play — and pick an exhaust trail.", tags: ["hangar", "skins", "hull", "ship", "customization"] },
+      { icon: "✨", title: "Engine trails", body: "Choose your companion's cosmic exhaust trail. Blue Nebula is default; Hyperdrive Neon, Solar Gold and Void Purple unlock through achievements (Consistent Pilot, Sector Pioneer, Grand Restorer).", tags: ["trail", "exhaust", "neon", "gold", "purple", "color"] },
+      { icon: "🏆", title: "Achievements (Awards tab)", body: "Earn a deep ladder of badges by growing and tending your brain — first memory, first link, building constellations, deploying beacons, keeping memories warm, and long-haul milestones. The Awards tab (🏆) shows every badge, unlocked or locked, with a progress hint for each.", tags: ["achievements", "badges", "awards", "unlocks", "progress"] },
+      { icon: "🪐", title: "Deep-space megastructures", body: "Unlock colossal background figurines and mount them in two slots far out in space: the Solar Monument (100 memories), Dyson Megastructure (250), plus achievement-gated ones — Quantum Singularity Core, Synapse Hyper-Array and Aegis Shield Spire. Enable each one's HUD focus button to fly out and admire it.", tags: ["figurine", "megastructure", "dyson", "monument", "slots"] },
+      { icon: "🕳️", title: "The Singularity (black hole)", body: "The rarest figurine of all: a real black hole with a glowing accretion disk, unlocked by reaching 365 memories — a full year of your mind ('A Year of Memories'). Equip it as a deep-space monument and fly out to witness it. You can preview it any time via the focus button even before it's earned.", tags: ["blackhole", "singularity", "365", "prestige", "rare", "accretion"] },
+      { icon: "⚙️", title: "Settings & preferences", body: "The Settings panel (⚙️) holds your preferences — companion flight speed, the floating ship-task label toggle, camera follow mode, audio, and your account. Tune the experience to taste; choices persist across visits.", tags: ["settings", "preferences", "speed", "account", "options"] },
+      { icon: "🎲", title: "Sandbox Simulation Deck", body: "In demo brains, the Hangar includes a Sandbox — sliders to simulate memory/connection counts and a 'Bypass Locks' switch — so you can preview every unlock, toast and progression state instantly without growing a real brain.", tags: ["sandbox", "simulator", "demo", "testing", "bypass"] }
     ]
   }
 ];
