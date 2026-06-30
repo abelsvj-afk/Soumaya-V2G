@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): The Singularity — black-hole prestige figurine
+- Integrated a donated black-hole glTF as a new **background figurine**, "The Singularity",
+  gated behind a prestige achievement (**365 memories — "A Year of Memories"**). Spec:
+  `docs/specs/blackhole-singularity.md` (design-first, per Rule #1; user chose the
+  acquisition model).
+- **Asset pipeline (measured, not assumed):** three r182 dropped `KHR_materials_pbrSpecularGlossiness`,
+  so the raw model would render with broken materials (no glowing disk). Converted
+  glTF → `metalrough` → resize 1024² → Draco = `packages/web/public/blackhole.glb` (14.3MB,
+  under the dyson-sphere 25MB / station 22MB budget). Loads via the DRACOLoader `gltfLoader()`
+  already wires — no new runtime dep.
+- **Render:** new `"blackhole"` branch in `Graph3D.updateFigurine()` (modelPath `/blackhole.glb`,
+  targetSize 2000, procedural void-sphere + emissive accretion-torus fallback). Mounts far out in
+  the deep-space back like the other figurines; the existing HUD camera-focus button lets the user
+  fly out and view it directly (the "see it myself" guarantee). Slow self-rotation via the existing
+  background-figurine loop.
+- **Unlock:** `singularity` achievement (`achievements.ts`) + `hasSingularity` gate and a
+  `🕳️ The Singularity` `<option>` in both Hangar figurine slots (locked label shows "365 memories").
+  Demo bypass previews it like every other cosmetic.
+- **Attribution (CC-BY-4.0, required):** `packages/web/public/CREDITS.md` credits NestaEric / Sketchfab.
+- Gate: typecheck clean · **99 tests** · web build clean (SW re-stamped `soumaya-bmr0s58cn`).
+
 ### 2026-06-21 (Gemini): Domain-Specific Research Questions, UI Clarifications, Notifications Bar, and Camera Framing
 - [ ] Verified by Claude   ← you NEVER tick this; only Claude does, after audit.
 - **Domain-Specific Research**: Updated LLM prompts for domain-tailored structures (Business outline, Health facts/recommendations, Creative style/narrative, Technical specs, Relationship patterns).

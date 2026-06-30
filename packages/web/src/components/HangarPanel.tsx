@@ -53,6 +53,7 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
   const hasCosmicVoyager = demoBypass || unlocked.has("cosmic_voyager");
   const hasMegastructure = demoBypass || unlocked.has("galactic_megastructure");
   const hasGrandRestorer = demoBypass || unlocked.has("grand_restorer");
+  const hasSingularity = demoBypass || unlocked.has("singularity") || activeMemoriesCount >= 365;
 
   const setShip = (val: string) => {
     localStorage.setItem(shipKey, val);
@@ -345,6 +346,9 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
           <option value="shield_spire" disabled={!hasPathfinder}>
             {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
           </option>
+          <option value="blackhole" disabled={!hasSingularity}>
+            {hasSingularity ? "🕳️ The Singularity (Black Hole)" : "🔒 The Singularity (365 memories)"}
+          </option>
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.78rem", marginTop: "0.45rem", cursor: "pointer", opacity: currentFig1 === "none" ? 0.5 : 1 }}>
           <input
@@ -395,6 +399,9 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
           </option>
           <option value="shield_spire" disabled={!hasPathfinder}>
             {hasPathfinder ? "🛡️ Aegis Shield Spire" : "🔒 Aegis Shield Spire (Pathfinder Quest)"}
+          </option>
+          <option value="blackhole" disabled={!hasSingularity}>
+            {hasSingularity ? "🕳️ The Singularity (Black Hole)" : "🔒 The Singularity (365 memories)"}
           </option>
         </select>
         <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.78rem", marginTop: "0.45rem", cursor: "pointer", opacity: currentFig2 === "none" ? 0.5 : 1 }}>

@@ -136,6 +136,30 @@ function updateFigurine(
       emissiveIntensity: 0.5
     });
     fallbackMesh = new THREE.Mesh(new THREE.TorusGeometry(600, 100, 16, 48), mat);
+  } else if (type === "blackhole") {
+    // The Singularity — prestige unlock. Real glTF (converted to metallic-roughness +
+    // Draco; see docs/specs/blackhole-singularity.md). Bigger targetSize so the glowing
+    // accretion disk reads from the deep-space distance. Fallback: a black void sphere
+    // ringed by an emissive accretion torus for the pre-load / load-fail path.
+    modelPath = "/blackhole.glb";
+    targetSize = 2000;
+    const voidMat = new THREE.MeshStandardMaterial({
+      color: 0x000000,
+      roughness: 1.0,
+      metalness: 0.0
+    });
+    const diskMat = new THREE.MeshStandardMaterial({
+      color: 0xffa040,
+      emissive: 0xff7722,
+      emissiveIntensity: 2.4
+    });
+    const subGroup = new THREE.Group();
+    const core = new THREE.Mesh(new THREE.SphereGeometry(420, 32, 32), voidMat);
+    const disk = new THREE.Mesh(new THREE.TorusGeometry(820, 90, 12, 64), diskMat);
+    disk.rotation.x = Math.PI / 2.4;
+    subGroup.add(core);
+    subGroup.add(disk);
+    fallbackMesh = subGroup;
   } else if (type === "satellite") {
     modelPath = "/aura-satellite.glb";
     targetSize = 1000;

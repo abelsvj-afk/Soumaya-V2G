@@ -274,6 +274,14 @@ export const ACHIEVEMENTS: Achievement[] = [
     progress: (c) => ({ cur: Math.min(c.links, 50), target: 50 }),
   },
   {
+    id: "singularity",
+    name: "A Year of Memories",
+    icon: "🕳️",
+    desc: "Log 365 memories — a full year of your mind. Unlocks The Singularity (black hole figurine).",
+    test: (c) => c.memories.length >= 365,
+    progress: (c) => ({ cur: Math.min(c.memories.length, 365), target: 365 }),
+  },
+  {
     id: "grand_restorer",
     name: "Grand Restorer",
     icon: "🌟",
