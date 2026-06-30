@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
+import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight } from "@brain/shared";
+import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -37,6 +37,7 @@ export function DigestPanel({
   const [constellations, setConstellations] = useState<Constellation[]>([]);
   const [emotional, setEmotional] = useState<EmotionalTrajectory | null>(null);
   const [dormant, setDormant] = useState<DormantItem[]>([]);
+  const [evolution, setEvolution] = useState<EvolutionLink[]>([]);
   const [busy, setBusy] = useState(false);
   // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
   const [promotingId, setPromotingId] = useState<number | null>(null);
@@ -77,6 +78,9 @@ export function DigestPanel({
       .catch(() => {});
     getDormant()
       .then(setDormant)
+      .catch(() => {});
+    getEvolutionLinks()
+      .then(setEvolution)
       .catch(() => {});
   }, []);
 
@@ -283,6 +287,28 @@ export function DigestPanel({
           ) : (
             <p style={{ fontSize: "0.76rem", opacity: 0.7, margin: 0 }}>No strong patterns yet — your mood reads as steady.</p>
           )}
+        </section>
+      )}
+
+      {/* How your thinking evolved — same-theme memories across time (offline, free). */}
+      {evolution.length > 0 && (
+        <section className="evolution" style={{ marginBottom: "1rem" }}>
+          <div className="dock-head">
+            <h3>🔗 How your thinking evolved</h3>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            {evolution.map((e) => (
+              <li key={`${e.fromId}-${e.toId}`} style={{ borderLeft: "3px solid #5ee6a0", paddingLeft: "0.6rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                  <button className="pill" onClick={() => onFocus(e.fromId)} title="Fly to the earlier memory">{e.fromLabel}</button>
+                  <span style={{ opacity: 0.6 }}>→</span>
+                  <button className="pill" onClick={() => onFocus(e.toId)} title="Fly to the later memory">{e.toLabel}</button>
+                  <span style={{ fontSize: "0.68rem", opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.03em" }}>{e.strength}</span>
+                </div>
+                <div style={{ fontSize: "0.74rem", opacity: 0.8, marginTop: "0.2rem" }}>{e.reason}</div>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

@@ -63,7 +63,13 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
    skills/goals/projects (by type or language) gone quiet past a dormancy window (`lastTendedAt` recency),
    each with a "why it faded" hypothesis + a revive nudge, ranked by significance×staleness; `GET
    /api/digest/dormant` (free, offline); Insights tab "💤 Dormant & worth reviving" section; Help entry.
-   5 tests; gate green (119 server tests). · **temporal linking chains (#8)** — next.
+   5 tests; gate green (119 server tests).
+   · **Temporal linking chains (#8)** — ✅ **SHIPPED 2026-06-30.** `analysis/temporalChains.ts`
+   `buildEvolutionLinks` — same-theme (high-cosine) pairs ≥14 days apart become an evolution link
+   older→newer with a strength band, temporal distance, and mood drift; `GET /api/digest/evolution`
+   (free, offline, read-only — no graph mutation); Insights tab "🔗 How your thinking evolved" section;
+   Help entry. 4 tests; gate green (123 server tests). **Follow-up:** optionally materialize as
+   `evolves_into` graph edges (deferred to avoid the orbits/mass Red Zone).
 5. Polish: insight compression (#7) + tiers (#10) + the "no research needed" string (#9).
 6. Optional later: life-area lens (#6, reframed) and the self-improvement loop (#12).
 

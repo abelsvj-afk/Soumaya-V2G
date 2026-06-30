@@ -294,6 +294,21 @@ export interface EmotionalTrajectory {
   sampleSize: number;
 }
 
+/** A temporal evolution link (research-agent add-on #8): an older memory and a newer
+ *  one on the same theme, showing how a thread of thinking moved over time. */
+export interface EvolutionLink {
+  fromId: number;
+  fromLabel: string;
+  toId: number;
+  toLabel: string;
+  /** Semantic closeness banded for display. */
+  strength: "weak" | "medium" | "strong";
+  /** Days between the two memories (older → newer). */
+  temporalDistanceDays: number;
+  /** One-line reason: theme + time gap + any emotional drift. */
+  reason: string;
+}
+
 /** A dormant memory worth reviving (research-agent add-on #4): a skill/goal/project
  *  you once invested in but haven't touched in a while. */
 export interface DormantItem {

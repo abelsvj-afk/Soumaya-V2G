@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Temporal evolution links (research-agent add-on #8)
+Fifth module from `docs/specs/research-agent-addons.md`. Shows how a thread of thinking evolved
+over time, rather than as a static snapshot.
+- **Analysis (offline, read-only):** `analysis/temporalChains.ts` `buildEvolutionLinks` — same-theme
+  (high-cosine via knn) memory pairs that are ≥14 days apart become an evolution link older→newer,
+  with a strength band (weak/medium/strong from similarity), the temporal distance, and any mood
+  drift (heavy→bright etc.). Ranked by similarity×log(gap), capped at 10. No LLM, no graph mutation.
+- **API:** `GET /api/digest/evolution`. Shared `EvolutionLink` type + exported `linkStrength`.
+- **UI:** Insights tab "🔗 How your thinking evolved" section — older → newer memory pills (both
+  clickable), strength tag, and the reason line.
+- **Help:** "Insights: how your thinking evolved" entry (per the UI+Help rule).
+- 4 new tests; gate: typecheck clean · **123 server tests** · web build clean.
+- Follow-up (noted in spec): optionally materialize as `evolves_into` graph edges (deferred to
+  avoid the orbits/mass Red Zone).
+
 ### 2026-06-30 (Claude): Dormant / latent recovery (research-agent add-on #4)
 Fourth module from `docs/specs/research-agent-addons.md`. Surfaces skills/goals/projects you once
 invested in but have gone quiet.
