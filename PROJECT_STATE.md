@@ -3,9 +3,12 @@
 > Living status snapshot, per [docs/AI_ENGINEERING_WORKFLOW.md](./docs/AI_ENGINEERING_WORKFLOW.md).
 > Update whenever project status changes.
 
-**Current Phase:** Feature growth on a shipped product (Soumaya · Second Brain is live on Fly.io).
+**Current Phase:** Feature growth + hardening on a shipped product (Soumaya · Second Brain is live on Fly.io).
 
-**Current Sprint:** Gamification Waves 1–2, then the second-brain growth design pass.
+**Current Sprint (2026-06-30):** Hardening pass — full-project bug/pitfall sweep fixed (server
+multi-tenant/auth/provider holes + web VRAM/state/SW bugs), the black-hole "Singularity" prestige
+figurine, the Pilot Manual rewrite, and reconciling the design docs with shipped reality. The
+second-brain growth stages (0–4) and gamification Waves 1–2 are **implemented and merged**.
 
 ## Completed (recent)
 - Gamification **Wave 1** — celebratory toasts, return greeting, memory-count milestones, fuel pops,
@@ -18,8 +21,9 @@
   [second-brain north star](./docs/SECOND_BRAIN_BRIEFING.md); wrote
   [alignment + growth plan](./docs/SECOND_BRAIN_ALIGNMENT.md).
 
-## In Progress
-- **Design pass (Rule #1, no code yet)** for second-brain growth — specs drafted, awaiting approval:
+## Second-brain growth stages — ✅ IMPLEMENTED & SHIPPED (verified by Claude 2026-06-30)
+Stages 0–4 are merged and live; their specs in `docs/specs/` now carry matching ✅ status banners
+and are retained as the design record. Summary below.
   - [Stage 0 — Taxonomy expansion](./docs/specs/stage-0-taxonomy.md) 🔴 — **IMPLEMENTED.** `NodeType`
     is now person·project·decision·company·meeting·daily·knowledge·concept·other; legacy values
     (business_idea/relationship_reflection/random_thought) map via `normalizeNodeType` (no migration —
@@ -68,17 +72,16 @@
   user can't see the Awards tab / streak chip until a deploy.
 
 ## Next Tasks
-1. User reviews the three specs (resolve the open questions in each).
-2. On approval, implement Stage 0 → 1 → 2 in order (each: implement → test → review).
-3. Delegate an `agy` `fly deploy` so the shipped gamification is actually visible.
+1. Delegate an `agy` `fly deploy` so the hardening pass + black hole + manual rewrite go live, then
+   the user hard-reloads past the PWA worker to confirm.
+2. Backlog of deferred niceties: Soumaya auto-proposing MOC hubs at the squeeze point; wiring `soul`
+   into the daily-log/maintenance voice; editable per-space soul from the Companion tab; code-split
+   the web bundle.
 
-## Known Issues / awaiting input
-- User flagged (earlier) "a bunch of bugs" + controls/navigation UX (couldn't follow a planet that
-  flew by) — **awaiting their specific list.**
-
-## Technical Debt
+## Known Issues / Technical Debt
 - Web bundle > 500 kB (single chunk) — code-split later.
-- Identity layer is DB-backed (persona/companion), not the briefing's editable `soul.md` file family
-  (deferred to a later stage).
+- A few large files exceed the 300-line guideline (`graph/Graph3D.tsx`, `graph/soumaya.ts`,
+  `App.tsx`, `api/client.ts`) — candidates for a future refactor.
+- Identity layer is partly DB-backed (persona/companion) alongside the `soul.md` file family.
 
-**Last Updated:** 2026-06-27
+**Last Updated:** 2026-06-30 — gate green: typecheck clean · **101 server tests** · web build clean.

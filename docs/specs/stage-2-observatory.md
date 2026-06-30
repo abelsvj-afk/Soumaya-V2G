@@ -1,8 +1,10 @@
 # Spec — Stage 2: The Observatory (calm home entry)
 
-> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md). **No code until approved.**
+> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md).
 > Parent plan: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Depends on: Stage 1 for the
-> "Your constellations" card (degrades gracefully without it). Status: **DRAFT — awaiting approval.**
+> "Your constellations" card (degrades gracefully without it). Status: **✅ IMPLEMENTED & SHIPPED**
+> (verified by Claude 2026-06-30) — `packages/web/src/components/Observatory.tsx` is wired into
+> `App.tsx` as the home overlay behind the 🔭 FAB. Retained as the design record.
 
 ## 🎯 Objective
 

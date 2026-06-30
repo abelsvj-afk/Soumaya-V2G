@@ -1,8 +1,10 @@
 # Spec — Stage 4: Wire the soul / identity / user context layer
 
-> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md). **No code until approved.**
-> Parent: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Status: **DRAFT — files authored,
-> runtime wiring pending.**
+> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md).
+> Parent: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Status: **✅ IMPLEMENTED & SHIPPED**
+> (verified by Claude 2026-06-30) — `packages/server/src/identity.ts` loads `soul.md` and injects it
+> into the chat system prompt (offline-safe: empty string falls back to the hardcoded voice).
+> Retained as the design record.
 
 ## 🎯 Objective
 

@@ -1,7 +1,10 @@
 # Spec — Stage 0: Node Taxonomy Expansion ("Wire the Brain" kinds)
 
-> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md). **No code until approved.**
-> Parent plan: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Status: **DRAFT — awaiting approval.**
+> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md).
+> Parent plan: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Status: **✅ IMPLEMENTED &
+> SHIPPED** (verified by Claude 2026-06-30) — live in `packages/shared/src/types.ts` (`NodeType`,
+> `NODE_TYPE_LABEL`, `NODE_TYPE_GUIDE`, `LEGACY_NODE_TYPE_ALIASES`, `normalizeNodeType`), used through
+> ingestion + the Sectors view. Retained as the design record.
 
 ## 🎯 Objective
 

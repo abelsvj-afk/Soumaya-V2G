@@ -1,8 +1,10 @@
 # Spec — Stage 1: Constellation Hubs (Maps of Content / MOCs)
 
-> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md). **No code until approved.**
+> Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md).
 > Parent plan: [SECOND_BRAIN_ALIGNMENT.md](../SECOND_BRAIN_ALIGNMENT.md). Depends on: nothing hard
-> (works on the current model; richer with Stage 0). Status: **DRAFT — awaiting approval.**
+> (works on the current model; richer with Stage 0). Status: **✅ IMPLEMENTED & SHIPPED** (verified by
+> Claude 2026-06-30) — `moc` is a live node kind and `/api/constellations`
+> (`packages/server/src/api/routes/constellations.ts`) is mounted. Retained as the design record.
 
 ## 🎯 Objective
 

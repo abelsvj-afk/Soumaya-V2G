@@ -6,7 +6,7 @@
 > briefing's research calls the product "Sarmiah" — that's a phonetic guess for
 > **Soumaya**. Treat them as the same product.
 >
-> Last updated: 2026-06-27.
+> Last updated: 2026-06-30 (Stages 0–4 now shipped; scorecard reconciled with code).
 
 ## The headline
 
@@ -25,16 +25,18 @@ maintenance.
 |---|------|-------|----------------|---------|
 | 1 | **Atomicity** (one node = one idea) | LLM extraction splits raw text into typed nodes | `ingestion/pipeline.ts`, `shared` `NodeType` | 🟢 Strong |
 | 2 | **Link density & typing** | Edges are typed (`RelationshipType`) + weighted; associative auto-linking by embedding similarity | `repositories/edges`, `vec.ts` `knn` | 🟢 Strong (tune threshold) |
-| 3 | **Hub / MOC layer** | Clusters are *detected* (`findConstellations`) and hubs get a `celestial_title`, but there is **no persistent, named, annotated hub node** you navigate from | `ml/cluster.ts`, `nodeObject.ts` | 🔴 **Gap** |
-| 4 | **Entry point** (calm home/observatory) | Recenter framing exists; no single "home constellation" node that orients a newcomer | `Graph3D.tsx` | 🟠 Partial |
-| 5 | **Metadata schema** | Nodes carry `type`, `tags`, `importance`, `created_at`, `occurred_at`, `kind`, `last_tended_at` | `db/schema.ts` | 🟠 Partial — missing `status` + provenance (`agent_written`/`source`) |
-| 6 | **AI-context layer** (soul/user/identity/agents/memory) | DB-backed: `user_persona`, `instruction_profiles`, `knowledge_docs`, auto-derive (`persona/derive.ts`). No editable `soul.md`/`identity.md` for the agent itself | Companion system | 🟠 Partial — capability exists, not as the briefing's file family |
+| 3 | **Hub / MOC layer** | `moc` node kind + `summarizes` edges; `POST /api/constellations/promote` turns a detected cluster into a persistent, named, annotated hub you navigate from | `api/routes/constellations.ts`, `nodeObject.ts` | 🟢 **Shipped** (Stage 1, 2026-06-30) |
+| 4 | **Entry point** (calm home/observatory) | The Observatory home overlay greets you after the fly-in (greeting/streak, capture, latest connection, your constellations, recent) | `components/Observatory.tsx` | 🟢 Shipped (Stage 2) |
+| 5 | **Metadata schema** | Nodes carry `type`, `tags`, `importance`, `created_at`, `occurred_at`, `kind`, `last_tended_at`, **`origin`** (provenance) | `db/schema.ts` | 🟢 Shipped (Stage 3 provenance) — `status` (active/archived) still deferred |
+| 6 | **AI-context layer** (soul/user/identity/agents/memory) | DB-backed persona/companion **plus** `soul.md` loaded by `identity.ts` and injected into the chat system prompt (offline-safe) | Companion + `identity.ts` | 🟢 Shipped (Stage 4) — editable-per-space soul still deferred |
 | 7 | **Capture friction** | Drop-a-thought `IngestPanel`, `daily_logs`, Telegram ingestion | `IngestPanel.tsx`, `telegram/bot.ts` | 🟢 Strong |
 | 8 | **Curation / maintenance loop** | Autonomous agent: synthesis, duplicate dedup, entropy/decay (memories cool), link decay + repair, research | `maintenance/agent.ts`, `synthesis/*`, entropy in `celestial.ts` | 🟢 Strong (the Karpathy maintainer pattern, already built) |
 
-**Net:** 4 strong, 3 partial, **1 real gap (MOC/hub layer)** — which happens to map onto
-our galaxy metaphor more naturally than onto Obsidian itself (notes = stars, **MOCs =
-constellations**, home = observatory; the briefing says this almost verbatim).
+**Net (updated 2026-06-30):** all 8 axes are now 🟢 — the one real gap (MOC/hub layer) is **closed**,
+and the Observatory, provenance, and soul/identity layers shipped (Stages 0–4). The galaxy metaphor
+carries it cleanly: notes = stars, **MOCs = constellations**, home = observatory (the briefing says
+this almost verbatim). Remaining items are refinements (auto-proposed hubs, node `status`, editable
+per-space soul), not gaps.
 
 ## Where the metaphor does the work for us
 
@@ -84,8 +86,8 @@ Companies) also unlock relationship views later.
   Meeting / Person / Company nodes, filterable in the UI.
 
 
-Ordered by ROI × alignment with what already exists. Each stage is gated by the workflow:
-spec → approval → implement → test → review. **Specs drafted (awaiting approval):**
+Ordered by ROI × alignment with what already exists. Each stage was gated by the workflow:
+spec → implement → test → review. **Specs implemented & shipped** (status banners updated 2026-06-30):**
 [Stage 0 — Taxonomy](./specs/stage-0-taxonomy.md) · [Stage 1 — MOCs](./specs/stage-1-mocs.md) ·
 [Stage 2 — Observatory](./specs/stage-2-observatory.md).
 
