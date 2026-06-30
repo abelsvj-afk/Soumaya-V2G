@@ -165,6 +165,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Emotional trajectory (research-agent add-on #5) + UI/help rule
+Second module from `docs/specs/research-agent-addons.md`. Turns the per-memory signed
+`emotionalWeight` (valence) + timestamps into a mood-over-time view with detected patterns.
+- **Analysis (offline, free):** `analysis/emotional.ts` `buildEmotionalTrajectory` — day-bucketed
+  valence series, trend (rising/falling/steady via least-squares slope), volatility (norm. stddev),
+  and patterns: Stress cycle (recurring dips + dominant trigger tag), Burnout risk (bright early →
+  heavy recent), Upswing/Downswing, Volatile stretch — each with a gentle intervention. No LLM.
+- **API:** `GET /api/digest/emotional` (read-only, no token cost). Shared `EmotionalTrajectory`/
+  `EmotionalPattern`/`EmotionalPoint` types.
+- **UI:** Insights tab gains a "🌡️ Emotional weather" section — a dependency-free inline SVG mood
+  sparkline + pattern cards (type · trigger · repeats · suggestion).
+- **Help:** added Help-menu entries for **both** emotional weather (#5) and the previously-shipped
+  "⚡ Find contradictions" (#3), per the new standing rule below.
+- 5 new tests; gate: typecheck clean · **110 server tests** · web build clean.
+
+**Standing rule (user, 2026-06-30):** every new feature must ship with its corresponding UI (where
+applicable) AND a Help-menu ("?") entry. Applied here for #5 and backfilled for #3.
+
 ### 2026-06-30 (Claude): Contradiction detection (research-agent add-on #3)
 First module from `docs/specs/research-agent-addons.md`. Where synthesis finds latent *connections*,
 this finds *conflicts* — changed beliefs, reversed goals, shifting identity across same-topic memories.

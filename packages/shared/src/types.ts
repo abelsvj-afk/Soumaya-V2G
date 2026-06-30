@@ -256,6 +256,44 @@ export interface Insight {
   kind?: InsightKind;
 }
 
+/** One point on the emotional trajectory: a time bucket's average valence (−1..1). */
+export interface EmotionalPoint {
+  /** ISO date (day bucket). */
+  date: string;
+  /** Average emotional valence in this bucket: −1 (heavy) … +1 (bright). */
+  valence: number;
+  /** How many memories fell in this bucket. */
+  count: number;
+}
+
+/** A detected emotional pattern (stress cycle, upswing, burnout risk, volatility…). */
+export interface EmotionalPattern {
+  /** Human label, e.g. "Stress cycle", "Upswing", "Burnout risk", "Volatile stretch". */
+  type: string;
+  /** The tag/type most associated with the low points, or "" if none stands out. */
+  trigger: string;
+  /** How many times the pattern repeats in the history. */
+  repeats: number;
+  /** A gentle, heuristic suggestion. */
+  intervention: string;
+}
+
+/** Emotional trajectory analysis over time (research-agent add-on #5). Heuristic + offline. */
+export interface EmotionalTrajectory {
+  /** Time-ordered, day-bucketed valence series for a sparkline. */
+  points: EmotionalPoint[];
+  /** Overall direction of mood over the window. */
+  trend: "rising" | "falling" | "steady";
+  /** Mean valence across all dated, emotionally-charged memories (−1..1). */
+  average: number;
+  /** 0..1 — how much mood swings (normalized stddev). */
+  volatility: number;
+  /** Detected patterns, most salient first. */
+  patterns: EmotionalPattern[];
+  /** How many memories carried usable emotional + time data. */
+  sampleSize: number;
+}
+
 /** Answer from chat-with-your-brain (GraphRAG), with node citations. */
 export interface ChatResponse {
   answer: string;

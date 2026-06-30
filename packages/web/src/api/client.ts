@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
+import type { ChatResponse, Constellation, DailyDigest, EmotionalTrajectory, Fuel, GraphData, GraphNode, Insight, LoreEntry, LoreSubjectType, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -514,6 +514,33 @@ export async function runDigest(): Promise<Insight[]> {
       }
     })(),
   );
+}
+
+/** Mood-over-time trajectory + detected emotional patterns (free, offline-safe). */
+export async function getEmotionalTrajectory(): Promise<EmotionalTrajectory> {
+  const empty: EmotionalTrajectory = {
+    points: [],
+    trend: "steady",
+    average: 0,
+    volatility: 0,
+    patterns: [],
+    sampleSize: 0,
+  };
+  try {
+    const res = await afetch(`${API}/digest/emotional`);
+    const d = await res.json().catch(() => null);
+    if (!d || typeof d !== "object") return empty;
+    return {
+      points: Array.isArray(d.points) ? d.points : [],
+      trend: d.trend === "rising" || d.trend === "falling" ? d.trend : "steady",
+      average: typeof d.average === "number" ? d.average : 0,
+      volatility: typeof d.volatility === "number" ? d.volatility : 0,
+      patterns: Array.isArray(d.patterns) ? d.patterns : [],
+      sampleSize: typeof d.sampleSize === "number" ? d.sampleSize : 0,
+    };
+  } catch {
+    return empty;
+  }
 }
 
 /** Scan same-topic memories for contradictions (changed beliefs / reversed goals). */

@@ -47,7 +47,12 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
    `POST /api/digest/contradictions`; Insights tab gains a "⚡ Find contradictions" button + distinct
    conflict rendering. 4 tests; gate green (105 server tests). **Follow-up:** wire an autonomous
    `contradiction` job into the maintenance ladder (currently manual-scan only).
-2. **Emotional trajectory (#5)** — turns the already-stored `emotionalWeight` into cycle insights.
+2. **Emotional trajectory (#5)** — ✅ **SHIPPED 2026-06-30.** `analysis/emotional.ts` turns the
+   stored signed `emotionalWeight` + timestamps into a day-bucketed mood series + detected patterns
+   (stress cycle / upswing / downswing / burnout risk / volatility) with trigger + intervention;
+   `GET /api/digest/emotional` (free, offline, heuristic — no token cost); Insights tab gains a
+   "🌡️ Emotional weather" section (dependency-free SVG sparkline + pattern cards); Help entry added.
+   5 tests; gate green (110 server tests).
 3. **Scored research priority (#2)** — fold the scoring model into `selectJobInner`.
 4. **Dormant recovery (#4)** + **temporal linking chains (#8)** — pattern-over-time layer.
 5. Polish: insight compression (#7) + tiers (#10) + the "no research needed" string (#9).

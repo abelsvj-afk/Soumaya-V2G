@@ -1,8 +1,28 @@
 import { useEffect, useState } from "react";
-import type { Constellation, DailyDigest, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
+import type { Constellation, DailyDigest, EmotionalTrajectory, Insight } from "@brain/shared";
+import { getConstellations, getDailyDigest, getDigest, getEmotionalTrajectory, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
+
+/** Dependency-free valence sparkline (−1..1). Green above the midline, red below. */
+function MoodSparkline({ points }: { points: EmotionalTrajectory["points"] }) {
+  if (points.length < 2) return null;
+  const W = 240;
+  const H = 44;
+  const n = points.length;
+  const x = (i: number) => (i / (n - 1)) * W;
+  const y = (v: number) => H / 2 - (v * (H / 2 - 3)); // +1 → top, −1 → bottom
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.valence).toFixed(1)}`).join(" ");
+  return (
+    <svg width={W} height={H} style={{ display: "block", maxWidth: "100%" }} aria-label="Mood over time">
+      <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+      <path d={line} fill="none" stroke="#7af9ff" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      {points.map((p, i) => (
+        <circle key={i} cx={x(i)} cy={y(p.valence)} r={2} fill={p.valence >= 0 ? "#5ee6a0" : "#ff7a59"} />
+      ))}
+    </svg>
+  );
+}
 
 export function DigestPanel({
   onFocus,
@@ -15,6 +35,7 @@ export function DigestPanel({
   const [items, setItems] = useState<Insight[]>([]);
   const [daily, setDaily] = useState<DailyDigest | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
+  const [emotional, setEmotional] = useState<EmotionalTrajectory | null>(null);
   const [busy, setBusy] = useState(false);
   // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
   const [promotingId, setPromotingId] = useState<number | null>(null);
@@ -49,6 +70,9 @@ export function DigestPanel({
       .catch(() => {});
     getConstellations()
       .then(setConstellations)
+      .catch(() => {});
+    getEmotionalTrajectory()
+      .then(setEmotional)
       .catch(() => {});
   }, []);
 
@@ -222,6 +246,39 @@ export function DigestPanel({
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Emotional weather — mood trajectory + detected patterns (offline, free). */}
+      {emotional && emotional.sampleSize >= 3 && (
+        <section className="emotional-weather" style={{ marginBottom: "1rem" }}>
+          <div className="dock-head">
+            <h3>🌡️ Emotional weather</h3>
+            <span style={{ fontSize: "0.72rem", opacity: 0.7 }}>
+              {emotional.trend === "rising" ? "↗ brightening" : emotional.trend === "falling" ? "↘ cooling" : "→ steady"}
+            </span>
+          </div>
+          <MoodSparkline points={emotional.points} />
+          <p style={{ fontSize: "0.74rem", opacity: 0.7, margin: "0.35rem 0 0.6rem 0" }}>
+            Across {emotional.sampleSize} memories · avg mood {emotional.average >= 0 ? "+" : ""}
+            {emotional.average.toFixed(2)} · {emotional.volatility >= 0.5 ? "high swings" : "stable"}
+          </p>
+          {emotional.patterns.length > 0 ? (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              {emotional.patterns.map((p, i) => (
+                <li key={i} style={{ borderLeft: "3px solid #9a7aff", paddingLeft: "0.6rem" }}>
+                  <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>
+                    {p.type}
+                    {p.trigger ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · often around “{p.trigger}”</span> : null}
+                    {p.repeats > 1 ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · ×{p.repeats}</span> : null}
+                  </div>
+                  <div style={{ fontSize: "0.76rem", opacity: 0.85 }}>{p.intervention}</div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p style={{ fontSize: "0.76rem", opacity: 0.7, margin: 0 }}>No strong patterns yet — your mood reads as steady.</p>
+          )}
         </section>
       )}
 
