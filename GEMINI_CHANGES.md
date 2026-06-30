@@ -165,6 +165,13 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Clean up deferred FX timers on unmount (web finding #9)
+- The render-loop / imperative-handle `setTimeout`s (particle bursts, pulse trains) were never
+  cleared, so an unmount (logout → remount) left orphan timers firing into a torn-down scene.
+  Added a tracked `scheduleTimeout` helper (records every pending id) and routed all 8 call sites
+  through it; the unmount cleanup now `clearTimeout`s them all alongside the node-object disposal.
+- Gate: web typecheck clean · build clean.
+
 ### 2026-06-30 (Claude): Process/docs reconciliation (spec banners, tracking docs, verifications)
 - **Spec contradictions fixed:** `stage-0/1/2/4` specs said "DRAFT — awaiting approval" while their
   code is merged + running. Verified each in code and flipped the banners to "✅ IMPLEMENTED & SHIPPED

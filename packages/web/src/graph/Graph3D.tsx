@@ -417,6 +417,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     fuelRef.current = fuel;
   }, [fuel]);
 
+  // Deferred FX (particle bursts, pulse trains) schedule short timeouts that fire into
+  // the live ForceGraph instance. Track every pending id so the unmount cleanup can
+  // clear them — otherwise an unmount (logout → remount) leaves orphan timers that fire
+  // into a torn-down scene. Stable identity via a ref so the one-shot effect captures it.
+  const pendingTimersRef = useRef<Set<number>>(new Set());
+  const scheduleTimeout = useRef((fn: () => void, ms: number): number => {
+    const id = window.setTimeout(() => {
+      pendingTimersRef.current.delete(id);
+      fn();
+    }, ms);
+    pendingTimersRef.current.add(id);
+    return id;
+  }).current;
+
   useEffect(() => {
     equippedShipRef.current = equippedShip;
     if (soumayaHandleRef.current?.setShipSkin) {
@@ -833,7 +847,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (!l) return;
       // A short burst of dots so the new connection visibly "lights up".
       for (let i = 0; i < 4; i++) {
-        window.setTimeout(() => {
+        scheduleTimeout(() => {
           try {
             f.emitParticle(l);
           } catch {
@@ -1389,6 +1403,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     return () => {
       cancelAnimationFrame(raf);
       if (fg.__brainCleanupClick) fg.__brainCleanupClick();
+      // Cancel any deferred FX timers so they don't fire into the torn-down scene.
+      for (const id of pendingTimersRef.current) clearTimeout(id);
+      pendingTimersRef.current.clear();
       // Free the VRAM held by every cached node object on unmount (e.g. logout →
       // remount), so a new session doesn't start atop the old scene's leaked buffers.
       for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
@@ -1446,7 +1463,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     followObjRef.current = null; // jumping to a node releases object-follow
     followKindRef.current = null;
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 1000);
-    window.setTimeout(() => {
+    scheduleTimeout(() => {
       followRef.current = n.id;
     }, 1050);
   };
@@ -1510,7 +1527,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const controls = fg.controls?.();
       if (controls) {
         controls.enabled = false;
-        window.setTimeout(() => {
+        scheduleTimeout(() => {
           controls.enabled = true;
         }, ms);
       }
@@ -1667,10 +1684,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followKindRef.current = null;
         // Let the visibility filter apply, then fit the camera to the system, and
         // once framed, gently track its centre so it doesn't drift out of view.
-        window.setTimeout(() => {
+        scheduleTimeout(() => {
           frameGalaxy(900, (n: any) => sys.has(n.id));
         }, 80);
-        window.setTimeout(() => {
+        scheduleTimeout(() => {
           followRef.current = id;
         }, 1050);
       },
@@ -1753,10 +1770,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           if (pathLinks.length > 0) {
             // Emit particles sequentially down the path.
             pathLinks.forEach((link, index) => {
-              window.setTimeout(() => {
+              scheduleTimeout(() => {
                 try {
                   f.emitParticle(link);
-                  window.setTimeout(() => {
+                  scheduleTimeout(() => {
                     try {
                       f.emitParticle(link);
                     } catch {}
@@ -1768,7 +1785,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             // After the path completes, spawn a visual burst at the target node
             const targetNode = allNodes.find((x) => x.id === targetId);
             if (targetNode && targetNode.x != null) {
-              window.setTimeout(() => {
+              scheduleTimeout(() => {
                 try {
                   if (targetNode.x != null) {
                     burstsRef.current?.spawn(targetNode.x, targetNode.y, targetNode.z ?? 0, "synthesis");
