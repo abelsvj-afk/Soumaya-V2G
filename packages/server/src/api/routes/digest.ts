@@ -2,6 +2,7 @@ import { Router } from "express";
 import type { AppContext } from "../../context.js";
 import { InsightsRepo } from "../../repositories/insights.repo.js";
 import { runSynthesis, DEFAULT_SYNTHESIS } from "../../synthesis/engine.js";
+import { runContradictionScan, DEFAULT_CONTRADICTION } from "../../synthesis/contradictions.js";
 import { buildDailyDigest } from "../../synthesis/dailyDigest.js";
 import { spaceOf } from "../middleware.js";
 
@@ -21,6 +22,13 @@ export function digestRoutes(ctx: AppContext): Router {
   // POST /api/digest/run -> scan for latent connections and synthesize new insights
   r.post("/run", async (_req, res) => {
     const created = await runSynthesis(ctx.handle, ctx.llm, DEFAULT_SYNTHESIS, spaceOf(res));
+    res.json(created);
+  });
+
+  // POST /api/digest/contradictions -> scan same-topic memories for conflicts
+  // (changed beliefs / reversed goals / shifting identity). Offline-safe.
+  r.post("/contradictions", async (_req, res) => {
+    const created = await runContradictionScan(ctx.handle, ctx.llm, DEFAULT_CONTRADICTION, spaceOf(res));
     res.json(created);
   });
 

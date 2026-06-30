@@ -516,6 +516,21 @@ export async function runDigest(): Promise<Insight[]> {
   );
 }
 
+/** Scan same-topic memories for contradictions (changed beliefs / reversed goals). */
+export async function runContradictions(): Promise<Insight[]> {
+  return tracked(
+    (async () => {
+      try {
+        const res = await afetch(`${API}/digest/contradictions`, { method: "POST" });
+        const d = await res.json().catch(() => []);
+        return Array.isArray(d) ? d : [];
+      } catch {
+        return [];
+      }
+    })(),
+  );
+}
+
 export async function askChat(question: string): Promise<ChatResponse> {
   return tracked(
     (async () => {

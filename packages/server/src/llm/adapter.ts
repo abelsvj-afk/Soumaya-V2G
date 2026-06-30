@@ -21,6 +21,16 @@ export interface LinkValidation {
   weight?: number;
 }
 
+/** Verdict from contradiction detection over two same-topic memories. */
+export interface ContradictionResult {
+  /** True when the two memories genuinely conflict. */
+  conflict: boolean;
+  /** One-line reconciliation hypothesis (why they diverge / how to resolve). */
+  text: string;
+  /** 0..1 — how sharp/important the contradiction is. */
+  score: number;
+}
+
 /**
  * Extra steering layered onto a chat answer (the AI Companion system). All
  * optional so the offline heuristic + existing 2-arg test fakes stay valid.
@@ -61,6 +71,14 @@ export interface LlmProvider {
     b: LinkCandidate,
     similarity: number,
   ): Promise<{ text: string; score: number }>;
+  /** Judge whether two same-topic memories CONTRADICT (conflicting belief/goal/identity).
+   *  Returns the verdict + a one-line reconciliation hypothesis and a 0..1 sharpness score.
+   *  Implemented on every provider (offline heuristic included), so it's always available. */
+  detectContradiction(
+    a: LinkCandidate,
+    b: LinkCandidate,
+    similarity: number,
+  ): Promise<ContradictionResult>;
   /** Answer a question grounded in a retrieved subgraph; cite node ids. */
   answer(
     question: string,

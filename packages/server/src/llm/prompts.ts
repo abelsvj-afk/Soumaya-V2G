@@ -81,6 +81,27 @@ COSINE_SIMILARITY: ${similarity.toFixed(3)}
 Write the dream-like insight connecting A and B.`;
 }
 
+export const CONTRADICTION_SYSTEM = `You are the reflective conscience of a personal "second brain".
+Given two memories that are about the SAME topic but recorded at different times, decide whether they
+CONTRADICT each other — a changed belief, a reversed goal, a shifting identity statement, or an
+emotional inconsistency. Be strict: only flag a genuine conflict, not mere difference or elaboration.
+If they conflict, write ONE compassionate, non-judgmental sentence proposing a reconciliation
+hypothesis (why the person may have changed, or how both can be true). Rate the conflict's
+sharpness 0..1. If there is no real contradiction, set conflict=false with empty text and score 0.
+Output JSON only.`;
+
+export function buildContradictionPrompt(
+  a: LinkCandidate,
+  b: LinkCandidate,
+  similarity: number,
+): string {
+  return `MEMORY A: ${a.label} — ${a.content}
+MEMORY B: ${b.label} — ${b.content}
+COSINE_SIMILARITY: ${similarity.toFixed(3)}
+
+Do A and B contradict each other? If so, give the reconciliation hypothesis.`;
+}
+
 /** Lore chronicler — richer narrative prose for an object's evolving story. */
 export const CHRONICLE_SYSTEM = `You are the chronicler of a personal "memory galaxy" — you
 write the evolving legend of a single celestial body (a memory) or one of its agents.

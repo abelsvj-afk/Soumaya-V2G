@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, Insight } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, promoteConstellation, runDigest } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDigest, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -59,6 +59,23 @@ export function DigestPanel({
       setItems(await getDigest());
       setDaily(await getDailyDigest());
       setConstellations(await getConstellations());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function scanContradictions() {
+    setBusy(true);
+    try {
+      const found = await runContradictions();
+      setItems(await getDigest());
+      pushToast(
+        found.length > 0
+          ? `Found ${found.length} contradiction${found.length === 1 ? "" : "s"} to reconcile ⚡`
+          : "No contradictions found — your memories are consistent ✓",
+        found.length > 0 ? "⚡" : "✓",
+        5000,
+      );
     } finally {
       setBusy(false);
     }
@@ -210,9 +227,14 @@ export function DigestPanel({
 
       <div className="dock-head">
         <h3>Latent connections</h3>
-        <button className="mini" onClick={run} disabled={busy}>
-          {busy ? "Scanning…" : "🔍 Find new links"}
-        </button>
+        <div style={{ display: "flex", gap: "0.4rem" }}>
+          <button className="mini" onClick={run} disabled={busy}>
+            {busy ? "Scanning…" : "🔍 Find new links"}
+          </button>
+          <button className="mini" onClick={scanContradictions} disabled={busy} title="Scan same-topic memories for conflicting beliefs, reversed goals, or shifting identity">
+            ⚡ Find contradictions
+          </button>
+        </div>
       </div>
       {items.length === 0 && (
         <p className="empty">
@@ -221,23 +243,34 @@ export function DigestPanel({
         </p>
       )}
       <ul className="insights">
-        {items.map((it) => (
-          <li key={it.id}>
-            <p className="insight-text">{it.text}</p>
-            <div className="pills">
-              {it.nodes.map((n) => (
-                <button
-                  key={n.id}
-                  className="pill"
-                  style={{ borderColor: colorForType(n.type) }}
-                  onClick={() => onFocus(n.id)}
-                >
-                  {n.label}
-                </button>
-              ))}
-            </div>
-          </li>
-        ))}
+        {items.map((it) => {
+          const isConflict = it.kind === "contradiction";
+          return (
+            <li
+              key={it.id}
+              style={isConflict ? { borderLeft: "3px solid #ff7a59", paddingLeft: "0.6rem" } : undefined}
+            >
+              {isConflict && (
+                <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "#ff7a59", letterSpacing: "0.04em", marginBottom: "0.2rem" }}>
+                  ⚡ CONTRADICTION · RECONCILE
+                </div>
+              )}
+              <p className="insight-text">{it.text}</p>
+              <div className="pills">
+                {it.nodes.map((n) => (
+                  <button
+                    key={n.id}
+                    className="pill"
+                    style={{ borderColor: colorForType(n.type) }}
+                    onClick={() => onFocus(n.id)}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

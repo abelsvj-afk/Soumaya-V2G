@@ -77,6 +77,8 @@ export const insights = sqliteTable("insights", {
     .references(() => nodes.id),
   text: text("text").notNull(),
   score: real("score").notNull().default(0),
+  // "synthesis" (latent connection) or "contradiction" (conflicting belief/goal/identity).
+  kind: text("kind").notNull().default("synthesis"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

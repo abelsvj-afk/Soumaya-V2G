@@ -1,5 +1,31 @@
 import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
-import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+
+/** Lexical reversal/negation cues used by the offline contradiction heuristic. */
+const NEGATIONS = ["not", "never", "no longer", "don't", "won't", "can't", "stopped", "quit", "gave up", "used to", "anymore"];
+const OPPOSED_PAIRS: [string, string][] = [
+  ["love", "hate"], ["want", "avoid"], ["always", "never"], ["start", "stop"],
+  ["will", "won't"], ["should", "shouldn't"], ["can", "can't"], ["happy", "miserable"],
+  ["confident", "afraid"], ["commit", "quit"], ["stay", "leave"], ["yes", "no"],
+];
+
+/** True when one memory carries an explicit reversal/opposition against the other.
+ *  Deliberately conservative — same-topic pre-filtering is the caller's job. */
+function hasReversalSignal(aRaw: string, bRaw: string): boolean {
+  const a = ` ${aRaw.toLowerCase()} `;
+  const b = ` ${bRaw.toLowerCase()} `;
+  // A negation present in exactly one of the two same-topic memories.
+  for (const n of NEGATIONS) {
+    const inA = a.includes(` ${n} `) || a.includes(n);
+    const inB = b.includes(` ${n} `) || b.includes(n);
+    if (inA !== inB) return true;
+  }
+  // An opposed term appears on each side (one says X, the other its antonym).
+  for (const [x, y] of OPPOSED_PAIRS) {
+    if ((a.includes(x) && b.includes(y)) || (a.includes(y) && b.includes(x))) return true;
+  }
+  return false;
+}
 
 /** Common words that carry no topical signal, so we don't "link" on them. */
 const STOPWORDS = new Set(
@@ -134,6 +160,26 @@ export class HeuristicProvider implements LlmProvider {
         similarity * 100,
       )}% similar) but aren't connected yet — worth a closer look.`,
       score: similarity,
+    };
+  }
+
+  async detectContradiction(
+    a: LinkCandidate,
+    b: LinkCandidate,
+    similarity: number,
+  ): Promise<ContradictionResult> {
+    // The caller pre-filters to same-topic (high-similarity) pairs, so the offline
+    // heuristic only needs to spot REVERSAL language: an explicit negation/opposition
+    // signal in one memory against the other. Conservative on purpose — better to miss
+    // a soft contradiction than to cry wolf. The cloud provider does the nuanced judging.
+    const conflict = hasReversalSignal(a.content, b.content);
+    return {
+      conflict,
+      text: conflict
+        ? `"${a.label}" and "${b.label}" look like they pull in opposite directions — you may have changed your mind, or these are two sides of the same tension worth reconciling.`
+        : "",
+      // Same-topic + a reversal cue → a moderately sharp conflict.
+      score: conflict ? Math.min(1, 0.5 + similarity * 0.4) : 0,
     };
   }
 

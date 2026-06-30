@@ -36,6 +36,13 @@ class FakeLlm implements LlmProvider {
   ): Promise<{ text: string; score: number }> {
     return { text: `${a.label} ~ ${b.label}`, score: similarity };
   }
+  async detectContradiction(
+    _a: LinkCandidate,
+    _b: LinkCandidate,
+    _similarity: number,
+  ): Promise<{ conflict: boolean; text: string; score: number }> {
+    return { conflict: false, text: "", score: 0 };
+  }
   async answer(
     _question: string,
     context: ContextNode[],

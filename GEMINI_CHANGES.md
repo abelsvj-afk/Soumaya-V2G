@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Contradiction detection (research-agent add-on #3)
+First module from `docs/specs/research-agent-addons.md`. Where synthesis finds latent *connections*,
+this finds *conflicts* — changed beliefs, reversed goals, shifting identity across same-topic memories.
+- **Storage:** `insights.kind` (`synthesis`|`contradiction`) — additive idempotent migration; bootstrap
+  + repo (`create(kind)`, kind-scoped `existsPair`, `recent()` returns kind); shared `Insight.kind`.
+- **LLM seam:** `LlmProvider.detectContradiction(a,b,sim)` on every provider — offline `HeuristicProvider`
+  (reversal/negation + antonym-pair signals, conservative), OpenAI + Gemini (reconciliation hypothesis
+  via json schema), `ResilientLlmProvider` degrades to heuristic on error/budget. Offline path intact.
+- **Engine:** `synthesis/contradictions.ts` — same-topic (high-cosine) candidate pairs → verdict →
+  persists confirmed conflicts as `kind:"contradiction"` insights, deduped per kind, bounded.
+- **API/UI:** `POST /api/digest/contradictions`; client `runContradictions()`; Insights tab gains a
+  "⚡ Find contradictions" button + distinct conflict rendering (orange rail + RECONCILE tag).
+- 4 new tests; gate: typecheck clean · **105 server tests** · web build clean.
+- Follow-up (noted in spec): wire an autonomous `contradiction` job into the maintenance ladder
+  (currently manual-scan only).
+
 ### 2026-06-30 (Claude): Clean up deferred FX timers on unmount (web finding #9)
 - The render-loop / imperative-handle `setTimeout`s (particle bursts, pulse trains) were never
   cleared, so an unmount (logout → remount) left orphan timers firing into a torn-down scene.

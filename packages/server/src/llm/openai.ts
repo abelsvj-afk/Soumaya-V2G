@@ -1,9 +1,10 @@
 import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
-import type { AnswerOptions, ContextNode, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
+  CONTRADICTION_SYSTEM,
   composeSystem,
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
@@ -14,6 +15,7 @@ import {
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
+  buildContradictionPrompt,
   buildAnswerPrompt,
   buildResearchPrompt,
   buildSectorPrompt,
@@ -183,6 +185,34 @@ export class OpenAiProvider implements LlmProvider {
       "synthesis",
     );
     return { text: raw.text, score: typeof raw.score === "number" ? raw.score : similarity };
+  }
+
+  async detectContradiction(
+    a: LinkCandidate,
+    b: LinkCandidate,
+    similarity: number,
+  ): Promise<ContradictionResult> {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        conflict: { type: "boolean" },
+        text: { type: "string" },
+        score: { type: "number" },
+      },
+      required: ["conflict", "text", "score"],
+    };
+    const raw = await this.json<ContradictionResult>(
+      CONTRADICTION_SYSTEM,
+      buildContradictionPrompt(a, b, similarity),
+      schema,
+      "contradiction",
+    );
+    return {
+      conflict: !!raw.conflict,
+      text: raw.conflict ? String(raw.text ?? "") : "",
+      score: raw.conflict ? (typeof raw.score === "number" ? raw.score : similarity) : 0,
+    };
   }
 
   async answer(

@@ -40,9 +40,13 @@ on a cloud key), **token/Fuel-gated** (LLM passes go through `selectJob`/`Resili
 - **Defer:** #12 (self-improvement loop).
 
 ## Recommended build order (each gated: spec → implement → test → review)
-1. **Conflict/Contradiction detection (#3)** — biggest net-new insight value; reuses the `insights`
-   table + a new `contradiction` job type in the maintenance ladder; heuristic fallback = simple
-   negation/goal-delta detection, LLM path = richer reconciliation hypothesis.
+1. **Conflict/Contradiction detection (#3)** — ✅ **SHIPPED 2026-06-30.** `insights.kind`
+   (`synthesis`|`contradiction`, additive migration); `LlmProvider.detectContradiction` on every
+   provider (offline heuristic = reversal/negation/antonym signals, OpenAI+Gemini = reconciliation
+   hypothesis, Resilient degrades on error); `synthesis/contradictions.ts` scans same-topic pairs;
+   `POST /api/digest/contradictions`; Insights tab gains a "⚡ Find contradictions" button + distinct
+   conflict rendering. 4 tests; gate green (105 server tests). **Follow-up:** wire an autonomous
+   `contradiction` job into the maintenance ladder (currently manual-scan only).
 2. **Emotional trajectory (#5)** — turns the already-stored `emotionalWeight` into cycle insights.
 3. **Scored research priority (#2)** — fold the scoring model into `selectJobInner`.
 4. **Dormant recovery (#4)** + **temporal linking chains (#8)** — pattern-over-time layer.

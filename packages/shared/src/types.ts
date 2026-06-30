@@ -241,13 +241,19 @@ export interface Constellation {
 }
 
 /** A synthesized cross-cluster insight (the "compounding memory" feature). */
+/** What an insight represents: a latent *connection* (default) or a *contradiction*
+ *  (conflicting beliefs/goals/identity statements across memories over time). */
+export type InsightKind = "synthesis" | "contradiction";
+
 export interface Insight {
   id: number;
   text: string;
-  /** 0..1 — how strong/surprising the latent connection is. */
+  /** 0..1 — how strong/surprising the latent connection (or how sharp the conflict) is. */
   score: number;
   createdAt: string;
   nodes: NodeRef[];
+  /** Defaults to "synthesis" for pre-existing rows. */
+  kind?: InsightKind;
 }
 
 /** Answer from chat-with-your-brain (GraphRAG), with node citations. */

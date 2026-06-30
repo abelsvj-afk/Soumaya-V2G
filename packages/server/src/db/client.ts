@@ -54,6 +54,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
       node_b INTEGER NOT NULL REFERENCES nodes(id),
       text TEXT NOT NULL,
       score REAL NOT NULL DEFAULT 0,
+      kind TEXT NOT NULL DEFAULT 'synthesis',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS agent_logs (
@@ -203,6 +204,11 @@ function migrateSchema(sqlite: RawDb): void {
   // Celestial Economy: when a memory was last tended (drives entropy).
   if (!cols.some((c) => c.name === "last_tended_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN last_tended_at TEXT`);
+  }
+  // Insights gain a `kind` ("synthesis" | "contradiction") on existing volumes (additive).
+  const insightCols = sqlite.prepare(`PRAGMA table_info(insights)`).all() as { name: string }[];
+  if (insightCols.length > 0 && !insightCols.some((c) => c.name === "kind")) {
+    sqlite.exec(`ALTER TABLE insights ADD COLUMN kind TEXT NOT NULL DEFAULT 'synthesis'`);
   }
   // Temporal memory: when the event happened (backdatable), a future reminder,
   // and free/curated tags. All optional, additive for existing volumes.
