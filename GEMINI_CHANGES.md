@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Links are living synapses — always visible, coloured by emotion, pulse (not redraw)
+User followup: links still went grey / disappeared. New model per their direction — links are permanent
+synapses; Soumaya PULSES them (neuron-firing flash that fades), she never draws/hides them.
+- **Removed the hide-until-drawn system entirely** (`pendingLinksRef` + reveal sweep deleted). Links are
+  ALWAYS visible; only the isolate-system view filters them. New connections appear instantly; she still
+  flies over the freshest few to give them her bright pulse.
+- **Colour by emotion, never grey:** `linkColor` now rests on a hue set by the two memories' emotion —
+  **green** (neutral spark), **gold** (joyful/warm), **indigo** (heavy) — flares toward white when she
+  pulses it (recent activity), and eases back over ~3 days. Strong opacity floor (0.5, 0.3 when another
+  memory is focused) so a link is never a faint grey filament.
+- **`linkWidth` floor raised** (0.5+) so lines never thin to sub-pixel "gone".
+- **Task label:** "Forging a new connection" → "Energizing a connection" (she's tending/pulsing, not
+  drawing lines).
+- Gate: typecheck clean · 134 server tests · web build clean.
+
 ### 2026-06-30 (Claude): Fix — links disappearing and not coming back
 User: on open, connection links show (green as Soumaya draws them) then vanish within a minute with no
 obvious way back. Cause: new connections are hidden (`pendingLinksRef`) until Soumaya flies out and

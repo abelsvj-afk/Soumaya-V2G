@@ -735,7 +735,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     } else if (mode === "docking" || mode === "dockTravel") {
       taskText = "Recharging at the station";
     } else if (mode === "linkToSource" || mode === "linkToTarget") {
-      taskText = "Forging a new connection";
+      taskText = "Energizing a connection";
     } else if (mode === "distressTravel" || mode === "distressHover") {
       taskText = hailLabel ?? "🚨 Fuel depleted! Help me refuel.";
     } else if (currentJob) {

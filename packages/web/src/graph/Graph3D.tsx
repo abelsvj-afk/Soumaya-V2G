@@ -510,7 +510,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (loaded || data.nodes.length > 0 || datasetSwitched) {
         knownLinksRef.current = new Set(keys);
         knownNodesRef.current = new Set((data.nodes as any[]).map((n) => n.id));
-        pendingLinksRef.current.clear(); // everything visible now; nothing to redraw
         linksInitedRef.current = true;
         fgRef.current?.refresh?.();
         // Re-frame the whole galaxy once the new positions settle (reuses the
@@ -518,24 +517,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (datasetSwitched) initialFramedRef.current = false;
       }
     } else {
-      // New CONNECTIONS: Soumaya flies out and draws the first few (hidden until then);
-      // any beyond the cap appear immediately so a batch never blanks the galaxy.
+      // New CONNECTIONS appear immediately (never hidden). We still hand the newest few
+      // to Soumaya so she flies over and PULSES them (a bright neuron-firing flash that
+      // fades) — but the line itself is already there the whole time.
       const fresh: LinkTask[] = [];
-      const now = performance.now();
       for (const l of data.links as any[]) {
         const k = linkKey(l);
         if (!knownLinksRef.current.has(k)) {
           knownLinksRef.current.add(k);
-          if (fresh.length < HIDE_DRAW_CAP) {
-            pendingLinksRef.current.set(k, now); // hide it until Soumaya draws it (or the sweep reveals it)
+          if (fresh.length < PULSE_VISIT_CAP) {
             fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
           }
         }
       }
-      if (fresh.length > 0) {
-        soumayaHandleRef.current?.enqueueLinks(fresh);
-        fgRef.current?.refresh?.(); // apply the new pending-hidden visibility
-      }
+      if (fresh.length > 0) soumayaHandleRef.current?.enqueueLinks(fresh);
 
       // New MEMORIES: park each at the waystation "dock" and have Soumaya ferry it
       // into its orbit slot (Phase 2). The orbit system holds it (won't place it)
@@ -634,15 +629,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
   const prevDemoRef = useRef(!!demo);
   // New links stay hidden until Soumaya physically flies out and connects them.
-  // Links Soumaya hasn't "drawn" yet are hidden briefly for the fly-out animation.
-  // Stored key → time-added (ms) so a safety sweep can auto-reveal any that linger,
-  // and so a big batch never leaves the galaxy looking disconnected.
-  const pendingLinksRef = useRef<Map<string, number>>(new Map());
-  // Cap how many new links are hidden-for-drawing per refresh; the rest show at once
-  // (a bulk background sync isn't a "watch her draw one connection" moment).
-  const HIDE_DRAW_CAP = 4;
-  // No pending link stays hidden longer than this, whatever Soumaya is busy with.
-  const PENDING_REVEAL_MS = 9000;
+  // How many newly-appeared links Soumaya flies over to PULSE per refresh (they're
+  // already visible; this just gives the freshest ones her neuron-firing flourish).
+  const PULSE_VISIT_CAP = 4;
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const visitorsRef = useRef<VisitorSystem | null>(null);
@@ -850,10 +839,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     };
     const fireLink = (key: string) => {
       const f = fgRef.current;
-      // A freshly drawn OR repaired connection is now fully fresh (Phase 3 decay).
+      // A freshly pulsed OR repaired connection is now fully fresh (Phase 3 decay) —
+      // it flares bright, then eases back to its resting colour over time.
       linkHealthRef.current.set(key, Date.now());
-      // Reveal the freshly-drawn thread now that she's joined both ends.
-      if (pendingLinksRef.current.delete(key)) f?.refresh?.();
+      f?.refresh?.(); // apply the fresh brightness immediately
       if (!f?.emitParticle) return;
       const l = (dataRef.current.links as any[]).find((x) => linkKey(x) === key);
       if (!l) return;
@@ -883,13 +872,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let visitFlushT = 20;
     // Phase 3: how often to scan for decayed links to send Soumaya to repair.
     let repairScanT = 18;
-    let pendingSweepT = 0; // reveals links Soumaya hasn't gotten to, so none stay hidden
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
-      const links = (dataRef.current.links as any[]).filter(
-        (l) => !pendingLinksRef.current.has(linkKey(l)),
-      );
+      const links = dataRef.current.links as any[];
       if (links.length === 0) return;
       // Intensify pulse density with node count: more links shimmer for larger brains (capped at 15 to prevent flooding)
       const numNodes = dataRef.current.nodes.length;
@@ -971,7 +957,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         repairScanT = 14; // throttle: a calm, occasional housekeeping pass
         if (!demoRef.current) {
           const stale = (dataRef.current.links as any[])
-            .filter((l) => !pendingLinksRef.current.has(linkKey(l)) && getLinkActivity(l) < 0.12)
+            .filter((l) => getLinkActivity(l) < 0.12)
             .slice(0, 30) // bound the work
             .map((l) => ({ l, key: linkKey(l) }))
             .sort((a, b) => getLinkActivity(a.l) - getLinkActivity(b.l))
@@ -979,23 +965,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             .map(({ l, key }) => ({ source: linkEnd(l.source), target: linkEnd(l.target), key }));
           if (stale.length > 0) soumayaHandleRef.current?.enqueueLinks(stale);
         }
-      }
-
-      // Safety sweep: reveal any link Soumaya hasn't drawn within PENDING_REVEAL_MS,
-      // so a hidden link can never linger (she may be busy docking/maintaining). This
-      // is what guarantees connections don't quietly disappear and never come back.
-      pendingSweepT -= dt;
-      if (pendingSweepT <= 0 && pendingLinksRef.current.size > 0) {
-        pendingSweepT = 1; // check ~once a second
-        const nowMs = performance.now();
-        let revealed = false;
-        for (const [k, t] of pendingLinksRef.current) {
-          if (nowMs - t > PENDING_REVEAL_MS) {
-            pendingLinksRef.current.delete(k);
-            revealed = true;
-          }
-        }
-        if (revealed) fgRef.current?.refresh?.();
       }
 
       // Persist visitor arrivals in batches.
@@ -1866,10 +1835,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cooldownTime={9999999}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) =>
-        // Hidden while pending (Soumaya hasn't drawn it yet), and respects the
-        // isolate-system cluster filter.
-        !pendingLinksRef.current.has(linkKey(l)) &&
-        (!cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))))
+        // Links are ALWAYS visible (never hidden waiting for Soumaya) — she pulses them
+        // like a firing neuron when she tends, she doesn't draw them into existence.
+        // Only the isolate-system view filters them.
+        !cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target)))
       }
       nodeThreeObject={(node: any) => {
         const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
@@ -1897,37 +1866,36 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // carried by streams of drifting "space dust" rather than solid lines.
       // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
+        // Connections are living synapses: they REST in a colour set by the emotion of
+        // the two memories (green = neutral/positive spark, gold = joyful/warm, indigo =
+        // heavy) and flare BRIGHT when Soumaya pulses them (recent activity), easing back
+        // over ~3 days. They never turn grey and never disappear.
+        const byId = nodeByIdRef.current;
+        const s = byId.get(linkEnd(l.source));
+        const t = byId.get(linkEnd(l.target));
+        const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
+        let r: number, g: number, b: number;
+        if (ew > 0.25) { r = 235; g = 205; b = 90; }      // warm gold — joyful
+        else if (ew < -0.25) { r = 150; g = 140; b = 255; } // indigo — heavy
+        else { r = 90; g = 235; b = 150; }                 // neuron green — the resting hue
+        const activity = getLinkActivity(l); // 0..1, spikes right after she pulses it
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        if (!lit) return "rgba(120, 128, 158, 0.16)"; // dimmed but still visible when a node is focused (never "gone")
-        
-        const activity = getLinkActivity(l);
-        const camera = fgRef.current?.camera();
-        const dist = camera ? camera.position.length() : 1200;
-        const macroFactor = Math.min(1.5, Math.max(0.6, dist / 800));
-        
-        if (dist > 800) {
-          // Macro zoom: cold links remain legible (floor 0.22), active axons glow cyan
-          const opacity = (0.22 + activity * 0.55) * macroFactor;
-          if (activity > 0.12) {
-            return `rgba(122, 249, 255, ${Math.min(0.85, opacity)})`; // glowing cyan
-          }
-          return `rgba(150, 180, 255, ${Math.min(0.8, opacity)})`;
-        }
-        
-        // Standard zoom: raised opacity floor (0.32 .. 0.76) for clearer persistent connections
-        const opacity = 0.32 + activity * 0.44;
-        return `rgba(150, 180, 255, ${Math.min(0.85, opacity * macroFactor)})`;
+        // Fresh pulses brighten toward white for that "firing" flash.
+        const flash = activity * 0.9;
+        r = Math.round(r + (255 - r) * flash);
+        g = Math.round(g + (255 - g) * flash);
+        b = Math.round(b + (255 - b) * flash);
+        // Always clearly visible: strong floor, brighter when active, gently dimmed (but
+        // same hue) when another memory is focused.
+        let opacity = 0.5 + activity * 0.4;
+        if (!lit) opacity = 0.3;
+        return `rgba(${r}, ${g}, ${b}, ${opacity.toFixed(2)})`;
       }}
       linkWidth={(l: any) => {
+        // A visible resting floor (never a sub-pixel filament that reads as "gone"),
+        // thicker for strong/weighted links and briefly fatter when she pulses it.
         const activity = getLinkActivity(l);
-        const camera = fgRef.current?.camera();
-        const dist = camera ? camera.position.length() : 1200;
-        
-        if (dist > 800) {
-          // Macro zoom: links become thin, fine filaments, active threads are thicker
-          return 0.08 + (l.weight ?? 0.4) * 0.25 + activity * 0.42;
-        }
-        return 0.15 + (l.weight ?? 0.4) * 0.5 + activity * 0.3; // active lines are slightly thicker
+        return 0.5 + (l.weight ?? 0.4) * 0.6 + activity * 0.6;
       }}
       linkCurvature={(l: any) => {
         const activity = getLinkActivity(l);
