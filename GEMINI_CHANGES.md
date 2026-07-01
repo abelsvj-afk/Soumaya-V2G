@@ -165,6 +165,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Library (foldered, readable, exportable brain view) + decision awareness
+Two user asks: a browsable "folders" view and awareness of what Soumaya decides.
+- **Library tab (`components/LibraryPanel.tsx`):** every memory filed into folders by kind — People,
+  Companies, Projects, Decisions, Meetings, Daily notes, Knowledge, Concepts, and Constellations (MOCs).
+  Collapsible folders (newest-first), read the note body inline, click to fly to it, and **export** a
+  single note / a whole folder / the entire brain as Markdown (dependency-free Blob download). Wired as
+  a new RightDock tab (📚). Read-only, offline. Help entry added.
+- **Decision awareness:** `soumaya.ts` emits a `brain-agent-decision` window event when she picks a
+  consequential job (research/merge/sector-vibe/daily-log); App shows a toast + Inbox entry. Routine
+  patrols stay quiet. Help entry added.
+- Gate: typecheck clean · 128 server tests · web build clean.
+
 ### 2026-06-30 (Claude): Sun collision — nothing gets near the Sun anymore (measured)
 The recurring "planets drift into the Sun" bug, fixed for real and proven by measurement.
 - **Root cause (reproduced):** orbits only guaranteed the *top-level* shell cleared the Sun. But the
