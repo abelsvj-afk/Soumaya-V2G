@@ -18,7 +18,10 @@ export type SfxName =
   | "achievement"
   | "error"
   | "delete"
-  | "welcome";
+  | "welcome"
+  | "thrust" // Soumaya accelerating away (blast-off whoosh + rumble)
+  | "decel" // Soumaya arriving / slowing to a stop
+  | "dock"; // clamping onto the station to recharge
 
 const ENABLED_KEY = "sfx.enabled";
 const VOLUME_KEY = "sfx.volume";
@@ -114,6 +117,34 @@ function tone(
   osc.stop(t0 + opts.dur + 0.02);
 }
 
+/** A band-pass-swept white-noise burst — the core of "whoosh"/thruster sounds. */
+function noiseSweep(
+  ac: AudioContext,
+  opts: { dur: number; from: number; to: number; gain: number; q?: number; delay?: number },
+): void {
+  const t0 = ac.currentTime + (opts.delay ?? 0);
+  const len = Math.max(1, Math.floor(ac.sampleRate * opts.dur));
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const filt = ac.createBiquadFilter();
+  filt.type = "bandpass";
+  filt.Q.value = opts.q ?? 1;
+  filt.frequency.setValueAtTime(opts.from, t0);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(1, opts.to), t0 + opts.dur);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0002, opts.gain), t0 + Math.min(0.08, opts.dur * 0.2));
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
+  src.connect(filt);
+  filt.connect(g);
+  g.connect(master!);
+  src.start(t0);
+  src.stop(t0 + opts.dur + 0.02);
+}
+
 // Sound recipes. Short (<0.5s); the master gain scales them. Gains are punchy so a
 // click reads clearly ON TOP of the ambient music (which also ducks — see below).
 const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
@@ -139,6 +170,21 @@ const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
   welcome: (ac) => {
     tone(ac, { freq: 440, type: "sine", dur: 0.3, gain: 0.3 });
     tone(ac, { freq: 660, type: "sine", dur: 0.5, gain: 0.3, delay: 0.14 });
+  },
+  // Blast-off: a low engine rumble igniting under a rising thruster whoosh.
+  thrust: (ac) => {
+    tone(ac, { freq: 70, glideTo: 130, type: "sawtooth", dur: 0.5, gain: 0.22 });
+    noiseSweep(ac, { dur: 0.5, from: 180, to: 1500, gain: 0.22, q: 0.8 });
+  },
+  // Arrival: the whoosh falls and the engine rumble winds down as she stops.
+  decel: (ac) => {
+    tone(ac, { freq: 150, glideTo: 68, type: "sawtooth", dur: 0.45, gain: 0.18 });
+    noiseSweep(ac, { dur: 0.45, from: 1400, to: 260, gain: 0.2, q: 0.9 });
+  },
+  // Docking clamp: a metallic thunk + a short pneumatic hiss.
+  dock: (ac) => {
+    tone(ac, { freq: 150, glideTo: 90, type: "square", dur: 0.1, gain: 0.24 });
+    noiseSweep(ac, { dur: 0.2, from: 900, to: 400, gain: 0.16, q: 1.4, delay: 0.06 });
   },
 };
 

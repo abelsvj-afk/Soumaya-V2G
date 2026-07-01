@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { gltfLoader } from "./gltf.js";
 import { SUN_RADIUS_MAX } from "./sun.js";
 import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
+import { playSfx } from "./sfx.js";
 
 /** Free GPU resources for a swapped-out ship model so skin changes don't leak VRAM. */
 function disposeModel(obj: THREE.Object3D): void {
@@ -416,6 +417,11 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let lastTaskText = "";
   let bank = 0; // current banked roll (smoothed toward target each frame)
   let currentVel = 0; // her current speed (units/sec) — drives propulsion glow, trail, streaks
+  // Propulsion-audio state: last-frame speed/mode + a cooldown so thruster/decel cues
+  // fire once per hop, not every frame.
+  let prevVelSfx = 0;
+  let prevModeSfx = "idle";
+  let lastFlightSfx = 0;
 
   let mode:
     | "travel"
@@ -1266,6 +1272,22 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         const SUN_CLEAR = SUN_RADIUS_MAX + 350; // 950 — comfortably around, not touching
         if (!activeRemoval && group.position.lengthSq() > 1 && group.position.length() < SUN_CLEAR) {
           group.position.setLength(SUN_CLEAR);
+        }
+        // Propulsion audio: a thruster whoosh when she accelerates away, a decel hiss
+        // when she arrives/stops. Hysteresis + cooldown so it fires once per hop, not
+        // every frame. (sfx are self-gated by the enable/reduced-motion setting.)
+        {
+          const nowSfx = performance.now();
+          if (currentVel > 14 && prevVelSfx <= 14 && nowSfx - lastFlightSfx > 450) {
+            playSfx("thrust");
+            lastFlightSfx = nowSfx;
+          } else if (currentVel < 4 && prevVelSfx >= 4 && nowSfx - lastFlightSfx > 450) {
+            playSfx("decel");
+            lastFlightSfx = nowSfx;
+          }
+          if (mode === "docking" && prevModeSfx !== "docking") playSfx("dock");
+          prevVelSfx = currentVel;
+          prevModeSfx = mode;
         }
         updatePlume(dt);
       } catch {
