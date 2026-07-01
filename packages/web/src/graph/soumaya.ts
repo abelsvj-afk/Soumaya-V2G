@@ -490,9 +490,32 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     };
   };
 
+  // Awareness: tell the user when Soumaya *decides* to do something consequential
+  // (research, merge, chart a sector, write the log) — not routine patrols/pruning.
+  // Decoupled via a window event so this graph module doesn't depend on the UI layer;
+  // App turns it into a toast + inbox entry. Deduped so a queued job announces once.
+  const NOTABLE_DECISIONS = new Set(["research", "merging", "sector_vibe", "daily_log"]);
+  const announcedDecisions = new Set<string>();
+  const announceDecision = (job: MaintenanceJob | null) => {
+    if (!job || !NOTABLE_DECISIONS.has(job.type)) return;
+    const key = `${job.type}-${job.targets[0] ?? "x"}`;
+    if (announcedDecisions.has(key)) return;
+    if (announcedDecisions.size > 200) announcedDecisions.clear();
+    announcedDecisions.add(key);
+    try {
+      window.dispatchEvent(
+        new CustomEvent("brain-agent-decision", {
+          detail: { type: job.type, text: job.rationale?.objective || job.description || "" },
+        }),
+      );
+    } catch {
+      /* SSR / no window — ignore */
+    }
+  };
+
   const fillPlannedMaintenance = async (nodes: any[]) => {
     if (isFetching || nodes.length === 0) return;
-    
+
     while (plannedMaintenance.length < 3) {
       let job: MaintenanceJob | null = null;
       try {
@@ -519,6 +542,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       }
       
       if (job) {
+        announceDecision(job);
         plannedMaintenance.push(job);
         const id = `planned-maint-${job.targets[0]}`;
         if (!taskOrder.includes(id)) {
@@ -536,6 +560,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     isFetching = true;
     try {
       currentJob = await getNextMaintenanceJob();
+      announceDecision(currentJob);
     } catch (err) {
       // Fallback: local random patrol
       const candidates = nodes.filter((n) => n.x != null);

@@ -237,6 +237,21 @@ export default function App() {
     if (!audioRef.current) audioRef.current = makeAmbientAudio();
   }, []);
 
+  // Awareness: surface Soumaya's consequential decisions (research, merge, chart a
+  // sector, write the log) as a toast + inbox entry, so you always know what she chose
+  // to do — not just see it after the fact in her activity log.
+  useEffect(() => {
+    const onDecision = (e: Event) => {
+      const d = (e as CustomEvent).detail as { type?: string; text?: string } | undefined;
+      if (!d?.text) return;
+      const icon =
+        d.type === "research" ? "🔬" : d.type === "merging" ? "🧬" : d.type === "daily_log" ? "📖" : "🌌";
+      pushToast(`Soumaya · ${d.text}`, icon, 6500);
+    };
+    window.addEventListener("brain-agent-decision", onDecision);
+    return () => window.removeEventListener("brain-agent-decision", onDecision);
+  }, []);
+
   const toggleMusic = useCallback(() => {
     if (!audioRef.current) audioRef.current = makeAmbientAudio();
     setMusic(audioRef.current.toggle());
