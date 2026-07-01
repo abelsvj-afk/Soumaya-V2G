@@ -165,6 +165,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Fix — links disappearing and not coming back
+User: on open, connection links show (green as Soumaya draws them) then vanish within a minute with no
+obvious way back. Cause: new connections are hidden (`pendingLinksRef`) until Soumaya flies out and
+"draws" each one; a batch of new links gets hidden faster than she can draw them (worse now autonomy
+runs in the background), so they linger hidden.
+- **`graph/Graph3D.tsx`:** `pendingLinksRef` is now a timestamped `Map`. Per refresh only the first
+  `HIDE_DRAW_CAP` (4) new links are hidden for the draw animation — the rest appear immediately (a bulk
+  sync shouldn't blank the galaxy). A per-second **safety sweep reveals any link still pending after
+  `PENDING_REVEAL_MS` (9s)**, so a connection can never stay hidden regardless of what Soumaya is doing.
+- Also raised the "unlit" link opacity floor (0.08 → 0.16) so links stay faintly visible — not "gone" —
+  when a memory is focused.
+- Gate: typecheck clean · 134 server tests · web build clean.
+
 ### 2026-06-30 (Claude): 2D motion pass — the interface now feels alive
 Third audit score-lifter (Animation: the 3D world was a 9, the UI a 3). Spec: `docs/specs/motion-pass.md`.
 - **Panels/overlays glide in** (`.panel`, `.help-overlay` → `panel-in` fade+slide+scale) instead of popping.

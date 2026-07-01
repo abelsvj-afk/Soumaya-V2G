@@ -518,14 +518,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (datasetSwitched) initialFramedRef.current = false;
       }
     } else {
-      // New CONNECTIONS: Soumaya flies out and draws them (hidden until then).
+      // New CONNECTIONS: Soumaya flies out and draws the first few (hidden until then);
+      // any beyond the cap appear immediately so a batch never blanks the galaxy.
       const fresh: LinkTask[] = [];
+      const now = performance.now();
       for (const l of data.links as any[]) {
         const k = linkKey(l);
         if (!knownLinksRef.current.has(k)) {
           knownLinksRef.current.add(k);
-          pendingLinksRef.current.add(k); // hide it until Soumaya draws it
-          fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+          if (fresh.length < HIDE_DRAW_CAP) {
+            pendingLinksRef.current.set(k, now); // hide it until Soumaya draws it (or the sweep reveals it)
+            fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+          }
         }
       }
       if (fresh.length > 0) {
@@ -630,7 +634,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Tracks the demo flag across data updates so a demo<->real swap re-baselines links.
   const prevDemoRef = useRef(!!demo);
   // New links stay hidden until Soumaya physically flies out and connects them.
-  const pendingLinksRef = useRef<Set<string>>(new Set());
+  // Links Soumaya hasn't "drawn" yet are hidden briefly for the fly-out animation.
+  // Stored key → time-added (ms) so a safety sweep can auto-reveal any that linger,
+  // and so a big batch never leaves the galaxy looking disconnected.
+  const pendingLinksRef = useRef<Map<string, number>>(new Map());
+  // Cap how many new links are hidden-for-drawing per refresh; the rest show at once
+  // (a bulk background sync isn't a "watch her draw one connection" moment).
+  const HIDE_DRAW_CAP = 4;
+  // No pending link stays hidden longer than this, whatever Soumaya is busy with.
+  const PENDING_REVEAL_MS = 9000;
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const visitorsRef = useRef<VisitorSystem | null>(null);
@@ -871,6 +883,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let visitFlushT = 20;
     // Phase 3: how often to scan for decayed links to send Soumaya to repair.
     let repairScanT = 18;
+    let pendingSweepT = 0; // reveals links Soumaya hasn't gotten to, so none stay hidden
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -966,6 +979,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             .map(({ l, key }) => ({ source: linkEnd(l.source), target: linkEnd(l.target), key }));
           if (stale.length > 0) soumayaHandleRef.current?.enqueueLinks(stale);
         }
+      }
+
+      // Safety sweep: reveal any link Soumaya hasn't drawn within PENDING_REVEAL_MS,
+      // so a hidden link can never linger (she may be busy docking/maintaining). This
+      // is what guarantees connections don't quietly disappear and never come back.
+      pendingSweepT -= dt;
+      if (pendingSweepT <= 0 && pendingLinksRef.current.size > 0) {
+        pendingSweepT = 1; // check ~once a second
+        const nowMs = performance.now();
+        let revealed = false;
+        for (const [k, t] of pendingLinksRef.current) {
+          if (nowMs - t > PENDING_REVEAL_MS) {
+            pendingLinksRef.current.delete(k);
+            revealed = true;
+          }
+        }
+        if (revealed) fgRef.current?.refresh?.();
       }
 
       // Persist visitor arrivals in batches.
@@ -1868,7 +1898,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        if (!lit) return "rgba(110, 115, 140, 0.08)"; // raised unlit floor to prevent flickering/glitchy fade
+        if (!lit) return "rgba(120, 128, 158, 0.16)"; // dimmed but still visible when a node is focused (never "gone")
         
         const activity = getLinkActivity(l);
         const camera = fgRef.current?.camera();
