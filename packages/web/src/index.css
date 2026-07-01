@@ -2787,3 +2787,54 @@ button {
   0%, 100% { box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 0 0 rgba(91,214,255,0.5); }
   50% { box-shadow: 0 6px 24px rgba(0,0,0,0.5), 0 0 0 10px rgba(91,214,255,0); }
 }
+
+/* ============================================================================
+   2D MOTION PASS — make the interface feel as alive as the galaxy.
+   Enter animations for panels, staggered list reveals, tactile button press,
+   spring toasts. All gated behind prefers-reduced-motion at the bottom.
+   ============================================================================ */
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)   scale(1); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Panels & overlays glide in instead of popping. */
+.panel { animation: panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.help-overlay { animation: panel-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* Tactile press feedback on every button (FABs keep their own transforms —
+   they get a brightness pulse instead so nothing jumps). */
+button:not(.fab):active { transform: scale(0.96); }
+button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, border-color 0.15s ease; }
+.fab:active { filter: brightness(1.25); }
+
+/* Staggered fade-up for the content lists people scan (first 8 rows cascade). */
+.insights li,
+.help-cards-grid .help-card,
+.awards-grid .award-card,
+.sector-card {
+  animation: fade-up 0.32s ease both;
+}
+.insights li:nth-child(1),  .help-cards-grid .help-card:nth-child(1),  .awards-grid .award-card:nth-child(1),  .sector-card:nth-child(1)  { animation-delay: 0.02s; }
+.insights li:nth-child(2),  .help-cards-grid .help-card:nth-child(2),  .awards-grid .award-card:nth-child(2),  .sector-card:nth-child(2)  { animation-delay: 0.05s; }
+.insights li:nth-child(3),  .help-cards-grid .help-card:nth-child(3),  .awards-grid .award-card:nth-child(3),  .sector-card:nth-child(3)  { animation-delay: 0.08s; }
+.insights li:nth-child(4),  .help-cards-grid .help-card:nth-child(4),  .awards-grid .award-card:nth-child(4),  .sector-card:nth-child(4)  { animation-delay: 0.11s; }
+.insights li:nth-child(5),  .help-cards-grid .help-card:nth-child(5),  .awards-grid .award-card:nth-child(5),  .sector-card:nth-child(5)  { animation-delay: 0.14s; }
+.insights li:nth-child(6),  .help-cards-grid .help-card:nth-child(6),  .awards-grid .award-card:nth-child(6),  .sector-card:nth-child(6)  { animation-delay: 0.17s; }
+.insights li:nth-child(7),  .help-cards-grid .help-card:nth-child(7),  .awards-grid .award-card:nth-child(7),  .sector-card:nth-child(7)  { animation-delay: 0.20s; }
+.insights li:nth-child(8),  .help-cards-grid .help-card:nth-child(8),  .awards-grid .award-card:nth-child(8),  .sector-card:nth-child(8)  { animation-delay: 0.23s; }
+
+/* Respect the OS: no motion when the user asks for less. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

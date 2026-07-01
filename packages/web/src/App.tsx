@@ -48,6 +48,7 @@ import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { WelcomeBackCard } from "./components/WelcomeBackCard.js";
 import { playSfx } from "./graph/sfx.js";
+import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
@@ -296,6 +297,9 @@ export default function App() {
   // A fake "fuller galaxy" preview — generated once, never persisted/weighted.
   const demoData = useMemo(() => makeDemoGalaxy(), []);
   const view = demo ? demoData : data;
+  // Tweened HUD counters — ease instead of snapping (honors reduced-motion).
+  const memCountShown = useCountUp(view.nodes.length);
+  const streakShown = useCountUp(streak?.current ?? 0);
 
   // Soumaya's flight speed grows as you use the brain: more memories + a live
   // streak make her a faster, more seasoned pilot (1.0 → ~1.9×). Distance-aware
@@ -801,7 +805,7 @@ export default function App() {
           )}
           {health && (
             <span className="status">
-              {(demo ? demoData : data).nodes.length} memories · {llmStatus}
+              {memCountShown} memories · {llmStatus}
             </span>
           )}
           {fuel && !demo && (
@@ -827,7 +831,7 @@ export default function App() {
                 streak.best > streak.current ? ` (best: ${streak.best})` : ""
               }. Keep it alive: log at least one memory a day.`}
             >
-              🔥 {streak.current}
+              🔥 {streakShown}
             </span>
           )}
           {installPrompt && (

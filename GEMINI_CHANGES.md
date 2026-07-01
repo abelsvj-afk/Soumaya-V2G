@@ -165,6 +165,17 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): 2D motion pass — the interface now feels alive
+Third audit score-lifter (Animation: the 3D world was a 9, the UI a 3). Spec: `docs/specs/motion-pass.md`.
+- **Panels/overlays glide in** (`.panel`, `.help-overlay` → `panel-in` fade+slide+scale) instead of popping.
+- **Tactile button press** — `button:not(.fab):active` scale-squish app-wide; FABs get a brightness pulse.
+- **Staggered list reveals** — insights/help/award/sector items `fade-up` with coarse nth-child cascade.
+- **Number tweens** — `hooks/useCountUp.ts` (rAF easeOutCubic, reduced-motion-aware) eases the HUD memory
+  count + streak instead of snapping.
+- **Reduced-motion guard** — global `@media (prefers-reduced-motion: reduce)` collapses all motion (also
+  covers the sound kit's default). No dependencies; CSS + one tiny hook.
+- Gate: typecheck clean · **134 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): UI Sound Kit — the app is no longer silent
 Closes the audit's #1 gap (Audio 3/10). Spec: `docs/specs/sound-kit.md`.
 - **`graph/sfx.ts`:** dependency-free, procedural Web Audio engine — 10 sounds synthesized at runtime
