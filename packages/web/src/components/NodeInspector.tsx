@@ -5,6 +5,7 @@ import { pushToast } from "./Toasts.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { Chronicle } from "./Chronicle.js";
+import { MemoryAttachments } from "./MemoryAttachments.js";
 
 interface Props {
   node: GraphNode | null;
@@ -258,6 +259,8 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       )}
 
       {node.kind !== "action" && <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />}
+
+      {node.kind !== "action" && <MemoryAttachments nodeId={node.id} demo={demo} />}
 
       <div className="weight">
         <div className="weight-head">

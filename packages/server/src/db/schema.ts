@@ -171,6 +171,26 @@ export const knowledgeChunks = sqliteTable(
   (t) => [index("knowledge_chunks_doc_idx").on(t.docId)],
 );
 
+/** A file attached to a specific memory note — the downloadable "doc kept inside a
+ *  memory". Bytes are stored base64 in `data` (small docs; capped at the route). */
+export const attachments = sqliteTable(
+  "attachments",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    nodeId: integer("node_id")
+      .notNull()
+      .references(() => nodes.id),
+    filename: text("filename").notNull(),
+    mime: text("mime").notNull().default("application/octet-stream"),
+    size: integer("size").notNull().default(0),
+    data: text("data").notNull(), // base64-encoded bytes
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("attachments_node_idx").on(t.nodeId)],
+);
+export type AttachmentRow = typeof attachments.$inferSelect;
+
 /** AI Companion — "About Me": who the user is (singleton per brain). She's aware, never becomes them. */
 export const userPersona = sqliteTable("user_persona", {
   spaceId: text("space_id").primaryKey(),

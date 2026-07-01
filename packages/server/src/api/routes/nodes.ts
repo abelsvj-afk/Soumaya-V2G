@@ -6,12 +6,21 @@ import { insights, nodes } from "../../db/schema.js";
 import { upsertEmbedding } from "../../db/vec.js";
 import { GraphService } from "../../graph/service.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
+import { AttachmentsRepo } from "../../repositories/attachments.repo.js";
 import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
 import { requestMaintenance } from "../../maintenance/agent.js";
 import { spaceOf } from "../middleware.js";
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
 const PatchBody = z.object({ importance: z.number().min(0).max(1).nullable() });
+
+// Attachment upload: base64 bytes capped so it fits the JSON body limit (~4mb).
+const MAX_ATTACHMENT_BYTES = 2_500_000; // 2.5 MB decoded
+const AttachmentBody = z.object({
+  filename: z.string().min(1).max(255),
+  mime: z.string().max(255).default("application/octet-stream"),
+  data: z.string().min(1).max(4_000_000), // base64 (~2.9MB decoded ceiling)
+});
 
 export function nodesRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -28,6 +37,74 @@ export function nodesRoutes(ctx: AppContext): Router {
     }
     const ok = new NodesRepo(ctx.handle, spaceOf(res)).tend(id);
     res.json({ ok });
+  });
+
+  // --- Attachments: downloadable documents kept inside a memory note ---
+
+  // GET /api/nodes/:id/attachments -> metadata for this memory's files (no bytes).
+  r.get("/:id/attachments", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    res.json(new AttachmentsRepo(ctx.handle, spaceOf(res)).listByNode(id));
+  });
+
+  // POST /api/nodes/:id/attachments -> attach a file (base64) to this memory.
+  r.post("/:id/attachments", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = AttachmentBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid attachment", issues: parsed.error.issues });
+      return;
+    }
+    const repo = new AttachmentsRepo(ctx.handle, spaceOf(res));
+    if (!repo.ownsNode(id)) {
+      res.status(404).json({ error: "No such memory in this brain." });
+      return;
+    }
+    // Normalize a possible data-URL prefix and reject anything over the cap.
+    const raw = parsed.data.data;
+    const b64 = raw.includes("base64,") ? raw.slice(raw.indexOf("base64,") + 7) : raw;
+    const size = Math.floor((b64.length * 3) / 4);
+    if (size > MAX_ATTACHMENT_BYTES) {
+      res.status(413).json({ error: `File too large (max ${(MAX_ATTACHMENT_BYTES / 1e6).toFixed(1)} MB).` });
+      return;
+    }
+    res.json(repo.create(id, parsed.data.filename, parsed.data.mime, size, b64));
+  });
+
+  // GET /api/nodes/:id/attachments/:attId/download -> the file bytes.
+  r.get("/:id/attachments/:attId/download", (req, res) => {
+    const attId = Number(req.params.attId);
+    if (!Number.isInteger(attId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const row = new AttachmentsRepo(ctx.handle, spaceOf(res)).get(attId);
+    if (!row || row.nodeId !== Number(req.params.id)) {
+      res.status(404).json({ error: "Attachment not found." });
+      return;
+    }
+    const buf = Buffer.from(row.data, "base64");
+    res.setHeader("Content-Type", row.mime || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${row.filename.replace(/"/g, "")}"`);
+    res.send(buf);
+  });
+
+  // DELETE /api/nodes/:id/attachments/:attId -> remove a file.
+  r.delete("/:id/attachments/:attId", (req, res) => {
+    const attId = Number(req.params.attId);
+    if (!Number.isInteger(attId)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    res.json({ ok: new AttachmentsRepo(ctx.handle, spaceOf(res)).delete(attId) });
   });
 
   // POST /api/nodes/:id/request-maintenance -> ask Soumaya to prioritize tending

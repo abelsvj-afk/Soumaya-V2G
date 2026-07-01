@@ -1,4 +1,4 @@
-import type { ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
+import type { Attachment, ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -574,6 +574,58 @@ export async function getEvolutionLinks(): Promise<EvolutionLink[]> {
   } catch {
     return [];
   }
+}
+
+/** Files attached to a memory note (metadata only). */
+export async function listAttachments(nodeId: number): Promise<Attachment[]> {
+  try {
+    const res = await afetch(`${API}/nodes/${nodeId}/attachments`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Attach a file (read as base64) to a memory note. Returns the metadata or throws. */
+export async function addAttachment(
+  nodeId: number,
+  file: { filename: string; mime: string; data: string },
+): Promise<Attachment> {
+  const res = await afetch(`${API}/nodes/${nodeId}/attachments`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(file),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Upload failed (${res.status})`);
+  }
+  return res.json() as Promise<Attachment>;
+}
+
+export async function deleteAttachment(nodeId: number, attId: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/nodes/${nodeId}/attachments/${attId}`, { method: "DELETE" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Download an attachment's bytes (sends the auth header, then triggers a save). */
+export async function downloadAttachment(att: Attachment): Promise<void> {
+  const res = await afetch(`${API}/nodes/${att.nodeId}/attachments/${att.id}/download`);
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = att.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Dormant skills/goals/projects worth reviving (free, offline-safe). */

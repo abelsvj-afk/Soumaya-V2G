@@ -352,6 +352,16 @@ export interface DormantItem {
   prompt: string;
 }
 
+/** Metadata for a file attached to a memory note (bytes fetched separately on download). */
+export interface Attachment {
+  id: number;
+  nodeId: number;
+  filename: string;
+  mime: string;
+  size: number;
+  createdAt: string;
+}
+
 /** Answer from chat-with-your-brain (GraphRAG), with node citations. */
 export interface ChatResponse {
   answer: string;

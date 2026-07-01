@@ -145,6 +145,17 @@ export function bootstrapSchema(sqlite: RawDb): void {
       content TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS knowledge_chunks_doc_idx ON knowledge_chunks(doc_id);
+    CREATE TABLE IF NOT EXISTS attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      node_id INTEGER NOT NULL REFERENCES nodes(id),
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size INTEGER NOT NULL DEFAULT 0,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS attachments_node_idx ON attachments(node_id);
     CREATE TABLE IF NOT EXISTS user_persona (
       space_id TEXT PRIMARY KEY,
       body TEXT NOT NULL,
@@ -350,6 +361,17 @@ function migrateSchema(sqlite: RawDb): void {
       content TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS knowledge_chunks_doc_idx ON knowledge_chunks(doc_id);
+    CREATE TABLE IF NOT EXISTS attachments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      node_id INTEGER NOT NULL REFERENCES nodes(id),
+      filename TEXT NOT NULL,
+      mime TEXT NOT NULL DEFAULT 'application/octet-stream',
+      size INTEGER NOT NULL DEFAULT 0,
+      data TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS attachments_node_idx ON attachments(node_id);
     CREATE TABLE IF NOT EXISTS user_persona (
       space_id TEXT PRIMARY KEY,
       body TEXT NOT NULL,

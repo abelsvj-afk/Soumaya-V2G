@@ -165,6 +165,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Downloadable documents attached to a memory note
+The confirmed follow-up: keep a file *inside* a memory.
+- **Storage:** new `attachments` table (space_id, node_id, filename, mime, size, base64 data) — created
+  via bootstrap `CREATE TABLE IF NOT EXISTS` so existing Fly volumes get it on boot (no ALTER). Shared
+  `Attachment` metadata type; `AttachmentsRepo` (space-scoped, ownership-checked; metadata never carries
+  bytes).
+- **Routes (`nodes.ts`):** POST/GET `/:id/attachments`, GET `/:id/attachments/:attId/download` (streams
+  bytes with content-disposition), DELETE. zod-validated; 2.5 MB cap (fits the 4mb JSON limit); 413 on
+  oversize; 404 if the node isn't in your brain.
+- **UI:** `MemoryAttachments` in the memory Details (ⓘ) — pick a file (read to base64), list with
+  one-tap download (auth-header fetch → blob) + remove. Disabled in demo.
+- **Help:** "Attach files to a memory" entry.
+- 2 new tests (incl. cross-brain scoping); gate: typecheck clean · **130 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Library (foldered, readable, exportable brain view) + decision awareness
 Two user asks: a browsable "folders" view and awareness of what Soumaya decides.
 - **Library tab (`components/LibraryPanel.tsx`):** every memory filed into folders by kind — People,
