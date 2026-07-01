@@ -107,7 +107,11 @@ setInterval(() => {
 // upkeep always runs. So with Research Mode off it just keeps brains tidy for free,
 // and it can never exceed the budget. Patrol (a pure no-op log) is skipped to avoid
 // log spam. A re-entrancy guard prevents overlapping ticks if an LLM job runs long.
-if (process.env.AUTONOMY === "on") {
+// On by default now (the "while you were away" companion needs her working in the
+// background). Fully gated — free upkeep always runs, but paid/LLM work still needs
+// Research Mode + budget + Fuel, and withClaim prevents double-running with a browser
+// tab — so it can never overspend. Set AUTONOMY=off to disable entirely.
+if (process.env.AUTONOMY !== "off") {
   const AUTONOMY_MS = Number(process.env.AUTONOMY_MS ?? 1000 * 60 * 5);
   let running = false;
   setInterval(async () => {

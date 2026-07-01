@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import type { GraphData, GraphNode, Fuel, Streak } from "@brain/shared";
+import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
 
 /** Pop-up offset for an item in the focus cluster (stacks upward when open). */
@@ -46,6 +46,7 @@ import { SettingsPanel } from "./components/SettingsPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
+import { WelcomeBackCard } from "./components/WelcomeBackCard.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
@@ -59,6 +60,8 @@ import {
   getFuel,
   getStreak,
   getDigest,
+  getAwayDigest,
+  markAwaySeen,
   flushIngestQueue,
   logoutSpace,
   onAiActivity,
@@ -85,6 +88,7 @@ export default function App() {
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
   const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
   const obsShownRef = useRef(false);
@@ -236,6 +240,24 @@ export default function App() {
   useEffect(() => {
     if (!audioRef.current) audioRef.current = makeAmbientAudio();
   }, []);
+
+  // "While you were away" — on return, fetch what changed since the last visit. Show
+  // the welcome-back card only after a real absence (≥1h) with something to say;
+  // otherwise silently advance the window so a quick refresh never nags.
+  useEffect(() => {
+    if (!space || demo) return;
+    let alive = true;
+    getAwayDigest()
+      .then((d) => {
+        if (!alive) return;
+        if (d && !d.isEmpty && d.awayMs >= 3_600_000) setAwayDigest(d);
+        else void markAwaySeen();
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [space, demo]);
 
   // Awareness: surface Soumaya's consequential decisions (research, merge, chart a
   // sector, write the log) as a toast + inbox entry, so you always know what she chose
@@ -1109,6 +1131,17 @@ export default function App() {
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           onCreated={(ids) => void refresh(ids)}
+        />
+      )}
+
+      {awayDigest && !demo && space && (
+        <WelcomeBackCard
+          digest={awayDigest}
+          onFocus={(id) => graphRef.current?.focusNode(id)}
+          onClose={() => {
+            setAwayDigest(null);
+            void markAwaySeen();
+          }}
         />
       )}
 

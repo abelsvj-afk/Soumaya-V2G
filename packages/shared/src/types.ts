@@ -352,6 +352,37 @@ export interface DormantItem {
   prompt: string;
 }
 
+/** One grouped line of autonomous work Soumaya did while you were away. */
+export interface AwayAction {
+  type: string;
+  count: number;
+  label: string;
+}
+
+/** The "while you were away" companion digest — what changed since your last visit. */
+export interface AwayDigest {
+  /** ISO timestamp of your previous visit (null on first ever visit). */
+  since: string | null;
+  /** Milliseconds since that visit. */
+  awayMs: number;
+  /** In-character summary line. */
+  greeting: string;
+  /** Grouped autonomous actions Soumaya took (connected/researched/merged…). */
+  agentActions: AwayAction[];
+  /** Contradictions surfaced while away. */
+  newContradictions: number;
+  /** Action items that expired while away. */
+  expiredActions: number;
+  /** Reminders that came due while away (click to fly to them). */
+  dueReminders: { id: number; label: string }[];
+  /** A dormant memory worth resurfacing today, if any. */
+  resurfaced: { id: number; label: string; dormantDays: number } | null;
+  /** Memories cooling from neglect. */
+  cooling: number;
+  /** True when there's nothing worth showing (first visit / quiet). */
+  isEmpty: boolean;
+}
+
 /** Metadata for a file attached to a memory note (bytes fetched separately on download). */
 export interface Attachment {
   id: number;

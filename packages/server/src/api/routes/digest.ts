@@ -9,6 +9,7 @@ import { buildDormantList } from "../../analysis/dormant.js";
 import { buildEvolutionLinks } from "../../analysis/temporalChains.js";
 import { buildLifeAreaCounts } from "../../analysis/lifeAreas.js";
 import { buildSelfReview } from "../../analysis/selfReview.js";
+import { buildAwayDigest, markSeen } from "../../analysis/awayDigest.js";
 import { spaceOf } from "../middleware.js";
 
 export function digestRoutes(ctx: AppContext): Router {
@@ -47,6 +48,17 @@ export function digestRoutes(ctx: AppContext): Router {
   // GET /api/digest/self-review -> Soumaya's read-only coverage self-check (free, offline)
   r.get("/self-review", (_req, res) => {
     res.json(buildSelfReview(ctx.handle, spaceOf(res)));
+  });
+
+  // GET /api/digest/away -> "while you were away" digest since last visit (read-only)
+  r.get("/away", (_req, res) => {
+    res.json(buildAwayDigest(ctx.handle, spaceOf(res)));
+  });
+
+  // POST /api/digest/away/seen -> advance the "last visit" window to now
+  r.post("/away/seen", (_req, res) => {
+    markSeen(ctx.handle, spaceOf(res), new Date().toISOString());
+    res.json({ ok: true });
   });
 
   // POST /api/digest/run -> scan for latent connections and synthesize new insights

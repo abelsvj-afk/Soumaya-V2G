@@ -294,6 +294,10 @@ function migrateSchema(sqlite: RawDb): void {
     if (!metaCols.some((c) => c.name === "last_active_date")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_active_date TEXT`);
     }
+    // Timestamp of the user's last visit — drives the "while you were away" digest.
+    if (!metaCols.some((c) => c.name === "last_seen_at")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_seen_at TEXT`);
+    }
   }
 
   sqlite.exec(`

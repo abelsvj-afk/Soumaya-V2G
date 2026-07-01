@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): "While you were away" companion digest + 24/7 autonomy on by default
+The keystone from the UX/Audio/Habit audit — the app now works for you in the background and greets
+you with what it did. Spec: `docs/specs/away-digest.md`.
+- **Autonomy on by default:** flipped `index.ts` from opt-in (`AUTONOMY=on`) to opt-out (`AUTONOMY=off`
+  to disable). Already fully gated — free upkeep always runs; paid/LLM work still needs Research Mode +
+  budget + Fuel, and `withClaim` prevents double-running with an open tab — so it can never overspend.
+- **Away digest:** `space_meta.last_seen_at` (additive migration) marks each visit; `analysis/awayDigest.ts`
+  `buildAwayDigest` reports since-last-visit — grouped autonomous actions (from `agent_logs`: connected/
+  deep-dived/fused/charted/logged), new contradictions, expired actions, reminders that came due,
+  cooling count, and a resurfaced dormant memory. Heuristic, offline, read-only. `GET /api/digest/away`
+  + `POST /api/digest/away/seen`; shared `AwayDigest` type.
+- **UI:** `WelcomeBackCard` overlay shown on return after a real absence (≥1h) with something to say —
+  greeting + "she tended" lines + "waiting for you" + a resurfaced memory (click to fly). A quick refresh
+  never nags; the window still advances silently. Help entry added.
+- 4 new tests; gate: typecheck clean · **134 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Downloadable documents attached to a memory note
 The confirmed follow-up: keep a file *inside* a memory.
 - **Storage:** new `attachments` table (space_id, node_id, filename, mime, size, base64 data) — created

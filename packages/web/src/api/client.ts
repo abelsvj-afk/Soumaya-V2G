@@ -1,4 +1,4 @@
-import type { Attachment, ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
+import type { Attachment, AwayDigest, ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
 
 const API = "/api";
@@ -551,6 +551,26 @@ export async function getLifeAreas(): Promise<LifeAreaCount[]> {
     return Array.isArray(d) ? d : [];
   } catch {
     return [];
+  }
+}
+
+/** "While you were away" digest — what changed since your last visit. */
+export async function getAwayDigest(): Promise<AwayDigest | null> {
+  try {
+    const res = await afetch(`${API}/digest/away`);
+    const d = await res.json().catch(() => null);
+    return d && typeof d === "object" ? (d as AwayDigest) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Advance the "last visit" window to now (after showing / skipping the welcome-back card). */
+export async function markAwaySeen(): Promise<void> {
+  try {
+    await afetch(`${API}/digest/away/seen`, { method: "POST" });
+  } catch {
+    /* best-effort */
   }
 }
 
