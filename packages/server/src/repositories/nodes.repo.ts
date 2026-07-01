@@ -147,6 +147,8 @@ export class NodesRepo {
       if (!owns) return false;
       this.h.sqlite.prepare(`DELETE FROM edges WHERE source = ? OR target = ?`).run(id, id);
       this.h.sqlite.prepare(`DELETE FROM insights WHERE node_a = ? OR node_b = ?`).run(id, id);
+      // Drop attached files too, so deleting a memory can't orphan multi-MB blobs.
+      this.h.sqlite.prepare(`DELETE FROM attachments WHERE node_id = ?`).run(id);
       deleteEmbedding(this.h.sqlite, id);
       const info = this.h.sqlite.prepare(`DELETE FROM nodes WHERE id = ?`).run(id);
       return info.changes > 0;

@@ -4,6 +4,21 @@ import { gltfLoader } from "./gltf.js";
 import { SUN_RADIUS_MAX } from "./sun.js";
 import { getNextMaintenanceJob, completeMaintenanceJob, type MaintenanceJob } from "../api/client.js";
 
+/** Free GPU resources for a swapped-out ship model so skin changes don't leak VRAM. */
+function disposeModel(obj: THREE.Object3D): void {
+  obj.traverse((o: any) => {
+    o.geometry?.dispose?.();
+    const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+    for (const m of mats) {
+      for (const k in m) {
+        const v = (m as any)[k];
+        if (v && v.isTexture) v.dispose?.();
+      }
+      m.dispose?.();
+    }
+  });
+}
+
 /** A connection Soumaya should personally fly out and forge (source → target). */
 export interface LinkTask {
   id?: string;
@@ -189,9 +204,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let currentLoadedModel: THREE.Object3D | null = null;
 
   const setShipSkin = (skin: string) => {
-    // Remove the previously loaded glTF model from group
+    // Remove the previously loaded glTF model from group (and free its VRAM)
     if (currentLoadedModel) {
       group.remove(currentLoadedModel);
+      disposeModel(currentLoadedModel);
       currentLoadedModel = null;
     }
     
@@ -235,6 +251,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         // If we loaded another model in the meantime, discard this one
         if (currentLoadedModel) {
           group.remove(currentLoadedModel);
+          disposeModel(currentLoadedModel);
         }
         
         const model = gltf.scene;

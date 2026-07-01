@@ -8,11 +8,23 @@ const BudgetBody = z.object({ budget: z.number().min(0).max(100000) });
 export function usageRoutes(ctx: AppContext): Router {
   const r = Router();
 
+  // If ADMIN_TOKEN is set, mutating the shared budget requires it — otherwise any
+  // logged-in brain could zero the deployment's only spend cap for everyone.
+  const requireAdmin = (req: import("express").Request, res: import("express").Response): boolean => {
+    const token = process.env.ADMIN_TOKEN;
+    if (token && req.get("x-admin-token") !== token) {
+      res.status(403).json({ error: "Budget changes require the admin token." });
+      return false;
+    }
+    return true;
+  };
+
   // GET /api/usage -> current spend estimate + budget status
   r.get("/", (_req, res) => res.json(ctx.usage.summary()));
 
   // POST /api/usage { budget } -> set the spend budget (USD)
   r.post("/", (req, res) => {
+    if (!requireAdmin(req, res)) return;
     const parsed = BudgetBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Body must be { budget: number }" });
@@ -23,7 +35,8 @@ export function usageRoutes(ctx: AppContext): Router {
   });
 
   // POST /api/usage/reset -> zero the counters (e.g. after recharging)
-  r.post("/reset", (_req, res) => {
+  r.post("/reset", (req, res) => {
+    if (!requireAdmin(req, res)) return;
     ctx.usage.reset();
     res.json(ctx.usage.summary());
   });

@@ -107,10 +107,12 @@ function updateFigurine(
   position: THREE.Vector3,
   getEnv: () => THREE.Texture | null
 ) {
-  // Clear previous children
+  // Clear previous children (and free their GPU resources so re-equipping a figurine
+  // doesn't leak geometries/materials/textures).
   while (group.children.length > 0) {
     const child = group.children[0]!;
     group.remove(child);
+    disposeObject3D(child);
   }
 
   if (type === "none") {

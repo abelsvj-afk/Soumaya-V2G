@@ -197,8 +197,13 @@ type IngestOpts = {
   tags?: string[];
 };
 
-/** localStorage queue of ingests captured while offline, per brain. */
-const ingestQueueKey = (): string => `brain.ingestQueue.${getSpaceId() ?? "default"}`;
+/** localStorage queue of ingests captured while offline, scoped to the active brain.
+ *  Returns null when no brain is signed in — we never queue under a shared "default"
+ *  bucket, which could later sync a note into the wrong brain. */
+const ingestQueueKey = (): string | null => {
+  const id = getSpaceId();
+  return id ? `brain.ingestQueue.${id}` : null;
+};
 
 /** Thrown when an ingest is saved offline instead of reaching the server. */
 export class OfflineQueuedError extends Error {
@@ -211,6 +216,7 @@ export class OfflineQueuedError extends Error {
 function enqueueIngest(text: string, opts?: IngestOpts): void {
   try {
     const key = ingestQueueKey();
+    if (!key) return; // no brain signed in — don't stash an unattributable note
     const q = JSON.parse(localStorage.getItem(key) || "[]") as { text: string; opts?: IngestOpts }[];
     q.push({ text, opts });
     localStorage.setItem(key, JSON.stringify(q.slice(-200)));
@@ -226,6 +232,7 @@ function enqueueIngest(text: string, opts?: IngestOpts): void {
  */
 export async function flushIngestQueue(): Promise<number> {
   const key = ingestQueueKey();
+  if (!key) return 0; // no brain signed in
   let q: { text: string; opts?: IngestOpts }[];
   try {
     q = JSON.parse(localStorage.getItem(key) || "[]");

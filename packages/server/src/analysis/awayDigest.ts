@@ -59,9 +59,11 @@ export function buildAwayDigest(
   const awayMs = since ? Math.max(0, nowMs - Date.parse(since)) : 0;
   if (!since) return EMPTY(null, 0); // first ever visit — nothing to report
 
-  // What Soumaya did since `since`, grouped by type.
+  // What Soumaya did since `since`, grouped by type. NB: agent_logs.created_at is
+  // SQLite CURRENT_TIMESTAMP ("YYYY-MM-DD HH:MM:SS") while `since` is ISO ("…T…Z") — a
+  // raw string compare never matches, so normalize BOTH via datetime().
   const rows = h.sqlite
-    .prepare(`SELECT action, COUNT(*) c FROM agent_logs WHERE space_id = ? AND created_at > ? GROUP BY action`)
+    .prepare(`SELECT action, COUNT(*) c FROM agent_logs WHERE space_id = ? AND datetime(created_at) > datetime(?) GROUP BY action`)
     .all(spaceId, since) as { action: string; c: number }[];
   const agentActions: AwayAction[] = [];
   for (const r of rows) {
@@ -71,13 +73,13 @@ export function buildAwayDigest(
 
   const newContradictions = count(
     h,
-    `SELECT COUNT(*) c FROM insights WHERE space_id = ? AND kind = 'contradiction' AND created_at > ?`,
+    `SELECT COUNT(*) c FROM insights WHERE space_id = ? AND kind = 'contradiction' AND datetime(created_at) > datetime(?)`,
     spaceId,
     since,
   );
   const expiredActions = count(
     h,
-    `SELECT COUNT(*) c FROM agent_logs WHERE space_id = ? AND action = 'action_expired' AND created_at > ?`,
+    `SELECT COUNT(*) c FROM agent_logs WHERE space_id = ? AND action = 'action_expired' AND datetime(created_at) > datetime(?)`,
     spaceId,
     since,
   );
@@ -87,7 +89,7 @@ export function buildAwayDigest(
       .prepare(
         `SELECT id, label FROM nodes
          WHERE space_id = ? AND deleted_at IS NULL AND remind_at IS NOT NULL
-         AND remind_at > ? AND remind_at <= ? ORDER BY remind_at DESC LIMIT 5`,
+         AND datetime(remind_at) > datetime(?) AND datetime(remind_at) <= datetime(?) ORDER BY remind_at DESC LIMIT 5`,
       )
       .all(spaceId, since, nowIso) as { id: number; label: string }[]
   ).map((r) => ({ id: r.id, label: r.label }));

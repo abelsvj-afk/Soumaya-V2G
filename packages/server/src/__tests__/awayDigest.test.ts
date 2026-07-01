@@ -46,6 +46,19 @@ describe("while-you-were-away digest (#keystone)", () => {
     expect(d.awayMs).toBeGreaterThan(60 * 60 * 1000); // ~2h
   });
 
+  it("matches agent_logs written with SQLite CURRENT_TIMESTAMP (production format)", () => {
+    // Regression: last_seen_at is ISO but created_at is 'YYYY-MM-DD HH:MM:SS' — a raw
+    // string compare misses everything. Insert with the DEFAULT (real prod format).
+    markSeen(handle, "legacy", ago(120));
+    handle.sqlite
+      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES ('legacy','synthesis','x','[]')`)
+      .run(); // created_at = CURRENT_TIMESTAMP (now, after the 2h-ago window)
+    const d = buildAwayDigest(handle, "legacy", NOW);
+    // NOW is fixed in the past relative to CURRENT_TIMESTAMP(=real now), so the row is
+    // even newer than NOW — still > since. It must be counted.
+    expect(d.agentActions.find((a) => a.type === "synthesis")?.count).toBe(1);
+  });
+
   it("counts contradictions + reminders that came due while away", () => {
     markSeen(handle, "legacy", ago(180));
     handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES ('legacy','A','other','a')`).run();

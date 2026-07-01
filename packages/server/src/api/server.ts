@@ -53,12 +53,12 @@ export function createApp(ctx: AppContext): Express {
   // Telegram webhook (open — secured by its own secret, resolves the brain itself).
   app.use("/api/telegram", telegramRoutes(ctx));
 
-  // Settings are deployment-wide (shared API key/budget), so they stay open to
-  // the authenticated app shell but aren't per-brain.
-  app.use("/api/usage", usageRoutes(ctx));
-
   // Every per-brain data route requires a valid x-space-id (set after login).
   const guard = requireSpace(ctx.handle);
+
+  // Usage/budget is deployment-wide (shared API budget). Guarded so it can't be
+  // tampered with anonymously; the mutating routes additionally honor ADMIN_TOKEN.
+  app.use("/api/usage", guard, usageRoutes(ctx));
   app.use("/api/ingest", guard, ingestRoutes(ctx));
   app.use("/api/graph", guard, graphRoutes(ctx));
   app.use("/api/nodes", guard, nodesRoutes(ctx));

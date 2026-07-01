@@ -165,6 +165,28 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-01 (Claude): Full project audit + high-severity fixes (report: docs/PROJECT_AUDIT_2026-07.md)
+Ran three parallel review agents (server bugs · web bugs · gamification design). Report in
+`docs/PROJECT_AUDIT_2026-07.md`. Fixed the confirmed high/medium items:
+- **[HIGH] "While you were away" digest was silently empty in production.** `last_seen_at` (ISO) vs
+  `agent_logs.created_at` (SQLite `CURRENT_TIMESTAMP`) → raw string compare never matched (verified: raw
+  → 0, `datetime()` → 1). Fixed by normalizing both sides with SQLite `datetime()` (agent_logs, insights,
+  reminders). +1 regression test in production format.
+- **[HIGH] `/api/usage` was mounted before the auth guard** — anonymous `POST` could zero the shared
+  budget (DoS) or reset the cost cap. Moved behind `requireSpace`; mutating routes now honor an optional
+  `ADMIN_TOKEN` (`x-admin-token`).
+- **[MED] Deleting a memory orphaned its attachments** (leaked base64 blobs) → `NodesRepo.delete` now
+  clears `attachments`.
+- **[MED] Offline-queued ingest could misfile a note into the wrong brain** (`"default"` fallback) →
+  queue requires a real `brain.spaceId`; no unattributable bucket.
+- **[MED] VRAM leaks** on figurine re-equip (`updateFigurine`) and ship-skin swap (`setShipSkin`) →
+  dispose geometries/materials/textures on swap.
+- Gamification verdict: economy sound (no soft-lock, honest retention); flagged that prestige rewards
+  *volume* not *quality* and the MOC layer isn't gamified — recommendations in the report.
+- Noted follow-ups (not fixed): scene-teardown disposal on unmount, idlePulse/repairScan O(n) timers,
+  autonomy per-tick spend cap.
+- Gate: typecheck clean · **135 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): Links are living synapses — always visible, coloured by emotion, pulse (not redraw)
 User followup: links still went grey / disappeared. New model per their direction — links are permanent
 synapses; Soumaya PULSES them (neuron-firing flash that fades), she never draws/hides them.
