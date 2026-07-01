@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { currentSpace, updateProfile, getSettings, updateSetting } from "../api/client.js";
 import { isVoiceEnabled, setVoiceEnabled, isVoiceSupported } from "../voice.js";
+import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
 
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
@@ -24,6 +25,7 @@ export function SettingsPanel({
   const [msg, setMsg] = useState("");
   const [research, setResearch] = useState(false);
   const [voice, setVoice] = useState(isVoiceEnabled());
+  const [sfx, setSfx] = useState(sfxEnabled());
   const voiceSupported = isVoiceSupported();
 
   useEffect(() => {
@@ -119,6 +121,23 @@ export function SettingsPanel({
               </button>
             </label>
           )}
+          <label className="settings-toggle">
+            <span>
+              Interface sounds
+              <em>Soft taps &amp; cues for clicks, saves, and notifications.</em>
+            </span>
+            <button
+              className={`switch ${sfx ? "on" : ""}`}
+              onClick={() => {
+                const next = !sfx;
+                setSfx(next);
+                setSfxEnabled(next);
+              }}
+              aria-pressed={sfx}
+            >
+              <span className="knob" />
+            </button>
+          </label>
           {setShowShipTask && (
             <label className="settings-toggle">
               <span>

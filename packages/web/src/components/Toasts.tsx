@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { playSfx } from "../graph/sfx.js";
 
 /**
  * Lightweight celebratory toast system (gamification Wave 1). Fire from anywhere
@@ -77,7 +78,10 @@ export function pushToast(
 ): void {
   const t: Toast = { id: nextId++, text, icon, ttl, priority };
   if (paused) buffer.push(t); // hold the on-screen toast until unpaused (still logged below)
-  else for (const l of listeners) l(t);
+  else {
+    for (const l of listeners) l(t);
+    playSfx(priority === "high" ? "achievement" : "notify"); // audible cue when shown
+  }
 
   // Write to notification inbox log (scoped to space). Key off the canonical
   // `brain.spaceId` (set at login) — the same id RightDock/InboxPanel read by — so

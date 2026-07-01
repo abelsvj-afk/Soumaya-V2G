@@ -6,6 +6,7 @@ import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { Chronicle } from "./Chronicle.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
+import { playSfx } from "../graph/sfx.js";
 
 interface Props {
   node: GraphNode | null;
@@ -306,6 +307,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           className="delete-btn"
           onClick={() => {
             if (!confirm(`Delete "${node.label}"? This can't be undone.`)) return;
+            playSfx("delete");
             deleteNode(node.id)
               .then(() => onDeleted())
               .catch(() => {});

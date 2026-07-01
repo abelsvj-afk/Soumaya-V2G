@@ -51,7 +51,8 @@ const CATEGORIES: {
       { icon: "🪐", title: "Visit your Megastructures", body: "Background figurines you've unlocked (and the black-hole Singularity) sit far out in deep space. Enable their HUD focus button in the Hangar, then tap it to fly all the way out and see your monuments up close — including ones you're still working toward.", tags: ["figurine", "megastructure", "focus", "blackhole", "singularity", "monument"] },
       { icon: "🛰️", title: "Jump to Aura beacons", body: "Click the beacon hotkeys or click a beacon physically in space. Beacons take orbit over memories going cold, giving you quick jumping points to stars that need tending.", tags: ["beacon", "jump", "cooling", "tending"] },
       { icon: "☄️", title: "Flashback Comet", body: "Tap the comet icon in the HUD to trigger a random serendipitous jump, launching the camera on a fast flight to a high-importance memory from the past.", tags: ["comet", "flashback", "random", "serendipity"] },
-      { icon: "🔈", title: "Ambient soundscapes", body: "Toggle the space drone soundtrack on and off directly from the audio control chip on the interface.", tags: ["audio", "music", "drone", "sound"] }
+      { icon: "🔈", title: "Ambient soundscapes", body: "Toggle the space drone soundtrack on and off directly from the audio control chip on the interface.", tags: ["audio", "music", "drone", "sound"] },
+      { icon: "🔉", title: "Interface sounds & haptics", body: "The app has a subtle sound kit — a soft tap on buttons, a warm chime when a memory saves, a distinct sting for achievements, a gentle cue when a notification arrives, and a home motif on your welcome-back. It's separate from the music and quiet by design; toggle it any time under Settings ⚙️ → Interface sounds. It respects your device's reduced-motion setting.", tags: ["sound", "sfx", "audio", "haptics", "feedback", "clicks", "settings"] }
     ]
   },
   {

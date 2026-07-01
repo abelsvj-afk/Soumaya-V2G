@@ -47,6 +47,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { WelcomeBackCard } from "./components/WelcomeBackCard.js";
+import { playSfx } from "./graph/sfx.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
@@ -258,6 +259,19 @@ export default function App() {
       alive = false;
     };
   }, [space, demo]);
+
+  // UI sound kit: a soft "tap" on any button press, app-wide, from one delegated
+  // listener (covers FABs, dock tabs, panels, mini buttons) — the AudioContext also
+  // wakes here on the first gesture. Specific richer cues (toasts, save, delete,
+  // welcome-back) are wired at their sources. All no-ops when SFX is disabled.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el?.closest("button")) playSfx("tap");
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, []);
 
   // Awareness: surface Soumaya's consequential decisions (research, merge, chart a
   // sector, write the log) as a toast + inbox entry, so you always know what she chose
@@ -721,7 +735,10 @@ export default function App() {
       <Graph3D
         ref={graphRef}
         data={view}
-        onSelect={(node) => focus(node.id)}
+        onSelect={(node) => {
+          playSfx("select");
+          focus(node.id);
+        }}
         onSoumayaClick={() => {
           setTab("soumaya"); // tapping her ship = talk to Soumaya
           setPanel("dock");

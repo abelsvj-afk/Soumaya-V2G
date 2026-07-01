@@ -165,6 +165,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): UI Sound Kit — the app is no longer silent
+Closes the audit's #1 gap (Audio 3/10). Spec: `docs/specs/sound-kit.md`.
+- **`graph/sfx.ts`:** dependency-free, procedural Web Audio engine — 10 sounds synthesized at runtime
+  (oscillator + gain envelope, ±4% pitch jitter), one `playSfx(name)` API, lazy AudioContext on first
+  gesture, master enable + volume persisted separately from the music, **defaults off under
+  prefers-reduced-motion**, tap throttle, all try/caught (audio never breaks the UI).
+- **Central wiring (minimal touch):** a single delegated document-click listener plays a soft `tap` on
+  any button app-wide; `pushToast` plays `achievement`/`notify` on display (covers every notification);
+  3D node select → `select`; delete → `delete`; welcome-back card → `welcome`.
+- **Settings:** "Interface sounds" toggle. **Help:** "Interface sounds & haptics" entry.
+- Gate: typecheck clean · **134 server tests** · web build clean.
+
 ### 2026-06-30 (Claude): "While you were away" companion digest + 24/7 autonomy on by default
 The keystone from the UX/Audio/Habit audit — the app now works for you in the background and greets
 you with what it did. Spec: `docs/specs/away-digest.md`.

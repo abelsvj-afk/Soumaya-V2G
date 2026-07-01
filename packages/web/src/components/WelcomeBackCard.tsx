@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import type { AwayDigest } from "@brain/shared";
+import { playSfx } from "../graph/sfx.js";
 
 /**
  * "While you were away" — a calm welcome-back card that reports what Soumaya did in
@@ -22,6 +24,9 @@ export function WelcomeBackCard({
   onFocus: (id: number) => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    playSfx("welcome");
+  }, []);
   const did = digest.agentActions;
   const needs =
     digest.newContradictions + digest.expiredActions + digest.dueReminders.length + (digest.cooling > 0 ? 1 : 0);
