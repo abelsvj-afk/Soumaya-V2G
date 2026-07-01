@@ -252,4 +252,21 @@ describe("REST API", () => {
     const bad = await post("/api/maintenance/settings", { key: "usage_budget_usd", value: "0" });
     expect(bad.status).toBe(400);
   });
+
+  it("codex-claim awards fuel once per key (idempotent, can't be farmed)", async () => {
+    const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    const first = await post("/api/maintenance/codex-claim", { key: "sector-test" });
+    expect(first.status).toBe(200);
+    expect(first.body.awarded).toBe(true);
+    const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f1).toBeGreaterThan(f0);
+    // Claiming the same entry again is a no-op — no double reward.
+    const again = await post("/api/maintenance/codex-claim", { key: "sector-test" });
+    expect(again.body.awarded).toBe(false);
+    const f2 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f2).toBe(f1);
+    // Missing key is rejected.
+    const bad = await post("/api/maintenance/codex-claim", {});
+    expect(bad.status).toBe(400);
+  });
 });

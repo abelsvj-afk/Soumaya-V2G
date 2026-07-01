@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { EconomyRepo } from "../../economy.js";
+import { EconomyRepo, EARN_CODEX_DISCOVERY } from "../../economy.js";
 import { StreakRepo } from "../../streak.js";
 import { agentLogs, settings, dailyLogs } from "../../db/schema.js";
 import { spaceOf } from "../middleware.js";
@@ -100,6 +100,31 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    */
   r.get("/fuel", (_req, res) => {
     res.json(new EconomyRepo(ctx.handle, spaceOf(res)).toFuel());
+  });
+
+  /**
+   * POST /api/maintenance/codex-claim { key } -> grant a one-time fuel reward for
+   * discovering a Codex entry. Idempotent per (space, key) so it can't be farmed.
+   */
+  r.post("/codex-claim", (req, res) => {
+    const key = String(req.body?.key ?? "").slice(0, 80);
+    if (!key) {
+      res.status(400).json({ error: "key required" });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    const existed = ctx.handle.sqlite
+      .prepare(`SELECT 1 FROM codex_claims WHERE space_id = ? AND reward_key = ?`)
+      .get(spaceId, key);
+    if (existed) {
+      res.json({ awarded: false, fuel: new EconomyRepo(ctx.handle, spaceId).get() });
+      return;
+    }
+    ctx.handle.sqlite
+      .prepare(`INSERT OR IGNORE INTO codex_claims (space_id, reward_key) VALUES (?, ?)`)
+      .run(spaceId, key);
+    const fuel = new EconomyRepo(ctx.handle, spaceId).add(EARN_CODEX_DISCOVERY);
+    res.json({ awarded: true, fuel });
   });
 
   /**

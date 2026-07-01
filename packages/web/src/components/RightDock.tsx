@@ -12,6 +12,7 @@ import { AchievementsPanel } from "./AchievementsPanel.js";
 import { HangarPanel } from "./HangarPanel.js";
 import { InboxPanel } from "./InboxPanel.js";
 import { LibraryPanel } from "./LibraryPanel.js";
+import { CodexPanel } from "./CodexPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel, Streak } from "@brain/shared";
 
@@ -28,6 +29,7 @@ export type DockTab =
   | "inbox"
   | "awards"
   | "library"
+  | "codex"
   | "hangar";
 
 interface Props {
@@ -77,6 +79,7 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "companion", label: "🧠", name: "Companion" },
   { id: "inbox", label: "🔔", name: "Inbox" },
   { id: "library", label: "📚", name: "Library" },
+  { id: "codex", label: "📖", name: "Codex" },
   { id: "awards", label: "🏆", name: "Awards" },
   { id: "hangar", label: "🛠️", name: "Hangar" },
 ];
@@ -229,6 +232,7 @@ export function RightDock({
         {tab === "companion" && <CompanionPanel demo={demo} spaceName={spaceName} />}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
         {tab === "library" && <LibraryPanel graph={graph} onFocus={onFocus} spaceName={spaceName} />}
+        {tab === "codex" && <CodexPanel graph={graph} onFocus={onFocus} spaceId={spaceId} demo={demo} onReward={() => onChanged?.(-1)} />}
         {tab === "awards" && (
           <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
         )}

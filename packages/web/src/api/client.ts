@@ -523,6 +523,21 @@ export async function runDigest(): Promise<Insight[]> {
   );
 }
 
+/** Claim the one-time fuel reward for discovering a Codex entry (idempotent server-side). */
+export async function claimCodexReward(key: string): Promise<{ awarded: boolean; fuel?: number }> {
+  try {
+    const res = await afetch(`${API}/maintenance/codex-claim`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    if (!res.ok) return { awarded: false };
+    return (await res.json()) as { awarded: boolean; fuel?: number };
+  } catch {
+    return { awarded: false };
+  }
+}
+
 /** Mood-over-time trajectory + detected emotional patterns (free, offline-safe). */
 export async function getEmotionalTrajectory(): Promise<EmotionalTrajectory> {
   const empty: EmotionalTrajectory = {

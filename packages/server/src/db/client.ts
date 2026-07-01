@@ -156,6 +156,12 @@ export function bootstrapSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS attachments_node_idx ON attachments(node_id);
+    CREATE TABLE IF NOT EXISTS codex_claims (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      reward_key TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, reward_key)
+    );
     CREATE TABLE IF NOT EXISTS user_persona (
       space_id TEXT PRIMARY KEY,
       body TEXT NOT NULL,
@@ -376,6 +382,12 @@ function migrateSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS attachments_node_idx ON attachments(node_id);
+    CREATE TABLE IF NOT EXISTS codex_claims (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      reward_key TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, reward_key)
+    );
     CREATE TABLE IF NOT EXISTS user_persona (
       space_id TEXT PRIMARY KEY,
       body TEXT NOT NULL,

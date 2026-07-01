@@ -1,4 +1,19 @@
 import type { GraphNode, Fuel } from "@brain/shared";
+import { buildCodex, codexProgress } from "./codex.js";
+
+/** Build the Codex progress from an achievement context's node list. */
+function codexPctFrom(c: { memories: GraphNode[]; links: number }): {
+  pct: number;
+  sectors: { discovered: number; total: number };
+} {
+  const codex = buildCodex({
+    memories: c.memories.filter((n) => n.kind !== "moc" && n.kind !== "action"),
+    constellations: c.memories.filter((n) => n.kind === "moc"),
+    links: c.links,
+  });
+  const p = codexProgress(codex);
+  return { pct: p.pct, sectors: p.byCategory.sectors };
+}
 
 /**
  * Gamification Wave 2 — achievements. Pure client-side + offline-safe: each is a
@@ -296,6 +311,28 @@ export const ACHIEVEMENTS: Achievement[] = [
     desc: "Log 365 memories — a full year of your mind. Unlocks The Singularity (black hole figurine).",
     test: (c) => c.memories.length >= 365,
     progress: (c) => ({ cur: Math.min(c.memories.length, 365), target: 365 }),
+  },
+  {
+    id: "cartographer",
+    name: "Cartographer",
+    icon: "🗺️",
+    desc: "Chart every sector of your galaxy — log a memory of all 9 kinds.",
+    test: (c) => {
+      const { sectors } = codexPctFrom(c);
+      return sectors.total > 0 && sectors.discovered >= 9;
+    },
+    progress: (c) => {
+      const { sectors } = codexPctFrom(c);
+      return { cur: Math.min(sectors.discovered, 9), target: 9 };
+    },
+  },
+  {
+    id: "galactic_atlas",
+    name: "Galactic Atlas",
+    icon: "📖",
+    desc: "Discover the entire Codex — every sector, body, constellation, phenomenon.",
+    test: (c) => codexPctFrom(c).pct >= 100,
+    progress: (c) => ({ cur: codexPctFrom(c).pct, target: 100 }),
   },
   {
     id: "grand_restorer",

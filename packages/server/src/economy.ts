@@ -15,6 +15,7 @@ export const FUEL_JOB_COST = 2; // per autonomous LLM job
 export const EARN_MEMORY = 3; // logging a real memory
 export const EARN_LINK = 0.5; // each associative link formed
 export const EARN_ACTION_DONE = 1.5; // clearing a day-to-day action item
+export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time per entry)
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
 // USD budget is still the hard cap — this only refills the in-app Fuel.
