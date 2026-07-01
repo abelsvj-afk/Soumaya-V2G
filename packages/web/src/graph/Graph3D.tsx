@@ -16,6 +16,7 @@ import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./sky
 import { addBloom } from "./bloom.js";
 import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
+import { makeEngineAudio } from "./engineAudio.js";
 import { makeSpaceStation } from "./spaceStation.js";
 import { gltfLoader } from "./gltf.js";
 import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
@@ -693,6 +694,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     // Declared outside try-catch so spawnBurst can access it
     let soumaya: SoumayaHandle | null = null;
+    let engine: ReturnType<typeof makeEngineAudio> | null = null;
+    let prevShipPos: THREE.Vector3 | null = null;
     let visitors: VisitorSystem | null = null;
     let satellites: SatelliteSystem | null = null;
     let subAgents: SubAgentSystem | null = null;
@@ -733,6 +736,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       soumaya.setTaskVisible(!!showShipTaskRef.current);
       soumaya.setPilotSpeed?.(pilotSpeedRef.current);
       soumayaObjRef.current = soumaya.object;
+      // Real ship-engine audio, only audible when the camera is focused on her.
+      engine = makeEngineAudio();
       // The Sun: the gigantic central body every cluster revolves around.
       const sun = makeSun();
       sunRef.current = sun;
@@ -1280,6 +1285,26 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           fuelRef.current,
           controls?.target,
         );
+
+        // Engine audio level = focus-on-her × how fast she's moving. You hear her
+        // thrusters when you're watching her fly; near-silence otherwise.
+        try {
+          const shipPos = soumaya.object.position;
+          const cam = fgRef.current?.camera();
+          let speed = 0;
+          if (prevShipPos) speed = shipPos.distanceTo(prevShipPos) / Math.max(dt, 0.001);
+          prevShipPos = (prevShipPos ?? new THREE.Vector3()).copy(shipPos);
+          const motion = Math.min(1, speed / 55);
+          let focus = 0;
+          if (followKindRef.current === "ship") focus = 1;
+          else if (cam) {
+            const d = cam.position.distanceTo(shipPos);
+            focus = Math.max(0, Math.min(0.85, 1 - (d - 350) / 1400)); // louder the closer you are
+          }
+          engine?.setLevel(focus * (0.15 + 0.85 * motion));
+        } catch {
+          /* engine audio is non-critical */
+        }
       }
 
       // Focus on a non-memory object (ship/station): snap to its FRONT once, then
@@ -1401,6 +1426,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     tick();
     return () => {
       cancelAnimationFrame(raf);
+      engine?.dispose();
       if (fg.__brainCleanupClick) fg.__brainCleanupClick();
       // Cancel any deferred FX timers so they don't fire into the torn-down scene.
       for (const id of pendingTimersRef.current) clearTimeout(id);
@@ -1904,22 +1930,24 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         else { r = 90; g = 235; b = 150; }                 // neuron green — the resting hue
         const activity = getLinkActivity(l); // 0..1, spikes right after she pulses it
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        // Fresh pulses brighten toward white for that "firing" flash.
-        const flash = activity * 0.9;
+        // Fresh pulses push the colour ALL the way to white so the (widened) line
+        // exceeds the bloom threshold and actually GLOWS, then eases back over ~3 days.
+        const flash = Math.min(1, activity * 1.15);
         r = Math.round(r + (255 - r) * flash);
         g = Math.round(g + (255 - g) * flash);
         b = Math.round(b + (255 - b) * flash);
         // Always clearly visible: strong floor, brighter when active, gently dimmed (but
         // same hue) when another memory is focused.
-        let opacity = 0.5 + activity * 0.4;
-        if (!lit) opacity = 0.3;
-        return `rgba(${r}, ${g}, ${b}, ${opacity.toFixed(2)})`;
+        let opacity = 0.55 + activity * 0.4;
+        if (!lit) opacity = 0.32;
+        return `rgba(${r}, ${g}, ${b}, ${Math.min(1, opacity).toFixed(2)})`;
       }}
       linkWidth={(l: any) => {
-        // A visible resting floor (never a sub-pixel filament that reads as "gone"),
-        // thicker for strong/weighted links and briefly fatter when she pulses it.
+        // The LINE itself is the glow. A tended connection swells into a fat, bright
+        // tube (quadratic in activity, so the bloom pass lights it up), then thins back
+        // to a clean resting filament over ~3 days. Cold links stay slim but visible.
         const activity = getLinkActivity(l);
-        return 0.5 + (l.weight ?? 0.4) * 0.6 + activity * 0.6;
+        return 0.7 + (l.weight ?? 0.4) * 0.9 + activity * activity * 5;
       }}
       linkCurvature={(l: any) => {
         const activity = getLinkActivity(l);
@@ -1935,17 +1963,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         
         return 0.12 + activity * 0.16; // active lines wander/curve more organically
       }}
-      // No constant stream — connections fire like synapses only when something
-      // Flowing "knowledge" packets: a live synapse streams little dots between its two
-      // memories. Density tracks activity — a connection Soumaya just tended streams
-      // brightly, then eases to a quiet trickle over ~3 days (the same decay as its
-      // glow). Cold links carry no packets. This is what makes her tending visible.
+      // Knowledge packets: only a few dots, and only while real info is actually
+      // flowing — i.e. right after Soumaya tends a link (very high activity). The GLOW
+      // (above) is the persistent signal; the dots are the occasional "data in transit".
       linkDirectionalParticles={(l: any) => {
         const a = getLinkActivity(l);
-        if (a > 0.55) return 3; // freshly energized — buzzing
-        if (a > 0.2) return 2;
-        if (a > 0.08) return 1;
-        return 0; // long-dormant — resting, no flow
+        if (a > 0.75) return 2; // she's actively working this connection right now
+        if (a > 0.45) return 1;
+        return 0; // resting — the glow carries the meaning, no packets
       }}
       linkDirectionalParticleSpeed={(l: any) => 0.004 + (l.weight ?? 0.4) * 0.004 + getLinkActivity(l) * 0.006}
       linkDirectionalParticleWidth={(l: any) => 1.4 + (l.weight ?? 0.4) * 1.8 + getLinkActivity(l) * 2.2}

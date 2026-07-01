@@ -417,11 +417,8 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let lastTaskText = "";
   let bank = 0; // current banked roll (smoothed toward target each frame)
   let currentVel = 0; // her current speed (units/sec) — drives propulsion glow, trail, streaks
-  // Propulsion-audio state: last-frame speed/mode + a cooldown so thruster/decel cues
-  // fire once per hop, not every frame.
-  let prevVelSfx = 0;
+  // Track last-frame mode so the docking-clamp cue fires once on arrival.
   let prevModeSfx = "idle";
-  let lastFlightSfx = 0;
 
   let mode:
     | "travel"
@@ -1273,22 +1270,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         if (!activeRemoval && group.position.lengthSq() > 1 && group.position.length() < SUN_CLEAR) {
           group.position.setLength(SUN_CLEAR);
         }
-        // Propulsion audio: a thruster whoosh when she accelerates away, a decel hiss
-        // when she arrives/stops. Hysteresis + cooldown so it fires once per hop, not
-        // every frame. (sfx are self-gated by the enable/reduced-motion setting.)
-        {
-          const nowSfx = performance.now();
-          if (currentVel > 14 && prevVelSfx <= 14 && nowSfx - lastFlightSfx > 450) {
-            playSfx("thrust");
-            lastFlightSfx = nowSfx;
-          } else if (currentVel < 4 && prevVelSfx >= 4 && nowSfx - lastFlightSfx > 450) {
-            playSfx("decel");
-            lastFlightSfx = nowSfx;
-          }
-          if (mode === "docking" && prevModeSfx !== "docking") playSfx("dock");
-          prevVelSfx = currentVel;
-          prevModeSfx = mode;
-        }
+        // Docking clamp cue (the continuous engine sound itself is the real recording
+        // in engineAudio.ts, gated to focus — see Graph3D). Kept lightweight here.
+        if (mode === "docking" && prevModeSfx !== "docking") playSfx("dock");
+        prevModeSfx = mode;
         updatePlume(dt);
       } catch {
         /* fx are non-critical */
