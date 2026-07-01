@@ -9,7 +9,7 @@ export interface AmbientAudio {
   readonly playing: boolean;
 }
 
-const TARGET_VOLUME = 0.7;
+const TARGET_VOLUME = 0.5; // leaves headroom so UI sounds sit clearly on top
 
 export function makeAmbientAudio(): AmbientAudio {
   let el: HTMLAudioElement | null = null;
@@ -55,6 +55,21 @@ export function makeAmbientAudio(): AmbientAudio {
     }
     return playing;
   };
+
+  // Sidechain duck: when a UI sound fires, dip the music for ~300ms so the cue
+  // punches through, then ramp back. Ignored while paused/fading out.
+  let duckTimer: number | null = null;
+  const onDuck = () => {
+    const a = el;
+    if (!a || !playing) return;
+    if (fadeTimer) return; // don't fight an in-progress fade in/out
+    a.volume = Math.max(0, TARGET_VOLUME * 0.4);
+    if (duckTimer) window.clearTimeout(duckTimer);
+    duckTimer = window.setTimeout(() => {
+      if (el && playing && !fadeTimer) fadeTo(TARGET_VOLUME, 280);
+    }, 120);
+  };
+  if (typeof window !== "undefined") window.addEventListener("brain-sfx-duck", onDuck);
 
   // Create the element up front so the (large) file buffers before the first
   // toggle — avoids the "music takes a while to start" lag. Loading without

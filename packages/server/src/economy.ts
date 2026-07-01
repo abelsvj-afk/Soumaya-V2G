@@ -18,7 +18,7 @@ export const EARN_ACTION_DONE = 1.5; // clearing a day-to-day action item
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
 // USD budget is still the hard cap — this only refills the in-app Fuel.
-export const FUEL_REGEN_PER_HOUR = 2;
+export const FUEL_REGEN_PER_HOUR = 6; // keeps pace with background autonomy so the tank isn't perpetually near-empty
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 

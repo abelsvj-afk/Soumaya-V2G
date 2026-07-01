@@ -120,6 +120,11 @@ if (process.env.AUTONOMY !== "off") {
     try {
       const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces`).all() as { id: string }[];
       const spaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
+      // Per-tick ceiling on cloud-LLM jobs across ALL brains, so a deployment with many
+      // spaces can't fire a burst of paid work before the USD counter catches up.
+      const MAX_PAID_PER_TICK = Number(process.env.AUTONOMY_MAX_PAID_PER_TICK ?? 4);
+      const PAID = new Set(["synthesis", "merging", "research", "sector_vibe", "daily_log"]);
+      let paidThisTick = 0;
       for (const spaceId of spaceIds) {
         // Keep the auto-derived "About Me" persona current (free, throttled to ~6h).
         try {
@@ -129,6 +134,9 @@ if (process.env.AUTONOMY !== "off") {
         }
         const job = await selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
+        // Once the per-tick paid budget is spent, only free upkeep runs this tick.
+        if (PAID.has(job.type) && paidThisTick >= MAX_PAID_PER_TICK) continue;
+        if (PAID.has(job.type)) paidThisTick++;
         const detail = await executeJob(ctx, spaceId, job);
         if (detail) {
           console.log(`[autonomy] ${spaceId.slice(0, 8)}: ${job.type}`);

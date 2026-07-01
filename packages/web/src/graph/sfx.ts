@@ -58,9 +58,9 @@ export function setSfxEnabled(on: boolean): void {
 export function sfxVolume(): number {
   try {
     const v = parseFloat(localStorage.getItem(VOLUME_KEY) ?? "");
-    return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.35;
+    return Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : 0.7; // loud enough to cut through the music
   } catch {
-    return 0.35;
+    return 0.7;
   }
 }
 
@@ -114,27 +114,31 @@ function tone(
   osc.stop(t0 + opts.dur + 0.02);
 }
 
-// Sound recipes. All short (<0.5s) and quiet; the master gain scales them.
+// Sound recipes. Short (<0.5s); the master gain scales them. Gains are punchy so a
+// click reads clearly ON TOP of the ambient music (which also ducks — see below).
 const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
-  tap: (ac) => tone(ac, { freq: 1500, type: "triangle", dur: 0.05, gain: 0.08 }),
-  open: (ac) => tone(ac, { freq: 600, glideTo: 950, type: "sine", dur: 0.16, gain: 0.12 }),
-  close: (ac) => tone(ac, { freq: 900, glideTo: 560, type: "sine", dur: 0.14, gain: 0.1 }),
+  tap: (ac) => {
+    tone(ac, { freq: 1650, type: "triangle", dur: 0.045, gain: 0.28 });
+    tone(ac, { freq: 2600, type: "sine", dur: 0.02, gain: 0.14 }); // tiny high tick for crispness
+  },
+  open: (ac) => tone(ac, { freq: 600, glideTo: 980, type: "sine", dur: 0.16, gain: 0.3 }),
+  close: (ac) => tone(ac, { freq: 940, glideTo: 560, type: "sine", dur: 0.14, gain: 0.26 }),
   confirm: (ac) => {
-    tone(ac, { freq: 660, type: "sine", dur: 0.14, gain: 0.14 });
-    tone(ac, { freq: 880, type: "sine", dur: 0.22, gain: 0.13, delay: 0.09 });
+    tone(ac, { freq: 660, type: "sine", dur: 0.14, gain: 0.34 });
+    tone(ac, { freq: 880, type: "sine", dur: 0.24, gain: 0.32, delay: 0.09 });
   },
-  select: (ac) => tone(ac, { freq: 2000, type: "sine", dur: 0.08, gain: 0.09 }),
-  notify: (ac) => tone(ac, { freq: 1320, glideTo: 1500, type: "sine", dur: 0.12, gain: 0.1 }),
+  select: (ac) => tone(ac, { freq: 2050, type: "sine", dur: 0.09, gain: 0.26 }),
+  notify: (ac) => tone(ac, { freq: 1320, glideTo: 1560, type: "sine", dur: 0.13, gain: 0.3 }),
   achievement: (ac) => {
-    tone(ac, { freq: 523, type: "triangle", dur: 0.12, gain: 0.14 });
-    tone(ac, { freq: 659, type: "triangle", dur: 0.12, gain: 0.14, delay: 0.1 });
-    tone(ac, { freq: 784, type: "triangle", dur: 0.28, gain: 0.15, delay: 0.2 });
+    tone(ac, { freq: 523, type: "triangle", dur: 0.12, gain: 0.34 });
+    tone(ac, { freq: 659, type: "triangle", dur: 0.12, gain: 0.34, delay: 0.1 });
+    tone(ac, { freq: 784, type: "triangle", dur: 0.3, gain: 0.36, delay: 0.2 });
   },
-  error: (ac) => tone(ac, { freq: 200, glideTo: 150, type: "sine", dur: 0.16, gain: 0.12 }),
-  delete: (ac) => tone(ac, { freq: 420, glideTo: 110, type: "sawtooth", dur: 0.22, gain: 0.1 }),
+  error: (ac) => tone(ac, { freq: 200, glideTo: 150, type: "sine", dur: 0.16, gain: 0.3 }),
+  delete: (ac) => tone(ac, { freq: 420, glideTo: 110, type: "sawtooth", dur: 0.22, gain: 0.26 }),
   welcome: (ac) => {
-    tone(ac, { freq: 440, type: "sine", dur: 0.3, gain: 0.12 });
-    tone(ac, { freq: 660, type: "sine", dur: 0.5, gain: 0.12, delay: 0.14 });
+    tone(ac, { freq: 440, type: "sine", dur: 0.3, gain: 0.3 });
+    tone(ac, { freq: 660, type: "sine", dur: 0.5, gain: 0.3, delay: 0.14 });
   },
 };
 
@@ -148,6 +152,15 @@ export function playSfx(name: SfxName): void {
     const ac = ensure();
     if (!ac || !master) return;
     RECIPES[name]?.(ac);
+    // Briefly duck the ambient music so meatier cues punch through (not the rapid tap,
+    // which would make the music pump). The audio module listens for this.
+    if (name !== "tap") {
+      try {
+        window.dispatchEvent(new CustomEvent("brain-sfx-duck"));
+      } catch {
+        /* no window — ignore */
+      }
+    }
   } catch {
     /* audio is non-critical */
   }

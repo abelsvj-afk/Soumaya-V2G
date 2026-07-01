@@ -951,21 +951,22 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         idlePulseT = pulseEvery;
       }
 
-      // Phase 3 — link decay & repair: periodically hand Soumaya the most-degraded
-      // visible connections so she flies out and re-forges them (which refreshes
-      // their freshness via fireLink). Demo galaxy is left alone.
+      // Phase 3 — link tending: on a calm cadence Soumaya flies to the COLDEST
+      // connections and re-energizes them (fireLink → they flare bright + stream
+      // packets, then decay over ~3 days). She always has the lowest-activity links
+      // to tend (not only sub-threshold ones), so her tending is continuously visible
+      // even on a fresh brain. Skipped only in demo, or if she's already busy on links.
       repairScanT -= dt;
       if (repairScanT <= 0) {
-        repairScanT = 14; // throttle: a calm, occasional housekeeping pass
-        if (!demoRef.current) {
-          const stale = (dataRef.current.links as any[])
-            .filter((l) => getLinkActivity(l) < 0.12)
-            .slice(0, 30) // bound the work
-            .map((l) => ({ l, key: linkKey(l) }))
-            .sort((a, b) => getLinkActivity(a.l) - getLinkActivity(b.l))
+        repairScanT = 10; // a calm, steady housekeeping cadence
+        const links = dataRef.current.links as any[];
+        if (!demoRef.current && links.length > 0) {
+          const coldest = links
+            .map((l) => ({ l, key: linkKey(l), act: getLinkActivity(l) }))
+            .sort((a, b) => a.act - b.act) // least-active first
             .slice(0, 2)
             .map(({ l, key }) => ({ source: linkEnd(l.source), target: linkEnd(l.target), key }));
-          if (stale.length > 0) soumayaHandleRef.current?.enqueueLinks(stale);
+          if (coldest.length > 0) soumayaHandleRef.current?.enqueueLinks(coldest);
         }
       }
 
@@ -1914,14 +1915,34 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         return 0.12 + activity * 0.16; // active lines wander/curve more organically
       }}
       // No constant stream — connections fire like synapses only when something
-      // real happens on them (Soumaya tending a memory or forging a link). The
-      // pulses are emitted imperatively via fg.emitParticle (fireAlongNode/fireLink).
-      linkDirectionalParticles={0}
-      linkDirectionalParticleSpeed={(l: any) => 0.004 + (l.weight ?? 0.4) * 0.004}
-      linkDirectionalParticleWidth={(l: any) => 1.6 + (l.weight ?? 0.4) * 2.0}
+      // Flowing "knowledge" packets: a live synapse streams little dots between its two
+      // memories. Density tracks activity — a connection Soumaya just tended streams
+      // brightly, then eases to a quiet trickle over ~3 days (the same decay as its
+      // glow). Cold links carry no packets. This is what makes her tending visible.
+      linkDirectionalParticles={(l: any) => {
+        const a = getLinkActivity(l);
+        if (a > 0.55) return 3; // freshly energized — buzzing
+        if (a > 0.2) return 2;
+        if (a > 0.08) return 1;
+        return 0; // long-dormant — resting, no flow
+      }}
+      linkDirectionalParticleSpeed={(l: any) => 0.004 + (l.weight ?? 0.4) * 0.004 + getLinkActivity(l) * 0.006}
+      linkDirectionalParticleWidth={(l: any) => 1.4 + (l.weight ?? 0.4) * 1.8 + getLinkActivity(l) * 2.2}
       linkDirectionalParticleColor={(l: any) => {
-        const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        return lit ? "rgba(205,215,255,0.95)" : "rgba(150,160,200,0.06)";
+        // Match the synapse's emotion hue, flaring toward white right after a pulse.
+        const byId = nodeByIdRef.current;
+        const s = byId.get(linkEnd(l.source));
+        const t = byId.get(linkEnd(l.target));
+        const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
+        let r: number, g: number, b: number;
+        if (ew > 0.25) { r = 245; g = 220; b = 120; }
+        else if (ew < -0.25) { r = 180; g = 170; b = 255; }
+        else { r = 120; g = 245; b = 170; }
+        const flash = getLinkActivity(l) * 0.9;
+        r = Math.round(r + (255 - r) * flash);
+        g = Math.round(g + (255 - g) * flash);
+        b = Math.round(b + (255 - b) * flash);
+        return `rgba(${r}, ${g}, ${b}, 0.95)`;
       }}
     />
   );
