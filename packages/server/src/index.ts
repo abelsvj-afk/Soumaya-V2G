@@ -5,6 +5,7 @@ import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js"
 import { selectJob, executeJob } from "./maintenance/agent.js";
 import { evolveLore } from "./lore/engine.js";
 import { refreshPersona } from "./persona/derive.js";
+import { reconcileConstellations } from "./analysis/constellationReconcile.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -131,6 +132,13 @@ if (process.env.AUTONOMY !== "off") {
           refreshPersona(ctx.handle, spaceId);
         } catch (e) {
           console.error("[autonomy] persona refresh failed:", e);
+        }
+        // Constellation re-evaluation (free, offline): pull memories that have drifted
+        // into a constellation's gravity in as visible members, a few at a time.
+        try {
+          reconcileConstellations(ctx.handle, spaceId);
+        } catch (e) {
+          console.error("[autonomy] constellation reconcile failed:", e);
         }
         const job = await selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback
