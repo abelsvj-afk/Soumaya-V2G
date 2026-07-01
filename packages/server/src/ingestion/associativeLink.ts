@@ -15,7 +15,11 @@ export interface AssociativeLinkOptions {
   maxLinks?: number;
 }
 
-export const DEFAULT_LINK_OPTIONS: AssociativeLinkOptions = { threshold: 0.85, k: 10, maxLinks: 4 };
+// threshold lowered from 0.85 (near-duplicate territory) to 0.72 so a new memory links
+// to RELATED older ones across time — e.g. "a new fear of repossession" reaches an old
+// "repossession" memory even when the wording differs. The LLM/keyword `validateLink`
+// gate downstream still filters out superficial matches, and maxLinks caps hub sprawl.
+export const DEFAULT_LINK_OPTIONS: AssociativeLinkOptions = { threshold: 0.72, k: 12, maxLinks: 5 };
 
 /**
  * The autonomous "dot-connecting" step: for a freshly stored node, find its
@@ -39,12 +43,28 @@ export async function associativeLink(
 
   const cap = options.maxLinks ?? DEFAULT_LINK_OPTIONS.maxLinks ?? Infinity;
   const created: GraphEdge[] = [];
+  let regularLinks = 0; // only peer-to-peer links count toward the cap
   for (const hit of hits) {
-    if (created.length >= cap) break;
     if (deps.edges.exists(newNode.id, hit.nodeId)) continue;
     const target = deps.nodes.getById(hit.nodeId);
     if (!target) continue;
 
+    // Constellation membership: a strong match to an existing MOC hub means this new
+    // memory belongs in that constellation — add it directly (a `summarizes` edge), no
+    // LLM gate and no cap. This is how a constellation grows with related new memories.
+    if (target.kind === "moc") {
+      created.push(
+        deps.edges.create({
+          source: target.id,
+          target: newNode.id,
+          relationship: "summarizes",
+          weight: hit.similarity,
+        }),
+      );
+      continue;
+    }
+
+    if (regularLinks >= cap) continue;
     const decision = await deps.llm.validateLink(
       { label: newNode.label, content: newNode.content },
       { label: target.label, content: target.content },
@@ -59,6 +79,7 @@ export async function associativeLink(
           weight: decision.weight ?? hit.similarity,
         }),
       );
+      regularLinks++;
     }
   }
   return created;
