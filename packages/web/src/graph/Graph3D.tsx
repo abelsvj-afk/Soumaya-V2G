@@ -686,6 +686,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const renderer = fg.renderer() as THREE.WebGLRenderer;
       const pmrem = new THREE.PMREMGenerator(renderer);
       scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose(); // the generator's internal render targets are no longer needed
     } catch (err) {
       console.warn("[graph] environment map unavailable:", err);
     }
@@ -887,13 +888,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // higher-degree nodes (i.e. denser clusters).
         const l1 = links[Math.floor(Math.random() * links.length)];
         const l2 = links[Math.floor(Math.random() * links.length)];
-        const n1s = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l1.source));
-        const n1t = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l1.target));
-        const n2s = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l2.source));
-        const n2t = (dataRef.current.nodes as any[]).find((x) => x.id === linkEnd(l2.target));
-        
-        const deg1 = (n1s?.degree ?? 0) + (n1t?.degree ?? 0);
-        const deg2 = (n2s?.degree ?? 0) + (n2t?.degree ?? 0);
+        const byId = nodeByIdRef.current; // O(1) lookups — no per-pick full-array scans
+        const deg1 = (byId.get(linkEnd(l1.source))?.degree ?? 0) + (byId.get(linkEnd(l1.target))?.degree ?? 0);
+        const deg2 = (byId.get(linkEnd(l2.source))?.degree ?? 0) + (byId.get(linkEnd(l2.target))?.degree ?? 0);
         const l = deg1 >= deg2 ? l1 : l2;
 
         try {
@@ -1412,6 +1409,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // remount), so a new session doesn't start atop the old scene's leaked buffers.
       for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
       nodeThreeObjCacheRef.current.clear();
+      // Full scene teardown: dispose every imperatively-added object's geometry/
+      // materials/textures (starfield, nebulae, skybox, ship, station, satellites,
+      // figurines, sun, bursts) plus the PMREM environment map — otherwise all of it
+      // leaks on logout→remount. Lights need no disposal; disposeObject3D is idempotent.
+      try {
+        const scn = fg.scene?.();
+        if (scn) {
+          scn.traverse((o: any) => {
+            o.geometry?.dispose?.();
+            const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+            for (const m of mats) {
+              for (const k in m) {
+                const v = (m as any)[k];
+                if (v && v.isTexture) v.dispose?.();
+              }
+              m.dispose?.();
+            }
+          });
+          (scn.environment as any)?.dispose?.();
+          scn.environment = null;
+        }
+      } catch {
+        /* teardown is best-effort */
+      }
       fg.__brainInited = false; // allow a clean re-init if this fg instance is reused
     };
   }, []);
