@@ -1925,14 +1925,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const t = byId.get(linkEnd(l.target));
         const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
         let r: number, g: number, b: number;
-        if (ew > 0.25) { r = 235; g = 205; b = 90; }      // warm gold — joyful
-        else if (ew < -0.25) { r = 150; g = 140; b = 255; } // indigo — heavy
-        else { r = 90; g = 235; b = 150; }                 // neuron green — the resting hue
+        // Lower thresholds so warmth/heaviness show up, not just extreme pairs.
+        if (ew > 0.12) { r = 255; g = 205; b = 70; }      // warm gold — joyful
+        else if (ew < -0.12) { r = 150; g = 130; b = 255; } // indigo — heavy
+        else { r = 70; g = 245; b = 140; }                 // neuron green — the resting hue
         const activity = getLinkActivity(l); // 0..1, spikes right after she pulses it
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
-        // Fresh pulses push the colour ALL the way to white so the (widened) line
-        // exceeds the bloom threshold and actually GLOWS, then eases back over ~3 days.
-        const flash = Math.min(1, activity * 1.15);
+        // A fresh pulse only brightens toward white a LITTLE (≤40%), so the line still
+        // GLOWS IN ITS OWN COLOUR (a joyful link glows gold, not white) — the fat width
+        // carries the bloom. Eases back over ~3 days.
+        const flash = Math.min(0.4, activity * 0.45);
         r = Math.round(r + (255 - r) * flash);
         g = Math.round(g + (255 - g) * flash);
         b = Math.round(b + (255 - b) * flash);
@@ -1981,10 +1983,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const t = byId.get(linkEnd(l.target));
         const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
         let r: number, g: number, b: number;
-        if (ew > 0.25) { r = 245; g = 220; b = 120; }
-        else if (ew < -0.25) { r = 180; g = 170; b = 255; }
-        else { r = 120; g = 245; b = 170; }
-        const flash = getLinkActivity(l) * 0.9;
+        if (ew > 0.12) { r = 255; g = 220; b = 110; }
+        else if (ew < -0.12) { r = 180; g = 160; b = 255; }
+        else { r = 110; g = 250; b = 165; }
+        const flash = Math.min(0.45, getLinkActivity(l) * 0.5);
         r = Math.round(r + (255 - r) * flash);
         g = Math.round(g + (255 - g) * flash);
         b = Math.round(b + (255 - b) * flash);
