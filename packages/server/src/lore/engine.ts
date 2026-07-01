@@ -91,10 +91,37 @@ const emotionWord = (ew: number): string =>
 const stateWord = (entropy: number): string =>
   entropy < 0.2 ? "burning bright" : entropy < 0.45 ? "its light dimming" : "gone cold";
 
+// The galaxy has a consistent geography: each KIND of memory lives in a named region.
+// This turns the lore into a coherent atlas of your inner cosmos rather than generic
+// "a star was born" prose.
+const SECTOR: Record<string, string> = {
+  person: "the Kinship Reaches",
+  company: "the Guild Expanse",
+  project: "the Forge Fields",
+  decision: "the Crossroad Nebula",
+  meeting: "the Confluence",
+  daily: "the Drift",
+  knowledge: "the Archive Belt",
+  concept: "the Deep Field",
+  moc: "a charted constellation",
+  other: "the Uncharted Verge",
+};
+
+/** Pull the essence of a memory — its first clause/sentence — so the lore is actually
+ *  ABOUT the thought, not just its title. Cleaned + trimmed to a phrase. */
+function essenceOf(content: string, label: string): string {
+  const raw = (content || "").replace(/\s+/g, " ").trim();
+  if (!raw || raw.toLowerCase() === label.toLowerCase()) return "";
+  const clause = raw.split(/[.!?;\n]/)[0]!.trim();
+  const phrase = clause.length > 90 ? clause.slice(0, 88).replace(/\s\S*$/, "") + "…" : clause;
+  return phrase.charAt(0).toLowerCase() + phrase.slice(1);
+}
+
 /** Build a genesis or evolved chapter for a MEMORY from its live state + neighbors. */
 function composeMemoryChapter(input: {
   label: string;
   type: string;
+  content: string;
   emotionalWeight: number;
   entropy: number;
   degree: number;
@@ -104,46 +131,47 @@ function composeMemoryChapter(input: {
   trigger: string;
   seedId: number;
 }): string {
-  const { label, emotionalWeight, entropy, degree, neighbors, version, trigger, seedId } = input;
+  const { label, content, emotionalWeight, entropy, degree, neighbors, version, trigger, seedId } = input;
   const rng = seeded(seedId * 101 + version * 7919);
   const emo = emotionWord(emotionalWeight);
   const state = stateWord(entropy);
-  const kind = input.type.replace(/_/g, " ");
+  const sector = SECTOR[input.type] ?? SECTOR.other!;
+  const essence = essenceOf(content, label);
+  const about = essence ? ` — the record of ${essence}` : "";
   const n1 = neighbors[0];
   const n2 = neighbors[1];
 
   const bond =
     degree === 0
-      ? "It drifts alone in the dark, unbound."
+      ? "No filaments reach it yet; it drifts a lone beacon, waiting to be joined."
       : n1 && n2
-        ? `It holds ${n1} and ${n2} in its orbit` + (degree > 2 ? `, and ${degree - 2} more.` : ".")
+        ? `Its light is braided with ${n1} and ${n2}` + (degree > 2 ? `, and ${degree - 2} other bodies.` : ".")
         : n1
-          ? `It is tethered to ${n1}.`
-          : `It carries ${degree} quiet connection${degree === 1 ? "" : "s"}.`;
+          ? `A single filament tethers it to ${n1}.`
+          : `${degree} quiet filament${degree === 1 ? "" : "s"} anchor it to the field.`;
 
   if (version === 1) {
     const opening = pick(rng, [
-      `Born from a ${kind}, "${label}" took its place in the sky as a ${emo} body.`,
-      `When "${label}" first kindled, it was a ${emo} ${kind}, ${state}.`,
-      `"${label}" arrived as a ${emo} point of light — a ${kind} given mass.`,
+      `Charted in ${sector}, "${label}"${about} ignited where a ${emo} current pooled and would not disperse.`,
+      `The atlas marks "${label}" in ${sector}${about}: a ${emo} body, ${state}, that gathered its own mass from attention alone.`,
+      `Deep in ${sector}, "${label}" first kindled${about} — a ${emo} light given weight by the fact that you remembered it.`,
     ]);
     return `${opening} ${bond}`;
   }
 
-  // Later chapters reference change + continuity.
   const change: Record<string, string[]> = {
-    linked: [`New filaments reached it; the constellation around "${label}" tightened.`, `Fresh bonds formed — "${label}" is less alone than it was.`],
-    merged: [`It drank in a kindred memory and grew heavier with the union.`, `Two stories became one here; "${label}" carries both now.`],
-    cooled: [`Neglect crept in — "${label}" has drifted toward the cold.`, `Its fire banked low; "${label}" waits, ${state}, for your return.`],
-    warmed: [`You returned, and "${label}" flared warm again.`, `Tended once more, its light steadied.`],
-    evolved: [`Time worked on it; "${label}" is ${state} now, and ${emo}.`, `The story turned a page — "${label}" reads ${emo} these days.`],
-    manual: [`You paused on "${label}", and its tale deepened.`, `Looked at closely, "${label}" gave up a little more of its story.`],
+    linked: [`New filaments arced across ${sector} to reach it; the constellation around "${label}" drew tighter.`, `Fresh bonds crystallized — "${label}" is woven deeper into the field than it was.`],
+    merged: [`It drew a kindred body into itself and grew heavier with the union; two tellings are one light now.`, `A neighbouring memory fell into its gravity, and "${label}" now carries both stories at once.`],
+    cooled: [`Attention ebbed from ${sector}, and "${label}" drifted toward the cold, its glow banking ${state}.`, `Unvisited, its fire dimmed; "${label}" holds its orbit and waits, ${state}, for your return.`],
+    warmed: [`You crossed back into ${sector}, and "${label}" flared ${emo} and bright again.`, `Tended once more, the body steadied and its light held.`],
+    evolved: [`Time and gravity reworked it; in ${sector}, "${label}" reads ${emo} now, and ${state}.`, `The atlas turned a page on "${label}" — its meaning has settled into something ${emo}.`],
+    manual: [`You lingered over "${label}", and its entry in the atlas deepened by a line.`, `Studied closely, "${label}" surrendered a little more of what it holds.`],
   };
   const line = pick(rng, change[trigger] ?? change.evolved!);
   const continuity = pick(rng, [
-    `Once it was simpler.`,
-    `Where it began still glows beneath this.`,
-    `Chapter ${version} of a longer telling.`,
+    `Beneath this, the first light of its genesis still burns.`,
+    `Chapter ${version} in the chronicle of a single remembered thing.`,
+    `What it was is still legible under what it has become.`,
   ]);
   return `${line} ${bond} ${continuity}`;
 }
@@ -209,6 +237,7 @@ export function evolveLore(
     const text = composeMemoryChapter({
       label: node.label,
       type: node.type,
+      content: node.content ?? "",
       emotionalWeight: node.emotionalWeight ?? 0,
       entropy: node.entropy ?? 0,
       degree,
