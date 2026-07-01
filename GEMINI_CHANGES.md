@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-06-30 (Claude): Sun collision — nothing gets near the Sun anymore (measured)
+The recurring "planets drift into the Sun" bug, fixed for real and proven by measurement.
+- **Root cause (reproduced):** orbits only guaranteed the *top-level* shell cleared the Sun. But the
+  comet swing pulled clusters INWARD to 60% of radius, and child/grandchild bodies orbit their parent —
+  so on the Sun-facing side their distance = parent − orbit-radius, landing inside the star. A 60s sim
+  over the demo galaxy measured bodies reaching **minDist 389** (< the 600 core), 5 bodies inside the Sun.
+- **Fix (`graph/orbits.ts`):** (1) radial swing is now OUTWARD-only (never inward); (2) innermost shell
+  pushed out (`SUN_GAP` 450→600, `TOP_TARGET` 2800→3200); (3) a HARD per-frame `enforceSunClearance`
+  clamp on EVERY body (top/child/comet/ferried slot) — nothing may be closer than `SUN_RADIUS_MAX+320`
+  (920) to the origin. Re-measured: **minDist 389 → 920, 0 bodies in the Sun, 0 within 900** on both the
+  demo galaxy and a dense single cluster.
+- **Soumaya flight (`graph/soumaya.ts`):** her Sun safeguard was only `+80` (680) — she grazed/disappeared
+  into it. Raised to `+350` (950, matching the bodies) for all normal flight, with active deletion exempt
+  (casting a memory into the Sun is the one time she's meant to close in).
+- Gate: typecheck clean · 128 server tests · web build clean.
+
 ### 2026-06-30 (Claude): Finish the research add-ons — life-area lens, self-check, #9/#7/#10 + Help taxonomy
 Closes out `docs/specs/research-agent-addons.md`. All 12 modules now resolved.
 - **#7 compression + #10 tiers:** `Insight.tier` (identity/behavioral/situational) derived on read in

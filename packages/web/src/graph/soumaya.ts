@@ -1218,10 +1218,11 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       /* skip this frame */
     } finally {
       try {
-        // Hard safeguard: never inside the Sun. Orbits/station/dock are all well
-        // outside SUN_CLEAR, so this only acts to turn a fly-through into a graze.
-        const SUN_CLEAR = SUN_RADIUS_MAX + 80;
-        if (group.position.lengthSq() > 1 && group.position.length() < SUN_CLEAR) {
+        // Hard safeguard: give the Sun a WIDE berth on all normal flight (matches the
+        // bodies' clearance) so she never grazes or disappears into it. Exempt active
+        // deletion — casting a memory into the Sun is the one time she's meant to close in.
+        const SUN_CLEAR = SUN_RADIUS_MAX + 350; // 950 — comfortably around, not touching
+        if (!activeRemoval && group.position.lengthSq() > 1 && group.position.length() < SUN_CLEAR) {
           group.position.setLength(SUN_CLEAR);
         }
         updatePlume(dt);

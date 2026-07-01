@@ -60,10 +60,25 @@ const TOP_STEP = 360; // max radial spacing between top-level systems
 const TOP_MIN_STEP = 260; // min spacing — keeps systems apart when the galaxy is busy
 // Realistic gap between the Sun's surface and the innermost orbit — no body ever
 // "kisses" the sun.
-const SUN_GAP = 450;
+const SUN_GAP = 600;
 // Target radius the top-level systems try to fit inside (beyond the Sun), so the
 // galaxy stays a compact cluster and comet swings still fit the star field.
-const TOP_TARGET = 2800;
+const TOP_TARGET = 3200;
+// HARD floor: no body — top-level, child, grandchild, or comet-swung — may ever be
+// closer than this to the Sun at the origin. Enforced every frame in `update` as a
+// guaranteed safety net, because a child orbiting on the Sun-facing side of its parent
+// can otherwise dip inside the star (measured: bodies reached ~389 < the 600 core).
+const SUN_CLEAR = SUN_RADIUS_MAX + 320;
+/** Push a position radially out to the Sun-clearance shell if it's dangerously close. */
+const enforceSunClearance = (p: { x: number; y: number; z: number }): void => {
+  const d = Math.hypot(p.x, p.y, p.z);
+  if (d > 1e-3 && d < SUN_CLEAR) {
+    const k = SUN_CLEAR / d;
+    p.x *= k;
+    p.y *= k;
+    p.z *= k;
+  }
+};
 
 export function makeOrbitSystem(): OrbitSystem {
   const params = new Map<number, OrbitParams>();
@@ -247,11 +262,12 @@ export function makeOrbitSystem(): OrbitSystem {
       if (!p) continue;
       if (held.has(n.id)) continue; // being ferried by Soumaya — she controls it
       if (p.top) {
-        // The whole cluster revolves around the Sun (origin), gently breathing in
-        // and out (comets swing wide, then return — all bounded).
+        // The whole cluster revolves around the Sun (origin), breathing OUTWARD only
+        // (comets swing wide, then return to baseRadius — never inward toward the Sun,
+        // so a cluster can't pull itself into the star).
         p.angle += p.speed * dt;
         p.radialPhase = (p.radialPhase ?? 0) + (p.radialSpeed ?? 0) * dt;
-        const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.sin(p.radialPhase));
+        const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.max(0, Math.sin(p.radialPhase)));
         const c = Math.cos(p.angle);
         const s = Math.sin(p.angle);
         n.x = SUN.x + (p.u.x * c + p.v.x * s) * r;
@@ -270,6 +286,9 @@ export function makeOrbitSystem(): OrbitSystem {
         n.y = parentY + (p.u.y * c + p.v.y * s) * p.radius;
         n.z = parentZ + (p.u.z * c + p.v.z * s) * p.radius;
       }
+      // Guaranteed safety net: no body may ever be inside the Sun-clearance shell,
+      // whatever the orbit math produced (child on the Sun-facing side, etc.).
+      enforceSunClearance(n);
       // Pin so the force engine can't move (or collapse) them.
       n.fx = n.x;
       n.fy = n.y;
@@ -301,19 +320,23 @@ export function makeOrbitSystem(): OrbitSystem {
     if (!p) return null;
     const c = Math.cos(p.angle);
     const s = Math.sin(p.angle);
+    let out: THREE.Vector3;
     if (p.top) {
-      const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.sin(p.radialPhase ?? 0));
-      return new THREE.Vector3(
+      const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.max(0, Math.sin(p.radialPhase ?? 0)));
+      out = new THREE.Vector3(
         SUN.x + (p.u.x * c + p.v.x * s) * r,
         SUN.y + (p.u.y * c + p.v.y * s) * r,
         SUN.z + (p.u.z * c + p.v.z * s) * r,
       );
+    } else {
+      out = new THREE.Vector3(
+        (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius,
+        (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius,
+        (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius,
+      );
     }
-    return new THREE.Vector3(
-      (p.parent.x ?? 0) + (p.u.x * c + p.v.x * s) * p.radius,
-      (p.parent.y ?? 0) + (p.u.y * c + p.v.y * s) * p.radius,
-      (p.parent.z ?? 0) + (p.u.z * c + p.v.z * s) * p.radius,
-    );
+    enforceSunClearance(out);
+    return out;
   };
   const hold = (id: number): void => {
     held.add(id);
