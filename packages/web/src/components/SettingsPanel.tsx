@@ -1,29 +1,26 @@
 import { useEffect, useState } from "react";
-import { currentSpace, updateProfile, getSettings, updateSetting } from "../api/client.js";
+import { currentSpace, updateProfile } from "../api/client.js";
 import { isVoiceEnabled, setVoiceEnabled, isVoiceSupported } from "../voice.js";
 import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
 
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
  * preferences. Opened from a FAB; floats over the galaxy like the Observatory.
+ * Soumaya-specific switches (Research Mode, ship-task label) live in HER tab —
+ * this panel deliberately doesn't duplicate them.
  */
 export function SettingsPanel({
   onClose,
   onProfileUpdated,
-  showShipTask,
-  setShowShipTask,
 }: {
   onClose: () => void;
   /** Push the new display name back to the app header. */
   onProfileUpdated?: (name: string) => void;
-  showShipTask?: boolean;
-  setShowShipTask?: (v: boolean) => void;
 }) {
   const [name, setName] = useState("");
   const [gamerTag, setGamerTag] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
-  const [research, setResearch] = useState(false);
   const [voice, setVoice] = useState(isVoiceEnabled());
   const [sfx, setSfx] = useState(sfxEnabled());
   const voiceSupported = isVoiceSupported();
@@ -35,7 +32,6 @@ export function SettingsPanel({
         setGamerTag(s.gamerTag ?? "");
       }
     });
-    getSettings().then((s) => setResearch(s.research_enabled === "true")).catch(() => {});
   }, []);
 
   const saveProfile = async () => {
@@ -55,11 +51,6 @@ export function SettingsPanel({
     }
   };
 
-  const toggleResearch = async () => {
-    const next = !research;
-    setResearch(next);
-    await updateSetting("research_enabled", String(next)).catch(() => setResearch(!next));
-  };
   const toggleVoice = () => {
     const next = !voice;
     setVoice(next);
@@ -101,15 +92,12 @@ export function SettingsPanel({
 
         <section className="settings-section">
           <h3>Preferences</h3>
-          <label className="settings-toggle">
-            <span>
-              Research Mode
-              <em>Lets Soumaya spend fuel on deep-dive research &amp; charting.</em>
-            </span>
-            <button className={`switch ${research ? "on" : ""}`} onClick={toggleResearch} aria-pressed={research}>
-              <span className="knob" />
-            </button>
-          </label>
+          {/* Research Mode + the ship-task label live in the Soumaya tab (🛰️),
+              next to the fuel they relate to — two unsynced copies of the same
+              switch here kept drifting out of step. */}
+          <p className="settings-note" style={{ fontSize: "12px", opacity: 0.75, margin: "0 0 10px" }}>
+            Research Mode and her floating task label are in the <b>🛰️ Soumaya</b> tab.
+          </p>
           {voiceSupported && (
             <label className="settings-toggle">
               <span>
@@ -138,21 +126,6 @@ export function SettingsPanel({
               <span className="knob" />
             </button>
           </label>
-          {setShowShipTask && (
-            <label className="settings-toggle">
-              <span>
-                Show Soumaya's task label
-                <em>The floating tag above her ship.</em>
-              </span>
-              <button
-                className={`switch ${showShipTask ? "on" : ""}`}
-                onClick={() => setShowShipTask(!showShipTask)}
-                aria-pressed={!!showShipTask}
-              >
-                <span className="knob" />
-              </button>
-            </label>
-          )}
         </section>
       </div>
     </div>

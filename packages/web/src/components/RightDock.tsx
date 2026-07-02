@@ -16,20 +16,19 @@ import { CodexPanel } from "./CodexPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel, Streak } from "@brain/shared";
 
+// The dock was 13 icon tabs — it overflowed off-screen on phones and several
+// tabs were near-duplicates. Consolidated: Browse absorbs List/Library/Sectors
+// (view modes), Progress absorbs Awards/Codex (chips), Fleet folds into the
+// Soumaya tab as a section. 9 tabs fit a 360px dock without scrolling.
 export type DockTab =
   | "details"
   | "list"
   | "actions"
-  | "sectors"
   | "insights"
-  | "chat"
   | "soumaya"
-  | "fleet"
   | "companion"
   | "inbox"
   | "awards"
-  | "library"
-  | "codex"
   | "hangar";
 
 interface Props {
@@ -46,7 +45,7 @@ interface Props {
   canBack?: boolean;
   /** Demo galaxy is read-only (no backend) — disables destructive actions. */
   demo?: boolean;
-  /** Live fleet status getter (from the 3D scene) for the Fleet tab. */
+  /** Live fleet status getter (from the 3D scene) for the Fleet section. */
   getFleetStatus?: () => FleetStatus | undefined;
   /** Floating ship-task label preference + setter (Soumaya tab toggle). */
   showShipTask?: boolean;
@@ -56,7 +55,7 @@ interface Props {
   setShipViewMode?: (v: "orbit" | "cockpit") => void;
   tasks?: any[];
   onReorderTasks?: (newOrder: any[]) => void;
-  /** Live fuel + streak + brain id for the Awards (achievements) tab. */
+  /** Live fuel + streak + brain id for the Progress tab. */
   fuel?: Fuel | null;
   streak?: Streak | null;
   spaceId?: string;
@@ -70,19 +69,20 @@ interface Props {
 // The tab name text is responsive (hidden on narrow screens, displayed side-by-side on wide screens).
 const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "details", label: "ⓘ", name: "Details" },
-  { id: "sectors", label: "🌌", name: "Sectors" },
-  { id: "list", label: "📋", name: "List" },
+  { id: "list", label: "📚", name: "Browse" },
   { id: "actions", label: "✅", name: "Agenda" },
   { id: "insights", label: "✨", name: "Insights" },
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
-  { id: "fleet", label: "🚀", name: "Fleet" },
   { id: "companion", label: "🧠", name: "Companion" },
   { id: "inbox", label: "🔔", name: "Inbox" },
-  { id: "library", label: "📚", name: "Library" },
-  { id: "codex", label: "📖", name: "Codex" },
-  { id: "awards", label: "🏆", name: "Awards" },
+  { id: "awards", label: "🏆", name: "Progress" },
   { id: "hangar", label: "🛠️", name: "Hangar" },
 ];
+
+/** Browse = one place to read your memories, three lenses over the same data. */
+type BrowseView = "all" | "folders" | "hubs";
+/** Progress = one progression surface: the Codex (discoveries) + Awards (feats). */
+type ProgressView = "codex" | "awards";
 
 export function RightDock({
   tab,
@@ -112,6 +112,9 @@ export function RightDock({
   onPromoted,
 }: Props) {
   const [unseenCount, setUnseenCount] = useState(0);
+  const [browseView, setBrowseView] = useState<BrowseView>("all");
+  const [progressView, setProgressView] = useState<ProgressView>("codex");
+  const [fleetOpen, setFleetOpen] = useState(false);
 
   useEffect(() => {
     const updateCount = () => {
@@ -201,40 +204,79 @@ export function RightDock({
             demo={demo}
           />
         )}
-        {tab === "list" && <NodeList nodes={graph.nodes} onFocus={onFocus} demo={demo} />}
+        {tab === "list" && (
+          <div className="subtab-wrap">
+            <div className="subtabs" role="tablist" aria-label="Browse view">
+              <button className={browseView === "all" ? "on" : ""} onClick={() => setBrowseView("all")}>
+                📋 All
+              </button>
+              <button className={browseView === "folders" ? "on" : ""} onClick={() => setBrowseView("folders")}>
+                📁 Folders
+              </button>
+              <button className={browseView === "hubs" ? "on" : ""} onClick={() => setBrowseView("hubs")}>
+                🪐 Hubs
+              </button>
+            </div>
+            {browseView === "all" && <NodeList nodes={graph.nodes} onFocus={onFocus} demo={demo} />}
+            {browseView === "folders" && (
+              <LibraryPanel graph={graph} onFocus={onFocus} spaceName={spaceName} />
+            )}
+            {browseView === "hubs" && (
+              <SectorView graph={graph} onFocus={onFocus} onIsolate={(id) => onIsolate?.(id)} />
+            )}
+          </div>
+        )}
         {tab === "actions" && (
           <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} readOnly={demo} />
         )}
-        {tab === "sectors" && (
-          <SectorView
-            graph={graph}
-            onFocus={onFocus}
-            onIsolate={(id) => onIsolate?.(id)}
-          />
-        )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} onPromoted={onPromoted} />}
-        {(tab === "soumaya" || tab === "chat") && (
-          <SoumayaPanel
-            spaceName={spaceName}
-            onFocus={onFocus}
-            onRecall={onRecall}
-            showShipTask={showShipTask}
-            setShowShipTask={setShowShipTask}
-            shipViewMode={shipViewMode}
-            setShipViewMode={setShipViewMode}
-            tasks={tasks}
-            onReorderTasks={onReorderTasks}
-          />
-        )}
-        {tab === "fleet" && (
-          <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
+        {tab === "soumaya" && (
+          <div className="subtab-wrap">
+            <SoumayaPanel
+              spaceName={spaceName}
+              onFocus={onFocus}
+              onRecall={onRecall}
+              showShipTask={showShipTask}
+              setShowShipTask={setShowShipTask}
+              shipViewMode={shipViewMode}
+              setShipViewMode={setShipViewMode}
+              tasks={tasks}
+              onReorderTasks={onReorderTasks}
+            />
+            <details
+              className="dock-section"
+              open={fleetOpen}
+              onToggle={(e) => setFleetOpen((e.target as HTMLDetailsElement).open)}
+            >
+              <summary>🚀 Fleet — her support craft</summary>
+              {fleetOpen && (
+                <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
+              )}
+            </details>
+          </div>
         )}
         {tab === "companion" && <CompanionPanel demo={demo} spaceName={spaceName} />}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
-        {tab === "library" && <LibraryPanel graph={graph} onFocus={onFocus} spaceName={spaceName} />}
-        {tab === "codex" && <CodexPanel graph={graph} onFocus={onFocus} spaceId={spaceId} demo={demo} onReward={() => onChanged?.(-1)} />}
         {tab === "awards" && (
-          <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
+          <div className="subtab-wrap">
+            <div className="subtabs" role="tablist" aria-label="Progress view">
+              <button className={progressView === "codex" ? "on" : ""} onClick={() => setProgressView("codex")}>
+                📖 Codex
+              </button>
+              <button className={progressView === "awards" ? "on" : ""} onClick={() => setProgressView("awards")}>
+                🏆 Awards
+              </button>
+              <button className="subtab-link" onClick={() => setTab("hangar")} title="Spend your unlocks">
+                🛠️ Hangar →
+              </button>
+            </div>
+            {progressView === "codex" && (
+              <CodexPanel graph={graph} onFocus={onFocus} spaceId={spaceId} demo={demo} onReward={() => onChanged?.(-1)} />
+            )}
+            {progressView === "awards" && (
+              <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
+            )}
+          </div>
         )}
         {tab === "hangar" && (
           <HangarPanel

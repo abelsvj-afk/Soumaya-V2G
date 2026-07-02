@@ -261,6 +261,57 @@ body,
   color: var(--text);
   border-bottom-color: var(--accent);
 }
+/* Second-level view switcher inside a merged tab (Browse: All/Folders/Hubs;
+   Progress: Codex/Awards). Chips, not another tab row, so hierarchy reads. */
+.subtab-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.subtabs {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 2px;
+  flex: 0 0 auto;
+  align-items: center;
+}
+.subtabs button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.subtabs button.on {
+  color: var(--text);
+  border-color: var(--accent);
+  background: rgba(122, 162, 255, 0.12);
+}
+.subtabs .subtab-link {
+  margin-left: auto;
+  border-style: dashed;
+}
+/* Collapsible section inside a tab (e.g. Fleet under the Soumaya tab). */
+.dock-section {
+  margin: 6px 10px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+}
+.dock-section > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  list-style: none;
+}
+.dock-section[open] > summary {
+  color: var(--text);
+  border-bottom: 1px solid var(--glass-border);
+}
 .dock-content {
   flex: 1 1 auto;
   min-height: 0;

@@ -34,7 +34,7 @@ const ROLE_PRESETS = [
  *  - About Me: auto-derived, who you are (she's aware, never becomes you).
  *  - Custom Instructions: stackable roles she adopts (collapsible; editable).
  *  - Knowledge: reference docs she retrieves from (txt/md/pdf/docx).
- * (There's no chat here on purpose — talk to her in the 🛰️ Soumaya tab, which
+ * (There's no chat here on purpose — talk to her via the 💬 chat button, which
  *  already uses these active roles + knowledge. Kept single to avoid redundancy.)
  */
 export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean; spaceName?: string }) {
@@ -47,7 +47,7 @@ export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean
       <Instructions />
       <Knowledge />
       <p className="companion-hint companion-tryhint">
-        💬 Try your active roles + knowledge by talking to her in the 🛰️ {spaceName} tab.
+        💬 Try your active roles + knowledge by talking to {spaceName} — tap the 💬 chat button.
       </p>
     </div>
   );

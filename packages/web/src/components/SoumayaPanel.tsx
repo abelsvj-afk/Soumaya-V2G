@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { type Fuel } from "@brain/shared";
 import {
   getAgentLogs,
-  getDailyLog,
   getFuel,
   getSettings,
   updateSetting,
@@ -13,7 +12,6 @@ import {
   setAdminToken,
   getSpaceId,
   type AgentLog,
-  type DailyLog,
   type JobRationale,
   type Usage,
 } from "../api/client.js";
@@ -43,7 +41,6 @@ export function SoumayaPanel({
 }) {
   // Telemetry & Logs state
   const [logs, setLogs] = useState<AgentLog[]>([]);
-  const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
@@ -87,17 +84,15 @@ export function SoumayaPanel({
   // Fetch telemetry/logs
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData, dl, fuelData] = await Promise.all([
+      const [logsData, settings, usageData, fuelData] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
-        getDailyLog(),
         getFuel(),
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
       if (usageData) setUsage(usageData);
-      if (dl) setDailyLog(dl);
       if (fuelData) setFuel(fuelData);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
@@ -258,15 +253,8 @@ export function SoumayaPanel({
         )}
       </div>
 
-      {/* 4. Captain's Log */}
-      {dailyLog && (
-        <div className="daily-log" style={{ marginTop: "20px", padding: '1rem', backgroundColor: 'rgba(100, 200, 255, 0.05)', borderLeft: '3px solid rgba(100, 200, 255, 0.5)', borderRadius: '0 4px 4px 0' }}>
-          <h4 style={{ margin: '0 0 0.5rem 0', color: 'rgba(100, 200, 255, 0.9)', fontSize: "13px" }}>
-            Captain's Log ({dailyLog.date})
-          </h4>
-          <p style={{ margin: 0, fontSize: '0.85rem', lineHeight: 1.4, opacity: 0.9 }}>{dailyLog.content}</p>
-        </div>
-      )}
+      {/* (The Captain's Log moved to the Insights tab — it's her narrative read on
+          the day, same job as the daily digest, so they live together now.) */}
 
       {/* 5. Consistency Constellation */}
       <div className="constellation-grid" style={{ marginTop: "20px", borderTop: "1px solid var(--glass-border)", paddingTop: "15px" }}>

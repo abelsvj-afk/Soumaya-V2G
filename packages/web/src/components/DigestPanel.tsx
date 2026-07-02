@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, runDigest, runContradictions } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, runDigest, runContradictions, type DailyLog } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -40,6 +40,9 @@ export function DigestPanel({
   const [evolution, setEvolution] = useState<EvolutionLink[]>([]);
   const [lifeAreas, setLifeAreas] = useState<LifeAreaCount[]>([]);
   const [selfReview, setSelfReview] = useState<SelfReviewItem[]>([]);
+  // Captain's Log lives here (moved from the Soumaya tab): it's her narrative
+  // read on the day — the same job as the daily digest, so they read together.
+  const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
   const [busy, setBusy] = useState(false);
   const [showAllInsights, setShowAllInsights] = useState(false);
 
@@ -99,6 +102,9 @@ export function DigestPanel({
     getSelfReview()
       .then(setSelfReview)
       .catch(() => {});
+    getDailyLog()
+      .then((dl) => dl && setDailyLog(dl))
+      .catch(() => {});
   }, []);
 
   async function run() {
@@ -132,6 +138,16 @@ export function DigestPanel({
 
   return (
     <div className="dock-body">
+      {/* Captain's Log — her once-a-day narrative entry (autonomous daily_log job). */}
+      {dailyLog && (
+        <div className="daily-log" style={{ marginBottom: "16px", padding: "1rem", backgroundColor: "rgba(100, 200, 255, 0.05)", borderLeft: "3px solid rgba(100, 200, 255, 0.5)", borderRadius: "0 4px 4px 0" }}>
+          <h4 style={{ margin: "0 0 0.5rem 0", color: "rgba(100, 200, 255, 0.9)", fontSize: "13px" }}>
+            Captain's Log ({dailyLog.date})
+          </h4>
+          <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.4, opacity: 0.9 }}>{dailyLog.content}</p>
+        </div>
+      )}
+
       {/* Soumaya's daily digest — her read on the day, with links + her take. */}
       {daily && (daily.fresh.length > 0 || daily.expiredActions.length > 0 || daily.greeting) && (
         <section className="daily-digest">

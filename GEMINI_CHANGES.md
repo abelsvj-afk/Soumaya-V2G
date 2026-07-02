@@ -165,6 +165,41 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-02 (Claude): Second full audit (4 agents) + four fix batches (report: docs/PROJECT_AUDIT_2026-07-FULL.md)
+Post-Codex audit (UI redundancy · server · 3D client · gamification), then four user-approved
+batches, each gate-green + pushed:
+1. **P0 security (`8e0c46e`):** Gemini usage is now METERED (the USD cap was inert on the default
+   provider — no `recordUsage` + no pricing); `/api/usage` mutations fail closed without
+   `ADMIN_TOKEN` (client prompts + remembers the token); `research_enabled` is PER-SPACE
+   (`space_meta` column, legacy global fallback); codex-claim validates keys against the real
+   catalog (`constellation-*` must reference a live MOC in the space); action deletions pay fuel
+   only for actions >10 min old; `executeJob` re-validates client-supplied targets (merge needs
+   ≥0.96 similarity + now cleans self-loops/dup edges/insight refs; vibe/research markers; 10-min
+   execution dedupe kills the browser-vs-24/7-loop double-run); telemetry strips (chat prompt no
+   longer recites budget $/key config; /health drops global node count; generic 500s; 10/min auth
+   rate limit); legacy claim covers ALL space tables; deleted the drifted duplicate CREATE block
+   in `migrateSchema`; `edges(space_id)` index.
+2. **P1 correctness (`53333e2`):** demo galaxy fully sandboxed (Soumaya flies local patrols only —
+   no real next-job/complete-job with demo ids; demo stats don't feed achievements); link glow
+   takes the FRESHEST end (max, not `??`-chain); engine audio honors the volume slider + dt-based
+   easing; `statsSpaceId` fallback unified to "default"; per-space `ship.task` key; live-ref fix
+   for `fireRecall`; bloom pass removed+disposed on teardown.
+3. **Gamification split (`003f5c0`):** Codex = discoveries, Awards = feats — deleted ~8 duplicate
+   achievements, Pilot Rank is the single memory-count ladder (one toast per milestone, was 3),
+   renamed the two name collisions (Keeper of the Flame / Sector Dominion), `memories_tended`
+   counts only genuine cold-restores, Consistent Pilot reads the server streak, Telegram `/log`
+   advances the streak, fuel regen 6→2/hr, red −fuel pops, tend button shows its price.
+4. **Tab consolidation 13→9 (this commit):** Browse absorbs List+Library+Sectors (All/Folders/Hubs
+   chips); Progress absorbs Awards+Codex (chips + Hangar shortcut); Fleet folds into the Soumaya
+   tab as a collapsible section ("Most visited" dropped — Browse rows show 👽 counts); Captain's
+   Log moved to Insights; Research-Mode + ship-label switches live ONLY in the Soumaya tab; dead
+   "chat" DockTab removed; Help menu corrected (wrong Sectors cards, stale names) + 8 new entries.
+
+### 2026-07-01 (Claude): Codex + constellation re-evaluation (`532e966`, `126a6ae`)
+The living-atlas Codex tab (unlock + level + one-time fuel rewards via `codex_claims`), two
+codex achievements, and `analysis/constellationReconcile.ts` (MOC hubs pull in drifted-in
+similar memories over time, add-only). 140 tests.
+
 ### 2026-07-01 (Claude): Full project audit + high-severity fixes (report: docs/PROJECT_AUDIT_2026-07.md)
 Ran three parallel review agents (server bugs · web bugs · gamification design). Report in
 `docs/PROJECT_AUDIT_2026-07.md`. Fixed the confirmed high/medium items:

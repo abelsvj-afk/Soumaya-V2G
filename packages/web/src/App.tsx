@@ -749,7 +749,7 @@ export default function App() {
           focus(node.id);
         }}
         onSoumayaClick={() => {
-          setTab("soumaya"); // tapping her ship = talk to Soumaya
+          setTab("soumaya"); // tapping her ship opens her ops console (chat is the 💬 FAB)
           setPanel("dock");
           setFollowShip(true);
           setFollowStation(false);
@@ -1145,8 +1145,6 @@ export default function App() {
         <SettingsPanel
           onClose={() => setShowSettings(false)}
           onProfileUpdated={(name) => setSpace((s) => (s ? { ...s, name } : s))}
-          showShipTask={showShipTask}
-          setShowShipTask={setShowShipTask}
         />
       )}
 
