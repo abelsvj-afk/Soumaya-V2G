@@ -1162,6 +1162,7 @@ export default function App() {
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           onCreated={(ids) => void refresh(ids)}
+          demo={demo}
         />
       )}
 

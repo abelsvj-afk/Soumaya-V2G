@@ -7,7 +7,6 @@ import { SectorView } from "./SectorView.js";
 import { DigestPanel } from "./DigestPanel.js";
 import { SoumayaPanel } from "./SoumayaPanel.js";
 import { FleetPanel } from "./FleetPanel.js";
-import { CompanionPanel } from "./CompanionPanel.js";
 import { AchievementsPanel } from "./AchievementsPanel.js";
 import { HangarPanel } from "./HangarPanel.js";
 import { InboxPanel } from "./InboxPanel.js";
@@ -19,14 +18,15 @@ import type { Fuel, Streak } from "@brain/shared";
 // The dock was 13 icon tabs — it overflowed off-screen on phones and several
 // tabs were near-duplicates. Consolidated: Browse absorbs List/Library/Sectors
 // (view modes), Progress absorbs Awards/Codex (chips), Fleet folds into the
-// Soumaya tab as a section. 9 tabs fit a 360px dock without scrolling.
+// Soumaya tab as a section, and the Companion controls live inside the chat
+// (💬 → 🎭) where they configure who you're talking to. 8 tabs fit a 360px
+// dock without scrolling.
 export type DockTab =
   | "details"
   | "list"
   | "actions"
   | "insights"
   | "soumaya"
-  | "companion"
   | "inbox"
   | "awards"
   | "hangar";
@@ -73,7 +73,6 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "actions", label: "✅", name: "Agenda" },
   { id: "insights", label: "✨", name: "Insights" },
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
-  { id: "companion", label: "🧠", name: "Companion" },
   { id: "inbox", label: "🔔", name: "Inbox" },
   { id: "awards", label: "🏆", name: "Progress" },
   { id: "hangar", label: "🛠️", name: "Hangar" },
@@ -255,7 +254,6 @@ export function RightDock({
             </details>
           </div>
         )}
-        {tab === "companion" && <CompanionPanel demo={demo} spaceName={spaceName} />}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
         {tab === "awards" && (
           <div className="subtab-wrap">

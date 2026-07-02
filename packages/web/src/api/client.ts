@@ -696,13 +696,17 @@ export async function runContradictions(): Promise<Insight[]> {
   );
 }
 
-export async function askChat(question: string): Promise<ChatResponse> {
+export async function askChat(
+  question: string,
+  /** Recent turns (oldest first) so she carries the conversation thread. */
+  history: { role: "you" | "soumaya"; text: string }[] = [],
+): Promise<ChatResponse> {
   return tracked(
     (async () => {
       const res = await afetch(`${API}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question }),
+        body: JSON.stringify({ question, history: history.slice(-8) }),
       });
       return res.json() as Promise<ChatResponse>;
     })(),

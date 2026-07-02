@@ -2090,6 +2090,51 @@ button {
   text-shadow: 0 0 6px rgba(255, 107, 107, 0.8), 0 0 12px rgba(255, 107, 107, 0.4);
 }
 
+/* ── Soumaya's eye (chat avatar) ────────────────────────────────────────── */
+.soumaya-eye {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--iris) 55%, transparent));
+  transition: filter 0.6s ease;
+}
+.soumaya-eye .eye-iris,
+.soumaya-eye .eye-iris-group {
+  transition: fill 0.8s ease, transform 0.35s ease;
+  transform-origin: 50px 31px;
+}
+.soumaya-eye .eye-pupil {
+  transition: r 0.35s ease;
+}
+/* Blink: the lid (a filled copy of the eye shape) scales open→closed vertically. */
+.soumaya-eye .eye-lid {
+  transform: scaleY(0);
+  transform-origin: 50px 31px;
+  transition: transform 0.09s ease-in;
+}
+.soumaya-eye.blink .eye-lid {
+  transform: scaleY(1);
+}
+/* Listening: pupil dilates, iris brightens — she's all ears. */
+.soumaya-eye.listening .eye-pupil {
+  r: 11;
+}
+.soumaya-eye.listening {
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--iris) 85%, transparent));
+}
+/* Thinking: the iris drifts side to side, like reading her charts. */
+@keyframes eye-think {
+  0%, 100% { transform: translateX(0); }
+  30% { transform: translateX(-9px); }
+  65% { transform: translateX(9px); }
+}
+.soumaya-eye.thinking .eye-iris-group {
+  animation: eye-think 1.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .soumaya-eye.thinking .eye-iris-group { animation: none; }
+}
+
 /* Soumaya Flight Tasks UI in Chat Panel */
 .ship-tasks-section {
   margin-top: 20px;
@@ -2704,7 +2749,7 @@ button {
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-bottom: 1px solid rgba(122, 200, 255, 0.18); flex: 0 0 auto;
 }
-.chatdock-title { font-weight: 600; font-size: 0.95rem; }
+.chatdock-title { font-weight: 600; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px; }
 .chatdock-tools { display: flex; gap: 4px; }
 .chatdock-tool {
   background: transparent; border: none; color: #aebbd6; cursor: pointer;
@@ -2722,8 +2767,48 @@ button {
 }
 .chatdock-msg.you .chatdock-bubble { background: linear-gradient(120deg, #2b6cff33, #5bd6ff2e); border: 1px solid rgba(91, 214, 255, 0.4); color: #eaf2ff; }
 .chatdock-msg.soumaya .chatdock-bubble { background: rgba(20, 24, 44, 0.85); border: 1px solid rgba(122, 200, 255, 0.18); color: #eaf2ff; }
-.chatdock-bubble.typing { letter-spacing: 2px; opacity: 0.7; }
+.chatdock-bubble.typing { letter-spacing: 2px; opacity: 0.85; display: flex; align-items: center; }
 .chatdock-cites { display: flex; flex-wrap: wrap; gap: 5px; }
+/* Her reply's emotional register tints the bubble's left edge (the same palette
+   as the galaxy's links: gold joyful · green neutral · indigo heavy). */
+.chatdock-msg.soumaya .chatdock-bubble.mood-happy,
+.chatdock-msg.soumaya .chatdock-bubble.mood-excited { border-left: 3px solid #ffcd46; }
+.chatdock-msg.soumaya .chatdock-bubble.mood-warm { border-left: 3px solid #ffd98c; }
+.chatdock-msg.soumaya .chatdock-bubble.mood-thoughtful,
+.chatdock-msg.soumaya .chatdock-bubble.mood-neutral { border-left: 3px solid #46f58c; }
+.chatdock-msg.soumaya .chatdock-bubble.mood-concerned { border-left: 3px solid #7af9ff; }
+.chatdock-msg.soumaya .chatdock-bubble.mood-sad { border-left: 3px solid #9686ff; }
+/* Interview instinct: her clarifying question is visually HER leaning in. */
+.chatdock-msg.soumaya .chatdock-bubble.ask {
+  background: rgba(122, 200, 255, 0.09);
+  border: 1px dashed rgba(122, 200, 255, 0.45);
+  font-style: italic;
+}
+.chatdock-ask-tag {
+  display: block;
+  font-size: 0.64rem;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  margin-bottom: 3px;
+}
+/* Persona view (🎭) inside the chat — the Companion controls, scrollable. */
+.chatdock-persona { padding: 0 4px; }
+/* Which roles/docs shaped a reply — proof the Companion config is live. */
+.chatdock-applied { display: flex; flex-wrap: wrap; gap: 4px; }
+.chatdock-applied-chip {
+  font-size: 0.66rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(185, 139, 255, 0.4);
+  background: rgba(185, 139, 255, 0.08);
+  color: #cdb6f2;
+  white-space: nowrap;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .chatdock-input { display: flex; align-items: flex-end; gap: 6px; padding: 10px; border-top: 1px solid rgba(122, 200, 255, 0.18); flex: 0 0 auto; }
 .chatdock-input textarea {
   flex: 1 1 auto; resize: none; max-height: 120px; min-height: 38px;

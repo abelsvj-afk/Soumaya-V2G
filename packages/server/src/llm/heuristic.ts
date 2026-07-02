@@ -215,11 +215,16 @@ export class HeuristicProvider implements LlmProvider {
     const preface = heavy
       ? "I hear the weight in that. Here's what your own galaxy holds on this heading:\n"
       : "From up here I can see a cluster on that heading:\n";
+    // Honesty over silence: offline she can't reason over custom roles — say so
+    // instead of letting the user think their Companion config is being ignored.
+    const rolesNote = opts?.systemExtra?.includes("ACTIVE CUSTOM INSTRUCTIONS")
+      ? " Your custom roles are set — they fully shape my voice once my deep mind is back online."
+      : "";
     const answer =
       preface +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
       kb +
-      `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.)`;
+      `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.${rolesNote})`;
     // Thin coverage on a weighty topic → one genuine ask-back even offline.
     const askBack =
       heavy && context.length < 3

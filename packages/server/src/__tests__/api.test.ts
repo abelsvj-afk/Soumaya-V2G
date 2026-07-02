@@ -274,4 +274,24 @@ describe("REST API", () => {
     const ghost = await post("/api/maintenance/codex-claim", { key: "constellation-999999" });
     expect(ghost.status).toBe(400);
   });
+
+  it("chat carries the thread and reads the emotional register (offline too)", async () => {
+    // History is accepted alongside the question (she sees the recent turns).
+    const r = await post("/api/chat", {
+      question: "I'm scared about the repossession, it keeps me up at night",
+      history: [
+        { role: "you", text: "money has been tight lately" },
+        { role: "soumaya", text: "I hear you — your Finance sector has been busy." },
+      ],
+    });
+    expect(r.status).toBe(200);
+    expect(typeof r.body.answer).toBe("string");
+    // The offline heuristic reads the heavy register: a concerned mood, and the
+    // interview instinct asks back instead of bluffing on a weighty, thin topic.
+    expect(r.body.mood).toBe("concerned");
+    if (r.body.askBack !== undefined) expect(typeof r.body.askBack).toBe("string");
+    // Malformed history is rejected by validation.
+    const bad = await post("/api/chat", { question: "hi", history: [{ role: "them", text: "x" }] });
+    expect(bad.status).toBe(400);
+  });
 });

@@ -418,6 +418,11 @@ export interface ChatResponse {
   /** Interview instinct: ONE clarifying question she asks back — set when the
    *  topic is weighty/ambiguous and answering well needs context she lacks. */
   askBack?: string;
+  /** Names of the custom-instruction roles that shaped this reply (visibility:
+   *  users couldn't tell whether their Companion config was actually applied). */
+  appliedRoles?: string[];
+  /** Names of the knowledge documents retrieved into this reply's context. */
+  appliedDocs?: string[];
 }
 
 export interface DailyLog {

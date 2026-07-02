@@ -165,12 +165,17 @@ Use this telemetry to guide the user! For example:
 - You can suggest they look at specific tabs (e.g. "Go to the Agenda tab and complete task X to gain fuel", or "Check out the Insights tab to see the latest connections I forged").
 `;
 
-  let systemExtra = chosen.length > 0
-    ? "ACTIVE CUSTOM INSTRUCTIONS (stacked, highest priority first — adopt these as your operating frame):\n" +
-      chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n")
-    : "";
-
-  systemExtra += (systemExtra ? "\n\n" : "") + telemetryContext;
+  // Telemetry first, the user's custom instructions LAST — models weight the end
+  // of a system prompt most, and the big telemetry block was burying the roles
+  // (users reported chat "not using" their custom instructions).
+  let systemExtra = telemetryContext;
+  if (chosen.length > 0) {
+    systemExtra +=
+      "\n\nACTIVE CUSTOM INSTRUCTIONS — the user configured these roles for you ON PURPOSE. " +
+      "They MUST visibly shape this reply (tone, focus, method), highest priority first. " +
+      "Do not fall back to your generic voice while any of these are active:\n" +
+      chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n");
+  }
 
   // "About Me" awareness (auto-derived; she's aware of who you are, never becomes you).
   const persona = refreshPersona(h, spaceId) || undefined;
@@ -213,5 +218,18 @@ Use this telemetry to guide the user! For example:
   const validMood = (CHAT_MOODS as readonly string[]).includes(mood ?? "")
     ? (mood as ChatMood)
     : undefined;
-  return { answer, citations: validCitations, contextIds: [...ids], tone, mood: validMood, askBack };
+  // Surface WHICH Companion config shaped this reply — users couldn't tell their
+  // custom roles / knowledge docs were being applied at all.
+  const appliedRoles = chosen.map((p) => p.name);
+  const appliedDocs = [...new Set(chunks.map((c) => c.docName))];
+  return {
+    answer,
+    citations: validCitations,
+    contextIds: [...ids],
+    tone,
+    mood: validMood,
+    askBack,
+    appliedRoles,
+    appliedDocs,
+  };
 }
