@@ -1,5 +1,5 @@
 import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
-import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 
 /** Lexical reversal/negation cues used by the offline contradiction heuristic. */
 const NEGATIONS = ["not", "never", "no longer", "don't", "won't", "can't", "stopped", "quit", "gave up", "used to", "anymore"];
@@ -183,31 +183,49 @@ export class HeuristicProvider implements LlmProvider {
     };
   }
 
-  async answer(
-    question: string,
-    context: ContextNode[],
-    opts?: AnswerOptions,
-  ): Promise<{ answer: string; citations: number[] }> {
+  async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {
     // In-character (Soumaya) even offline — never impersonate the user.
     const chitchat = /\b(how are you|how's it going|what'?s up|you doing|hi|hello|hey)\b/i.test(
       question,
     );
+    // Read the emotional register from the question wording so even the offline
+    // fallback doesn't answer heartbreak with a chipper bullet list.
+    const heavy =
+      /\b(sad|scared|afraid|fear|anxious|worried|grief|loss|lost|died|death|break ?up|heartbro|depress|cry|lonely|hurt|stress)\b/i.test(
+        question,
+      );
+    const bright = /\b(happy|excited|proud|great news|amazing|celebrat|won|love(d)?)\b/i.test(question);
+    const mood = heavy ? "concerned" : bright ? "warm" : chitchat ? "warm" : "thoughtful";
     // Offline, we can't truly reason over the persona/instructions, but we surface
     // any retrieved knowledge so doc-RAG is observably working without a key.
     const kb = opts?.knowledge ? `\n\nFrom your documents:\n${firstLines(opts.knowledge, 4)}` : "";
     if (context.length === 0) {
       const line = chitchat
         ? "Cruising the quiet outer reaches of your galaxy — calm out here, just starlight and a little drift. Ask me about a memory and I'll plot a course to it."
-        : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
-      return { answer: line + kb, citations: [] };
+        : heavy
+          ? "That sounds like it carries real weight, and I don't have memories charted on it yet — I don't want to guess at something that matters."
+          : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
+      // Interview instinct (offline flavor): weighty topic + no context → ask, don't bluff.
+      const askBack = heavy
+        ? "Tell me a little more — what's the part of this that sits heaviest right now?"
+        : undefined;
+      return { answer: line + kb, citations: [], mood, askBack };
     }
     const top = context.slice(0, 5);
+    const preface = heavy
+      ? "I hear the weight in that. Here's what your own galaxy holds on this heading:\n"
+      : "From up here I can see a cluster on that heading:\n";
     const answer =
-      `From up here I can see a cluster on that heading:\n` +
+      preface +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
       kb +
       `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.)`;
-    return { answer, citations: top.map((c) => c.id) };
+    // Thin coverage on a weighty topic → one genuine ask-back even offline.
+    const askBack =
+      heavy && context.length < 3
+        ? "What would help most here — talking it through, or charting the facts around it?"
+        : undefined;
+    return { answer, citations: top.map((c) => c.id), mood, askBack };
   }
 
   async research(

@@ -1,5 +1,5 @@
 import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
-import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
@@ -215,29 +215,34 @@ export class OpenAiProvider implements LlmProvider {
     };
   }
 
-  async answer(
-    question: string,
-    context: ContextNode[],
-    opts?: AnswerOptions,
-  ): Promise<{ answer: string; citations: number[] }> {
+  async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {
+    // Strict structured outputs require every property listed in `required`, so the
+    // optional askBack is modeled as "empty string = none".
     const schema = {
       type: "object",
       additionalProperties: false,
       properties: {
         answer: { type: "string" },
         citations: { type: "array", items: { type: "integer" } },
+        mood: {
+          type: "string",
+          enum: ["happy", "excited", "warm", "thoughtful", "concerned", "sad", "neutral"],
+        },
+        askBack: { type: "string" },
       },
-      required: ["answer", "citations"],
+      required: ["answer", "citations", "mood", "askBack"],
     };
-    const raw = await this.json<{ answer: string; citations: number[] }>(
+    const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
-      buildAnswerPrompt(question, context, opts?.knowledge),
+      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history),
       schema,
       "answer",
     );
     return {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
+      mood: typeof raw.mood === "string" ? raw.mood : undefined,
+      askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
     };
   }
 

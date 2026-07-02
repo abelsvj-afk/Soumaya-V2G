@@ -46,7 +46,6 @@ import { SettingsPanel } from "./components/SettingsPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
-import { WelcomeBackCard } from "./components/WelcomeBackCard.js";
 import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
@@ -583,7 +582,15 @@ export default function App() {
   const dismissObs = useCallback(() => {
     setShowObs(false);
     setObsSettled(true);
+    setAwayDigest(null); // the away report rode the Observatory — it's been seen
   }, []);
+
+  // The away report renders INSIDE the Observatory now (one arrival screen, not
+  // two stacked "welcome back" pop-ups). Once it has actually been shown, advance
+  // the server's away window.
+  useEffect(() => {
+    if (showObs && awayDigest) void markAwaySeen();
+  }, [showObs, awayDigest]);
 
   // Offline ingest queue: flush anything captured offline once signed in / back
   // online, then refresh the galaxy + celebrate what synced.
@@ -1158,23 +1165,13 @@ export default function App() {
         />
       )}
 
-      {awayDigest && !demo && space && (
-        <WelcomeBackCard
-          digest={awayDigest}
-          onFocus={(id) => graphRef.current?.focusNode(id)}
-          onClose={() => {
-            setAwayDigest(null);
-            void markAwaySeen();
-          }}
-        />
-      )}
-
       {showObs && !demo && space && (
         <Observatory
           spaceName={space.name}
           memories={(data.nodes as GraphNode[]).filter((n) => n.kind !== "action")}
           streak={streak?.current ?? 0}
           fedToday={!!streak?.today}
+          away={awayDigest}
           onCapture={() => {
             dismissObs();
             setPanel("ingest");

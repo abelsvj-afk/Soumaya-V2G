@@ -393,6 +393,18 @@ export interface Attachment {
   createdAt: string;
 }
 
+/** The emotional register of a chat reply — drives the avatar's eye + bubble accent. */
+export const CHAT_MOODS = [
+  "happy",
+  "excited",
+  "warm",
+  "thoughtful",
+  "concerned",
+  "sad",
+  "neutral",
+] as const;
+export type ChatMood = (typeof CHAT_MOODS)[number];
+
 /** Answer from chat-with-your-brain (GraphRAG), with node citations. */
 export interface ChatResponse {
   answer: string;
@@ -401,6 +413,11 @@ export interface ChatResponse {
   contextIds: number[];
   /** Emotional delivery tone (drives her voice's prosody when speaking aloud). */
   tone?: import("./dramatize.js").EmotionalTone;
+  /** How she's feeling about this reply (avatar eye colour / animation). */
+  mood?: ChatMood;
+  /** Interview instinct: ONE clarifying question she asks back — set when the
+   *  topic is weighty/ambiguous and answering well needs context she lacks. */
+  askBack?: string;
 }
 
 export interface DailyLog {

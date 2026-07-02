@@ -44,6 +44,18 @@ export interface AnswerOptions {
   persona?: string;
   /** Retrieved knowledge-document chunks, pre-formatted with doc names. */
   knowledge?: string;
+  /** Recent conversation turns, pre-formatted ("User: …\nSoumaya: …") — WITHOUT
+   *  this every reply is an amnesiac one-shot, which read as "generic chatbot". */
+  history?: string;
+}
+
+/** Structured chat reply: the answer plus its emotional register and (optionally)
+ *  one clarifying question she asks back instead of guessing (interview instinct). */
+export interface AnswerResult {
+  answer: string;
+  citations: number[];
+  mood?: string;
+  askBack?: string;
 }
 
 /**
@@ -80,11 +92,7 @@ export interface LlmProvider {
     similarity: number,
   ): Promise<ContradictionResult>;
   /** Answer a question grounded in a retrieved subgraph; cite node ids. */
-  answer(
-    question: string,
-    context: ContextNode[],
-    opts?: AnswerOptions,
-  ): Promise<{ answer: string; citations: number[] }>;
+  answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult>;
   /** Perform autonomous research on a single node to expand the knowledge base. */
   research(node: LinkCandidate, userAnswers?: string): Promise<{ label: string; content: string; questions?: string[] }>;
   /** Generate a vibe description for a cluster of nodes. */

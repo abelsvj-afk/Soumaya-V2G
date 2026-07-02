@@ -1,5 +1,5 @@
 import type { ExtractionResult } from "@brain/shared";
-import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
 /** Out-of-credit / quota / auth / hang errors — retrying just wastes time. */
@@ -136,7 +136,7 @@ export class ResilientLlmProvider implements LlmProvider {
     question: string,
     context: ContextNode[],
     opts?: AnswerOptions,
-  ): Promise<{ answer: string; citations: number[] }> {
+  ): Promise<AnswerResult> {
     if (this.blocked) return this.fallback.answer(question, context, opts);
     try {
       return await withTimeout(this.primary.answer(question, context, opts), this.timeoutMs, "answer");

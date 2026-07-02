@@ -1,4 +1,4 @@
-import { type ChatResponse, type NodeRef, toneFrom } from "@brain/shared";
+import { type ChatMood, type ChatResponse, type NodeRef, CHAT_MOODS, toneFrom } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn, knnDocs, knnProfiles } from "../db/vec.js";
@@ -38,6 +38,9 @@ export async function chat(
   question: string,
   opts: ChatOptions = DEFAULT_CHAT,
   spaceId: string = DEFAULT_SPACE,
+  /** Recent turns (oldest first) so the reply continues the thread instead of
+   *  starting an amnesiac one-shot — the #1 "she feels generic" cause. */
+  history: { role: "you" | "soumaya"; text: string }[] = [],
 ): Promise<ChatResponse> {
   const vec = await deps.embeddings.embed(question);
   const seeds = knn(h.sqlite, vec, opts.k, spaceId);
@@ -172,11 +175,19 @@ Use this telemetry to guide the user! For example:
   // "About Me" awareness (auto-derived; she's aware of who you are, never becomes you).
   const persona = refreshPersona(h, spaceId) || undefined;
 
-  const { answer, citations } = await deps.llm.answer(question, context, {
+  // Short-term conversational memory: the last few turns, oldest first, trimmed
+  // so a long chat can't blow up the prompt.
+  const turns = history.slice(-8).map((m) => {
+    const text = m.text.length > 600 ? `${m.text.slice(0, 597)}…` : m.text;
+    return `${m.role === "you" ? "User" : "Soumaya"}: ${text}`;
+  });
+
+  const { answer, citations, mood, askBack } = await deps.llm.answer(question, context, {
     soul: soulText() || undefined,
     systemExtra,
     persona,
     knowledge,
+    history: turns.length > 0 ? turns.join("\n") : undefined,
   });
 
   const refById = new Map<number, NodeRef>(
@@ -199,5 +210,8 @@ Use this telemetry to guide the user! For example:
       : undefined;
   const tone = toneFrom(answer, avgEw);
 
-  return { answer, citations: validCitations, contextIds: [...ids], tone };
+  const validMood = (CHAT_MOODS as readonly string[]).includes(mood ?? "")
+    ? (mood as ChatMood)
+    : undefined;
+  return { answer, citations: validCitations, contextIds: [...ids], tone, mood: validMood, askBack };
 }

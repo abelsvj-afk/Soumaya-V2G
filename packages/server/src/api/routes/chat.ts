@@ -4,7 +4,15 @@ import type { AppContext } from "../../context.js";
 import { chat, DEFAULT_CHAT } from "../../chat/graphrag.js";
 import { spaceOf } from "../middleware.js";
 
-const ChatBody = z.object({ question: z.string().min(1).max(2000) });
+const ChatBody = z.object({
+  question: z.string().min(1).max(2000),
+  // Recent turns (oldest first) so she carries the conversation instead of
+  // treating every message as a fresh stranger's question.
+  history: z
+    .array(z.object({ role: z.enum(["you", "soumaya"]), text: z.string().max(4000) }))
+    .max(16)
+    .optional(),
+});
 
 const DistillBody = z.object({
   messages: z
@@ -69,6 +77,7 @@ export function chatRoutes(ctx: AppContext): Router {
       parsed.data.question,
       DEFAULT_CHAT,
       spaceOf(res),
+      parsed.data.history ?? [],
     );
     res.json(result);
   });

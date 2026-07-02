@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
-import type { AnswerOptions, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
@@ -98,8 +98,13 @@ const answerSchema = {
   properties: {
     answer: { type: Type.STRING },
     citations: { type: Type.ARRAY, items: { type: Type.INTEGER } },
+    mood: {
+      type: Type.STRING,
+      enum: ["happy", "excited", "warm", "thoughtful", "concerned", "sad", "neutral"],
+    },
+    askBack: { type: Type.STRING },
   },
-  required: ["answer", "citations"],
+  required: ["answer", "citations", "mood"],
 };
 
 const researchSchema = {
@@ -248,19 +253,17 @@ export class GeminiProvider implements LlmProvider {
     };
   }
 
-  async answer(
-    question: string,
-    context: ContextNode[],
-    opts?: AnswerOptions,
-  ): Promise<{ answer: string; citations: number[] }> {
-    const raw = await this.json<{ answer: string; citations: number[] }>(
+  async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {
+    const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
-      buildAnswerPrompt(question, context, opts?.knowledge),
+      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history),
       answerSchema,
     );
     return {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
+      mood: typeof raw.mood === "string" ? raw.mood : undefined,
+      askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
     };
   }
 
