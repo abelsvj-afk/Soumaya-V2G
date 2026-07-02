@@ -19,7 +19,10 @@ export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time pe
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
 // USD budget is still the hard cap — this only refills the in-app Fuel.
-export const FUEL_REGEN_PER_HOUR = 6; // keeps pace with background autonomy so the tank isn't perpetually near-empty
+// At 6/hr regen alone overfilled the 120 tank in under a day and earning stopped
+// meaning anything; 2/hr keeps an idle brain solvent while logged memories /
+// cleared actions stay the real income.
+export const FUEL_REGEN_PER_HOUR = 2;
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 

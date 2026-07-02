@@ -1,7 +1,6 @@
 import type { GraphData, GraphNode, Fuel, Streak } from "@brain/shared";
 import {
   ACHIEVEMENTS,
-  MEMORY_MILESTONES,
   loadUnlocked,
   unlockedIds,
   type AchievementCtx,
@@ -27,7 +26,7 @@ export function AchievementsPanel({
   spaceId: string;
 }) {
   const memories = (graph.nodes as GraphNode[]).filter((n) => n.kind !== "action");
-  const ctx: AchievementCtx = { memories, links: graph.links.length, fuel };
+  const ctx: AchievementCtx = { memories, links: graph.links.length, fuel, streak };
   // Earned = persisted (sticky) ∪ currently-satisfied, so the case matches the toasts.
   const earned = new Set<string>([...loadUnlocked(spaceId), ...unlockedIds(ctx)]);
   const count = earned.size;
@@ -107,18 +106,9 @@ export function AchievementsPanel({
         })}
       </ul>
 
-      <h3 className="awards-section-h">🎉 Milestones</h3>
-      <p className="empty small">{memories.length} memories logged so far.</p>
-      <ul className="miles-row">
-        {MEMORY_MILESTONES.map((m) => {
-          const hit = memories.length >= m;
-          return (
-            <li key={m} className={`mile ${hit ? "hit" : ""}`} title={hit ? `Reached ${m}` : `${m} memories`}>
-              {m}
-            </li>
-          );
-        })}
-      </ul>
+      {/* (The milestone pip row is gone — the Pilot Rank banner above IS the
+          memory-count ladder now; three parallel count trackers double-celebrated
+          the same growth.) */}
     </div>
   );
 }

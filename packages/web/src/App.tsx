@@ -51,7 +51,7 @@ import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
-import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey, MEMORY_MILESTONES } from "./components/achievements.js";
+import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/achievements.js";
 import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
@@ -81,7 +81,7 @@ export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
   const [fuel, setFuel] = useState<Fuel | null>(null);
-  const [fuelPops, setFuelPops] = useState<{ id: number; text: string }[]>([]);
+  const [fuelPops, setFuelPops] = useState<{ id: number; text: string; spend?: boolean }[]>([]);
   const prevFuelRef = useRef<number | null>(null);
   // Daily-tending streak (flame on the HUD + Awards tab) — polled while signed in.
   const [streak, setStreak] = useState<Streak | null>(null);
@@ -164,10 +164,13 @@ export default function App() {
     }
     if (prevFuelRef.current !== null) {
       const diff = fuel.fuel - prevFuelRef.current;
-      if (diff > 0.05) {
-        const text = `+${Math.round(diff * 10) / 10}`;
+      // Spends pop too — an economy the player never sees going DOWN reads as a
+      // meter, not a resource. (Passive regen trickles under the threshold.)
+      if (Math.abs(diff) > 0.05) {
+        const rounded = Math.round(diff * 10) / 10;
+        const text = `${rounded > 0 ? "+" : ""}${rounded}`;
         const id = Date.now() + Math.random();
-        setFuelPops((prev) => [...prev, { id, text }]);
+        setFuelPops((prev) => [...prev, { id, text, spend: rounded < 0 }]);
         window.setTimeout(() => {
           setFuelPops((prev) => prev.filter((p) => p.id !== id));
         }, 1600);
@@ -439,29 +442,8 @@ export default function App() {
     pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 10000);
   }, [space, loaded, demo, data.nodes]);
 
-  // Gamification (Wave 1): celebrate crossing a memory-count milestone (once each,
-  // per brain, remembered on this device).
-  useEffect(() => {
-    if (demo || !space || !loaded) return;
-    const count = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action").length;
-    const MILES = MEMORY_MILESTONES;
-    const key = `brain.milestone.${space.id}`;
-    let last = 0;
-    try {
-      last = parseInt(localStorage.getItem(key) || "0", 10) || 0;
-    } catch {
-      /* storage unavailable */
-    }
-    const crossed = MILES.filter((m) => m <= count && m > last);
-    if (crossed.length === 0) return;
-    const top = crossed[crossed.length - 1]!;
-    try {
-      localStorage.setItem(key, String(top));
-    } catch {
-      /* ignore */
-    }
-    pushToast(`${top} memories — your galaxy is growing.`, "🎉", 10000);
-  }, [space, loaded, demo, data.nodes]);
+  // (The old memory-count milestone toast is gone: Pilot Rank is the single
+  // count ladder now — one celebration per threshold, not three.)
 
   // Gamification (Wave 3): pilot rank level-up — celebrate climbing a rank once
   // each, per brain. Same progression that speeds Soumaya up (real memory count).
@@ -536,7 +518,7 @@ export default function App() {
       linkObjects = data.links;
     }
 
-    const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects });
+    const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects, streak });
     const key = achvKey(space.id);
     const seen = loadUnlocked(space.id);
     const fresh = now.filter((id) => !seen.has(id));
@@ -556,7 +538,7 @@ export default function App() {
       const a = ACHIEVEMENTS.find((x) => x.id === id);
       if (a) pushToast(`Achievement: ${a.name} — ${a.desc}`, a.icon ?? "🏆", 12000, "high");
     }
-  }, [data.nodes, data.links, fuel, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
+  }, [data.nodes, data.links, fuel, streak, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
   // Reveal the Observatory home once per app open, AFTER the cinematic fly-in
   // (~3.2s) has settled — never touches the intro itself. Skips the demo galaxy
@@ -630,8 +612,13 @@ export default function App() {
       if (ripple) graphRef.current?.spawnBurst(id, "user");
       if (!demo && space) {
         void tendNode(id); // revisiting a memory warms it back up (entropy)
-        const tendKey = `stat.memories_tended.${space.id}`;
-        localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
+        // Only a GENUINE restore counts toward Grand Restorer / the Codex's
+        // "The Gardener" — the memory had actually gone cold before this visit.
+        // (Counting every click made them "tap any 10 nodes".)
+        if ((n.entropy ?? 0) >= 0.45) {
+          const tendKey = `stat.memories_tended.${space.id}`;
+          localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
+        }
         // Force evaluation of achievements
         setTimeout(() => handleChanged(-1), 100);
       }
@@ -836,7 +823,7 @@ export default function App() {
             >
               ⛽ {Math.round(fuel.fuel)}/{fuel.capacity}
               {fuelPops.map((pop) => (
-                <span key={pop.id} className="fuel-pop">
+                <span key={pop.id} className={`fuel-pop${pop.spend ? " spend" : ""}`}>
                   {pop.text}
                 </span>
               ))}

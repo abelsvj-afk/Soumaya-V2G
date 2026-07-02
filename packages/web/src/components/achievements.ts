@@ -1,33 +1,33 @@
-import type { GraphNode, Fuel } from "@brain/shared";
+import type { GraphNode, Fuel, Streak } from "@brain/shared";
 import { buildCodex, codexProgress } from "./codex.js";
 
-/** Build the Codex progress from an achievement context's node list. */
-function codexPctFrom(c: { memories: GraphNode[]; links: number }): {
-  pct: number;
-  sectors: { discovered: number; total: number };
-} {
+/** Codex completion % from an achievement context (the one meta-badge hook). */
+function codexPctFrom(c: { memories: GraphNode[]; links: number }): number {
   const codex = buildCodex({
     memories: c.memories.filter((n) => n.kind !== "moc" && n.kind !== "action"),
     constellations: c.memories.filter((n) => n.kind === "moc"),
     links: c.links,
   });
-  const p = codexProgress(codex);
-  return { pct: p.pct, sectors: p.byCategory.sectors };
+  return codexProgress(codex).pct;
 }
 
 /**
- * Gamification Wave 2 — achievements. Pure client-side + offline-safe: each is a
- * predicate over the current galaxy/fuel state. Unlocks are detected in App,
- * persisted per-brain in localStorage, and announced with a toast. Qualitative
- * feats (not raw counts) so they don't double-fire with the count milestones.
- * The Awards tab (AchievementsPanel) renders the full set — unlocked + locked
- * with a progress hint — so there's a place to actually go and *see* them.
+ * Achievements = FEATS — things you actively did (kept deliberately disjoint from
+ * the Codex, which covers discoveries: see a thing once → entry + lore + fuel).
+ * No predicate may exist in both systems, and Pilot Rank is the single
+ * memory-count ladder (rank-up is the only count celebration; the Hangar gates
+ * its count-based cosmetics on raw counts directly).
+ * Pure client-side + offline-safe: each is a predicate over the current
+ * galaxy/fuel state. Unlocks are detected in App, persisted per-brain in
+ * localStorage, and announced with a toast.
  */
 export interface AchievementCtx {
   memories: GraphNode[]; // non-action nodes
   links: number; // edge count
   fuel: Fuel | null;
   linkObjects?: any[]; // full link array for pathfinding
+  /** Server-side daily-tending streak (device-independent when available). */
+  streak?: Streak | null;
 }
 
 /**
@@ -58,23 +58,18 @@ export interface Achievement {
   progress?: (c: AchievementCtx) => { cur: number; target: number };
 }
 
+/** Best-known distinct-day engagement: server streak first, created-days fallback. */
+function consistentDays(c: AchievementCtx): number {
+  const fromStreak = Math.max(c.streak?.best ?? 0, c.streak?.current ?? 0);
+  if (fromStreak > 0) return fromStreak;
+  return new Set(
+    c.memories.map((m) => m.createdAt?.split("T")[0] || m.occurredAt?.split(" ")[0]).filter(Boolean),
+  ).size;
+}
+
 export const ACHIEVEMENTS: Achievement[] = [
-  {
-    id: "first_light",
-    name: "First Light",
-    icon: "🌱",
-    desc: "Logged your first memory",
-    test: (c) => c.memories.length >= 1,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 1), target: 1 }),
-  },
-  {
-    id: "synapse",
-    name: "Synapse",
-    icon: "🔗",
-    desc: "Your first connection formed",
-    test: (c) => c.links >= 1,
-    progress: (c) => ({ cur: Math.min(c.links, 1), target: 1 }),
-  },
+  // (First memory / first link / star class / 365 count / all-sectors all live in
+  // the CODEX as discoveries now — they were double-rewarded here.)
   {
     id: "connector",
     name: "Connector",
@@ -95,47 +90,10 @@ export const ACHIEVEMENTS: Achievement[] = [
     }),
   },
   {
-    id: "star_born",
-    name: "Star Born",
-    icon: "⭐",
-    desc: "A memory reached star class",
-    test: (c) => c.memories.some((n) => n.celestial === "star" || n.celestial === "supergiant"),
-  },
-  {
-    id: "star_center_figurine",
-    name: "Solar Monument",
-    icon: "🌟",
-    desc: "Star in Center Figurine. Unlocked at 100 memories.",
-    test: (c) => c.memories.length >= 100,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 100), target: 100 }),
-  },
-  {
-    id: "organic_ship_skin",
-    name: "Organic Specimen",
-    icon: "🛸",
-    desc: "Biomechanical Ship Skin. Unlocked at 150 memories.",
-    test: (c) => c.memories.length >= 150,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 150), target: 150 }),
-  },
-  {
-    id: "fleet_commander",
-    name: "Fleet Commander",
-    icon: "🚀",
-    desc: "Achieved command tier. Unlocked at 200 memories.",
-    test: (c) => c.memories.length >= 200,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 200), target: 200 }),
-  },
-  {
-    id: "dyson_sphere_figurine",
-    name: "Dyson Megastructure",
-    icon: "🪐",
-    desc: "Dyson Sphere Figurine. Unlocked at 250 memories.",
-    test: (c) => c.memories.length >= 250,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 250), target: 250 }),
-  },
-  {
+    // Renamed from "Gardener" — the Codex phenomenon "The Gardener" (tend 10
+    // cooling memories) shared the name with a different rule.
     id: "gardener",
-    name: "Gardener",
+    name: "Keeper of the Flame",
     icon: "🌿",
     desc: "10+ memories and none gone cold",
     test: (c) => c.memories.length >= 10 && c.memories.every((n) => (n.entropy ?? 0) < 0.45),
@@ -194,23 +152,11 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: "consistent_pilot",
     name: "Consistent Pilot",
     icon: "📅",
-    desc: "Log memories on 3+ distinct days. Unlocks Hyperdrive Neon Trail.",
-    test: (c) => {
-      const dates = new Set(
-        c.memories
-          .map((m) => m.createdAt?.split("T")[0] || m.occurredAt?.split(" ")[0])
-          .filter(Boolean)
-      );
-      return dates.size >= 3;
-    },
-    progress: (c) => {
-      const dates = new Set(
-        c.memories
-          .map((m) => m.createdAt?.split("T")[0] || m.occurredAt?.split(" ")[0])
-          .filter(Boolean)
-      );
-      return { cur: Math.min(dates.size, 3), target: 3 };
-    }
+    desc: "Keep a 3-day tending streak. Unlocks Hyperdrive Neon Trail.",
+    // The server streak is the source of truth (device-independent); the
+    // distinct-created-days set is the offline/legacy fallback.
+    test: (c) => consistentDays(c) >= 3,
+    progress: (c) => ({ cur: Math.min(consistentDays(c), 3), target: 3 }),
   },
   {
     id: "sector_pioneer",
@@ -252,8 +198,10 @@ export const ACHIEVEMENTS: Achievement[] = [
     }
   },
   {
+    // Renamed from "Deep Cluster" — the Codex phenomenon "Deep Cluster" (a memory
+    // with 6+ connections) shared the name with a different rule.
     id: "deep_cluster",
-    name: "Deep Cluster",
+    name: "Sector Dominion",
     icon: "🧲",
     desc: "Grow a single sector category to 6+ memories. Unlocks Quantum Singularity Core.",
     test: (c) => {
@@ -307,34 +255,14 @@ export const ACHIEVEMENTS: Achievement[] = [
     progress: (c) => ({ cur: Math.min(c.links, 50), target: 50 }),
   },
   {
-    id: "singularity",
-    name: "A Year of Memories",
-    icon: "🕳️",
-    desc: "Log 365 memories — a full year of your mind. Unlocks The Singularity (black hole figurine).",
-    test: (c) => c.memories.length >= 365,
-    progress: (c) => ({ cur: Math.min(c.memories.length, 365), target: 365 }),
-  },
-  {
-    id: "cartographer",
-    name: "Cartographer",
-    icon: "🗺️",
-    desc: "Chart every sector of your galaxy — log a memory of all 9 kinds.",
-    test: (c) => {
-      const { sectors } = codexPctFrom(c);
-      return sectors.total > 0 && sectors.discovered >= 9;
-    },
-    progress: (c) => {
-      const { sectors } = codexPctFrom(c);
-      return { cur: Math.min(sectors.discovered, 9), target: 9 };
-    },
-  },
-  {
+    // The one meta-badge bridging the two systems: completing the whole Codex is
+    // itself a feat. (Individual codex entries never appear as achievements.)
     id: "galactic_atlas",
     name: "Galactic Atlas",
     icon: "📖",
     desc: "Discover the entire Codex — every sector, body, constellation, phenomenon.",
-    test: (c) => codexPctFrom(c).pct >= 100,
-    progress: (c) => ({ cur: codexPctFrom(c).pct, target: 100 }),
+    test: (c) => codexPctFrom(c) >= 100,
+    progress: (c) => ({ cur: codexPctFrom(c), target: 100 }),
   },
   {
     id: "grand_restorer",
@@ -361,9 +289,6 @@ export const ACHIEVEMENTS: Achievement[] = [
     }
   }
 ];
-
-/** Memory-count milestones (shared by the App toast + the Awards tracker). */
-export const MEMORY_MILESTONES = [10, 25, 50, 100, 150, 200, 250, 365, 500, 1000];
 
 /** Return the ids of every achievement currently satisfied. */
 export function unlockedIds(c: AchievementCtx): string[] {

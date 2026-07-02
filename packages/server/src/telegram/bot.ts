@@ -4,6 +4,7 @@ import { chat } from "../chat/graphrag.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
+import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
 import { SpacesRepo } from "../auth/spaces.js";
 import { TelegramLinksRepo } from "./links.js";
 
@@ -183,12 +184,16 @@ export async function handleTelegramUpdate(
     }
     const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, body, spaceId);
     const linkCount = result.associativeEdges.length;
-    const fuel = EARN_MEMORY + EARN_LINK * linkCount;
+    // Same reward path as the app's ingest route: fuel + the daily streak
+    // (logging from Telegram is tending too — the streak is channel-agnostic).
+    const { streak, advanced } = new StreakRepo(ctx.handle, spaceId).touch();
+    const fuel = EARN_MEMORY + EARN_LINK * linkCount + (advanced ? STREAK_DAY_BONUS : 0);
     new EconomyRepo(ctx.handle, spaceId).add(fuel);
     const label = result.nodes[0]?.label ?? "a memory";
+    const streakNote = advanced ? ` · 🔥 day ${streak.current}` : "";
     await send(
       chatId,
-      `✦ Logged "${label}" — ${linkCount} link${linkCount === 1 ? "" : "s"} formed · +${fuel.toFixed(1)} ⛽`,
+      `✦ Logged "${label}" — ${linkCount} link${linkCount === 1 ? "" : "s"} formed · +${fuel.toFixed(1)} ⛽${streakNote}`,
     );
     return;
   }

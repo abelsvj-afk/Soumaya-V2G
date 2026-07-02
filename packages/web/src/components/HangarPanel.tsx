@@ -39,12 +39,15 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
     activeMemoriesCount = parseInt(localStorage.getItem(simMemKey) || "0", 10);
   }
 
-  // Unlocked predicates (milestones & custom achievements)
+  // Count-gated cosmetics ride the Pilot Rank ladder (raw memory counts) — the
+  // old per-threshold achievements double-celebrated the same growth. Legacy ids
+  // are still honored so nothing a pilot already earned re-locks.
   const isStarUnlocked = demoBypass || unlocked.has("star_center_figurine") || activeMemoriesCount >= 100;
   const isOrganicUnlocked = demoBypass || unlocked.has("organic_ship_skin") || activeMemoriesCount >= 150;
   const isDysonUnlocked = demoBypass || unlocked.has("dyson_sphere_figurine") || activeMemoriesCount >= 250;
+  const hasSingularity = demoBypass || unlocked.has("singularity") || activeMemoriesCount >= 365;
 
-  // New gamification unlock predicates
+  // Feat-gated cosmetics (achievements proper)
   const hasPathfinder = demoBypass || unlocked.has("pathfinder_quest");
   const hasConsistent = demoBypass || unlocked.has("consistent_pilot");
   const hasSectorPioneer = demoBypass || unlocked.has("sector_pioneer");
@@ -53,7 +56,6 @@ export function HangarPanel({ spaceId, memoriesCount, onEquipChanged, demo }: Ha
   const hasCosmicVoyager = demoBypass || unlocked.has("cosmic_voyager");
   const hasMegastructure = demoBypass || unlocked.has("galactic_megastructure");
   const hasGrandRestorer = demoBypass || unlocked.has("grand_restorer");
-  const hasSingularity = demoBypass || unlocked.has("singularity") || activeMemoriesCount >= 365;
 
   const setShip = (val: string) => {
     localStorage.setItem(shipKey, val);

@@ -2033,6 +2033,11 @@ button {
   white-space: nowrap;
   z-index: 1000;
 }
+/* Fuel SPENDS pop red — the economy has to visibly go down, not just up. */
+.fuel-pop.spend {
+  color: #ff6b6b;
+  text-shadow: 0 0 6px rgba(255, 107, 107, 0.8), 0 0 12px rgba(255, 107, 107, 0.4);
+}
 
 /* Soumaya Flight Tasks UI in Chat Panel */
 .ship-tasks-section {
