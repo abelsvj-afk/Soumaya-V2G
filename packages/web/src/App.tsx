@@ -63,6 +63,7 @@ import {
   getDigest,
   getAwayDigest,
   markAwaySeen,
+  getAgentLogs,
   flushIngestQueue,
   logoutSpace,
   onAiActivity,
@@ -591,6 +592,84 @@ export default function App() {
   useEffect(() => {
     if (showObs && awayDigest) void markAwaySeen();
   }, [showObs, awayDigest]);
+
+  // ── Night Replay + live event bridge ──────────────────────────────────────
+  // The 24/7 server loop does real work (research, fusions, sector charting)
+  // that used to land invisibly in agent_logs. On arrival she RE-ENACTS what
+  // happened since your last visit (flies to each memory and performs it), and
+  // while you stay, new server-side events surface as toasts in her voice.
+  const replayDoneRef = useRef(false);
+  useEffect(() => {
+    if (!space || demo || !loaded) return;
+    const key = `brain.replay.lastLog.${space.id}`;
+    const VERBS: Record<string, { replay: string; live: string }> = {
+      research: { replay: "deep-dived", live: "just deep-dived" },
+      merging: { replay: "fused a duplicate into", live: "just fused a duplicate into" },
+      sector_vibe: { replay: "charted the sector around", live: "just charted the sector around" },
+      synthesis: { replay: "connected a thread to", live: "just connected a thread to" },
+    };
+    const labelOf = (id: number) =>
+      (data.nodes as GraphNode[]).find((n) => n.id === id)?.label ?? null;
+    let disposed = false;
+
+    const check = async (arrival: boolean) => {
+      const logs = await getAgentLogs(); // newest first
+      if (disposed || logs.length === 0) return;
+      const newest = logs[0]!.id;
+      const lastSeen = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+      try {
+        localStorage.setItem(key, String(newest));
+      } catch {
+        /* storage unavailable */
+      }
+      if (!lastSeen) return; // first visit ever — set the baseline silently
+      const fresh = logs
+        .filter((l) => l.id > lastSeen && VERBS[l.action])
+        .reverse(); // oldest first, so the story reads forward
+      if (fresh.length === 0) return;
+
+      if (arrival && !replayDoneRef.current) {
+        replayDoneRef.current = true;
+        const items = fresh
+          .map((l) => {
+            let target: number | undefined;
+            try {
+              target = (JSON.parse(l.targets || "[]") as number[])[0];
+            } catch {
+              /* unparseable targets */
+            }
+            const label = target != null ? labelOf(target) : null;
+            return target != null && label
+              ? { id: target, label: `Last night: ${VERBS[l.action]!.replay} "${label}"` }
+              : null;
+          })
+          .filter((x): x is { id: number; label: string } => x !== null)
+          .slice(-3);
+        if (items.length > 0) {
+          // Give the cinematic fly-in room to settle, then she retraces her work.
+          window.setTimeout(() => graphRef.current?.replayEvents(items), 4500);
+        }
+      } else if (!arrival) {
+        for (const l of fresh.slice(-2)) {
+          let target: number | undefined;
+          try {
+            target = (JSON.parse(l.targets || "[]") as number[])[0];
+          } catch {
+            /* unparseable targets */
+          }
+          const label = target != null ? labelOf(target) : null;
+          if (label) pushToast(`Soumaya ${VERBS[l.action]!.live} "${label}".`, "🛰️", 7000);
+        }
+      }
+    };
+
+    void check(true);
+    const iv = window.setInterval(() => void check(false), 60_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(iv);
+    };
+  }, [space, loaded, demo]);
 
   // Offline ingest queue: flush anything captured offline once signed in / back
   // online, then refresh the galaxy + celebrate what synced.

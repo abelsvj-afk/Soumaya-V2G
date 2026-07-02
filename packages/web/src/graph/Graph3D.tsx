@@ -58,6 +58,8 @@ export interface Graph3DHandle {
   fireRecall: (citationIds: number[]) => void;
   /** Soumaya flies into view and shows a short message (autonomous hail). */
   hailSoumaya: (message: string) => void;
+  /** Night Replay: she re-enacts overnight agent-log events (visual only). */
+  replayEvents: (items: { id: number; label: string }[]) => void;
   /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
   getFleetStatus: () => FleetStatus;
   reorderTasks: (newOrder: { id: string; type: string }[]) => void;
@@ -1783,6 +1785,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       },
       hailSoumaya: (message: string) => {
         soumayaHandleRef.current?.hail?.(message);
+      },
+      replayEvents: (items: { id: number; label: string }[]) => {
+        soumayaHandleRef.current?.enqueueReplays?.(items);
       },
       fireRecall: (ids: number[]) => {
         const f = fgRef.current;

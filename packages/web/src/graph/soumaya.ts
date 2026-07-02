@@ -84,6 +84,10 @@ export interface SoumayaHandle {
   /** Demo galaxy: she flies local patrols only — no real backend jobs are fetched
    *  or completed (demo node ids must never hit the real brain's API). */
   setDemoMode: (v: boolean) => void;
+  /** Night Replay: she PERFORMS her real overnight work on arrival — flies to
+   *  each memory the 24/7 loop touched and re-enacts it (visual only; replay
+   *  never re-executes a job against the backend). */
+  enqueueReplays: (items: { id: number; label: string }[]) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -461,6 +465,10 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   // Beacons she needs to dispatch (fly to target memory and deploy)
   const beaconQueue: number[] = [];
   let activeBeacon: number | null = null;
+
+  // Night Replay: overnight agent-log events she re-enacts on arrival (visual
+  // theater over real data — the work already happened server-side).
+  const replayQueue: { id: number; label: string }[] = [];
 
   // Discarded memories to drag to the Sun and fling in (deletion spectacle).
   const removalQueue: RemovalTask[] = [];
@@ -966,6 +974,19 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       }
 
       if (mode === "idle") {
+        // Night Replay first: re-enact her overnight work before new patrols.
+        while (replayQueue.length > 0) {
+          const it = replayQueue.shift()!;
+          const node = nodes.find((n) => n.id === it.id);
+          if (node && node.x != null) {
+            // "replay" is client-side theater — the orbit-completion handler
+            // skips complete-job for it (the work already ran server-side).
+            currentJob = { type: "replay", targets: [it.id], description: it.label } as any;
+            planRoute(nodes);
+            return;
+          }
+          // Target no longer in the graph — drop it and try the next.
+        }
         acquireJob(nodes);
         return;
       }
@@ -1062,9 +1083,12 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
 
         if (orbitTime <= 0) {
           if (currentJob) {
-            // Demo patrols are visual only — completing them against the real
-            // backend would mutate the real brain with demo node ids.
-            if (!demoMode) completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+            // Demo patrols and Night-Replay re-enactments are visual only —
+            // completing them against the backend would double-run real work
+            // (or mutate the real brain with demo node ids).
+            if (!demoMode && (currentJob.type as string) !== "replay") {
+              completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+            }
             pushCompleted("maintenance", currentJob.description || "Completed patrol", `patrol-${currentJob.targets[0]}`);
             currentJob = null;
           }
@@ -1620,6 +1644,11 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     setTrailColor,
     setDemoMode: (v: boolean) => {
       demoMode = v;
+    },
+    enqueueReplays: (items: { id: number; label: string }[]) => {
+      for (const it of items) {
+        if (!replayQueue.some((r) => r.id === it.id)) replayQueue.push(it);
+      }
     },
   };
 }
