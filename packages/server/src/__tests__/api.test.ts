@@ -294,4 +294,36 @@ describe("REST API", () => {
     const bad = await post("/api/chat", { question: "hi", history: [{ role: "them", text: "x" }] });
     expect(bad.status).toBe(400);
   });
+
+  it("daily contact: she asks about a cooling important memory; answering feeds the brain", async () => {
+    // Seed an important memory and backdate its tend clock so the ladder picks it.
+    const seeded = await post("/api/ingest", { text: "my long-term dream of opening the studio" });
+    const seedId = seeded.body.nodes[0].id as number;
+    ctx.handle.sqlite
+      .prepare(
+        `UPDATE nodes SET importance = 0.8, last_tended_at = datetime('now','-20 days') WHERE id = ?`,
+      )
+      .run(seedId);
+    // Force a rebuild of today's contact (it may have been built by an earlier test).
+    ctx.handle.sqlite.prepare(`DELETE FROM daily_contact`).run();
+
+    const c = await get("/api/contact");
+    expect(c.status).toBe(200);
+    expect(c.body.question).toBeTruthy();
+    expect(c.body.answered).toBe(false);
+    // Same question on a second read (persisted per day, not reshuffled).
+    const c2 = await get("/api/contact");
+    expect(c2.body.question.text).toBe(c.body.question.text);
+
+    const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    const a = await post("/api/contact/answer", { text: "still true — I signed the studio lease last week" });
+    expect(a.status).toBe(200);
+    expect(a.body.nodeIds.length).toBeGreaterThan(0);
+    expect(a.body.fuelEarned).toBeGreaterThan(0);
+    const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f1).toBeGreaterThan(f0);
+    // Marked answered for the rest of the day.
+    const after = await get("/api/contact");
+    expect(after.body.answered).toBe(true);
+  });
 });

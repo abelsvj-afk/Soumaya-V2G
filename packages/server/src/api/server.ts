@@ -16,6 +16,7 @@ import { instructionsRoutes } from "./routes/instructions.js";
 import { documentsRoutes } from "./routes/documents.js";
 import { personaRoutes } from "./routes/persona.js";
 import { visitorRoutes } from "./routes/visitors.js";
+import { contactRoutes } from "./routes/contact.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
@@ -73,6 +74,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/documents", guard, documentsRoutes(ctx));
   app.use("/api/persona", guard, personaRoutes(ctx));
   app.use("/api/visitors", guard, visitorRoutes(ctx));
+  app.use("/api/contact", guard, contactRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

@@ -164,6 +164,15 @@ export function bootstrapSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (space_id, reward_key)
     );
+    -- The Daily Contact: her one question/discovery per brain per day, persisted
+    -- so it stays stable across reloads; answered flips when the user replies.
+    CREATE TABLE IF NOT EXISTS daily_contact (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      date TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      answered INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (space_id, date)
+    );
     CREATE TABLE IF NOT EXISTS user_persona (
       space_id TEXT PRIMARY KEY,
       body TEXT NOT NULL,

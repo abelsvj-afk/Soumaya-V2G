@@ -3,6 +3,7 @@ import type { AppContext } from "../context.js";
 import { chat } from "../chat/graphrag.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
+import { getDailyContact } from "../analysis/dailyContact.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
 import { SpacesRepo } from "../auth/spaces.js";
@@ -222,7 +223,14 @@ export async function sendDailyDigests(ctx: AppContext, send: Send): Promise<num
     if (link.lastDigestDate === today) continue;
     try {
       const digest = buildDailyDigest(ctx.handle, link.spaceId);
-      await send(link.chatId, formatDigest(digest, link.spaceName));
+      let msg = formatDigest(digest, link.spaceName);
+      // The Daily Contact rides along: her one question is the comeback hook —
+      // replying in Telegram (via /log) or in the app both count as answering.
+      const contact = getDailyContact(ctx, link.spaceId);
+      if (contact.question && !contact.answered) {
+        msg += `\n\n🪞 One thing I want to understand better:\n${contact.question.text}\n(Reply with /log — it becomes a memory and answers me.)`;
+      }
+      await send(link.chatId, msg);
       links.markDigestSent(link.chatId, today);
       sent++;
     } catch (err) {

@@ -713,6 +713,43 @@ export async function askChat(
   );
 }
 
+/** The Daily Contact — her one question + discovery of the day. */
+export interface DailyContact {
+  date: string;
+  question: {
+    text: string;
+    nodeId: number | null;
+    nodeLabel: string | null;
+    source: "research" | "contradiction" | "cooling" | "heavy";
+  } | null;
+  discovery: { text: string; nodeId: number | null } | null;
+  answered: boolean;
+}
+
+export async function getDailyContact(): Promise<DailyContact | null> {
+  try {
+    const res = await afetch(`${API}/contact`);
+    return res.ok ? ((await res.json()) as DailyContact) : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function answerDailyContact(
+  text: string,
+): Promise<{ nodeIds: number[]; fuelEarned: number; streakAdvanced: boolean } | null> {
+  try {
+    const res = await afetch(`${API}/contact/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Ask the server to distill a finished chat into 0–3 memory-worthy notes. */
 export async function distillChat(messages: { role: "you" | "soumaya"; text: string }[]): Promise<string[]> {
   try {

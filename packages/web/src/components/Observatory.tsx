@@ -1,8 +1,24 @@
 import { useEffect, useState } from "react";
 import type { AwayDigest, GraphNode, Constellation, Insight } from "@brain/shared";
-import { getConstellations, getDigest } from "../api/client.js";
+import {
+  getConstellations,
+  getDigest,
+  getDailyContact,
+  answerDailyContact,
+  type DailyContact,
+} from "../api/client.js";
 import { dailyQuests } from "./quests.js";
 import { playSfx } from "../graph/sfx.js";
+import { pushToast } from "./Toasts.js";
+import { SoumayaEye } from "./SoumayaEye.js";
+
+/** Why she's asking — the icon that frames her daily question. */
+const CONTACT_ICON: Record<string, string> = {
+  research: "🔬",
+  contradiction: "⚡",
+  cooling: "❄️",
+  heavy: "🖤",
+};
 
 /** "13 hours" / "2 days" from an away duration. */
 function humanAway(ms: number): string {
@@ -49,6 +65,10 @@ export function Observatory({
 }) {
   const [insight, setInsight] = useState<Insight | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
+  // The Daily Contact — she initiates; answering right here feeds the brain.
+  const [contact, setContact] = useState<DailyContact | null>(null);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     getDigest()
@@ -57,11 +77,37 @@ export function Observatory({
     getConstellations()
       .then((c) => setConstellations(c.slice(0, 3)))
       .catch(() => {});
+    getDailyContact()
+      .then(setContact)
+      .catch(() => {});
   }, []);
   // The welcome-home motif used to play from the separate away card.
   useEffect(() => {
     if (away) playSfx("welcome");
   }, [away]);
+
+  const sendReply = async () => {
+    const text = reply.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      const r = await answerDailyContact(text);
+      if (r) {
+        setContact((c) => (c ? { ...c, answered: true } : c));
+        setReply("");
+        playSfx("achievement");
+        pushToast(
+          `She's weaving your answer into the galaxy ✦ +${Math.round(r.fuelEarned * 10) / 10} ⛽${r.streakAdvanced ? " · 🔥 streak fed" : ""}`,
+          "🛰️",
+          6500,
+        );
+      } else {
+        pushToast("Couldn't reach her — try again in a moment.", "⚠️", 4500);
+      }
+    } finally {
+      setSending(false);
+    }
+  };
 
   const count = memories.length;
   // Most-recent memories ("jump back in") — newest first by created time.
@@ -146,6 +192,69 @@ export function Observatory({
           </div>
         )}
 
+        {/* Her Daily Contact — the reason to come back: SHE has something for you. */}
+        {contact?.question && !contact.answered && (
+          <div className="obs-card obs-contact">
+            <span className="obs-ic">
+              <SoumayaEye state="idle" mood="thoughtful" size={26} />
+            </span>
+            <span className="obs-body">
+              <span className="obs-title">
+                {CONTACT_ICON[contact.question.source] ?? "🪞"} She has a question for you
+              </span>
+              <span className="obs-line">{contact.question.text}</span>
+              {contact.question.nodeId != null && (
+                <button
+                  className="obs-chip"
+                  onClick={() => onFocus(contact.question!.nodeId!)}
+                  title="Fly to the memory she's asking about"
+                >
+                  ✦ {contact.question.nodeLabel}
+                </button>
+              )}
+              <span className="obs-answer">
+                <textarea
+                  rows={2}
+                  value={reply}
+                  onChange={(e) => setReply(e.target.value)}
+                  placeholder="Answer her — it becomes a memory…"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      void sendReply();
+                    }
+                  }}
+                />
+                <button className="obs-answer-send" onClick={() => void sendReply()} disabled={sending || !reply.trim()}>
+                  {sending ? "…" : "➤"}
+                </button>
+              </span>
+            </span>
+          </div>
+        )}
+        {contact?.question && contact.answered && (
+          <div className="obs-card obs-contact answered">
+            <span className="obs-ic">✓</span>
+            <span className="obs-body">
+              <span className="obs-title">You answered her today</span>
+              <span className="obs-line">She's weaving it in — come back tomorrow, she'll have a new one.</span>
+            </span>
+          </div>
+        )}
+        {contact?.discovery && (
+          <button
+            className="obs-card"
+            onClick={() => contact.discovery!.nodeId != null && onFocus(contact.discovery!.nodeId!)}
+            title="Her best recent find"
+          >
+            <span className="obs-ic">🔭</span>
+            <span className="obs-body">
+              <span className="obs-title">Her discovery of the day</span>
+              <span className="obs-line obs-clamp">{contact.discovery.text}</span>
+            </span>
+          </button>
+        )}
+
         <button className="obs-card obs-action" onClick={onCapture}>
           <span className="obs-ic">✍️</span>
           <span className="obs-body">
@@ -179,15 +288,17 @@ export function Observatory({
           );
         })()}
 
-        {insight && (
+        {/* (The old "surfaced a connection" card merged into "Her discovery of the
+            day" above — same data, one card.) */}
+        {!contact?.discovery && insight && (
           <button
             className="obs-card"
             onClick={() => (insight.nodes[0] ? onFocus(insight.nodes[0].id) : onOpenInsights())}
             title="See the connection"
           >
-            <span className="obs-ic">✨</span>
+            <span className="obs-ic">🔭</span>
             <span className="obs-body">
-              <span className="obs-title">Soumaya surfaced a connection</span>
+              <span className="obs-title">Her discovery of the day</span>
               <span className="obs-line obs-clamp">{insight.text}</span>
             </span>
           </button>
