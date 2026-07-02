@@ -165,6 +165,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-02 (Claude): Chat overhaul + one arrival screen (`e5f2095`, `ca87736`)
+The chat was a stateless one-shot (no history reached the model — the "generic chatbot" cause).
+Now: the last 8 turns ride along (client → route → prompt); the ANSWER prompt reads the emotional
+register (heavy = grounded, never chipper) and returns a `mood` + optional `askBack` (interview
+instinct: one specific clarifying question, own dashed bubble); Companion custom instructions
+moved to the END of the system prompt with must-shape-the-reply wording, and every reply shows
+chips for the roles/docs that shaped it (`appliedRoles`/`appliedDocs` on ChatResponse); the 🎭
+Companion controls now live INSIDE the chat (tab removed — dock is 8); the mic runs continuous
+with a ~2.8s true-silence auto-send (no more premature cutoffs); new `SoumayaEye.tsx` blinking
+avatar (dilates listening, drifts thinking, iris + bubble edge take the reply's mood colour).
+Separately: the "While you were away" report now renders inside the Observatory (single arrival
+screen — the two stacked "welcome back" pop-ups are gone; `WelcomeBackCard.tsx` deleted). 141 tests.
+
 ### 2026-07-02 (Claude): Second full audit (4 agents) + four fix batches (report: docs/PROJECT_AUDIT_2026-07-FULL.md)
 Post-Codex audit (UI redundancy · server · 3D client · gamification), then four user-approved
 batches, each gate-green + pushed:
