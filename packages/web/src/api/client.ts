@@ -816,12 +816,35 @@ export async function getUsage(): Promise<Usage | null> {
   }
 }
 
-export async function setBudget(budget: number): Promise<Usage | null> {
+// Budget mutations are deployment-admin actions (the cap is shared by every brain),
+// so the server fail-closes on them without the ADMIN_TOKEN secret. The token is
+// remembered locally after the first successful use.
+const ADMIN_TOKEN_KEY = "brain.adminToken";
+export function getAdminToken(): string | null {
   try {
-    const res = await afetch(`${API}/usage`, {
+    return localStorage.getItem(ADMIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+export function setAdminToken(token: string): void {
+  try {
+    localStorage.setItem(ADMIN_TOKEN_KEY, token);
+  } catch {
+    /* private-mode etc. */
+  }
+}
+
+async function adminPost(path: string, body?: unknown): Promise<Usage | null> {
+  try {
+    const token = getAdminToken();
+    const res = await afetch(`${API}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ budget }),
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "x-admin-token": token } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
     return res.ok ? ((await res.json()) as Usage) : null;
   } catch {
@@ -829,13 +852,12 @@ export async function setBudget(budget: number): Promise<Usage | null> {
   }
 }
 
+export async function setBudget(budget: number): Promise<Usage | null> {
+  return adminPost("/usage", { budget });
+}
+
 export async function resetUsage(): Promise<Usage | null> {
-  try {
-    const res = await afetch(`${API}/usage/reset`, { method: "POST" });
-    return res.ok ? ((await res.json()) as Usage) : null;
-  } catch {
-    return null;
-  }
+  return adminPost("/usage/reset");
 }
 
 export async function getSettings(): Promise<Record<string, string>> {

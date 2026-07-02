@@ -255,18 +255,23 @@ describe("REST API", () => {
 
   it("codex-claim awards fuel once per key (idempotent, can't be farmed)", async () => {
     const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
-    const first = await post("/api/maintenance/codex-claim", { key: "sector-test" });
+    const first = await post("/api/maintenance/codex-claim", { key: "sector-person" });
     expect(first.status).toBe(200);
     expect(first.body.awarded).toBe(true);
     const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
     expect(f1).toBeGreaterThan(f0);
     // Claiming the same entry again is a no-op — no double reward.
-    const again = await post("/api/maintenance/codex-claim", { key: "sector-test" });
+    const again = await post("/api/maintenance/codex-claim", { key: "sector-person" });
     expect(again.body.awarded).toBe(false);
     const f2 = (await get("/api/maintenance/fuel")).body.fuel as number;
     expect(f2).toBe(f1);
-    // Missing key is rejected.
+    // Missing key and client-invented keys are rejected (no fuel-farming namespace).
     const bad = await post("/api/maintenance/codex-claim", {});
     expect(bad.status).toBe(400);
+    const fake = await post("/api/maintenance/codex-claim", { key: "sector-invented-42" });
+    expect(fake.status).toBe(400);
+    // A constellation key must reference a real MOC hub in this space.
+    const ghost = await post("/api/maintenance/codex-claim", { key: "constellation-999999" });
+    expect(ghost.status).toBe(400);
   });
 });

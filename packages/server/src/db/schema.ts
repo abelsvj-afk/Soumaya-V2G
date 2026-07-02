@@ -229,10 +229,15 @@ export const dailyLogs = sqliteTable("daily_logs", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
-/** Per-brain economy state (the "Celestial Economy" fuel). Space-scoped. */
+/** Per-brain meta state: fuel economy, daily streak, presence, Research Mode. */
 export const spaceMeta = sqliteTable("space_meta", {
   spaceId: text("space_id").primaryKey(),
   fuel: real("fuel").notNull().default(25),
+  streak: integer("streak").notNull().default(0),
+  streakBest: integer("streak_best").notNull().default(0),
+  lastActiveDate: text("last_active_date"),
+  lastSeenAt: text("last_seen_at"),
+  researchEnabled: text("research_enabled"),
   updatedAt: text("updated_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

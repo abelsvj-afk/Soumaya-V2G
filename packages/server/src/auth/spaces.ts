@@ -15,7 +15,25 @@ export interface SpacePublic {
   gamerTag: string;
 }
 
-const TABLES_WITH_SPACE = ["nodes", "edges", "insights", "agent_logs", "daily_logs"] as const;
+// Every table carrying a space_id — the first account to register claims all
+// pre-multi-tenancy rows still sitting under 'legacy'. Keep in sync when adding
+// a space-scoped table, or the owner's data in it stays orphaned after claim.
+const TABLES_WITH_SPACE = [
+  "nodes",
+  "edges",
+  "insights",
+  "agent_logs",
+  "daily_logs",
+  "lore",
+  "attachments",
+  "instruction_profiles",
+  "knowledge_docs",
+  "knowledge_chunks",
+  "user_persona",
+  "visitor_stats",
+  "codex_claims",
+  "space_meta",
+] as const;
 
 function hash(passcode: string, salt: string): Buffer {
   return scryptSync(passcode, salt, 64);
@@ -89,8 +107,11 @@ export class SpacesRepo {
         .run();
       if (isFirst) {
         for (const t of TABLES_WITH_SPACE) {
+          // OR IGNORE: space_meta/user_persona/codex_claims key on space_id, so a
+          // conflicting new-space row (shouldn't exist at creation, but cheap to
+          // guard) must not abort the whole claim transaction.
           this.h.sqlite
-            .prepare(`UPDATE ${t} SET space_id = ? WHERE space_id = ?`)
+            .prepare(`UPDATE OR IGNORE ${t} SET space_id = ? WHERE space_id = ?`)
             .run(id, DEFAULT_SPACE);
         }
       }

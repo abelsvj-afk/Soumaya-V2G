@@ -157,7 +157,10 @@ export class GeminiProvider implements LlmProvider {
   readonly model = MODEL;
   private ai: GoogleGenAI;
 
-  constructor(apiKey: string) {
+  constructor(
+    apiKey: string,
+    private readonly recordUsage?: (model: string, inputTokens: number, outputTokens: number) => void,
+  ) {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
@@ -172,6 +175,11 @@ export class GeminiProvider implements LlmProvider {
         temperature: 0.2,
       },
     });
+    // Feed the budget meter — without this the deployment's USD cap never trips.
+    const meta = res.usageMetadata;
+    if (meta) {
+      this.recordUsage?.(MODEL, meta.promptTokenCount ?? 0, meta.candidatesTokenCount ?? 0);
+    }
     const text = res.text ?? "";
     return JSON.parse(text) as T;
   }

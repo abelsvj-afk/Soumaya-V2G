@@ -16,7 +16,7 @@ import { upsertEmbedding, getEmbedding, knn } from "../db/vec.js";
  * autonomy loop (index.ts) run the exact same job selection + execution. This is
  * the single source of truth — keep all gating here.
  *
- * Gating (unchanged): Research Mode (global `research_enabled` setting) + the USD
+ * Gating (unchanged): Research Mode (per-space `space_meta.research_enabled`) + the USD
  * budget gate everything LLM-backed; Fuel is a per-brain softer throttle on the
  * discretionary *expansion* jobs (research + sector_vibe) only. Free upkeep
  * (pruning/harmonization/calibration/patrol) always runs.
@@ -158,16 +158,44 @@ function mkJob(
   return { type, targets, description, rationale: buildRationale(ctx, spaceId, type, targets) };
 }
 
-/** Global "Research Mode" toggle (settings is deployment-wide, not space-scoped). */
-export function researchEnabled(ctx: AppContext): boolean {
+/**
+ * Per-space "Research Mode" toggle (paid autonomous work). Stored on space_meta so
+ * one brain can't flip paid work on/off for every tenant. A space that has never
+ * set it (NULL) falls back to the legacy global settings row.
+ */
+export function researchEnabled(ctx: AppContext, spaceId: string): boolean {
+  const row = ctx.handle.sqlite
+    .prepare(`SELECT research_enabled FROM space_meta WHERE space_id = ?`)
+    .get(spaceId) as { research_enabled: string | null } | undefined;
+  if (row?.research_enabled != null) return row.research_enabled === "true";
   return (
     ctx.handle.db.select().from(settings).where(eq(settings.key, "research_enabled")).get()
       ?.value === "true"
   );
 }
 
+/** Write the per-space Research Mode flag (creates the meta row if needed). */
+export function setResearchEnabled(ctx: AppContext, spaceId: string, on: boolean): void {
+  ctx.handle.sqlite
+    .prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`)
+    .run(spaceId);
+  ctx.handle.sqlite
+    .prepare(`UPDATE space_meta SET research_enabled = ? WHERE space_id = ?`)
+    .run(String(on), spaceId);
+}
+
 /** Most-recent memories scanned for near-duplicate merging each tick. */
 const MERGE_SCAN_LIMIT = 50;
+/** Two memories must be at least this similar to fuse (selection AND execution). */
+export const MERGE_SIMILARITY = 0.96;
+
+/** Cosine similarity of two stored embeddings (L2-normalized → plain dot product). */
+function cosine(a: Float32Array | number[], b: Float32Array | number[]): number {
+  let dot = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) dot += (a[i] ?? 0) * (b[i] ?? 0);
+  return dot;
+}
 
 /**
  * In-memory job claim guard (idempotency). The browser maintenance loop and the
@@ -215,14 +243,14 @@ function jobForRequest(ctx: AppContext, spaceId: string, id: number): AgentJob |
   const node = nodesRepo.getById(id);
   if (!node) return null;
   const economy = new EconomyRepo(ctx.handle, spaceId);
-  const expansionOn = researchEnabled(ctx) && !ctx.usage.overBudget() && economy.canRunJob();
+  const expansionOn = researchEnabled(ctx, spaceId) && !ctx.usage.overBudget() && economy.canRunJob();
   // Richest action first: deep-dive research (if Research Mode + fuel allow).
   if (expansionOn) {
     return mkJob(ctx, spaceId, "research", [id], `On request: deep-dive research on "${node.label}".`);
   }
   // Else pair it with its nearest not-yet-linked neighbour for synthesis.
   const emb = getEmbedding(ctx.handle.sqlite, id);
-  if (emb && researchEnabled(ctx) && !ctx.usage.overBudget()) {
+  if (emb && researchEnabled(ctx, spaceId) && !ctx.usage.overBudget()) {
     const edges = new EdgesRepo(ctx.handle, spaceId);
     const hit = knn(ctx.handle.sqlite, emb, 4, spaceId).find(
       (h) => h.nodeId !== id && !edges.exists(id, h.nodeId) && !edges.exists(h.nodeId, id),
@@ -237,7 +265,7 @@ function jobForRequest(ctx: AppContext, spaceId: string, id: number): AgentJob |
  *  same scored picker (#2) as the ladder rung. */
 function researchGapJob(ctx: AppContext, spaceId: string): AgentJob | null {
   const economy = new EconomyRepo(ctx.handle, spaceId);
-  if (!(researchEnabled(ctx) && !ctx.usage.overBudget() && economy.canRunJob())) return null;
+  if (!(researchEnabled(ctx, spaceId) && !ctx.usage.overBudget() && economy.canRunJob())) return null;
   const pick = pickResearchTarget(ctx, spaceId);
   if (!pick) return null;
   const why = pick.factors.length ? ` — prioritized for ${pick.factors.join(", ")}` : "";
@@ -271,7 +299,7 @@ export async function selectJob(ctx: AppContext, spaceId: string): Promise<Agent
   const base = selectJobInner(ctx, spaceId);
   // Optional LLM planner: pick between the deterministic choice and a research-gap
   // alternative. Absent/erroring → the ladder stands (always-available fallback).
-  if (base && ctx.llm.planJob && researchEnabled(ctx) && !ctx.usage.overBudget()) {
+  if (base && ctx.llm.planJob && researchEnabled(ctx, spaceId) && !ctx.usage.overBudget()) {
     const options: AgentJob[] = [base];
     const alt = researchGapJob(ctx, spaceId);
     if (alt && alt.targets.join(",") !== base.targets.join(",")) options.push(alt);
@@ -293,7 +321,7 @@ export async function selectJob(ctx: AppContext, spaceId: string): Promise<Agent
 
 function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
   const economy = new EconomyRepo(ctx.handle, spaceId);
-  const llmOn = researchEnabled(ctx) && !ctx.usage.overBudget();
+  const llmOn = researchEnabled(ctx, spaceId) && !ctx.usage.overBudget();
   const expansionOn = llmOn && economy.canRunJob();
   const nodesRepo = new NodesRepo(ctx.handle, spaceId);
 
@@ -323,8 +351,8 @@ function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
     );
   }
 
-  // 0. Merging — near-duplicate memories (similarity > 0.96). Only the most
-  // recent memories are scanned: duplicates arrive with new input, and older
+  // 0. Merging — near-duplicate memories (similarity ≥ MERGE_SIMILARITY). Only the
+  // most recent memories are scanned: duplicates arrive with new input, and older
   // ones were already checked/merged on earlier passes. Bounds this from an
   // O(n) knn-per-node full scan every tick to a small constant (perf: Gap #4).
   if (llmOn) {
@@ -333,7 +361,7 @@ function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
       const emb = getEmbedding(ctx.handle.sqlite, node.id);
       if (!emb) continue;
       const hits = knn(ctx.handle.sqlite, emb, 2, spaceId);
-      const redundant = hits.find((h) => h.nodeId !== node.id && h.similarity > 0.96);
+      const redundant = hits.find((h) => h.nodeId !== node.id && h.similarity >= MERGE_SIMILARITY);
       if (redundant) {
         return mkJob(
           ctx,
@@ -490,8 +518,22 @@ export async function executeJob(
   // route): Research Mode on + under the USD budget, and — for fuel-cost jobs — enough
   // Fuel. Without this a crafted complete-job request bypasses selectJob's gating.
   if (PAID_JOBS.has(type)) {
-    if (!researchEnabled(ctx) || ctx.usage.overBudget()) return null;
+    if (!researchEnabled(ctx, spaceId) || ctx.usage.overBudget()) return null;
     if (FUEL_JOBS.has(type) && !new EconomyRepo(ctx.handle, spaceId).canRunJob()) return null;
+  }
+  // Execution dedupe: the 20s issuance claim can expire during the browser's
+  // next-job → complete-job round trip, after which the 24/7 loop re-selects the
+  // same job — research/sector_vibe would double-append and double-spend. If the
+  // identical job already committed recently, this one is a no-op. (Patrol is
+  // idempotent and cheap; leave it out.)
+  if (type !== "patrol") {
+    const dup = ctx.handle.sqlite
+      .prepare(
+        `SELECT 1 FROM agent_logs WHERE space_id = ? AND action = ? AND targets = ?
+         AND created_at >= datetime('now', '-10 minutes')`,
+      )
+      .get(spaceId, type, JSON.stringify(targets));
+    if (dup) return null;
   }
   const [t0, t1] = targets as [number, number];
   const graph = new GraphService(ctx.handle, spaceId);
@@ -556,6 +598,9 @@ export async function executeJob(
     description = `Harmonized emotional resonance for "${graph.getNode(t0)?.label || t0}".`;
   } else if (type === "research" && targets.length === 1) {
     const original = nodesRepo.getById(t0);
+    // Precondition re-check (complete-job supplies client-crafted targets): a memory
+    // already deep-dived doesn't get a second stacked dive (mirrors selection).
+    if (original?.content.includes("--- Research Deep Dive ---")) return null;
     if (original) {
       const research = await ctx.llm.research({ label: original.label, content: original.content });
       if (research.questions && research.questions.length > 0) {
@@ -584,7 +629,13 @@ export async function executeJob(
   } else if (type === "merging" && targets.length === 2) {
     const a = nodesRepo.getById(t0);
     const b = nodesRepo.getById(t1);
-    if (a && b) {
+    if (a && b && t0 !== t1) {
+      // Precondition re-check: only true near-duplicates may fuse. complete-job
+      // accepts client-supplied targets, so without this ANY two owned memories
+      // could be irreversibly merged.
+      const embA = getEmbedding(ctx.handle.sqlite, a.id);
+      const embB = getEmbedding(ctx.handle.sqlite, b.id);
+      if (!embA || !embB || cosine(embA, embB) < MERGE_SIMILARITY) return null;
       const { text } = await ctx.llm.synthesize(
         { label: a.label, content: a.content },
         { label: b.label, content: b.content },
@@ -597,13 +648,39 @@ export async function executeJob(
         .where(and(eq(nodes.id, a.id), eq(nodes.spaceId, spaceId)))
         .run();
       upsertEmbedding(ctx.handle.sqlite, a.id, await ctx.embeddings.embed(text));
+      // Drop the direct a–b edges FIRST (rerouting would turn them into a–a self-loops).
+      ctx.handle.sqlite
+        .prepare(
+          `DELETE FROM edges WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?))`,
+        )
+        .run(spaceId, a.id, b.id, b.id, a.id);
       ctx.handle.db.update(edges).set({ source: a.id }).where(and(eq(edges.source, b.id), eq(edges.spaceId, spaceId))).run();
       ctx.handle.db.update(edges).set({ target: a.id }).where(and(eq(edges.target, b.id), eq(edges.spaceId, spaceId))).run();
+      // Rerouting can duplicate an edge a already had — keep one per (source,target).
+      ctx.handle.sqlite
+        .prepare(
+          `DELETE FROM edges WHERE space_id = ? AND id NOT IN (
+             SELECT MIN(id) FROM edges WHERE space_id = ? GROUP BY source, target
+           )`,
+        )
+        .run(spaceId, spaceId);
+      // Insights that referenced the fused-away memory follow it to the survivor.
+      ctx.handle.sqlite
+        .prepare(`UPDATE OR IGNORE insights SET node_a = ? WHERE space_id = ? AND node_a = ?`)
+        .run(a.id, spaceId, b.id);
+      ctx.handle.sqlite
+        .prepare(`UPDATE OR IGNORE insights SET node_b = ? WHERE space_id = ? AND node_b = ?`)
+        .run(a.id, spaceId, b.id);
+      ctx.handle.sqlite
+        .prepare(`DELETE FROM insights WHERE space_id = ? AND node_a = node_b`)
+        .run(spaceId);
       nodesRepo.softDelete(b.id, a.id);
       description = `Fused redundant memory "${b.label}" into "${a.label}". Connections re-routed.`;
     }
   } else if (type === "sector_vibe" && targets.length === 1) {
     const center = nodesRepo.getById(t0);
+    // Precondition re-check: one vibe per sector hub (mirrors selection's NOT LIKE guard).
+    if (center?.content.includes("--- Sector Vibe ---")) return null;
     if (center) {
       const neighbors = ctx.handle.sqlite
         .prepare(

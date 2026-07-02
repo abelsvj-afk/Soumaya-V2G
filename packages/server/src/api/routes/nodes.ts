@@ -186,7 +186,8 @@ export function nodesRoutes(ctx: AppContext): Router {
         }
       }
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[nodes] synthesize failed:", err);
+      res.status(500).json({ error: "Synthesis failed — try again shortly." });
       return;
     }
 
@@ -226,13 +227,22 @@ export function nodesRoutes(ctx: AppContext): Router {
     const spaceId = spaceOf(res);
     const graph = graphFor(res);
     const existing = graph.getNode(id); // check kind before removing
+    // Only actions that have existed a little while pay out — a create-then-delete
+    // loop was a free offline fuel farm. (Checked before the row is removed.)
+    const oldEnough =
+      existing?.kind === "action" &&
+      ctx.handle.sqlite
+        .prepare(
+          `SELECT 1 FROM nodes WHERE id = ? AND space_id = ? AND created_at <= datetime('now', '-10 minutes')`,
+        )
+        .get(id, spaceId) != null;
     const ok = graph.deleteNode(id);
     if (!ok) {
       res.status(404).json({ error: "Not found" });
       return;
     }
-    // Clearing a day-to-day action item earns a little fuel (tending the galaxy).
-    if (existing?.kind === "action") new EconomyRepo(ctx.handle, spaceId).add(EARN_ACTION_DONE);
+    // Clearing a (real, aged) day-to-day action item earns a little fuel.
+    if (oldEnough) new EconomyRepo(ctx.handle, spaceId).add(EARN_ACTION_DONE);
     res.json({ ok: true, id });
   });
 
@@ -305,7 +315,8 @@ export function nodesRoutes(ctx: AppContext): Router {
       const updatedNode = graphFor(res).getNode(id);
       res.json({ node: updatedNode });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[nodes] answer-research failed:", err);
+      res.status(500).json({ error: "Research update failed — try again shortly." });
     }
   });
 

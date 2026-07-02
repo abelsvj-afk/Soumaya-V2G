@@ -92,6 +92,8 @@ export function bootstrapSchema(sqlite: RawDb): void {
       streak INTEGER NOT NULL DEFAULT 0,
       streak_best INTEGER NOT NULL DEFAULT 0,
       last_active_date TEXT,
+      last_seen_at TEXT,
+      research_enabled TEXT,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     -- Telegram: bind a chat to a brain so messages route to the right space and
@@ -255,6 +257,7 @@ function migrateSchema(sqlite: RawDb): void {
   };
   for (const t of ["nodes", "edges", "insights", "agent_logs", "daily_logs"]) addSpaceId(t);
   sqlite.exec(`CREATE INDEX IF NOT EXISTS nodes_space_idx ON nodes(space_id)`);
+  sqlite.exec(`CREATE INDEX IF NOT EXISTS edges_space_idx ON edges(space_id)`);
   // Migrate spaces table to non-unique name + unique gamer_tag if needed
   const spaceCols = sqlite.prepare(`PRAGMA table_info(spaces)`).all() as { name: string }[];
   if (spaceCols.length > 0 && !spaceCols.some((c) => c.name === "gamer_tag")) {
@@ -304,106 +307,14 @@ function migrateSchema(sqlite: RawDb): void {
     if (!metaCols.some((c) => c.name === "last_seen_at")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_seen_at TEXT`);
     }
+    // Per-space Research Mode (was a global settings row any tenant could flip).
+    // NULL = fall back to the legacy global setting so existing brains keep working.
+    if (!metaCols.some((c) => c.name === "research_enabled")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN research_enabled TEXT`);
+    }
   }
-
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS spaces (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      gamer_tag TEXT NOT NULL UNIQUE,
-      passcode_hash TEXT NOT NULL,
-      passcode_salt TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS space_meta (
-      space_id TEXT PRIMARY KEY,
-      fuel REAL NOT NULL DEFAULT 25,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    -- Telegram: bind a chat to a brain so messages route to the right space and
-    -- proactive digests know where to push. One chat → one brain (re-/link swaps).
-    CREATE TABLE IF NOT EXISTS telegram_links (
-      chat_id INTEGER PRIMARY KEY,
-      space_id TEXT NOT NULL,
-      space_name TEXT NOT NULL,
-      last_digest_date TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    -- Append-only, versioned lore per object (memory/ship/station/beacon).
-    CREATE TABLE IF NOT EXISTS lore (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      subject_type TEXT NOT NULL,
-      subject_id TEXT NOT NULL,
-      version INTEGER NOT NULL,
-      text TEXT NOT NULL,
-      trigger TEXT NOT NULL DEFAULT 'genesis',
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS lore_subject_idx
-      ON lore(space_id, subject_type, subject_id, version);
-    -- AI Companion: Layer-2 instruction profiles, knowledge docs + chunks, About-Me.
-    CREATE TABLE IF NOT EXISTS instruction_profiles (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      name TEXT NOT NULL,
-      body TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      mode TEXT NOT NULL DEFAULT 'always',
-      priority INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS instruction_profiles_space_idx ON instruction_profiles(space_id);
-    CREATE TABLE IF NOT EXISTS knowledge_docs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      name TEXT NOT NULL,
-      mime TEXT NOT NULL DEFAULT 'text/plain',
-      char_count INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS knowledge_docs_space_idx ON knowledge_docs(space_id);
-    CREATE TABLE IF NOT EXISTS knowledge_chunks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      doc_id INTEGER NOT NULL REFERENCES knowledge_docs(id),
-      ordinal INTEGER NOT NULL,
-      content TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS knowledge_chunks_doc_idx ON knowledge_chunks(doc_id);
-    CREATE TABLE IF NOT EXISTS attachments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      node_id INTEGER NOT NULL REFERENCES nodes(id),
-      filename TEXT NOT NULL,
-      mime TEXT NOT NULL DEFAULT 'application/octet-stream',
-      size INTEGER NOT NULL DEFAULT 0,
-      data TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE INDEX IF NOT EXISTS attachments_node_idx ON attachments(node_id);
-    CREATE TABLE IF NOT EXISTS codex_claims (
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      reward_key TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (space_id, reward_key)
-    );
-    CREATE TABLE IF NOT EXISTS user_persona (
-      space_id TEXT PRIMARY KEY,
-      body TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-    -- Visitor activity: aggregated visits per memory + craft type.
-    CREATE TABLE IF NOT EXISTS visitor_stats (
-      space_id TEXT NOT NULL DEFAULT 'legacy',
-      node_id INTEGER NOT NULL,
-      visitor_type TEXT NOT NULL,
-      visits INTEGER NOT NULL DEFAULT 0,
-      last_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      PRIMARY KEY (space_id, node_id, visitor_type)
-    );
-    CREATE INDEX IF NOT EXISTS visitor_stats_space_idx ON visitor_stats(space_id);
-  `);
+  // (Table creation lives ONLY in bootstrapSchema, which always runs first —
+  // a second CREATE block here once drifted out of sync and shipped wrong shapes.)
 }
 
 /**

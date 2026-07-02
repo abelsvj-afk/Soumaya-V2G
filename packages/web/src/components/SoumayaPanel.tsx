@@ -9,6 +9,8 @@ import {
   getUsage,
   setBudget as apiSetBudget,
   resetUsage,
+  getAdminToken,
+  setAdminToken,
   getSpaceId,
   type AgentLog,
   type DailyLog,
@@ -46,7 +48,20 @@ export function SoumayaPanel({
   const [usage, setUsage] = useState<Usage | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [budgetInput, setBudgetInput] = useState("");
+  const [budgetError, setBudgetError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Budget mutations are admin-gated server-side (shared deployment cap). Ask for
+  // the ADMIN_TOKEN once, remember it, and surface a clear message on refusal.
+  const ensureAdminToken = (): boolean => {
+    if (getAdminToken()) return true;
+    const entered = window.prompt(
+      "Budget changes need the deployment admin token (the ADMIN_TOKEN secret):",
+    );
+    if (!entered) return false;
+    setAdminToken(entered.trim());
+    return true;
+  };
 
   const moveTask = (index: number, direction: "up" | "down") => {
     if (!tasks || !onReorderTasks || !tasks[index]) return;
@@ -440,9 +455,16 @@ export function SoumayaPanel({
                   onClick={async () => {
                     const v = Number(budgetInput);
                     if (!Number.isFinite(v) || v < 0) return;
+                    if (!ensureAdminToken()) return;
                     const u = await apiSetBudget(v);
-                    if (u) setUsage(u);
-                    setBudgetInput("");
+                    if (u) {
+                      setUsage(u);
+                      setBudgetError(null);
+                      setBudgetInput("");
+                    } else {
+                      setAdminToken(""); // forget a bad token so the next click re-prompts
+                      setBudgetError("Rejected — check the admin token and try again.");
+                    }
                   }}
                   style={{ padding: "4px 8px", fontSize: "11px" }}
                 >
@@ -451,14 +473,24 @@ export function SoumayaPanel({
                 <button
                   className="mini"
                   onClick={async () => {
+                    if (!ensureAdminToken()) return;
                     const u = await resetUsage();
-                    if (u) setUsage(u);
+                    if (u) {
+                      setUsage(u);
+                      setBudgetError(null);
+                    } else {
+                      setAdminToken(""); // forget a bad token so the next click re-prompts
+                      setBudgetError("Rejected — check the admin token and try again.");
+                    }
                   }}
                   style={{ padding: "4px 8px", fontSize: "11px" }}
                 >
                   Reset
                 </button>
               </div>
+              {budgetError && (
+                <p className="budget-note budget-over" style={{ marginTop: "6px" }}>{budgetError}</p>
+              )}
             </div>
           )}
         </div>

@@ -87,9 +87,10 @@ export async function chat(
     degraded: resilient.degraded === true,
     disabledUntil: resilient.disabledUntil ? new Date(resilient.disabledUntil).toLocaleTimeString() : null,
   };
-  const hasGeminiKey = !!process.env.GEMINI_API_KEY;
-  const hasOpenaiKey = !!process.env.OPENAI_API_KEY;
-  const apiMode = process.env.GEMINI_API_KEY ? "Shared Gemini API Key (System)" : "Shared OpenAI API Key (System)";
+  // Deployment-level spend is summarized QUALITATIVELY only: exact dollar figures
+  // and which API keys are configured are shared-deployment facts that must not be
+  // recited to every tenant's chat.
+  const budgetState = usage.overBudget ? "exhausted" : usage.low ? "running low" : "healthy";
 
   const economy = new EconomyRepo(h, spaceId).toFuel();
 
@@ -127,12 +128,9 @@ export async function chat(
 You have full access to read every tab and page of this application. Here is the current live state of all tabs:
 
 1. COMPANION & SYSTEM SETTINGS TAB:
-- Cloud LLM Model: ${llmStatus.model}
-- Cloud API Key Status: ${llmStatus.available ? "ACTIVE & RUNNING" : "DEGRADED (On temporary fallback/cooldown)"}
-- API Error Cooldown: ${llmStatus.degraded ? `YES (Quota/billing limit hit, cooling down until ${llmStatus.disabledUntil})` : "None (fully functional)"}
-- API Key Configured: ${apiMode} (Gemini Key Set: ${hasGeminiKey}, OpenAI Key Set: ${hasOpenaiKey})
-- Celestial Economy Budget: Used $${usage.estCostUsd} of your $${usage.budgetUsd} budget limit (${(usage.fractionUsed * 100).toFixed(1)}% spent)
-- Remaining API Balance: $${usage.remainingUsd}
+- Cloud AI Status: ${llmStatus.available ? "ACTIVE & RUNNING" : "DEGRADED (On temporary fallback/cooldown)"}
+- AI Error Cooldown: ${llmStatus.degraded ? `YES (quota/billing limit hit, cooling down until ${llmStatus.disabledUntil})` : "None (fully functional)"}
+- Shared AI Budget State: ${budgetState}${budgetState !== "healthy" ? " — advise gentler use until it recovers" : ""}
 
 2. SOUMAYA & FLEET TAB:
 - Ship Fuel level: ${economy.fuel.toFixed(1)} / ${economy.capacity} units
@@ -158,7 +156,7 @@ ${recentInsights.length > 0 ? recentInsights.join("\n") : "  * (No latent connec
 
 Use this telemetry to guide the user! For example:
 - If fuel is low (<20) and they ask how you're doing, tell them you're in distress or need them to log memories / clear agenda to refill fuel.
-- If the API key is out of credits (degraded/cooldown or near budget limit), explain why and advise them to refill credits or adjust the budget limit.
+- If the shared AI budget is running low or exhausted (or the provider is on cooldown), say your deep-thinking is resting and will return — never recite dollar figures or key configuration.
 - If they ask about their tasks/agenda, summarize the active action items.
 - If they ask about sectors/galaxy size, talk about node counts and hubs.
 - You can suggest they look at specific tabs (e.g. "Go to the Agenda tab and complete task X to gain fuel", or "Check out the Insights tab to see the latest connections I forged").

@@ -8,12 +8,13 @@ const BudgetBody = z.object({ budget: z.number().min(0).max(100000) });
 export function usageRoutes(ctx: AppContext): Router {
   const r = Router();
 
-  // If ADMIN_TOKEN is set, mutating the shared budget requires it — otherwise any
-  // logged-in brain could zero the deployment's only spend cap for everyone.
+  // Mutating the shared budget ALWAYS requires the admin token — fail closed when
+  // ADMIN_TOKEN isn't configured, otherwise any logged-in brain could zero the
+  // deployment's only spend cap for everyone.
   const requireAdmin = (req: import("express").Request, res: import("express").Response): boolean => {
     const token = process.env.ADMIN_TOKEN;
-    if (token && req.get("x-admin-token") !== token) {
-      res.status(403).json({ error: "Budget changes require the admin token." });
+    if (!token || req.get("x-admin-token") !== token) {
+      res.status(403).json({ error: "Budget changes require the admin token (set ADMIN_TOKEN)." });
       return false;
     }
     return true;

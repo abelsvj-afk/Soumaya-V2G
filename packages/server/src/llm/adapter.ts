@@ -143,7 +143,12 @@ export async function createLlmProvider(opts: LlmProviderOptions = {}): Promise<
   if (resolved === "gemini" && geminiKey) {
     const { GeminiProvider } = await import("./gemini.js");
     const { ResilientLlmProvider } = await import("./resilient.js");
-    return new ResilientLlmProvider(new GeminiProvider(geminiKey), undefined, undefined, opts.isOverBudget);
+    return new ResilientLlmProvider(
+      new GeminiProvider(geminiKey, opts.recordUsage),
+      undefined,
+      undefined,
+      opts.isOverBudget,
+    );
   }
   if (resolved === "openai" && openaiKey) {
     const { OpenAiProvider } = await import("./openai.js");

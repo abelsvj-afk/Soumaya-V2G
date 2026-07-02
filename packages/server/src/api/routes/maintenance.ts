@@ -1,27 +1,50 @@
 import { Router } from "express";
 import { z } from "zod";
+import { EXTRACTABLE_NODE_TYPES, CELESTIAL_CLASSES } from "@brain/shared";
 import type { AppContext } from "../../context.js";
 import { EconomyRepo, EARN_CODEX_DISCOVERY } from "../../economy.js";
 import { StreakRepo } from "../../streak.js";
-import { agentLogs, settings, dailyLogs } from "../../db/schema.js";
+import { agentLogs, dailyLogs } from "../../db/schema.js";
 import { spaceOf } from "../middleware.js";
 import { eq, desc } from "drizzle-orm";
-import { selectJob, executeJob } from "../../maintenance/agent.js";
+import { selectJob, executeJob, researchEnabled, setResearchEnabled } from "../../maintenance/agent.js";
 
 const CompleteJobSchema = z.object({
   type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
   targets: z.array(z.number()),
 });
 
-// The `settings` table is deployment-GLOBAL (shared API budget, usage counters).
-// Only an explicit allow-list of safe, user-facing keys may be written through this
-// public route — otherwise any logged-in brain could zero `usage_budget_usd` (killing
-// cloud LLM for every brain) or flip internal counters. `research_enabled` is the one
-// legitimate shared toggle the client sets (Settings + Soumaya panels).
+// Only an explicit allow-list of user-facing keys may be written through this public
+// route (the raw `settings` table also holds the deployment's budget/usage counters).
+// `research_enabled` is the one settable flag, and it's stored PER SPACE.
 const SettingsWriteSchema = z.object({
   key: z.enum(["research_enabled"]),
   value: z.string().max(64),
 });
+
+// The rewardable Codex catalog, mirrored from the web client's entry ids
+// (packages/web/src/components/codex.ts — keep in sync when adding entries).
+// Everything static is enumerable here; constellation entries are dynamic and
+// verified against the space's real MOC hubs instead.
+const CODEX_STATIC_KEYS = new Set<string>([
+  ...EXTRACTABLE_NODE_TYPES.map((t) => `sector-${t}`),
+  ...CELESTIAL_CLASSES.map((c) => `body-${c}`),
+  "body-singularity",
+  "fleet-soumaya",
+  "fleet-station",
+  "fleet-beacon",
+  ...["firstlink", "star", "deep", "ancient", "cooling", "tender"].map((p) => `phenom-${p}`),
+]);
+
+function isClaimableCodexKey(ctx: AppContext, spaceId: string, key: string): boolean {
+  if (CODEX_STATIC_KEYS.has(key)) return true;
+  const m = /^constellation-(\d+)$/.exec(key);
+  if (!m) return false;
+  const hub = ctx.handle.sqlite
+    .prepare(`SELECT 1 FROM nodes WHERE id = ? AND space_id = ? AND kind = 'moc' AND deleted_at IS NULL`)
+    .get(Number(m[1]), spaceId);
+  return hub != null;
+}
 
 export function maintenanceRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -56,7 +79,8 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       const detail = await executeJob(ctx, spaceOf(res), parsed.data);
       res.json({ ok: detail != null, detail: detail ?? "No-op (target unavailable)." });
     } catch (err) {
-      res.status(500).json({ error: (err as Error).message });
+      console.error("[maintenance] complete-job failed:", err);
+      res.status(500).json({ error: "Job execution failed." });
     }
   });
 
@@ -104,15 +128,17 @@ export function maintenanceRoutes(ctx: AppContext): Router {
 
   /**
    * POST /api/maintenance/codex-claim { key } -> grant a one-time fuel reward for
-   * discovering a Codex entry. Idempotent per (space, key) so it can't be farmed.
+   * discovering a Codex entry. Idempotent per (space, key) AND validated against
+   * the real Codex catalog — client-invented keys would otherwise mint fuel and
+   * bloat codex_claims forever.
    */
   r.post("/codex-claim", (req, res) => {
     const key = String(req.body?.key ?? "").slice(0, 80);
-    if (!key) {
-      res.status(400).json({ error: "key required" });
+    const spaceId = spaceOf(res);
+    if (!key || !isClaimableCodexKey(ctx, spaceId, key)) {
+      res.status(400).json({ error: "Unknown codex entry." });
       return;
     }
-    const spaceId = spaceOf(res);
     const existed = ctx.handle.sqlite
       .prepare(`SELECT 1 FROM codex_claims WHERE space_id = ? AND reward_key = ?`)
       .get(spaceId, key);
@@ -135,28 +161,25 @@ export function maintenanceRoutes(ctx: AppContext): Router {
   });
 
   /**
-   * GET /api/maintenance/settings
+   * GET /api/maintenance/settings — only the user-facing flags, resolved for THIS
+   * space. (The raw settings table also holds deployment counters/budget rows that
+   * must not leak to tenants.)
    */
-  r.get("/settings", async (req, res) => {
-    const all = await ctx.handle.db.select().from(settings).all();
-    const map = Object.fromEntries(all.map(s => [s.key, s.value]));
-    res.json(map);
+  r.get("/settings", (_req, res) => {
+    res.json({ research_enabled: String(researchEnabled(ctx, spaceOf(res))) });
   });
 
   /**
-   * POST /api/maintenance/settings
+   * POST /api/maintenance/settings — Research Mode is per-space now, so one brain
+   * flipping it can't switch paid autonomous work on/off for every tenant.
    */
-  r.post("/settings", async (req, res) => {
+  r.post("/settings", (req, res) => {
     const parsed = SettingsWriteSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Unsupported setting.", issues: parsed.error.issues });
       return;
     }
-    const { key, value } = parsed.data;
-    await ctx.handle.db.insert(settings)
-      .values({ key, value })
-      .onConflictDoUpdate({ target: settings.key, set: { value } })
-      .run();
+    setResearchEnabled(ctx, spaceOf(res), parsed.data.value === "true");
     res.json({ ok: true });
   });
 

@@ -7,13 +7,17 @@ import type { DbHandle } from "./db/client.js";
  * `settings` table so it survives restarts.
  */
 
-// USD per token (rough public pricing). Falls back to the mini rate.
+// USD per token (rough public pricing). Falls back to a family-appropriate rate.
 const PRICE: Record<string, { in: number; out: number }> = {
   "gpt-4o-mini": { in: 0.15e-6, out: 0.6e-6 },
   "gpt-4o": { in: 2.5e-6, out: 10e-6 },
   "gpt-4.1-mini": { in: 0.4e-6, out: 1.6e-6 },
+  "gemini-2.5-flash": { in: 0.3e-6, out: 2.5e-6 },
+  "gemini-2.5-flash-lite": { in: 0.1e-6, out: 0.4e-6 },
+  "gemini-2.5-pro": { in: 1.25e-6, out: 10e-6 },
 };
-const rateFor = (model: string) => PRICE[model] ?? PRICE["gpt-4o-mini"]!;
+const rateFor = (model: string) =>
+  PRICE[model] ?? (model.startsWith("gemini") ? PRICE["gemini-2.5-flash"]! : PRICE["gpt-4o-mini"]!);
 
 export interface UsageSummary {
   inputTokens: number;

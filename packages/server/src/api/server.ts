@@ -31,10 +31,9 @@ export function createApp(ctx: AppContext): Express {
   app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "4mb" }));
   app.use("/api", rateLimit());
 
+  // Health is unauthenticated — provider status only, no data facts (the global
+  // node count spanned every tenant's brain).
   app.get("/api/health", (_req, res) => {
-    const total = ctx.handle.sqlite
-      .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE deleted_at IS NULL`)
-      .get() as { c: number };
     res.json({
       ok: true,
       embeddings: { model: ctx.embeddings.model, dim: ctx.embeddings.dim },
@@ -43,11 +42,13 @@ export function createApp(ctx: AppContext): Express {
         available: ctx.llm.available,
         degraded: ctx.llm.degraded ?? false,
       },
-      nodes: total.c,
     });
   });
 
-  // Auth (open): log in to or create a private brain.
+  // Auth (open): log in to or create a private brain. A much tighter limit than
+  // the general API one — 4-char passcodes at 120 guesses/min was a brute-force
+  // ceiling, and unlimited free creation inflates the autonomy loop's work.
+  app.use("/api/space/auth", rateLimit({ max: Number(process.env.AUTH_RATE_LIMIT_MAX ?? 10) }));
   app.use("/api/space", spaceRoutes(ctx));
 
   // Telegram webhook (open — secured by its own secret, resolves the brain itself).
@@ -101,9 +102,11 @@ export function createApp(ctx: AppContext): Express {
   }
 
   // Centralized error handler (Express 5 forwards rejected async handlers here).
+  // The detail goes to the server log only — raw messages can carry SQL/provider
+  // internals that don't belong in a client response.
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     console.error("[api] error:", err);
-    res.status(500).json({ error: (err as Error)?.message ?? "Internal error" });
+    res.status(500).json({ error: "Internal error" });
   });
 
   return app;

@@ -8,7 +8,7 @@ import { GraphService } from "../graph/service.js";
 import { UsageTracker } from "../usage.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { EconomyRepo } from "../economy.js";
-import { selectJob, executeJob, researchEnabled, requestMaintenance } from "../maintenance/agent.js";
+import { selectJob, executeJob, researchEnabled, setResearchEnabled, requestMaintenance } from "../maintenance/agent.js";
 import { settings } from "../db/schema.js";
 
 let handle: DbHandle;
@@ -44,10 +44,16 @@ describe("maintenance agent (server-side autonomy core)", () => {
     }
   });
 
-  it("researchEnabled reflects the global setting", () => {
-    expect(researchEnabled(ctx)).toBe(false);
-    setResearch(true);
-    expect(researchEnabled(ctx)).toBe(true);
+  it("researchEnabled is per-space, falling back to the legacy global setting", () => {
+    expect(researchEnabled(ctx, "legacy")).toBe(false);
+    setResearch(true); // legacy global row → spaces with no explicit flag inherit it
+    expect(researchEnabled(ctx, "legacy")).toBe(true);
+    // A per-space flag overrides the global one — and only for that space.
+    setResearchEnabled(ctx, "brain-a", false);
+    expect(researchEnabled(ctx, "brain-a")).toBe(false);
+    expect(researchEnabled(ctx, "legacy")).toBe(true);
+    setResearchEnabled(ctx, "brain-a", true);
+    expect(researchEnabled(ctx, "brain-a")).toBe(true);
   });
 
   it("executeJob: synthesis is free, research burns fuel (same gating as the route)", async () => {
