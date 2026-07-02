@@ -1,4 +1,4 @@
-import { sfxEnabled } from "./sfx.js";
+import { sfxEnabled, sfxVolume } from "./sfx.js";
 
 /**
  * Soumaya's ship engine — real recordings, not synthesis. A jet startup
@@ -39,12 +39,28 @@ export function makeEngineAudio(): EngineAudio {
     }
   };
 
-  const frame = () => {
+  // The user's settings are read a few times a second (not per frame — sfxEnabled
+  // falls back to a matchMedia query, which is real work at 60fps).
+  let enabled = false;
+  let userVol = 1;
+  let settingsAt = 0;
+  let lastT = 0;
+
+  const frame = (t: number) => {
     if (disposed) return;
-    // Ease current → target (fast attack on ignition, gentle release).
-    const rate = target > current ? 0.12 : 0.05;
-    current += (target - current) * rate;
-    const on = sfxEnabled() && current > 0.02;
+    const dt = lastT ? Math.min(0.1, (t - lastT) / 1000) : 1 / 60;
+    lastT = t;
+    if (t - settingsAt > 300) {
+      settingsAt = t;
+      enabled = sfxEnabled();
+      userVol = sfxVolume();
+    }
+    // Ease current → target, dt-based so the fade speed doesn't depend on the
+    // display's refresh rate (fast attack on ignition, gentle release).
+    const rate = target > current ? 7 : 3; // per-second easing constants
+    current += (target - current) * Math.min(1, rate * dt);
+    const gain = MASTER * userVol; // honor the user's interface-sounds slider
+    const on = enabled && current > 0.02;
     if (on) {
       ensure();
       if (!ignited && startEl) {
@@ -58,9 +74,9 @@ export function makeEngineAudio(): EngineAudio {
       }
       if (loopEl) {
         if (loopEl.paused) void loopEl.play().catch(() => {});
-        loopEl.volume = Math.min(1, current * MASTER);
+        loopEl.volume = Math.min(1, current * gain);
       }
-      if (startEl) startEl.volume = Math.min(1, current * MASTER * 0.9);
+      if (startEl) startEl.volume = Math.min(1, current * gain * 0.9);
     } else {
       ignited = false;
       if (loopEl && !loopEl.paused) {

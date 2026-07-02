@@ -368,6 +368,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const [cluster, setCluster] = useState<Set<number> | null>(null);
   // Hover wins; otherwise the selected node drives the highlight (mobile = no hover).
   const activeId = hoverId ?? selectedId ?? null;
+  // Ref mirror for callbacks captured once (the imperative handle only rebuilds on
+  // [data], so reading `activeId` there directly recalled from a stale selection).
+  const activeIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
   const insetRef = useRef(false);
   useEffect(() => {
     insetRef.current = !!bottomInset;
@@ -377,6 +383,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const demoRef = useRef(false);
   useEffect(() => {
     demoRef.current = !!demo;
+    // Keep the ship demo-aware: in the demo galaxy she flies local patrols only
+    // (real jobs carry real-brain node ids and completions mutate the real brain).
+    soumayaHandleRef.current?.setDemoMode(!!demo);
   }, [demo]);
   const loadedRef = useRef(false);
   useEffect(() => {
@@ -726,6 +735,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       soumaya = makeSoumaya(equippedShipRef.current);
       soumayaHandleRef.current = soumaya;
+      soumaya.setDemoMode(demoRef.current);
       if (soumaya.setTrailColor) {
         soumaya.setTrailColor(equippedTrailRef.current);
       }
@@ -1017,7 +1027,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const pending = satellites.getPendingDispatches();
         if (pending.length > 0) {
           soumayaHandleRef.current.enqueueBeacons(pending);
-          if (spaceIdRef.current) {
+          // Demo flights must not feed real progression stats.
+          if (spaceIdRef.current && !demoRef.current) {
             const key = `stat.beacons_deployed.${spaceIdRef.current}`;
             localStorage.setItem(key, String(parseInt(localStorage.getItem(key) || "0", 10) + pending.length));
             // Force evaluate achievements in App
@@ -1256,7 +1267,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           d.nodes as any[],
           d.links as any[],
           (x, y, z, type, nodeId) => {
-            if (spaceIdRef.current) {
+            // Demo flights must not feed real progression stats.
+            if (spaceIdRef.current && !demoRef.current) {
               const hopKey = `stat.travel_hops.${spaceIdRef.current}`;
               localStorage.setItem(hopKey, String(parseInt(localStorage.getItem(hopKey) || "0", 10) + 1));
             }
@@ -1428,6 +1440,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cancelAnimationFrame(raf);
       engine?.dispose();
       if (fg.__brainCleanupClick) fg.__brainCleanupClick();
+      // The bloom pass holds several render targets (real VRAM) and lives on the
+      // library's persistent composer — without remove+dispose, a re-init would
+      // stack a second pass on top of the leaked first.
+      if (bloomRef.current) {
+        try {
+          const pass = bloomRef.current as any;
+          (fg as any).postProcessingComposer?.()?.removePass?.(pass);
+          pass.dispose?.();
+        } catch {
+          /* best-effort */
+        }
+        bloomRef.current = null;
+      }
       // Cancel any deferred FX timers so they don't fire into the torn-down scene.
       for (const id of pendingTimersRef.current) clearTimeout(id);
       pendingTimersRef.current.clear();
@@ -1593,11 +1618,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const sourceNode = byId.get(linkEnd(l.source));
     const targetNode = byId.get(linkEnd(l.target));
     if (!sourceNode || !targetNode) return 0;
-    const timeStr = sourceNode.lastTendedAt ?? sourceNode.createdAt ?? targetNode.lastTendedAt ?? targetNode.createdAt;
+    // The FRESHEST end lights the link — a `??` chain here let a stale source
+    // timestamp shadow a just-tended target, so tending visibly did nothing.
     let act = 0;
-    if (timeStr) {
+    for (const timeStr of [
+      sourceNode.lastTendedAt ?? sourceNode.createdAt,
+      targetNode.lastTendedAt ?? targetNode.createdAt,
+    ]) {
+      if (!timeStr) continue;
       const ageMs = Date.now() - Date.parse(timeStr);
-      if (!Number.isNaN(ageMs)) act = Math.max(0, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // 3-day decay
+      if (!Number.isNaN(ageMs)) act = Math.max(act, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // 3-day decay
     }
     // A link Soumaya recently re-forged/repaired counts as fresh too (Phase 3:
     // links decay with neglect, then she revives them). Decays over ~3 days.
@@ -1774,11 +1804,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
 
         // Determine the seed (source) node for the path.
-        // If activeId is in the graph, use it. Otherwise, use the first cited ID.
+        // If the LIVE active node is in the graph, use it. Otherwise the first cited id.
         const allNodes = dataRef.current.nodes as any[];
+        const liveActive = activeIdRef.current;
         let seed: number = ids[0]!;
-        if (activeId !== null && allNodes.some(n => n.id === activeId)) {
-          seed = activeId;
+        if (liveActive !== null && allNodes.some(n => n.id === liveActive)) {
+          seed = liveActive;
         }
 
         // Run BFS from seed to find shortest path parent pointers

@@ -39,10 +39,12 @@ export interface AchievementCtx {
  * writer — so those achievements could never unlock from real play.
  */
 export function statsSpaceId(): string {
+  // "default" matches every other signed-out localStorage bucket (Toasts, Inbox,
+  // RightDock) — a "legacy" fallback here filed stats in a bucket nothing read.
   try {
-    return localStorage.getItem("brain.spaceId") || "legacy";
+    return localStorage.getItem("brain.spaceId") || "default";
   } catch {
-    return "legacy";
+    return "default";
   }
 }
 

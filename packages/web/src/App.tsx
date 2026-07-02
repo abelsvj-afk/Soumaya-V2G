@@ -115,7 +115,6 @@ export default function App() {
   // Load equipped customizations and demo stats when the space changes
   useEffect(() => {
     if (!space) return;
-    localStorage.setItem("current_space_id", space.id);
     const shipKey = `brain.hangar.ship.${space.id}`;
     const trailKey = `brain.hangar.trail.${space.id}`;
     const fig1Key = `brain.hangar.fig1.${space.id}`;
@@ -193,11 +192,30 @@ export default function App() {
   // Lore card dismissed independently of the camera follow (× closes the card but
   // keeps focus). Reset to false whenever a new focus target is chosen.
   const [loreDismissed, setLoreDismissed] = useState(false);
-  // Show Soumaya's current task on a floating label above her ship (persisted).
-  const [showShipTask, setShowShipTask] = useState(() => localStorage.getItem("ship.task") !== "0");
+  // Show Soumaya's current task on a floating label above her ship. Persisted
+  // PER BRAIN like every other preference (the old global "ship.task" key leaked
+  // the choice across spaces; it's kept as a one-time fallback).
+  const [showShipTask, setShowShipTaskState] = useState(() => localStorage.getItem("ship.task") !== "0");
   useEffect(() => {
-    localStorage.setItem("ship.task", showShipTask ? "1" : "0");
-  }, [showShipTask]);
+    if (!space) return;
+    try {
+      const v = localStorage.getItem(`ship.task.${space.id}`) ?? localStorage.getItem("ship.task");
+      setShowShipTaskState(v !== "0");
+    } catch {
+      /* private mode */
+    }
+  }, [space?.id]);
+  const setShowShipTask = useCallback(
+    (v: boolean) => {
+      setShowShipTaskState(v);
+      try {
+        localStorage.setItem(space ? `ship.task.${space.id}` : "ship.task", v ? "1" : "0");
+      } catch {
+        /* private mode */
+      }
+    },
+    [space?.id],
+  );
   const [shipViewMode, setShipViewMode] = useState<"orbit" | "cockpit">("orbit");
   const [tasks, setTasks] = useState<any[]>([]);
   const handleReorderTasks = useCallback((newOrder: any[]) => {

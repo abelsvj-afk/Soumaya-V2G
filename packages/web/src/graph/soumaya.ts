@@ -81,6 +81,9 @@ export interface SoumayaHandle {
   /** Autonomously fly into view and show a short message to get the user's
    *  attention (she has something to say). No-op until she's free to do it. */
   hail: (message: string) => void;
+  /** Demo galaxy: she flies local patrols only — no real backend jobs are fetched
+   *  or completed (demo node ids must never hit the real brain's API). */
+  setDemoMode: (v: boolean) => void;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -453,6 +456,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
+  let demoMode = false; // demo galaxy: local patrols only, no real backend jobs
 
   // Beacons she needs to dispatch (fly to target memory and deploy)
   const beaconQueue: number[] = [];
@@ -538,18 +542,23 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
 
     while (plannedMaintenance.length < 3) {
       let job: MaintenanceJob | null = null;
-      try {
-        isFetching = true;
-        const serverJob = await getNextMaintenanceJob();
-        isFetching = false;
-        
-        const inProgress = currentJob && currentJob.targets[0] === serverJob.targets[0];
-        const alreadyQueued = plannedMaintenance.some(j => j.targets[0] === serverJob.targets[0]);
-        if (!inProgress && !alreadyQueued) {
-          job = serverJob;
+      // Demo galaxy: never fetch real jobs — the server would hand out REAL-brain
+      // node ids that don't exist here (and demo completions would mutate the real
+      // brain). Local patrols only.
+      if (!demoMode) {
+        try {
+          isFetching = true;
+          const serverJob = await getNextMaintenanceJob();
+          isFetching = false;
+
+          const inProgress = currentJob && currentJob.targets[0] === serverJob.targets[0];
+          const alreadyQueued = plannedMaintenance.some(j => j.targets[0] === serverJob.targets[0]);
+          if (!inProgress && !alreadyQueued) {
+            job = serverJob;
+          }
+        } catch {
+          isFetching = false;
         }
-      } catch {
-        isFetching = false;
       }
       
       if (!job) {
@@ -579,6 +588,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     if (isFetching || nodes.length === 0) return;
     isFetching = true;
     try {
+      if (demoMode) throw new Error("demo"); // demo → local patrol fallback below
       currentJob = await getNextMaintenanceJob();
       announceDecision(currentJob);
     } catch (err) {
@@ -1052,7 +1062,9 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
 
         if (orbitTime <= 0) {
           if (currentJob) {
-            completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
+            // Demo patrols are visual only — completing them against the real
+            // backend would mutate the real brain with demo node ids.
+            if (!demoMode) completeMaintenanceJob(currentJob.type, currentJob.targets).catch(() => {});
             pushCompleted("maintenance", currentJob.description || "Completed patrol", `patrol-${currentJob.targets[0]}`);
             currentJob = null;
           }
@@ -1606,5 +1618,8 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     reorderTasks,
     setShipSkin,
     setTrailColor,
+    setDemoMode: (v: boolean) => {
+      demoMode = v;
+    },
   };
 }
