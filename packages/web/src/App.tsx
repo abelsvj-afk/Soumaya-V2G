@@ -705,6 +705,12 @@ export default function App() {
           const tendKey = `stat.memories_tended.${space.id}`;
           localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
         }
+        // Optimistic warm-up: the server reset entropy, but the client copy only
+        // refreshed on the next full graph fetch — so a beacon's beam never cut
+        // out when you tended its memory mid-session (verified). Mutating the
+        // live node object is what the 3D loop + satellites actually read.
+        (n as GraphNode).entropy = 0;
+        (n as GraphNode).lastTendedAt = new Date().toISOString();
         // Force evaluation of achievements
         setTimeout(() => handleChanged(-1), 100);
       }

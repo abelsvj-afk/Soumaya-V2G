@@ -24,10 +24,21 @@ export interface ContradictionOptions {
 }
 
 export const DEFAULT_CONTRADICTION: ContradictionOptions = {
-  threshold: 0.86, // same-topic is a higher bar than "merely related"
+  threshold: 0.75, // same-topic bar for REAL embeddings (MiniLM)
   k: 6,
   maxCandidates: 10,
 };
+
+/**
+ * Provider-aware same-topic gate. Hash embeddings produce much lower cosines than
+ * a real model — the measured similarity of an obvious planted contradiction was
+ * ~0.69 under hash, so the old flat 0.86 made the scan find NOTHING offline (a
+ * verified dead feature). Callers pass the embeddings model name.
+ */
+export function contradictionOptionsFor(embeddingsModel: string): ContradictionOptions {
+  const isHash = embeddingsModel.toLowerCase().includes("hash");
+  return { ...DEFAULT_CONTRADICTION, threshold: isHash ? 0.5 : DEFAULT_CONTRADICTION.threshold };
+}
 
 interface Pair {
   a: number;

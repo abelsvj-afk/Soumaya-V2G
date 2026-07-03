@@ -1,6 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { GraphNode } from "@brain/shared";
-import { deleteNode } from "../api/client.js";
+import { deleteNode, ackReminder } from "../api/client.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -43,14 +43,21 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
         .sort((a, b) => (a.due || Infinity) - (b.due || Infinity)),
     [nodes],
   );
-  const reminders = useMemo(
+  // Acknowledged-this-session reminders (server clears remind_at; hide locally
+  // until the next graph refresh catches up).
+  const [acked, setAcked] = useState<Set<number>>(new Set());
+  const allReminders = useMemo(
     () =>
       nodes
-        .filter((n) => n.kind !== "action" && n.remindAt && ms(n.remindAt) > Date.now())
+        .filter((n) => n.kind !== "action" && n.remindAt)
         .map((n) => ({ n, at: ms(n.remindAt) }))
         .sort((a, b) => a.at - b.at),
     [nodes],
   );
+  // DUE reminders used to silently VANISH here (the list filtered to future-only)
+  // — the one moment a reminder mattered was the moment it disappeared.
+  const dueReminders = allReminders.filter(({ n, at }) => at <= Date.now() && !acked.has(n.id));
+  const reminders = allReminders.filter(({ at }) => at > Date.now());
 
   const done = (id: number) => {
     deleteNode(id)
@@ -58,7 +65,12 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
       .catch(() => {});
   };
 
-  if (actions.length === 0 && reminders.length === 0) {
+  const ack = (id: number) => {
+    setAcked((s) => new Set(s).add(id));
+    void ackReminder(id);
+  };
+
+  if (actions.length === 0 && reminders.length === 0 && dueReminders.length === 0) {
     return (
       <p className="empty">
         No action items or reminders. Add a thought and tick "📌 Action item", or set a reminder
@@ -69,6 +81,27 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
 
   return (
     <div className="dock-body">
+      {dueReminders.length > 0 && (
+        <>
+          <h3 className="agenda-h">🔔 Reminders due now ({dueReminders.length})</h3>
+          <ul className="agenda-list">
+            {dueReminders.map(({ n }) => (
+              <li key={n.id} className="over">
+                <button className="agenda-main" onClick={() => onFocus(n.id)} title="Fly to it">
+                  <span className="agenda-label">{n.label}</span>
+                  <span className="agenda-due urgent">due now</span>
+                </button>
+                {!readOnly && (
+                  <button className="mini agenda-done" onClick={() => ack(n.id)} title="Acknowledge — stop reminding">
+                    ✓
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
       <h3 className="agenda-h">📌 Action items {actions.length > 0 && `(${actions.length})`}</h3>
       {actions.length === 0 ? (
         <p className="empty small">Nothing due — you're clear.</p>

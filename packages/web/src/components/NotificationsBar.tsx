@@ -61,7 +61,31 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
     });
   }
 
-  // 4. Overdue Actions Alert
+  // 4. Due reminders — the one moment a reminder matters. (The Agenda used to be
+  // the only surface and it HID reminders once due; nothing else ever alerted.)
+  const nowMs = Date.now();
+  const dueReminders = nodes.filter((n) => {
+    if (n.kind === "action" || !n.remindAt) return false;
+    const iso = n.remindAt.includes("Z") || n.remindAt.includes("+") ? n.remindAt : n.remindAt.replace(" ", "T") + "Z";
+    return Date.parse(iso) <= nowMs;
+  });
+  if (dueReminders.length > 0) {
+    alerts.push({
+      id: "due-reminders",
+      type: "info",
+      icon: "🔔",
+      text:
+        dueReminders.length === 1
+          ? `Reminder due: "${dueReminders[0]!.label.slice(0, 40)}"`
+          : `${dueReminders.length} reminders due.`,
+      actionText: "Agenda",
+      onClick: () => {
+        onOpenTab("actions");
+      },
+    });
+  }
+
+  // 5. Overdue Actions Alert
   const now = Date.now();
   const overdueActions = nodes.filter(n => {
     if (n.kind !== "action" || !n.expiresAt) return false;

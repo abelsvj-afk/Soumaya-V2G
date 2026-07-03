@@ -713,6 +713,26 @@ export async function askChat(
   );
 }
 
+/** Acknowledge a due reminder (clears remind_at so it stops re-surfacing). */
+export async function ackReminder(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/nodes/${id}/ack-reminder`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Resolve/dismiss a surfaced insight (reconciled contradiction, seen connection). */
+export async function resolveInsight(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/digest/insights/${id}/resolve`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** The Daily Contact — her one question + discovery of the day. */
 export interface DailyContact {
   date: string;
@@ -1061,13 +1081,16 @@ export interface VisitedMemory {
   lastAt: string;
 }
 
-/** Report a batch of visitor arrivals (fire-and-forget; never throws/badges). */
-export function logVisits(events: { nodeId: number; type: string }[]): void {
+/** Report a batch of visitor arrivals (fire-and-forget; never throws/badges).
+ *  Pass `flush: true` from pagehide/backgrounding — `keepalive` lets the request
+ *  outlive the page so the buffered tail isn't silently dropped on close. */
+export function logVisits(events: { nodeId: number; type: string }[], flush = false): void {
   if (events.length === 0) return;
   void afetch(`${API}/visitors/log`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ events }),
+    ...(flush ? { keepalive: true } : {}),
   }).catch(() => {});
 }
 

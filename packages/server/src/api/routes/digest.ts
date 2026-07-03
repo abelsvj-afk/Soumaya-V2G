@@ -2,7 +2,7 @@ import { Router } from "express";
 import type { AppContext } from "../../context.js";
 import { InsightsRepo } from "../../repositories/insights.repo.js";
 import { runSynthesis, DEFAULT_SYNTHESIS } from "../../synthesis/engine.js";
-import { runContradictionScan, DEFAULT_CONTRADICTION } from "../../synthesis/contradictions.js";
+import { runContradictionScan, contradictionOptionsFor } from "../../synthesis/contradictions.js";
 import { buildDailyDigest } from "../../synthesis/dailyDigest.js";
 import { buildEmotionalTrajectory } from "../../analysis/emotional.js";
 import { buildDormantList } from "../../analysis/dormant.js";
@@ -11,6 +11,7 @@ import { buildLifeAreaCounts } from "../../analysis/lifeAreas.js";
 import { buildSelfReview } from "../../analysis/selfReview.js";
 import { buildAwayDigest, markSeen } from "../../analysis/awayDigest.js";
 import { spaceOf } from "../middleware.js";
+import { NodesRepo } from "../../repositories/nodes.repo.js";
 
 export function digestRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -68,10 +69,40 @@ export function digestRoutes(ctx: AppContext): Router {
   });
 
   // POST /api/digest/contradictions -> scan same-topic memories for conflicts
-  // (changed beliefs / reversed goals / shifting identity). Offline-safe.
+  // (changed beliefs / reversed goals / shifting identity). Offline-safe — the
+  // similarity gate adapts to the embeddings provider (hash cosines run lower).
   r.post("/contradictions", async (_req, res) => {
-    const created = await runContradictionScan(ctx.handle, ctx.llm, DEFAULT_CONTRADICTION, spaceOf(res));
+    const created = await runContradictionScan(
+      ctx.handle,
+      ctx.llm,
+      contradictionOptionsFor(ctx.embeddings.model),
+      spaceOf(res),
+    );
     res.json(created);
+  });
+
+  // POST /api/digest/insights/:id/resolve -> the user reconciled (or dismissed) a
+  // surfaced insight. Deletes it and, for contradictions, tends both memories —
+  // the "RECONCILE" badge used to be display-only with no affordance behind it.
+  r.post("/insights/:id/resolve", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    const row = ctx.handle.sqlite
+      .prepare(`SELECT node_a AS a, node_b AS b FROM insights WHERE id = ? AND space_id = ?`)
+      .get(id, spaceId) as { a: number; b: number } | undefined;
+    if (!row) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const repo = new NodesRepo(ctx.handle, spaceId);
+    repo.tend(row.a);
+    repo.tend(row.b);
+    ctx.handle.sqlite.prepare(`DELETE FROM insights WHERE id = ? AND space_id = ?`).run(id, spaceId);
+    res.json({ ok: true });
   });
 
   return r;

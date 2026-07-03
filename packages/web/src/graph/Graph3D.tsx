@@ -389,6 +389,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // (real jobs carry real-brain node ids and completions mutate the real brain).
     soumayaHandleRef.current?.setDemoMode(!!demo);
   }, [demo]);
+  // Drain the visitor buffer when the tab hides/closes — the 20s flush lives in
+  // the rAF loop, which browsers pause for hidden tabs, so the tail was lost on
+  // every close/background. keepalive lets the request outlive the page.
+  useEffect(() => {
+    const drain = () => {
+      if (visitBufRef.current.length > 0) {
+        logVisits(visitBufRef.current.splice(0, visitBufRef.current.length), true);
+      }
+    };
+    const onVis = () => {
+      if (document.visibilityState === "hidden") drain();
+    };
+    window.addEventListener("pagehide", drain);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      window.removeEventListener("pagehide", drain);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, []);
   const loadedRef = useRef(false);
   useEffect(() => {
     loadedRef.current = !!loaded;

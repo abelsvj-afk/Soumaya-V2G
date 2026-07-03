@@ -295,6 +295,35 @@ describe("REST API", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("contradiction scan works OFFLINE (provider-aware similarity gate)", async () => {
+    // The old flat 0.86 gate was unreachable with hash embeddings (measured
+    // ~0.69 for this exact planted pair) — the scan silently found nothing.
+    await post("/api/ingest", { text: "I love my job at the studio, it gives me purpose" });
+    await post("/api/ingest", { text: "I hate my job at the studio and want to quit" });
+    const r = await post("/api/digest/contradictions", {});
+    expect(r.status).toBe(200);
+    expect(Array.isArray(r.body)).toBe(true);
+    expect(r.body.length).toBeGreaterThan(0);
+    expect(r.body[0].kind).toBe("contradiction");
+    // The reconcile affordance clears it and warms both memories.
+    const resolved = await post(`/api/digest/insights/${r.body[0].id}/resolve`, {});
+    expect(resolved.status).toBe(200);
+    const remaining = (await get("/api/digest")).body as { id: number }[];
+    expect(remaining.some((i) => i.id === r.body[0].id)).toBe(false);
+  });
+
+  it("acknowledging a due reminder clears it from every digest surface", async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    const made = await post("/api/ingest", { text: "remember to renew the passport", remindAt: past });
+    const id = made.body.nodes[0].id as number;
+    let daily = (await get("/api/digest/daily")).body;
+    expect(daily.reminders.some((r: any) => r.node.id === id)).toBe(true);
+    const ack = await post(`/api/nodes/${id}/ack-reminder`, {});
+    expect(ack.status).toBe(200);
+    daily = (await get("/api/digest/daily")).body;
+    expect(daily.reminders.some((r: any) => r.node.id === id)).toBe(false);
+  });
+
   it("daily contact: she asks about a cooling important memory; answering feeds the brain", async () => {
     // Seed an important memory and backdate its tend clock so the ladder picks it.
     const seeded = await post("/api/ingest", { text: "my long-term dream of opening the studio" });

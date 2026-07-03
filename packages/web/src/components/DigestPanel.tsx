@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, runDigest, runContradictions, type DailyLog } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -449,8 +449,25 @@ export function DigestPanel({
               <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", marginBottom: "0.2rem" }}>
                 {isConflict && (
                   <span style={{ fontSize: "0.7rem", fontWeight: 700, color: "#ff7a59", letterSpacing: "0.04em" }}>
-                    ⚡ CONTRADICTION · RECONCILE
+                    ⚡ CONTRADICTION
                   </span>
+                )}
+                {isConflict && (
+                  <button
+                    className="mini"
+                    style={{ fontSize: "0.66rem", padding: "1px 8px" }}
+                    title="Mark reconciled — clears this and warms both memories"
+                    onClick={() => {
+                      void resolveInsight(it.id).then((ok) => {
+                        if (ok) {
+                          setItems((prev) => prev.filter((x) => x.id !== it.id));
+                          pushToast("Reconciled — both memories warmed ✓", "⚡", 4500);
+                        }
+                      });
+                    }}
+                  >
+                    ✓ Reconciled
+                  </button>
                 )}
                 <span
                   style={{ fontSize: "0.62rem", opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.04em" }}

@@ -1,4 +1,4 @@
-import type { LoreEntry, LoreSubjectType } from "@brain/shared";
+import { entropyFrom, type LoreEntry, type LoreSubjectType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -234,12 +234,20 @@ export function evolveLore(
     const degree = (h.sqlite
       .prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id = ? AND (source = ? OR target = ?)`)
       .get(spaceId, id, id) as { c: number }).c;
+    // Compute REAL entropy the way the graph service does — the raw repo row
+    // never carries it, so `node.entropy ?? 0` meant every chapter read as
+    // "burning bright" no matter how cold the memory actually was (verified).
+    const tendedRef = node.lastTendedAt ?? node.createdAt;
+    const daysSince = tendedRef
+      ? Math.max(0, (Date.now() - Date.parse(tendedRef.includes("Z") || tendedRef.includes("+") ? tendedRef : tendedRef.replace(" ", "T") + "Z")) / 86_400_000)
+      : 0;
+    const entropy = Number.isFinite(daysSince) ? entropyFrom(daysSince, degree) : 0;
     const text = composeMemoryChapter({
       label: node.label,
       type: node.type,
       content: node.content ?? "",
       emotionalWeight: node.emotionalWeight ?? 0,
-      entropy: node.entropy ?? 0,
+      entropy,
       degree,
       neighbors: neighborLabels(h, spaceId, id),
       version,
