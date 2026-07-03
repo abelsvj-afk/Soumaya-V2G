@@ -143,6 +143,9 @@ export function Observatory({
             {streak > 0 ? ` · 🔥 ${streak}-day streak` : ""}
             {away ? ` · away ${humanAway(away.awayMs)}` : ""}
           </span>
+          <button className="obs-close" onClick={onEnter} aria-label="Close and enter the galaxy">
+            ×
+          </button>
         </header>
 
         {away && (
