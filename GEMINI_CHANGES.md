@@ -165,6 +165,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-03 (Claude): The retention loop — Daily Contact, Night Replay, promise sweep
+Product diagnosis: structurally complete but no reason to return tomorrow. Three batches:
+1. **Daily Contact** — she initiates once a day: a deterministic ladder picks her most
+   valuable question (pending research questions → unresolved contradiction → important
+   cooling memory → heavy under-connected), persisted per space+day (`daily_contact` table,
+   `analysis/dailyContact.ts`, `/api/contact` + `/answer`). The Observatory leads with it
+   (eye + inline answer box); answering ingests + links + tends + pays fuel/streak; the
+   Telegram digest carries the question.
+2. **Night Replay + live bridge** — on arrival she re-enacts up to 3 real agent_logs events
+   since the last visit (`enqueueReplays` on the ship; replay jobs never call complete-job);
+   new server-loop events surface live as toasts (60s poll in App).
+3. **Promise sweep** (report: `docs/PROMISES_VERIFIED.md`) — 10 flows traced + script-proven;
+   5 fixed: due reminders now surface (Agenda section + alert chip + `ack-reminder` route);
+   contradiction scan gate is provider-aware (was dead offline at 0.86 vs measured 0.69) +
+   real "Reconciled" affordance (`/digest/insights/:id/resolve`); beacon beams release
+   mid-session (optimistic entropy reset in `goTo`); lore chapters get REAL entropy;
+   visitor buffer drains on pagehide with keepalive. 144 tests.
+
 ### 2026-07-02 (Claude): Chat overhaul + one arrival screen (`e5f2095`, `ca87736`)
 The chat was a stateless one-shot (no history reached the model — the "generic chatbot" cause).
 Now: the last 8 turns ride along (client → route → prompt); the ANSWER prompt reads the emotional
