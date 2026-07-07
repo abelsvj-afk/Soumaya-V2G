@@ -3,6 +3,7 @@ import { z } from "zod";
 import { COGNITIVE_KINDS } from "@brain/shared";
 import type { AppContext } from "../../context.js";
 import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive } from "../../analysis/cognitive.js";
+import { promoteIdeaToGoal } from "../../analysis/ideas.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
@@ -58,6 +59,21 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     const ok = await updateCognitive(ctx, spaceId, id, parsed.data);
     if (!ok) {
       res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json(new GraphService(ctx.handle, spaceId).getNode(id));
+  });
+
+  // POST /api/cognitive/:id/promote -> graduate an idea into a goal (commit to it).
+  r.post("/:id/promote", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    if (!promoteIdeaToGoal(ctx, spaceId, id)) {
+      res.status(404).json({ error: "Not an idea" });
       return;
     }
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));

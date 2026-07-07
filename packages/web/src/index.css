@@ -2827,6 +2827,26 @@ button {
 }
 .mind-edit { display: flex; flex-direction: column; gap: 6px; }
 .mind-edit .row { display: flex; gap: 6px; }
+.mind-promote {
+  margin-top: 6px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  background: rgba(143, 220, 255, 0.08);
+  border: 1px solid rgba(143, 220, 255, 0.25);
+  color: #cfe6ff;
+}
+.mind-promote:hover { background: rgba(143, 220, 255, 0.16); }
+.mind-promote.ripe {
+  background: rgba(255, 157, 60, 0.14);
+  border-color: rgba(255, 157, 60, 0.5);
+  color: #ffd8ad;
+  animation: mind-ripe 2.4s ease-in-out infinite;
+}
+@keyframes mind-ripe { 0%, 100% { box-shadow: 0 0 0 rgba(255, 157, 60, 0); } 50% { box-shadow: 0 0 10px rgba(255, 157, 60, 0.35); } }
+@media (prefers-reduced-motion: reduce) { .mind-promote.ripe { animation: none; } }
 .mind-card-label { font-size: 0.86rem; color: #eaf4ff; }
 .mind-card-sub { font-size: 0.68rem; opacity: 0.6; white-space: nowrap; }
 .mind-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }

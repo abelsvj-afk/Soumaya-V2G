@@ -5,6 +5,7 @@ import {
   createCognitive,
   setCognitiveProgress,
   updateCognitive,
+  promoteIdea,
   type CognitiveItem,
   getThoughts,
   addThought,
@@ -148,6 +149,17 @@ export function MindPanel({
   const dismiss = async (t: Thought) => {
     setThoughts((xs) => xs.filter((x) => x.id !== t.id));
     await dismissThought(t.id);
+  };
+  const promoteToGoal = async (it: CognitiveItem) => {
+    const ok = await promoteIdea(it.id);
+    if (ok) {
+      playSfx("achievement");
+      pushToast(`💡→🎯 "${it.label}" is now a Goal you're committing to`, "🧠", 4500);
+      await refresh();
+      onChanged?.(); // kind/importance changed → refresh the galaxy
+    } else {
+      pushToast("Couldn't promote that — try again.", "⚠️", 3500);
+    }
   };
   const saveThoughtEdit = async () => {
     if (editThoughtId == null || !editThoughtText.trim()) return;
@@ -348,6 +360,15 @@ export function MindPanel({
                     <button className="mini" onClick={() => void bumpProgress(it, 0.1)} title="More">+</button>
                     <span className="mind-pct">{Math.round((it.progress ?? 0) * 100)}%</span>
                   </div>
+                )}
+                {editId !== it.id && k === "idea" && (
+                  <button
+                    className={`mind-promote ${it.degree >= 4 ? "ripe" : ""}`}
+                    onClick={() => void promoteToGoal(it)}
+                    title="Commit to this — turn it into a goal your memories orbit"
+                  >
+                    {it.degree >= 4 ? "✨ Ripe — promote to Goal" : "💡→🎯 Promote to Goal"}
+                  </button>
                 )}
               </li>
             ))}

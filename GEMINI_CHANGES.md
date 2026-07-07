@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **191 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **195 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 3 (Ideas lifecycle: grow / fade / merge / promote)
+- **Ideas are now alive.** `idea` is the one non-durable cognitive kind; it finally has a real arc,
+  all deterministic + offline (`analysis/ideas.ts`, `stepIdeas` in the autonomy loop):
+  - **GROW** — importance rises with each supporting memory (`0.4 + supports×0.06`, capped 0.78), so
+    a well-backed idea brightens and swells into a hot young star.
+  - **FADE** — no tending for 14 days dims it; unsupported + untended for 30 days and it **fades out
+    of the galaxy entirely** (it was never permanent). Leans on the existing celestial system —
+    ideas aren't entropy-exempt, so lowering importance is all it takes to cool + shrink them.
+  - **MERGE** — two ideas with cosine ≥0.82 collapse into the better-supported one, its backing
+    memories redirected, so duplicates don't clutter your mind. Logged (`idea_merged`/`idea_faded`).
+  - **PROMOTE** — a ripe idea (≥4 supports) shows a "✨ Ripe — promote to Goal" button; promoting
+    (`promoteIdeaToGoal`, user-triggered) flips kind→goal with goal importance/colour/progress, so it
+    becomes a durable, gravity-exerting anchor. That's you committing to it.
+- **Server**: `analysis/ideas.ts`; `POST /api/cognitive/:id/promote`; wired into the autonomy loop.
+- **Web**: idea cards in the Mind tab get a promote button (glows amber when ripe); `promoteIdea`
+  client fn; `mind-promote` CSS; Help entry extended. (Split — branching one idea into two — is
+  deferred: it wants an LLM to name the branches, so it lands with a later LLM-gated pass.)
+- **Tests**: `__tests__/ideas.test.ts` (grow-with-support, dim + archive-when-ignored, merge-preserves
+  support, ripe-flag + promote-to-goal). Gate: typecheck clean · **195 tests** · web build clean.
 
 ### 2026-07-07 (Claude): Proactive intelligence — "Soumaya noticed…" inquiries (user ask: "they have to be smart")
 - **The ask, generalised**: she shouldn't just link — she should NOTICE when a new memory has

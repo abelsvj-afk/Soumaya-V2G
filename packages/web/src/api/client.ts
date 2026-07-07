@@ -756,6 +756,14 @@ export async function setCognitiveProgress(id: number, value: number): Promise<b
     return false;
   }
 }
+export async function promoteIdea(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 export async function updateCognitive(id: number, patch: { label?: string; content?: string }): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}`, {
