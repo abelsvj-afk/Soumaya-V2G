@@ -14,6 +14,7 @@ import { generateInquiry } from "./analysis/inquiry.js";
 import { stepIdeas } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
 import { stepIdentities } from "./analysis/identity.js";
+import { mergeDuplicatePeople } from "./analysis/people.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -218,6 +219,13 @@ if (process.env.AUTONOMY !== "off") {
           stepIdentities(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] identity step failed:", e);
+        }
+        // People (Cognitive Layer Phase 6, free/offline): keep the roster clean by
+        // merging duplicate person entities (same name) into one.
+        try {
+          mergeDuplicatePeople(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] people merge failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

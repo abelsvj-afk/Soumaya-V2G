@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **203 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **207 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 6 (People as entities · lightweight CRM)
+- **People are now first-class relationships you can read.** A `person_entity` is a person your
+  interactions orbit; this adds a lightweight CRM around them (`analysis/people.ts`), all offline.
+- **Relationship profile** (`personProfile`, `GET /api/cognitive/:id/profile`): their interactions
+  (memories linked via `supports`, newest first), interaction count, when you last engaged, and the
+  emotional **tone** of the relationship (warm / heavy / mixed / neutral, from the interactions'
+  emotional weight). The Mind tab's person cards get a **Relationship** expander showing all of it
+  with fly-to chips.
+- **Dedupe** (`mergeDuplicatePeople`, autonomy step): person entities sharing a primary name ("Danny",
+  "Danny K") merge into the one with more interactions, folding the rest's memories onto it (logged
+  `people_merged`) — so the roster stays clean.
+- **Suggestions** (`suggestPeople`, `GET /api/people/suggestions`): capitalised names recurring across
+  ≥2 memories that aren't people yet (day/month/common-word noise filtered, existing people excluded)
+  surface as one-tap **"People you mention"** chips in the Mind tab — add and their memories orbit them.
+- **Web**: `getPersonProfile` / `getPersonSuggestions` client fns; person profile + suggestions UI;
+  tone/suggest CSS; Help entry extended. Reused `labelTokens`; no new table.
+- **Tests**: `__tests__/people.test.ts` (warm-tone profile + non-person null, mixed tone, duplicate
+  merge folds interactions, suggestions ignore stopwords + already-added). Gate: typecheck clean ·
+  **207 tests** · web build clean.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 5 (Identity core + evidence)
 - **Identities are now weighed by the evidence of your life.** An `identity` (the heaviest cognitive

@@ -769,6 +769,29 @@ export async function getCognitiveEvidence(id: number): Promise<CognitiveEvidenc
     return null;
   }
 }
+export interface PersonProfile {
+  count: number;
+  lastAt: string | null;
+  tone: "warm" | "heavy" | "mixed" | "neutral";
+  interactions: { id: number; label: string; createdAt: string; emotionalWeight: number | null }[];
+}
+export async function getPersonProfile(id: number): Promise<PersonProfile | null> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/profile`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function getPersonSuggestions(): Promise<{ name: string; count: number }[]> {
+  try {
+    const res = await afetch(`${API}/people/suggestions`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
 export async function promoteIdea(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });

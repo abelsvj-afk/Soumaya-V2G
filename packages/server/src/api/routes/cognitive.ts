@@ -5,6 +5,7 @@ import type { AppContext } from "../../context.js";
 import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive } from "../../analysis/cognitive.js";
 import { promoteIdeaToGoal } from "../../analysis/ideas.js";
 import { cognitiveEvidence } from "../../analysis/identity.js";
+import { personProfile } from "../../analysis/people.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
@@ -78,6 +79,21 @@ export function cognitiveRoutes(ctx: AppContext): Router {
       return;
     }
     res.json(ev);
+  });
+
+  // GET /api/cognitive/:id/profile -> a person's CRM (interactions, recency, tone).
+  r.get("/:id/profile", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const profile = personProfile(ctx, spaceOf(res), id);
+    if (!profile) {
+      res.status(404).json({ error: "Not a person" });
+      return;
+    }
+    res.json(profile);
   });
 
   // POST /api/cognitive/:id/promote -> graduate an idea into a goal (commit to it).

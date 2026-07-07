@@ -1,0 +1,184 @@
+import type { AppContext } from "../context.js";
+import { NodesRepo } from "../repositories/nodes.repo.js";
+import { labelTokens } from "./cognitive.js";
+
+/**
+ * People as entities (Cognitive Layer Phase 6, docs/COGNITIVE_LAYER.md). A
+ * `person_entity` is a person themselves — a star your interactions orbit. This
+ * gives each one a lightweight CRM: their interactions (the memories that mention
+ * them, already linked via `supports`), how long since you last engaged, and the
+ * emotional tone of the relationship. It also keeps the roster clean by merging
+ * duplicate person nodes, and surfaces people you mention a lot but haven't added.
+ *
+ * All deterministic + offline.
+ */
+
+/** Capitalised words that are NOT names (so suggestions stay signal, not noise). */
+const NAME_STOP = new Set([
+  "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+  "january", "february", "march", "april", "may", "june", "july", "august",
+  "september", "october", "november", "december", "today", "tomorrow", "yesterday",
+  "the", "this", "that", "there", "then", "when", "went", "made", "just", "really",
+  "morning", "night", "week", "weekend", "google", "internet", "http", "https",
+]);
+
+export type Tone = "warm" | "heavy" | "mixed" | "neutral";
+
+export interface PersonProfile {
+  count: number;
+  lastAt: string | null;
+  tone: Tone;
+  interactions: { id: number; label: string; createdAt: string; emotionalWeight: number | null }[];
+}
+
+/** The CRM profile for one person: their interactions, recency, and tone. */
+export function personProfile(ctx: AppContext, spaceId: string, id: number): PersonProfile | null {
+  const s = ctx.handle.sqlite;
+  const person = s
+    .prepare(`SELECT kind FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
+    .get(id, spaceId) as { kind: string | null } | undefined;
+  if (!person || person.kind !== "person_entity") return null;
+
+  const interactions = s
+    .prepare(
+      `SELECT n.id, n.label, n.created_at AS createdAt, n.emotional_weight AS emotionalWeight
+       FROM edges e JOIN nodes n ON n.id = e.source
+       WHERE e.space_id = ? AND e.target = ? AND e.relationship = 'supports' AND n.deleted_at IS NULL
+       ORDER BY n.created_at DESC LIMIT 100`,
+    )
+    .all(spaceId, id) as PersonProfile["interactions"];
+
+  let pos = 0;
+  let neg = 0;
+  for (const it of interactions) {
+    const w = it.emotionalWeight ?? 0;
+    if (w > 0.2) pos++;
+    else if (w < -0.2) neg++;
+  }
+  let tone: Tone = "neutral";
+  if (pos > 0 && neg > 0) tone = "mixed";
+  else if (pos > neg) tone = "warm";
+  else if (neg > pos) tone = "heavy";
+
+  return {
+    count: interactions.length,
+    lastAt: interactions[0]?.createdAt ?? null,
+    tone,
+    interactions,
+  };
+}
+
+/**
+ * Merge duplicate person entities (same primary name) into one, folding their
+ * interactions onto the survivor (the one with more interactions). Free/offline.
+ * Returns how many duplicates were merged away.
+ */
+export function mergeDuplicatePeople(ctx: AppContext, spaceId: string): number {
+  const s = ctx.handle.sqlite;
+  const repo = new NodesRepo(ctx.handle, spaceId);
+  const people = s
+    .prepare(`SELECT id, label FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity' ORDER BY id ASC`)
+    .all(spaceId) as { id: number; label: string }[];
+
+  // Group by primary name key: the longest distinctive token of the label (or the
+  // whole normalised label). "Danny" and "Danny K" share the token "danny".
+  const keyOf = (label: string): string => {
+    const toks = labelTokens(label).filter((t) => !t.includes(" "));
+    return toks.length > 0 ? toks.sort((a, b) => b.length - a.length)[0]! : label.trim().toLowerCase();
+  };
+  const groups = new Map<string, number[]>();
+  for (const p of people) {
+    const k = keyOf(p.label);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(p.id);
+  }
+
+  const interactionCount = (id: number) =>
+    (s.prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id = ? AND target = ? AND relationship = 'supports'`).get(spaceId, id) as { c: number }).c;
+
+  let merged = 0;
+  for (const ids of groups.values()) {
+    if (ids.length < 2) continue;
+    // Survivor = most interactions (ties → lowest id, i.e. oldest).
+    const keep = ids.slice().sort((a, b) => interactionCount(b) - interactionCount(a) || a - b)[0]!;
+    for (const dropId of ids) {
+      if (dropId === keep) continue;
+      const backers = s
+        .prepare(`SELECT source FROM edges WHERE space_id = ? AND target = ? AND relationship = 'supports'`)
+        .all(spaceId, dropId) as { source: number }[];
+      for (const b of backers) {
+        const dup = s
+          .prepare(`SELECT 1 FROM edges WHERE space_id = ? AND source = ? AND target = ? AND relationship = 'supports'`)
+          .get(spaceId, b.source, keep);
+        if (!dup) {
+          s.prepare(`INSERT INTO edges (space_id, source, target, relationship, weight) VALUES (?, ?, ?, 'supports', 0.7)`).run(
+            spaceId,
+            b.source,
+            keep,
+          );
+        }
+      }
+      repo.delete(dropId);
+      merged++;
+      try {
+        s.prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, 'people_merged', ?, ?)`).run(
+          spaceId,
+          "Merged duplicate people into one.",
+          JSON.stringify([keep, dropId]),
+        );
+      } catch {
+        /* best-effort */
+      }
+    }
+  }
+  return merged;
+}
+
+export interface PersonSuggestion {
+  name: string;
+  count: number;
+}
+
+/**
+ * People you MENTION a lot but haven't added as an entity yet — capitalised names
+ * recurring across memories. One-tap "add" then makes them a first-class person
+ * their interactions orbit. Grounded (≥2 distinct memories); noise filtered.
+ */
+export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestion[] {
+  const s = ctx.handle.sqlite;
+  const rows = s
+    .prepare(
+      `SELECT id, label, content FROM nodes
+       WHERE space_id = ? AND deleted_at IS NULL AND (kind IS NULL OR kind = 'memory')
+       ORDER BY id DESC LIMIT 200`,
+    )
+    .all(spaceId) as { id: number; label: string; content: string }[];
+
+  // Names already tracked as people — never suggest those.
+  const existing = new Set(
+    (s.prepare(`SELECT label FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity'`).all(spaceId) as { label: string }[])
+      .flatMap((r) => labelTokens(r.label)),
+  );
+
+  const memoriesWith = new Map<string, Set<number>>(); // lowercased name → memory ids
+  const display = new Map<string, string>(); // lowercased → canonical display
+  for (const m of rows) {
+    const seen = new Set<string>();
+    for (const raw of `${m.label} ${m.content}`.split(/[^A-Za-z']+/)) {
+      if (!/^[A-Z][a-z]{2,}$/.test(raw)) continue; // Capitalised, ≥3 chars
+      const key = raw.toLowerCase();
+      if (NAME_STOP.has(key) || existing.has(key)) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (!memoriesWith.has(key)) memoriesWith.set(key, new Set());
+      memoriesWith.get(key)!.add(m.id);
+      if (!display.has(key)) display.set(key, raw);
+    }
+  }
+
+  return [...memoriesWith.entries()]
+    .filter(([, ids]) => ids.size >= 2)
+    .map(([key, ids]) => ({ name: display.get(key)!, count: ids.size }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}

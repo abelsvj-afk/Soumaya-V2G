@@ -7,7 +7,10 @@ import {
   updateCognitive,
   promoteIdea,
   getCognitiveEvidence,
+  getPersonProfile,
+  getPersonSuggestions,
   type CognitiveEvidence,
+  type PersonProfile,
   type CognitiveItem,
   getThoughts,
   addThought,
@@ -59,13 +62,19 @@ export function MindPanel({
   // Identity evidence (Phase 5): lazy-loaded per identity when expanded.
   const [evidence, setEvidence] = useState<Record<number, CognitiveEvidence>>({});
   const [evidenceOpen, setEvidenceOpen] = useState<number | null>(null);
+  // People (Phase 6): CRM profiles (lazy) + "people you mention" suggestions.
+  const [profiles, setProfiles] = useState<Record<number, PersonProfile>>({});
+  const [profileOpen, setProfileOpen] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<{ name: string; count: number }[]>([]);
 
   const refresh = () => getCognitive().then(setItems).catch(() => {});
   const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
+  const refreshSuggestions = () => getPersonSuggestions().then(setSuggestions).catch(() => {});
   useEffect(() => {
     if (demo) return;
     refresh();
     refreshThoughts();
+    refreshSuggestions();
     // Thoughts decay server-side; poll gently so the mind space stays live.
     const t = setInterval(refreshThoughts, 20_000);
     return () => clearInterval(t);
@@ -177,6 +186,27 @@ export function MindPanel({
       if (ev) setEvidence((m) => ({ ...m, [it.id]: ev }));
     }
   };
+  const toggleProfile = async (it: CognitiveItem) => {
+    if (profileOpen === it.id) {
+      setProfileOpen(null);
+      return;
+    }
+    setProfileOpen(it.id);
+    if (!profiles[it.id]) {
+      const p = await getPersonProfile(it.id);
+      if (p) setProfiles((m) => ({ ...m, [it.id]: p }));
+    }
+  };
+  const addPerson = async (name: string) => {
+    const r = await createCognitive("person_entity", name);
+    if (r) {
+      playSfx("achievement");
+      pushToast(`❤️ Added ${name} — their memories will orbit them`, "🧠", 4000);
+      setSuggestions((xs) => xs.filter((s) => s.name !== name));
+      await refresh();
+      onChanged?.();
+    }
+  };
   const saveThoughtEdit = async () => {
     if (editThoughtId == null || !editThoughtText.trim()) return;
     const id = editThoughtId;
@@ -286,6 +316,19 @@ export function MindPanel({
         goal, idea, skill, person, identity or mental model — Soumaya pulls related memories into its
         orbit over time.
       </p>
+
+      {suggestions.length > 0 && (
+        <div className="mind-suggest">
+          <span className="mind-suggest-label">People you mention — add them?</span>
+          <div className="mind-suggest-chips">
+            {suggestions.map((s) => (
+              <button key={s.name} className="mind-suggest-chip" onClick={() => void addPerson(s.name)} title={`Mentioned in ${s.count} memories`}>
+                ❤️ {s.name} <span className="mind-suggest-n">{s.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {adding ? (
         <div className="companion-new">
@@ -425,6 +468,37 @@ export function MindPanel({
                         )}
                         {evidence[it.id]!.for.length === 0 && evidence[it.id]!.against.length === 0 && (
                           <p className="empty small">No evidence yet — log memories that express (or challenge) who you are.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {editId !== it.id && k === "person_entity" && (
+                  <div className="mind-evidence">
+                    <button className="mind-ev-toggle" onClick={() => void toggleProfile(it)}>
+                      {profileOpen === it.id ? "▾" : "▸"} Relationship
+                      {profiles[it.id] && (
+                        <span className="mind-ev-counts">
+                          <span>{profiles[it.id]!.count} ×</span>
+                          <span className={`person-tone tone-${profiles[it.id]!.tone}`}>{profiles[it.id]!.tone}</span>
+                        </span>
+                      )}
+                    </button>
+                    {profileOpen === it.id && profiles[it.id] && (
+                      <div className="mind-ev-body">
+                        <p className="person-meta">
+                          {profiles[it.id]!.count} interaction{profiles[it.id]!.count === 1 ? "" : "s"}
+                          {profiles[it.id]!.lastAt && ` · last ${new Date(profiles[it.id]!.lastAt!).toLocaleDateString()}`}
+                          {" · "}<span className={`person-tone tone-${profiles[it.id]!.tone}`}>{profiles[it.id]!.tone}</span>
+                        </p>
+                        {profiles[it.id]!.interactions.length > 0 ? (
+                          <div className="mind-ev-group">
+                            {profiles[it.id]!.interactions.slice(0, 10).map((n) => (
+                              <button key={n.id} className="mind-ev-chip" onClick={() => onFocus(n.id)}>{n.label}</button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="empty small">No interactions yet — memories that mention them will appear here.</p>
                         )}
                       </div>
                     )}
