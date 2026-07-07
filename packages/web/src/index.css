@@ -2772,11 +2772,12 @@ button {
   border-radius: 8px;
   padding: 7px 9px;
 }
+.mind-card-row { display: flex; align-items: center; gap: 6px; }
 .mind-card-main {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  width: 100%;
+  flex: 1 1 auto;
   gap: 8px;
   background: transparent;
   border: none;
@@ -2784,6 +2785,8 @@ button {
   cursor: pointer;
   text-align: left;
 }
+.mind-edit { display: flex; flex-direction: column; gap: 6px; }
+.mind-edit .row { display: flex; gap: 6px; }
 .mind-card-label { font-size: 0.86rem; color: #eaf4ff; }
 .mind-card-sub { font-size: 0.68rem; opacity: 0.6; white-space: nowrap; }
 .mind-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }

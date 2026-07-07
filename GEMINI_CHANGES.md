@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **181 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **185 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,31 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Mind-tab linking fix + edit buttons (user-reported)
+- **The bug the user caught**: adding a Mind object (e.g. a person "Shaquavia", "Kickman Danny") did
+  NOT connect to the memories that clearly mention it. Two real causes: (1) cognitive objects got
+  **no linking on creation** at all — their only linking was the 5-min autonomy `applyCognitiveGravity`
+  sweep; and (2) that sweep used **pure semantic KNN (≥0.55)**, but a bare NAME embeds too weakly for
+  vector search to reach the threshold, so name matches never fired.
+- **Fix — link immediately + match by name, not just embedding** (`analysis/cognitive.ts`,
+  `linkCognitiveAnchor`): two passes create `supports` edges memory→anchor — (1) a **whole-word
+  name/keyword match** (distinctive label tokens ≥4 chars + the full phrase; regex word-boundary so
+  "Danny" ≠ "Dannyson"), and (2) the existing **semantic KNN** pass for related-but-unnamed memories.
+  Runs **on create AND on edit** (instant feedback) and every autonomy tick; per-run caps
+  (8 keyword / 3 semantic) keep hub growth gradual; only real memories are pulled (never other anchors).
+  Gravity now covers **all** cognitive kinds, not just the 5 weighty ones.
+- **Edit buttons** (the other user ask — "none of them have editing abilities"): `PATCH
+  /api/cognitive/:id {label?,content?}` → `updateCognitive` re-embeds + re-indexes (FTS) + re-links;
+  `PATCH /api/working/:id {text}` → `editThought`. Inline ✎ edit UI on every cognitive card
+  (name + content) and every working-memory mote, in `MindPanel`. New client funcs
+  (`updateCognitive`, `editThought`); `mind-card-row`/`mind-edit` CSS.
+- **Confirmed the Mind↔galaxy connection is real** (the user wasn't sure): cognitive objects ARE
+  first-class galaxy nodes; the missing piece was purely the linking above. With the fix, adding a
+  person instantly links her memories and the create/edit flow reloads the galaxy so the orbit shows.
+- **Tests**: name-match-on-create (Shaquavia links her 2 memories, not the unrelated one), whole-word
+  (no "Dannyson" false positive), gradual per-run cap + idempotency, re-link-after-rename, plus
+  `editThought`. Gate: typecheck clean · **185 tests** · web build clean.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 2 (Working Memory / the mind space)
 - **The flagship omission, filled.** The galaxy modelled long-term memory; it had no model of

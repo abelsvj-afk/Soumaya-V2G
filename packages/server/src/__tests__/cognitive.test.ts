@@ -13,6 +13,7 @@ import {
   listCognitive,
   setCognitiveProgress,
   applyCognitiveGravity,
+  updateCognitive,
 } from "../analysis/cognitive.js";
 import { COGNITIVE_META } from "@brain/shared";
 
@@ -66,28 +67,57 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     expect(setCognitiveProgress(ctx, "legacy", 999999, 0.5)).toBe(false);
   });
 
-  it("gravity forms supports edges from similar memories to a goal, capped per anchor", async () => {
-    const repo = new NodesRepo(handle, "legacy");
-    // Five near-identical memories about the same theme → all strongly similar.
-    for (let i = 0; i < 5; i++) {
-      repo.create(
-        { label: `guitar practice ${i}`, type: "daily", content: "practiced guitar scales today" } as never,
-        await embeddings.embed("practiced guitar scales today"),
-      );
-    }
-    const goalId = await createCognitive(ctx, "legacy", "goal", "Master guitar", "practiced guitar scales today");
-
-    const formed = applyCognitiveGravity(ctx, "legacy");
-    // Capped at MAX_PER_ANCHOR (3) even though 5 memories match.
-    expect(formed).toBe(3);
-
-    const edges = new EdgesRepo(handle, "legacy");
-    const supports = handle.sqlite
+  /** Count supports edges pointing at an anchor. */
+  const supportsInto = (anchorId: number) =>
+    (handle.sqlite
       .prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id = 'legacy' AND relationship = 'supports' AND target = ?`)
-      .get(goalId) as { c: number };
-    expect(supports.c).toBe(3);
-    // Re-running is idempotent-ish: it won't exceed the cap on the same anchor+memories.
-    void edges;
+      .get(anchorId) as { c: number }).c;
+
+  async function mem(label: string, content: string) {
+    return new NodesRepo(handle, "legacy").create(
+      { label, type: "daily", content } as never,
+      await embeddings.embed(content),
+    );
+  }
+
+  it("links a person to the memories that MENTION them, on creation (the name-match fix)", async () => {
+    await mem("date night", "Dinner with Shaquavia was wonderful");
+    await mem("plans", "Shaquavia and I are planning a trip");
+    await mem("work", "Finished the quarterly report at the office"); // unrelated
+    // Adding the person immediately links her memories — no autonomy tick needed.
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Shaquavia", "");
+    expect(supportsInto(personId)).toBe(2); // the two that name her, not the unrelated one
+  });
+
+  it("keyword matching is whole-word (no substring false positives)", async () => {
+    await mem("a", "Danny called about the game");
+    await mem("b", "Dannyson Corp filed paperwork"); // 'danny' is a substring, not a word
+    const id = await createCognitive(ctx, "legacy", "person_entity", "Danny", "");
+    expect(supportsInto(id)).toBe(1); // only the real "Danny" mention
+  });
+
+  it("the periodic gravity sweep links memories added AFTER the anchor, capped per run", async () => {
+    const goalId = await createCognitive(ctx, "legacy", "goal", "Master guitar", "");
+    expect(supportsInto(goalId)).toBe(0); // nothing to link yet
+    for (let i = 0; i < 10; i++) await mem(`practice ${i}`, "practiced guitar scales today");
+    // Linking is gradual — capped per run so a hub can't form in one burst.
+    expect(applyCognitiveGravity(ctx, "legacy")).toBe(8); // MAX_KEYWORD this run
+    expect(supportsInto(goalId)).toBe(8);
+    expect(applyCognitiveGravity(ctx, "legacy")).toBe(2); // the remaining two
+    expect(supportsInto(goalId)).toBe(10);
+    // Now idempotent — every match is linked, so no duplicate edges form.
+    expect(applyCognitiveGravity(ctx, "legacy")).toBe(0);
+    expect(supportsInto(goalId)).toBe(10);
+  });
+
+  it("re-links after an edit (renaming a placeholder to a real name connects it)", async () => {
+    await mem("meet", "Great session with Kickman today");
+    const id = await createCognitive(ctx, "legacy", "person_entity", "Placeholder", "");
+    expect(supportsInto(id)).toBe(0);
+    const ok = await updateCognitive(ctx, "legacy", id, { label: "Kickman" });
+    expect(ok).toBe(true);
+    expect(supportsInto(id)).toBe(1);
+    expect(new GraphService(handle, "legacy").getNode(id)?.label).toBe("Kickman");
   });
 
   it("gravity never links a cognitive anchor to another anchor (only real memories)", async () => {

@@ -4,12 +4,14 @@ import {
   getCognitive,
   createCognitive,
   setCognitiveProgress,
+  updateCognitive,
   type CognitiveItem,
   getThoughts,
   addThought,
   reinforceThought,
   promoteThought,
   dismissThought,
+  editThought,
   type Thought,
 } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
@@ -40,10 +42,17 @@ export function MindPanel({
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Inline editing of a cognitive object (label + content).
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+  const [editContent, setEditContent] = useState("");
   // Working memory (the mind space): live thoughts you're holding right now.
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [thought, setThought] = useState("");
   const [ambient, setAmbient] = useState(mindSpaceEnabled());
+  // Inline editing of a working-memory thought.
+  const [editThoughtId, setEditThoughtId] = useState<number | null>(null);
+  const [editThoughtText, setEditThoughtText] = useState("");
 
   const refresh = () => getCognitive().then(setItems).catch(() => {});
   const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
@@ -87,6 +96,24 @@ export function MindPanel({
     await setCognitiveProgress(it.id, next);
   };
 
+  const startEdit = (it: CognitiveItem) => {
+    setEditId(it.id);
+    setEditLabel(it.label);
+    setEditContent(it.content ?? "");
+  };
+  const saveEdit = async () => {
+    if (editId == null || !editLabel.trim()) return;
+    const ok = await updateCognitive(editId, { label: editLabel.trim(), content: editContent.trim() });
+    setEditId(null);
+    if (ok) {
+      playSfx("tap");
+      await refresh();
+      onChanged?.(); // label/links changed → refresh the galaxy
+    } else {
+      pushToast("Couldn't save that edit — try again.", "⚠️", 3500);
+    }
+  };
+
   // ── Working memory (mind space) handlers ──────────────────────────────────
   const think = async () => {
     const text = thought.trim();
@@ -121,6 +148,14 @@ export function MindPanel({
   const dismiss = async (t: Thought) => {
     setThoughts((xs) => xs.filter((x) => x.id !== t.id));
     await dismissThought(t.id);
+  };
+  const saveThoughtEdit = async () => {
+    if (editThoughtId == null || !editThoughtText.trim()) return;
+    const id = editThoughtId;
+    const text = editThoughtText.trim();
+    setThoughts((xs) => xs.map((x) => (x.id === id ? { ...x, text } : x)));
+    setEditThoughtId(null);
+    await editThought(id, text);
   };
 
   // Group by kind, in the canonical order.
@@ -182,8 +217,32 @@ export function MindPanel({
                   className="mind-mote-dot"
                   style={{ boxShadow: `0 0 ${4 + t.strength * 10}px rgba(143,220,255,${0.4 + t.strength * 0.5})` }}
                 />
-                <span className="mind-mote-text">{t.text}</span>
+                {editThoughtId === t.id ? (
+                  <input
+                    className="tag-input wide"
+                    autoFocus
+                    value={editThoughtText}
+                    onChange={(e) => setEditThoughtText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void saveThoughtEdit();
+                      if (e.key === "Escape") setEditThoughtId(null);
+                    }}
+                    onBlur={() => void saveThoughtEdit()}
+                  />
+                ) : (
+                  <span className="mind-mote-text">{t.text}</span>
+                )}
                 <span className="mind-mote-actions">
+                  <button
+                    className="mini ghost"
+                    onClick={() => {
+                      setEditThoughtId(t.id);
+                      setEditThoughtText(t.text);
+                    }}
+                    title="Edit"
+                  >
+                    ✎
+                  </button>
                   <button className="mini ghost" onClick={() => void reinforce(t)} title="Reinforce (return to it)">↑</button>
                   <button className="mini ghost" onClick={() => void promote(t)} title="Consolidate into a memory now">★</button>
                   <button className="mini ghost" onClick={() => void dismiss(t)} title="Let it go">×</button>
@@ -250,11 +309,37 @@ export function MindPanel({
           <ul className="mind-list">
             {byKind.get(k)!.map((it) => (
               <li key={it.id} className="mind-card" style={{ borderLeftColor: COGNITIVE_META[k].color }}>
-                <button className="mind-card-main" onClick={() => onFocus(it.id)} title="Fly to it">
-                  <span className="mind-card-label">{it.label}</span>
-                  <span className="mind-card-sub">{it.degree} linked</span>
-                </button>
-                {COGNITIVE_META[k].hasProgress && (
+                {editId === it.id ? (
+                  <div className="mind-edit">
+                    <input
+                      className="tag-input wide"
+                      autoFocus
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      placeholder="Name"
+                    />
+                    <textarea
+                      className="companion-textarea"
+                      rows={2}
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      placeholder={COGNITIVE_META[k].blurb}
+                    />
+                    <div className="row">
+                      <button className="mini" onClick={() => void saveEdit()} disabled={!editLabel.trim()}>Save</button>
+                      <button className="mini ghost" onClick={() => setEditId(null)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mind-card-row">
+                    <button className="mind-card-main" onClick={() => onFocus(it.id)} title="Fly to it">
+                      <span className="mind-card-label">{it.label}</span>
+                      <span className="mind-card-sub">{it.degree} linked</span>
+                    </button>
+                    <button className="mini ghost" onClick={() => startEdit(it)} title="Edit">✎</button>
+                  </div>
+                )}
+                {editId !== it.id && COGNITIVE_META[k].hasProgress && (
                   <div className="mind-progress">
                     <button className="mini" onClick={() => void bumpProgress(it, -0.1)} title="Less">–</button>
                     <span className="mind-bar">

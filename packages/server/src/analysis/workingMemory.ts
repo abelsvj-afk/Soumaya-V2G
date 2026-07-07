@@ -115,6 +115,15 @@ export async function reinforceThought(
   return { ok: true, promotedNodeId: null };
 }
 
+/** Edit a thought's text (keeps its strength + decay clock). Returns true if it exists. */
+export function editThought(ctx: AppContext, spaceId: string, id: number, text: string): boolean {
+  return (
+    ctx.handle.sqlite
+      .prepare(`UPDATE working_memory SET text = ? WHERE id = ? AND space_id = ?`)
+      .run(text.slice(0, 500), id, spaceId).changes > 0
+  );
+}
+
 /** Dismiss a thought (let it go). Returns true if one was removed. */
 export function dismissThought(ctx: AppContext, spaceId: string, id: number): boolean {
   return (

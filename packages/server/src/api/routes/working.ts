@@ -7,6 +7,7 @@ import {
   reinforceThought,
   dismissThought,
   promoteThought,
+  editThought,
 } from "../../analysis/workingMemory.js";
 import { spaceOf } from "../middleware.js";
 
@@ -14,6 +15,7 @@ const AddBody = z.object({
   text: z.string().min(1).max(500),
   source: z.enum(["manual", "chat", "goal", "priority", "emotion"]).optional(),
 });
+const EditBody = z.object({ text: z.string().min(1).max(500) });
 
 /** Working Memory (the "mind space"): hold, reinforce, promote, or dismiss thoughts. */
 export function workingRoutes(ctx: AppContext): Router {
@@ -63,6 +65,25 @@ export function workingRoutes(ctx: AppContext): Router {
       return;
     }
     res.json({ ok: true, nodeId });
+  });
+
+  // PATCH /api/working/:id { text } -> edit a thought's wording.
+  r.patch("/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = EditBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Body must be { text }" });
+      return;
+    }
+    if (!editThought(ctx, spaceOf(res), id, parsed.data.text)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({ ok: true });
   });
 
   // DELETE /api/working/:id -> dismiss (let the thought go).

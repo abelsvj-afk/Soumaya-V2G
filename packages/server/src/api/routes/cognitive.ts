@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { COGNITIVE_KINDS } from "@brain/shared";
 import type { AppContext } from "../../context.js";
-import { createCognitive, listCognitive, setCognitiveProgress } from "../../analysis/cognitive.js";
+import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive } from "../../analysis/cognitive.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
@@ -12,6 +12,11 @@ const CreateBody = z.object({
   content: z.string().max(4000).optional(),
 });
 const ProgressBody = z.object({ value: z.number().min(0).max(1) });
+const EditBody = z
+  .object({ label: z.string().min(1).max(200).optional(), content: z.string().max(4000).optional() })
+  .refine((b) => b.label !== undefined || b.content !== undefined, {
+    message: "Provide label and/or content",
+  });
 
 /** The cognitive layer: create/list/track goals, ideas, skills, identity, etc. */
 export function cognitiveRoutes(ctx: AppContext): Router {
@@ -34,6 +39,27 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     }
     const spaceId = spaceOf(res);
     const id = await createCognitive(ctx, spaceId, parsed.data.kind as never, parsed.data.label, parsed.data.content ?? "");
+    res.json(new GraphService(ctx.handle, spaceId).getNode(id));
+  });
+
+  // PATCH /api/cognitive/:id { label?, content? } -> edit + re-embed + re-link.
+  r.patch("/:id", async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const parsed = EditBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Body must be { label?, content? }", issues: parsed.error.issues });
+      return;
+    }
+    const spaceId = spaceOf(res);
+    const ok = await updateCognitive(ctx, spaceId, id, parsed.data);
+    if (!ok) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));
   });
 

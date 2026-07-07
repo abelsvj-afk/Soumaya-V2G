@@ -756,6 +756,18 @@ export async function setCognitiveProgress(id: number, value: number): Promise<b
     return false;
   }
 }
+export async function updateCognitive(id: number, patch: { label?: string; content?: string }): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 // ── Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" ──────
 export interface Thought {
@@ -806,6 +818,18 @@ export async function promoteThought(id: number): Promise<{ nodeId: number } | n
 export async function dismissThought(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/working/${id}`, { method: "DELETE" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+export async function editThought(id: number, text: string): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/working/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
     return res.ok;
   } catch {
     return false;

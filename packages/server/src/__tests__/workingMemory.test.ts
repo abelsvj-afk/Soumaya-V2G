@@ -11,6 +11,7 @@ import {
   reinforceThought,
   dismissThought,
   promoteThought,
+  editThought,
   sweepWorkingMemory,
 } from "../analysis/workingMemory.js";
 
@@ -98,6 +99,13 @@ describe("working memory (the ephemeral mind space)", () => {
     const nodeId = await promoteThought(ctx, "legacy", id);
     expect(nodeId).not.toBeNull();
     expect(listThoughts(ctx, "legacy").length).toBe(0);
+  });
+
+  it("edits a thought's text (keeping it in the mind space)", () => {
+    const id = addThought(ctx, "legacy", "buy milk");
+    expect(editThought(ctx, "legacy", id, "buy oat milk")).toBe(true);
+    expect(listThoughts(ctx, "legacy")[0]!.text).toBe("buy oat milk");
+    expect(editThought(ctx, "legacy", 999999, "nope")).toBe(false);
   });
 
   it("dismiss removes a thought; missing ids are handled", () => {
