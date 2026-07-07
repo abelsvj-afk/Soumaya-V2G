@@ -5,6 +5,7 @@ import { pickResearchTarget } from "./researchPriority.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
+import { deriveBehavior } from "../persona/behavior.js";
 import { GraphService } from "../graph/service.js";
 import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../db/schema.js";
@@ -706,8 +707,11 @@ export async function executeJob(
       .prepare(`SELECT action, description FROM agent_logs WHERE space_id = ? ORDER BY id DESC LIMIT 10`)
       .all(spaceId) as { action: string; description: string }[];
     // Persona awareness: her autonomous log is tailored to who you are (she's
-    // aware of you, never becomes you).
-    const persona = new UserPersonaRepo(ctx.handle, spaceId).get() ?? undefined;
+    // aware of you, never becomes you) — plus the live behavioral read so the
+    // log's tone matches the stretch you're actually in.
+    const personaBase = new UserPersonaRepo(ctx.handle, spaceId).get() ?? "";
+    const behavior = deriveBehavior(ctx.handle, spaceId);
+    const persona = [personaBase, behavior].filter(Boolean).join("\n\n") || undefined;
     const logText = await ctx.llm.generateDailyLog(
       recentNodes.map((n) => ({ label: n.label, content: n.content })),
       recentLogs.map((l) => l.description),

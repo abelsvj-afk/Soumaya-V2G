@@ -8,6 +8,7 @@ import { InstructionProfilesRepo } from "../repositories/instructions.repo.js";
 import { KnowledgeRepo } from "../repositories/knowledge.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
 import { refreshPersona } from "../persona/derive.js";
+import { deriveBehavior } from "../persona/behavior.js";
 import { soulText } from "../identity.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
@@ -165,10 +166,13 @@ Use this telemetry to guide the user! For example:
 - You can suggest they look at specific tabs (e.g. "Go to the Agenda tab and complete task X to gain fuel", or "Check out the Insights tab to see the latest connections I forged").
 `;
 
-  // Telemetry first, the user's custom instructions LAST — models weight the end
-  // of a system prompt most, and the big telemetry block was burying the roles
-  // (users reported chat "not using" their custom instructions).
+  // Telemetry first, then the live behavioral read, the user's custom
+  // instructions LAST — models weight the end of a system prompt most, and the
+  // big telemetry block was burying the roles (users reported chat "not using"
+  // their custom instructions). Behavior sits late too: it shapes DELIVERY.
   let systemExtra = telemetryContext;
+  const behavior = deriveBehavior(h, spaceId);
+  if (behavior) systemExtra += `\n\n${behavior}`;
   if (chosen.length > 0) {
     systemExtra +=
       "\n\nACTIVE CUSTOM INSTRUCTIONS — the user configured these roles for you ON PURPOSE. " +
