@@ -4,6 +4,7 @@ import { COGNITIVE_KINDS } from "@brain/shared";
 import type { AppContext } from "../../context.js";
 import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive } from "../../analysis/cognitive.js";
 import { promoteIdeaToGoal } from "../../analysis/ideas.js";
+import { cognitiveEvidence } from "../../analysis/identity.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
@@ -62,6 +63,21 @@ export function cognitiveRoutes(ctx: AppContext): Router {
       return;
     }
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));
+  });
+
+  // GET /api/cognitive/:id/evidence -> affirming/contesting memories (identity core).
+  r.get("/:id/evidence", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const ev = cognitiveEvidence(ctx, spaceOf(res), id);
+    if (!ev) {
+      res.status(404).json({ error: "Not a cognitive object" });
+      return;
+    }
+    res.json(ev);
   });
 
   // POST /api/cognitive/:id/promote -> graduate an idea into a goal (commit to it).

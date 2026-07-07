@@ -8,6 +8,7 @@ import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
 import { applyCognitiveGravity } from "../../analysis/cognitive.js";
 import { generateInquiry } from "../../analysis/inquiry.js";
 import { stepSkills } from "../../analysis/skills.js";
+import { stepIdentities } from "../../analysis/identity.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -79,6 +80,7 @@ export function ingestRoutes(ctx: AppContext): Router {
     try {
       applyCognitiveGravity(ctx, spaceId);
       stepSkills(ctx, spaceId); // a logged practice levels the skill right away
+      stepIdentities(ctx, spaceId); // affirm/contest identities from the new memory
       generateInquiry(ctx, spaceId);
     } catch {
       /* best-effort; the autonomy loop retries */

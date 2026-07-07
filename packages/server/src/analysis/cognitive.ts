@@ -33,7 +33,7 @@ function isCognitiveKind(kind: string | null | undefined): kind is CognitiveKind
 }
 
 /** Significant match tokens from a label: distinctive words (≥4 chars) + the full phrase. */
-function labelTokens(label: string): string[] {
+export function labelTokens(label: string): string[] {
   const toks = new Set<string>();
   for (const w of label.toLowerCase().split(/[^a-z0-9]+/)) {
     if (w.length >= 4) toks.add(w);
@@ -44,7 +44,7 @@ function labelTokens(label: string): string[] {
 }
 
 /** Whole-word / phrase match (case-insensitive) so "Danny" doesn't hit "Dannyson". */
-function mentions(haystack: string, token: string): boolean {
+export function mentions(haystack: string, token: string): boolean {
   const esc = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`, "i").test(haystack);
 }

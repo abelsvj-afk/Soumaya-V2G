@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **199 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **203 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,29 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 5 (Identity core + evidence)
+- **Identities are now weighed by the evidence of your life.** An `identity` (the heaviest cognitive
+  body) isn't something you complete — it's something your memories either AFFIRM or CONTEST, so it
+  brightens or dims accordingly (`analysis/identity.ts`).
+- **Grounded in your own words**: a memory that mentions the identity plainly is affirming (a
+  `supports` edge); one that mentions it with negation/abandonment language ("I quit…", "no longer…",
+  "I'm not…") is contesting (a `contradicts` edge). `evaluateIdentity` re-classifies each mention,
+  writing the correct edge and clearing the opposite, then sets brightness from the balance:
+  importance = `0.62 + confidence×0.37` where confidence = `for/(for+against)` — a strongly-affirmed
+  identity blazes (~0.99), a heavily-contested one dims (~0.62). Runs AFTER cognitive gravity so a
+  negated mention's mis-added `supports` edge gets corrected to `contradicts`.
+- **Evidence view**: `GET /api/cognitive/:id/evidence` → `{ for, against, confidence }`. The Mind tab's
+  identity cards gain an **Evidence** expander — ▲ affirming / ▼ contesting counts, a confidence bar,
+  and fly-to chips for each memory. (`cognitiveEvidence` also works for other anchors, reporting
+  supporters as "for".)
+- **Wiring**: `stepIdentities` on `/api/ingest` (a new memory affirms/contests immediately) and each
+  autonomy tick. Reused `labelTokens`/`mentions` (now exported from `cognitive.ts`); `contradicts`
+  relationship already existed. Web: `getCognitiveEvidence` client fn; `mind-evidence`/`mind-ev-*` CSS;
+  Help entry extended. No new table.
+- **Tests**: `__tests__/identity.test.ts` (affirm/contest split + brightness, contested dims below
+  affirmed, evidence flip moves a memory for→against with no stale edge, non-identity reports
+  supporters only). Gate: typecheck clean · **203 tests** · web build clean.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 4 (Skills leveling)
 - **Skills level themselves now** — no more hand-cranking the bar. Every memory that evidences

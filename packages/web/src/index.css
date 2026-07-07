@@ -2847,6 +2847,27 @@ button {
 }
 @keyframes mind-ripe { 0%, 100% { box-shadow: 0 0 0 rgba(255, 157, 60, 0); } 50% { box-shadow: 0 0 10px rgba(255, 157, 60, 0.35); } }
 @media (prefers-reduced-motion: reduce) { .mind-promote.ripe { animation: none; } }
+
+/* Identity evidence (Phase 5) — affirming vs contesting, with a confidence bar. */
+.mind-evidence { margin-top: 6px; }
+.mind-ev-toggle {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  background: transparent; border: none; color: #cbbcff; cursor: pointer;
+  font-size: 0.72rem; padding: 2px 0;
+}
+.mind-ev-counts { display: inline-flex; gap: 8px; margin-left: auto; }
+.ev-for { color: #9dff8a; }
+.ev-against { color: #ff9e9e; }
+.mind-ev-body { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.mind-ev-bar { height: 6px; border-radius: 3px; background: rgba(255, 120, 120, 0.25); overflow: hidden; }
+.mind-ev-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #9dff8a, #fff4d6); transition: width 0.3s ease; }
+.mind-ev-group { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font-size: 0.68rem; }
+.mind-ev-chip {
+  padding: 2px 7px; border-radius: 999px; font-size: 0.68rem; cursor: pointer;
+  background: rgba(157, 255, 138, 0.12); border: 1px solid rgba(157, 255, 138, 0.3); color: #d8ffcf;
+  max-width: 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mind-ev-chip.contra { background: rgba(255, 120, 120, 0.12); border-color: rgba(255, 120, 120, 0.3); color: #ffd7d7; }
 .mind-card-label { font-size: 0.86rem; color: #eaf4ff; }
 .mind-card-sub { font-size: 0.68rem; opacity: 0.6; white-space: nowrap; }
 .mind-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }

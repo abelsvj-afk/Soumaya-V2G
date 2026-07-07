@@ -6,6 +6,8 @@ import {
   setCognitiveProgress,
   updateCognitive,
   promoteIdea,
+  getCognitiveEvidence,
+  type CognitiveEvidence,
   type CognitiveItem,
   getThoughts,
   addThought,
@@ -54,6 +56,9 @@ export function MindPanel({
   // Inline editing of a working-memory thought.
   const [editThoughtId, setEditThoughtId] = useState<number | null>(null);
   const [editThoughtText, setEditThoughtText] = useState("");
+  // Identity evidence (Phase 5): lazy-loaded per identity when expanded.
+  const [evidence, setEvidence] = useState<Record<number, CognitiveEvidence>>({});
+  const [evidenceOpen, setEvidenceOpen] = useState<number | null>(null);
 
   const refresh = () => getCognitive().then(setItems).catch(() => {});
   const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
@@ -159,6 +164,17 @@ export function MindPanel({
       onChanged?.(); // kind/importance changed → refresh the galaxy
     } else {
       pushToast("Couldn't promote that — try again.", "⚠️", 3500);
+    }
+  };
+  const toggleEvidence = async (it: CognitiveItem) => {
+    if (evidenceOpen === it.id) {
+      setEvidenceOpen(null);
+      return;
+    }
+    setEvidenceOpen(it.id);
+    if (!evidence[it.id]) {
+      const ev = await getCognitiveEvidence(it.id);
+      if (ev) setEvidence((m) => ({ ...m, [it.id]: ev }));
     }
   };
   const saveThoughtEdit = async () => {
@@ -374,6 +390,45 @@ export function MindPanel({
                   >
                     {it.degree >= 4 ? "✨ Ripe — promote to Goal" : "💡→🎯 Promote to Goal"}
                   </button>
+                )}
+                {editId !== it.id && k === "identity" && (
+                  <div className="mind-evidence">
+                    <button className="mind-ev-toggle" onClick={() => void toggleEvidence(it)}>
+                      {evidenceOpen === it.id ? "▾" : "▸"} Evidence
+                      {evidence[it.id] && (
+                        <span className="mind-ev-counts">
+                          <span className="ev-for">▲ {evidence[it.id]!.for.length}</span>
+                          <span className="ev-against">▼ {evidence[it.id]!.against.length}</span>
+                        </span>
+                      )}
+                    </button>
+                    {evidenceOpen === it.id && evidence[it.id] && (
+                      <div className="mind-ev-body">
+                        <div className="mind-ev-bar" title="How affirmed this identity is">
+                          <span style={{ width: `${Math.round(evidence[it.id]!.confidence * 100)}%` }} />
+                        </div>
+                        {evidence[it.id]!.for.length > 0 && (
+                          <div className="mind-ev-group">
+                            <span className="ev-for">▲ Affirming</span>
+                            {evidence[it.id]!.for.slice(0, 8).map((n) => (
+                              <button key={n.id} className="mind-ev-chip" onClick={() => onFocus(n.id)}>{n.label}</button>
+                            ))}
+                          </div>
+                        )}
+                        {evidence[it.id]!.against.length > 0 && (
+                          <div className="mind-ev-group">
+                            <span className="ev-against">▼ Contesting</span>
+                            {evidence[it.id]!.against.slice(0, 8).map((n) => (
+                              <button key={n.id} className="mind-ev-chip contra" onClick={() => onFocus(n.id)}>{n.label}</button>
+                            ))}
+                          </div>
+                        )}
+                        {evidence[it.id]!.for.length === 0 && evidence[it.id]!.against.length === 0 && (
+                          <p className="empty small">No evidence yet — log memories that express (or challenge) who you are.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </li>
             ))}

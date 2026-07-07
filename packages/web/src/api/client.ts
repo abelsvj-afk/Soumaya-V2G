@@ -756,6 +756,19 @@ export async function setCognitiveProgress(id: number, value: number): Promise<b
     return false;
   }
 }
+export interface CognitiveEvidence {
+  for: { id: number; label: string }[];
+  against: { id: number; label: string }[];
+  confidence: number;
+}
+export async function getCognitiveEvidence(id: number): Promise<CognitiveEvidence | null> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/evidence`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
 export async function promoteIdea(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });

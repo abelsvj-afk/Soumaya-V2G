@@ -13,6 +13,7 @@ import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
 import { stepIdeas } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
+import { stepIdentities } from "./analysis/identity.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -209,6 +210,14 @@ if (process.env.AUTONOMY !== "off") {
           stepSkills(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] skills step failed:", e);
+        }
+        // Identity core (Cognitive Layer Phase 5, free/offline): re-weigh each
+        // identity by the memories that affirm vs contest it, brightening/dimming it.
+        // After gravity so a negated mention's mis-added supports edge gets corrected.
+        try {
+          stepIdentities(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] identity step failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);
