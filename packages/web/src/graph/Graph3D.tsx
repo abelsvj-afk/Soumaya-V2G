@@ -25,7 +25,7 @@ import { makeVisitors, type VisitorSystem } from "./visitors.js";
 import { isNodeProcessing, logVisits } from "../api/client.js";
 import { makeSatellites, type SatelliteSystem } from "./satellites.js";
 import { makeSubAgents, type SubAgentSystem, type SubAgentHazard } from "./subAgents.js";
-import { BG, colorForType } from "./theme.js";
+import { BG, colorForType, EMOTION_RGB, emotionKind } from "./theme.js";
 
 /** Live status of each fleet unit, read by the Fleet panel. */
 export type FleetStatus = Record<string, { active: boolean; detail: string }>;
@@ -911,6 +911,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let visitFlushT = 20;
     // Phase 3: how often to scan for decayed links to send Soumaya to repair.
     let repairScanT = 18;
+    // Ship-task → React sync cadence (see the throttle note in the tick).
+    let taskSyncT = 0;
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -951,8 +953,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const dt = Math.min(0.05, now - last);
       last = now;
 
-      // Sync tasks changes back to React UI
-      if (soumayaHandleRef.current && onTasksChangeRef.current) {
+      // Sync tasks changes back to React UI — throttled to ~3Hz. getTasks does
+      // multiple O(nodes) scans + builds arrays, and stringifying the result was
+      // running at 60fps purely to DETECT change (a measured mobile battery sink).
+      taskSyncT -= dt;
+      if (taskSyncT <= 0 && soumayaHandleRef.current && onTasksChangeRef.current) {
+        taskSyncT = 0.35;
         const currentTasks = soumayaHandleRef.current.getTasks(dataRef.current.nodes);
         const tasksJson = JSON.stringify(currentTasks);
         if (tasksJson !== lastTasksJsonRef.current) {
@@ -1631,7 +1637,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
   };
 
+  // Activity per link, memoized with a ~1s TTL: SEVEN accessors call this per
+  // link on every 250ms zoom refresh, each doing Date.now/Date.parse — on a few
+  // hundred links that was thousands of parses per refresh for values that only
+  // meaningfully change over hours.
+  const linkActivityCacheRef = useRef<Map<string, { at: number; v: number }>>(new Map());
   const getLinkActivity = (l: any) => {
+    const key = linkKey(l);
+    const cached = linkActivityCacheRef.current.get(key);
+    const nowMs = Date.now();
+    if (cached && nowMs - cached.at < 1000) return cached.v;
+    const v = computeLinkActivity(l, nowMs);
+    const cache = linkActivityCacheRef.current;
+    if (cache.size > 4000) cache.clear(); // bound long-session growth
+    cache.set(key, { at: nowMs, v });
+    return v;
+  };
+  const computeLinkActivity = (l: any, nowMs: number) => {
     // O(1) id→node lookup (rebuilt on each data change) — the link color/width/
     // curvature accessors call this per link on every refresh, so a .find() scan
     // here was O(links × nodes) and janked larger brains on mobile.
@@ -1647,13 +1669,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       targetNode.lastTendedAt ?? targetNode.createdAt,
     ]) {
       if (!timeStr) continue;
-      const ageMs = Date.now() - Date.parse(timeStr);
+      const ageMs = nowMs - Date.parse(timeStr);
       if (!Number.isNaN(ageMs)) act = Math.max(act, Math.exp(-ageMs / (3 * 24 * 3600 * 1000))); // 3-day decay
     }
     // A link Soumaya recently re-forged/repaired counts as fresh too (Phase 3:
     // links decay with neglect, then she revives them). Decays over ~3 days.
     const repaired = linkHealthRef.current.get(linkKey(l));
-    if (repaired) act = Math.max(act, Math.exp(-(Date.now() - repaired) / (3 * 24 * 3600 * 1000)));
+    if (repaired) act = Math.max(act, Math.exp(-(nowMs - repaired) / (3 * 24 * 3600 * 1000)));
     return act;
   };
 
@@ -1979,11 +2001,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const s = byId.get(linkEnd(l.source));
         const t = byId.get(linkEnd(l.target));
         const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
-        let r: number, g: number, b: number;
-        // Lower thresholds so warmth/heaviness show up, not just extreme pairs.
-        if (ew > 0.12) { r = 255; g = 205; b = 70; }      // warm gold — joyful
-        else if (ew < -0.12) { r = 150; g = 130; b = 255; } // indigo — heavy
-        else { r = 70; g = 245; b = 140; }                 // neuron green — the resting hue
+        // The scene-wide emotion palette (theme.ts) — gold joyful, indigo heavy,
+        // synapse green neutral.
+        let [r, g, b] = EMOTION_RGB[emotionKind(ew)];
         const activity = getLinkActivity(l); // 0..1, spikes right after she pulses it
         const lit = activeId === null || (isLit(linkEnd(l.source)) && isLit(linkEnd(l.target)));
         // A fresh pulse only brightens toward white a LITTLE (≤40%), so the line still
@@ -2037,10 +2057,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const s = byId.get(linkEnd(l.source));
         const t = byId.get(linkEnd(l.target));
         const ew = ((s?.emotionalWeight ?? 0) + (t?.emotionalWeight ?? 0)) / 2;
-        let r: number, g: number, b: number;
-        if (ew > 0.12) { r = 255; g = 220; b = 110; }
-        else if (ew < -0.12) { r = 180; g = 160; b = 255; }
-        else { r = 110; g = 250; b = 165; }
+        // Same palette as the line, pre-brightened a touch (packets read lighter).
+        let [r, g, b] = EMOTION_RGB[emotionKind(ew)].map((c) => Math.min(255, c + 25)) as [number, number, number];
         const flash = Math.min(0.45, getLinkActivity(l) * 0.5);
         r = Math.round(r + (255 - r) * flash);
         g = Math.round(g + (255 - g) * flash);

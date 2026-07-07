@@ -114,7 +114,6 @@ export function makeSun(): THREE.Object3D {
   };
 
   // The sun's current world radius (so the ship knows where its surface is).
-  group.userData.getRadius = (): number => currentRadius;
   // Erupt: a brief corona + light flare when a memory is consumed by the sun.
   group.userData.flare = (): void => {
     flareT = 1;

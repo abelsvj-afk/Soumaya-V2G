@@ -9,7 +9,6 @@ export interface AppContext {
   handle: DbHandle;
   embeddings: EmbeddingProvider;
   llm: LlmProvider;
-  graph: GraphService;
   usage: UsageTracker;
 }
 
@@ -30,5 +29,5 @@ export async function buildContext(opts: BuildContextOptions = {}): Promise<AppC
       recordUsage: (model, inTok, outTok) => usage.record(model, inTok, outTok),
       isOverBudget: () => usage.overBudget(),
     }));
-  return { handle, embeddings, llm, graph: new GraphService(handle), usage };
+  return { handle, embeddings, llm, usage };
 }

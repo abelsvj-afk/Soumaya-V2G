@@ -78,16 +78,11 @@ function expireActionItems() {
 
 setInterval(() => {
   try {
-    // 1) Expire timed-out action items (summarized into the activity log).
+    // Expire timed-out action items (summarized into the activity log).
+    // (The old heartbeat also pruned one weak edge GLOBALLY — cross-tenant
+    // mutation from global state, duplicating the autonomy loop's per-space,
+    // logged pruning job at a different threshold. Dropped; the loop owns it.)
     expireActionItems();
-    // 2) Prune the single weakest associative link (free upkeep).
-    const weak = ctx.handle.sqlite
-      .prepare(`SELECT id, weight FROM edges WHERE weight < 0.15 ORDER BY weight ASC LIMIT 1`)
-      .get() as { id: number; weight: number } | undefined;
-    if (weak) {
-      ctx.handle.sqlite.prepare(`DELETE FROM edges WHERE id = ?`).run(weak.id);
-      console.log(`[soumaya] heartbeat: pruned weak link #${weak.id} (w=${weak.weight.toFixed(2)})`);
-    }
   } catch (err) {
     console.error("[soumaya] heartbeat error:", err);
   }

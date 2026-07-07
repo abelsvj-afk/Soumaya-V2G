@@ -1,9 +1,8 @@
-import type { DailyDigest, DigestEntry, ExpiredAction, GraphNode, NodeRef } from "@brain/shared";
+import { entropyFrom, type DailyDigest, type DigestEntry, type ExpiredAction, type GraphNode, type NodeRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
-import { GraphService } from "../graph/service.js";
 
 /** YYYY-MM-DD prefix of a stored timestamp (CURRENT_TIMESTAMP or ISO). */
 const day = (ts: string | undefined): string => (ts ?? "").slice(0, 10);
@@ -90,12 +89,29 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
   const expiredActions = expiredActionsToday(h, today, spaceId);
 
   // Cooling memories (high entropy from neglect) — the "tend me" nudge.
-  const cooling = new GraphService(h, spaceId)
-    .full()
-    .nodes.filter((n) => n.kind !== "action" && (n.entropy ?? 0) >= 0.55)
-    .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0))
+  // Computed via targeted SQL: loading the WHOLE enriched graph (GraphService
+  // .full()) per digest read was O(nodes+edges) work for a 5-item list.
+  const coolingRows = h.sqlite
+    .prepare(
+      `SELECT n.id,
+         julianday('now') - julianday(COALESCE(n.last_tended_at, n.created_at)) AS days,
+         (SELECT COUNT(*) FROM edges e WHERE e.space_id = n.space_id AND (e.source = n.id OR e.target = n.id)) AS degree
+       FROM nodes n
+       WHERE n.space_id = ? AND n.deleted_at IS NULL AND (n.kind IS NULL OR n.kind NOT IN ('action','moc'))
+         AND julianday('now') - julianday(COALESCE(n.last_tended_at, n.created_at)) > 7
+       ORDER BY days DESC LIMIT 40`,
+    )
+    .all(spaceId) as { id: number; days: number; degree: number }[];
+  const cooling = coolingRows
+    .map((r) => ({ id: r.id, entropy: entropyFrom(r.days, r.degree) }))
+    .filter((x) => x.entropy >= 0.55)
+    .sort((a, b) => b.entropy - a.entropy)
     .slice(0, 5)
-    .map((n) => ({ node: refOf(n), entropy: n.entropy ?? 0 }));
+    .map((x) => {
+      const n = nodesRepo.getById(x.id);
+      return n ? { node: refOf(n), entropy: Math.round(x.entropy * 100) / 100 } : null;
+    })
+    .filter((x): x is { node: NodeRef; entropy: number } => x !== null);
 
   // Due reminders: memories whose user-set remind_at has arrived (ISO compares
   // lexicographically). Surfaced so a scheduled nudge actually resurfaces.

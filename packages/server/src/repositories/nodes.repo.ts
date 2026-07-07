@@ -171,31 +171,7 @@ export class NodesRepo {
       .run(agent, id, this.spaceId);
   }
 
-  /** Active action items whose timeout has passed (for the expiry sweep). */
-  dueActionItems(nowIso: string): GraphNode[] {
-    return this.h.db
-      .select()
-      .from(nodes)
-      .where(
-        and(
-          eq(nodes.spaceId, this.spaceId),
-          eq(nodes.kind, "action"),
-          isNull(nodes.deletedAt),
-          lte(nodes.expiresAt, nowIso),
-        ),
-      )
-      .all()
-      .map(toGraphNode);
-  }
 
-  findByLabel(label: string): GraphNode | undefined {
-    const row = this.h.db
-      .select()
-      .from(nodes)
-      .where(and(eq(nodes.label, label), eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
-      .get();
-    return row ? toGraphNode(row) : undefined;
-  }
 
   /** Most recent nodes, for grounding LLM extraction context. */
   recent(limit = 20): GraphNode[] {

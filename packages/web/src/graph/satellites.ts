@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
 import { gltfLoader } from "./gltf.js";
+import { emotionColorHex } from "./theme.js";
 
 /**
  * Aura-class Beacons — Soumaya's deployed relay satellites.
@@ -47,10 +48,9 @@ const colorFor = (n: any): THREE.Color => {
   if (typeof n.color === "string" && /^#?[0-9a-f]{6}$/i.test(n.color)) {
     return new THREE.Color(n.color.startsWith("#") ? n.color : `#${n.color}`);
   }
-  const ew = n.emotionalWeight ?? 0;
-  if (ew > 0.2) return new THREE.Color("#ffcf6b"); // warm — positive
-  if (ew < -0.2) return new THREE.Color("#6bb7ff"); // cool — heavy/negative
-  return new THREE.Color("#ffb24d"); // neutral amber
+  // Scene-wide emotion palette (theme.ts) — the beam reads the same as the
+  // memory's links: gold joyful, indigo heavy, synapse green neutral.
+  return new THREE.Color(emotionColorHex(n.emotionalWeight ?? 0));
 };
 
 /** Approximate a body's visual radius (mirrors nodeObject sizing) for standoff. */
@@ -204,7 +204,6 @@ export interface SatelliteSystem {
     nodes: any[],
     stationPos?: THREE.Vector3 | null,
     soumayaPos?: THREE.Vector3 | null,
-    onLaunch?: (pos: THREE.Vector3) => void
   ) => void;
   /** Active beacons (currently beaming a memory) — for the focus button. */
   getActive: () => { object: THREE.Object3D; targetId: number }[];
@@ -294,7 +293,6 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
     nodes: any[],
     stationPos?: THREE.Vector3 | null,
     soumayaPos?: THREE.Vector3 | null,
-    onLaunch?: (pos: THREE.Vector3) => void
   ) => {
     try {
       retarget -= dt;
@@ -328,7 +326,6 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
             const launchPos = soumayaPos || stationPos;
             if (launchPos) {
               g.position.copy(launchPos);
-              onLaunch?.(launchPos);
             }
           }
         }

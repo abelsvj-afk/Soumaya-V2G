@@ -44,3 +44,22 @@ export function bodyColor(node: GraphNode): string {
 
 /** Deep-space background. */
 export const BG = "#05010d";
+
+/**
+ * ONE emotional palette for the whole scene — links, packet particles, beacon
+ * beams, the chat eye: gold = joyful, indigo = heavy, synapse green = neutral.
+ * (Four divergent per-file maps with different thresholds made the same feeling
+ * read differently in different places.)
+ */
+export const EMOTION_RGB: Record<"positive" | "heavy" | "neutral", readonly [number, number, number]> = {
+  positive: [255, 205, 70],
+  heavy: [150, 130, 255],
+  neutral: [70, 245, 140],
+};
+export function emotionKind(ew: number, threshold = 0.12): keyof typeof EMOTION_RGB {
+  return ew > threshold ? "positive" : ew < -threshold ? "heavy" : "neutral";
+}
+export function emotionColorHex(ew: number, threshold = 0.12): string {
+  const [r, g, b] = EMOTION_RGB[emotionKind(ew, threshold)];
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}

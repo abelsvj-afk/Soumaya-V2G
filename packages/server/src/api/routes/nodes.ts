@@ -267,7 +267,8 @@ export function nodesRoutes(ctx: AppContext): Router {
     res.json({ ok: true, id });
   });
 
-  // GET /api/nodes/:id -> node detail
+  // GET /api/nodes/:id -> node detail. The web client reads via /api/graph, so
+  // this is kept deliberately as the single-node public API (and test surface).
   r.get("/:id", (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {

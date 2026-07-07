@@ -91,6 +91,10 @@ export function makeOrbitSystem(): OrbitSystem {
   // Nodes Soumaya is currently ferrying into place — the orbit system leaves these
   // alone (she sets their position) until she drops them and calls `release`.
   const held = new Set<number>();
+  // Per-frame lookup map, rebuilt only when the caller's nodes array changes
+  // identity (see the note in update()).
+  const currentById = new Map<number, any>();
+  let mapSourceRef: any[] | null = null;
 
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
@@ -254,7 +258,14 @@ export function makeOrbitSystem(): OrbitSystem {
 
   const update = (dt: number, nodes: any[]) => {
     if (params.size === 0) return;
-    const currentById = new Map<number, any>(nodes.map((n) => [n.id, n]));
+    // Identity-cached id→node map: Graph3D passes the SAME array every frame
+    // until the data actually changes, so rebuilding this map 60×/s was pure
+    // allocation churn (O(n) Map sets per frame → GC hitches on mobile).
+    if (nodes !== mapSourceRef || currentById.size !== nodes.length) {
+      mapSourceRef = nodes;
+      currentById.clear();
+      for (const n of nodes) currentById.set(n.id, n);
+    }
     for (const orderNode of order) {
       const n = currentById.get(orderNode.id);
       if (!n) continue;

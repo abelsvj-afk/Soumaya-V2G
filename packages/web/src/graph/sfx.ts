@@ -10,17 +10,11 @@
 
 export type SfxName =
   | "tap"
-  | "open"
-  | "close"
-  | "confirm"
   | "select"
   | "notify"
   | "achievement"
-  | "error"
   | "delete"
   | "welcome"
-  | "thrust" // Soumaya accelerating away (blast-off whoosh + rumble)
-  | "decel" // Soumaya arriving / slowing to a stop
   | "dock"; // clamping onto the station to recharge
 
 const ENABLED_KEY = "sfx.enabled";
@@ -152,12 +146,6 @@ const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
     tone(ac, { freq: 1650, type: "triangle", dur: 0.045, gain: 0.28 });
     tone(ac, { freq: 2600, type: "sine", dur: 0.02, gain: 0.14 }); // tiny high tick for crispness
   },
-  open: (ac) => tone(ac, { freq: 600, glideTo: 980, type: "sine", dur: 0.16, gain: 0.3 }),
-  close: (ac) => tone(ac, { freq: 940, glideTo: 560, type: "sine", dur: 0.14, gain: 0.26 }),
-  confirm: (ac) => {
-    tone(ac, { freq: 660, type: "sine", dur: 0.14, gain: 0.34 });
-    tone(ac, { freq: 880, type: "sine", dur: 0.24, gain: 0.32, delay: 0.09 });
-  },
   select: (ac) => tone(ac, { freq: 2050, type: "sine", dur: 0.09, gain: 0.26 }),
   notify: (ac) => tone(ac, { freq: 1320, glideTo: 1560, type: "sine", dur: 0.13, gain: 0.3 }),
   achievement: (ac) => {
@@ -165,21 +153,10 @@ const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
     tone(ac, { freq: 659, type: "triangle", dur: 0.12, gain: 0.34, delay: 0.1 });
     tone(ac, { freq: 784, type: "triangle", dur: 0.3, gain: 0.36, delay: 0.2 });
   },
-  error: (ac) => tone(ac, { freq: 200, glideTo: 150, type: "sine", dur: 0.16, gain: 0.3 }),
   delete: (ac) => tone(ac, { freq: 420, glideTo: 110, type: "sawtooth", dur: 0.22, gain: 0.26 }),
   welcome: (ac) => {
     tone(ac, { freq: 440, type: "sine", dur: 0.3, gain: 0.3 });
     tone(ac, { freq: 660, type: "sine", dur: 0.5, gain: 0.3, delay: 0.14 });
-  },
-  // Blast-off: a low engine rumble igniting under a rising thruster whoosh.
-  thrust: (ac) => {
-    tone(ac, { freq: 70, glideTo: 130, type: "sawtooth", dur: 0.5, gain: 0.22 });
-    noiseSweep(ac, { dur: 0.5, from: 180, to: 1500, gain: 0.22, q: 0.8 });
-  },
-  // Arrival: the whoosh falls and the engine rumble winds down as she stops.
-  decel: (ac) => {
-    tone(ac, { freq: 150, glideTo: 68, type: "sawtooth", dur: 0.45, gain: 0.18 });
-    noiseSweep(ac, { dur: 0.45, from: 1400, to: 260, gain: 0.2, q: 0.9 });
   },
   // Docking clamp: a metallic thunk + a short pneumatic hiss.
   dock: (ac) => {

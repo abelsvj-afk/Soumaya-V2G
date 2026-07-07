@@ -163,9 +163,6 @@ function upsertVec(db: RawDb, table: string, pk: string, id: number, vec: Float3
 export function upsertDocEmbedding(db: RawDb, chunkId: number, vec: Float32Array): void {
   upsertVec(db, "vec_docs", "chunk_id", chunkId, vec);
 }
-export function deleteDocEmbedding(db: RawDb, chunkId: number): void {
-  db.prepare(`DELETE FROM vec_docs WHERE chunk_id = ?`).run(BigInt(chunkId));
-}
 export function deleteDocEmbeddings(db: RawDb, chunkIds: number[]): void {
   const stmt = db.prepare(`DELETE FROM vec_docs WHERE chunk_id = ?`);
   db.transaction(() => {

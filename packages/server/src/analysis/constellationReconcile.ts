@@ -2,6 +2,7 @@ import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn, getEmbedding } from "../db/vec.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
+import { DEFAULT_LINK_OPTIONS } from "../ingestion/associativeLink.js";
 
 /**
  * Constellation re-evaluation (background, free, offline). As the brain grows, an old
@@ -20,7 +21,13 @@ export interface ReconcileOptions {
   maxPerRun: number;
 }
 
-export const DEFAULT_RECONCILE: ReconcileOptions = { threshold: 0.72, k: 12, maxPerRun: 3 };
+// Same "related enough to link" bar as ingestion's associative linking — the two
+// were independently hardcoded and would have drifted apart on a retune.
+export const DEFAULT_RECONCILE: ReconcileOptions = {
+  threshold: DEFAULT_LINK_OPTIONS.threshold,
+  k: 12,
+  maxPerRun: 3,
+};
 
 export function reconcileConstellations(
   h: DbHandle,

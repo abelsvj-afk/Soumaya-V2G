@@ -20,7 +20,6 @@ beforeEach(() => {
     handle,
     embeddings: new HashEmbeddingProvider(EMBED_DIM),
     llm: new HeuristicProvider(),
-    graph: new GraphService(handle),
     usage: new UsageTracker(handle),
   };
 });
