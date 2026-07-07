@@ -1042,6 +1042,46 @@ body,
   left: 14px;
   font-size: 18px;
 }
+/* Now-playing chip — sits beside the music FAB, shows title + n/total, skips on click. */
+.now-playing {
+  position: fixed;
+  bottom: 130px;
+  left: 62px;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(12, 20, 40, 0.72);
+  border: 1px solid rgba(143, 200, 255, 0.3);
+  color: #d9ecff;
+  font-size: 0.72rem;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  max-width: 46vw;
+  animation: np-in 0.3s ease;
+}
+@keyframes np-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+.now-playing .np-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.now-playing .np-count { opacity: 0.6; font-variant-numeric: tabular-nums; }
+.now-playing .np-skip { opacity: 0.75; }
+.now-playing .np-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.now-playing .np-eq i {
+  width: 2px;
+  background: #8fdcff;
+  border-radius: 1px;
+  animation: np-eq 0.9s ease-in-out infinite;
+}
+.now-playing .np-eq i:nth-child(1) { height: 6px; animation-delay: 0s; }
+.now-playing .np-eq i:nth-child(2) { height: 11px; animation-delay: 0.2s; }
+.now-playing .np-eq i:nth-child(3) { height: 8px; animation-delay: 0.4s; }
+@keyframes np-eq { 0%, 100% { transform: scaleY(0.4); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .now-playing .np-eq i { animation: none; } }
+@supports (padding: env(safe-area-inset-bottom)) {
+  .now-playing { bottom: calc(130px + env(safe-area-inset-bottom)); }
+}
 .fab-zoom-in {
   bottom: 130px;
   right: 14px;

@@ -188,6 +188,8 @@ export default function App() {
   const [history, setHistory] = useState<number[]>([]);
   const [aiBusy, setAiBusy] = useState(0);
   const [music, setMusic] = useState(false);
+  const [musicTrack, setMusicTrack] = useState<{ title: string; index: number; total: number } | null>(null);
+  const musicClickTimer = useRef<number | null>(null);
   const [followShip, setFollowShip] = useState(false);
   const [followStation, setFollowStation] = useState(false);
   const [followSatellite, setFollowSatellite] = useState(false);
@@ -322,6 +324,36 @@ export default function App() {
   const toggleMusic = useCallback(() => {
     if (!audioRef.current) audioRef.current = makeAmbientAudio();
     setMusic(audioRef.current.toggle());
+  }, []);
+  const nextMusic = useCallback(() => {
+    if (!audioRef.current) audioRef.current = makeAmbientAudio();
+    audioRef.current.next();
+    setMusic(audioRef.current.playing);
+  }, []);
+  // Single click = play/pause; double click = next track (a short timer lets a
+  // second click cancel the toggle so a double-click cleanly skips the song).
+  const onMusicClick = useCallback(() => {
+    if (musicClickTimer.current != null) {
+      window.clearTimeout(musicClickTimer.current);
+      musicClickTimer.current = null;
+      nextMusic();
+      return;
+    }
+    musicClickTimer.current = window.setTimeout(() => {
+      musicClickTimer.current = null;
+      toggleMusic();
+    }, 240);
+  }, [toggleMusic, nextMusic]);
+
+  // Now-playing cue: when the track changes, pop the title + show the chip.
+  useEffect(() => {
+    const onTrack = (e: Event) => {
+      const d = (e as CustomEvent<{ playing: boolean; index: number; title: string; total: number }>).detail;
+      setMusicTrack({ title: d.title, index: d.index, total: d.total });
+      if (d.playing) pushToast(`♪ ${d.title} · ${d.index + 1}/${d.total}`, "🎵", 3200);
+    };
+    window.addEventListener("brain-music-track", onTrack);
+    return () => window.removeEventListener("brain-music-track", onTrack);
   }, []);
 
   // A fake "fuller galaxy" preview — generated once, never persisted/weighted.
@@ -1278,12 +1310,25 @@ export default function App() {
           })()}
           <button
             className={`fab fab-music ${music ? "on" : ""}`}
-            onClick={toggleMusic}
-            aria-label="Toggle ambient music"
-            title="Ambient space music"
+            onClick={onMusicClick}
+            aria-label="Toggle ambient music (double-click for next track)"
+            title="Ambient space music · click to play/pause, double-click to skip"
           >
             {music ? "🔊" : "🔈"}
           </button>
+          {music && musicTrack && (
+            <button
+              className="now-playing"
+              onClick={nextMusic}
+              title="Skip to the next track"
+              aria-label={`Now playing ${musicTrack.title}, track ${musicTrack.index + 1} of ${musicTrack.total}. Click to skip.`}
+            >
+              <span className="np-eq"><i /><i /><i /></span>
+              <span className="np-title">{musicTrack.title}</span>
+              <span className="np-count">{musicTrack.index + 1}/{musicTrack.total}</span>
+              <span className="np-skip">⏭</span>
+            </button>
+          )}
           <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
             📝
           </button>
