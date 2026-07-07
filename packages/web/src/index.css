@@ -2825,6 +2825,12 @@ button {
 }
 /* Persona view (🎭) inside the chat — the Companion controls, scrollable. */
 .chatdock-persona { padding: 0 4px; }
+/* Foresight — a pattern she sees coming (Observatory). */
+.obs-foresight {
+  border-color: rgba(255, 180, 90, 0.45) !important;
+  background: linear-gradient(150deg, rgba(70, 50, 20, 0.45), rgba(24, 16, 8, 0.45)) !important;
+}
+
 /* Beliefs — what she's consolidated about you (dream cycles). */
 .beliefs-list { list-style: none; padding: 0; margin: 6px 0 0; display: flex; flex-direction: column; gap: 8px; }
 .belief-card {

@@ -1,5 +1,6 @@
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
+import { detectForesight } from "../analysis/foresight.js";
 
 /**
  * Behavioral persona deepening — the layer ABOVE "who they are" (derive.ts):
@@ -122,6 +123,13 @@ export function deriveBehavior(h: DbHandle, spaceId: string = DEFAULT_SPACE): st
     const rate = (contact.answered ?? 0) / contact.asked;
     if (rate >= 0.6) lines.push("They've been answering your daily questions — they trust the ritual; you can go deeper.");
     else if (rate <= 0.2) lines.push("They've been skipping your daily questions — make your asks smaller and more concrete until they re-engage.");
+  }
+
+  // 6. Foresight: a recurring-negative window about to recur — so she can lean in
+  // gently before it lands rather than only reacting after.
+  const fore = detectForesight(h, spaceId);
+  if (fore && fore.inDays <= 3) {
+    lines.push(`A rough patch may be near (${fore.text}) — be a little more attentive and steady in the next few days.`);
   }
 
   if (lines.length === 0) return "";

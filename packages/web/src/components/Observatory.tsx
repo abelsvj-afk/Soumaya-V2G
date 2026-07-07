@@ -244,6 +244,15 @@ export function Observatory({
             </span>
           </div>
         )}
+        {contact?.foresight && (
+          <div className="obs-card obs-foresight">
+            <span className="obs-ic">🔮</span>
+            <span className="obs-body">
+              <span className="obs-title">She sees a pattern coming</span>
+              <span className="obs-line">{contact.foresight.text}</span>
+            </span>
+          </div>
+        )}
         {contact?.discovery && (
           <button
             className="obs-card"

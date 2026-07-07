@@ -760,6 +760,7 @@ export interface DailyContact {
     source: "research" | "contradiction" | "cooling" | "heavy";
   } | null;
   discovery: { text: string; nodeId: number | null } | null;
+  foresight: { text: string; inDays: number } | null;
   answered: boolean;
 }
 

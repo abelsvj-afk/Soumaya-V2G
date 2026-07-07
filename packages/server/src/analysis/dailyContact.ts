@@ -4,6 +4,7 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
+import { detectForesight } from "./foresight.js";
 
 /**
  * The Daily Contact — once a day SOUMAYA initiates. She prepares the single most
@@ -32,6 +33,8 @@ export interface DailyContact {
   } | null;
   /** Her best recent discovery (latest synthesis insight), one line. */
   discovery: { text: string; nodeId: number | null } | null;
+  /** A recurring-negative pattern about to recur (foresight), if any. */
+  foresight: { text: string; inDays: number } | null;
   answered: boolean;
 }
 
@@ -161,6 +164,10 @@ export function getDailyContact(ctx: AppContext, spaceId: string): DailyContact 
     date,
     question: pickQuestion(ctx, spaceId),
     discovery: pickDiscovery(ctx, spaceId),
+    foresight: (() => {
+      const f = detectForesight(ctx.handle, spaceId);
+      return f ? { text: f.text, inDays: f.inDays } : null;
+    })(),
     answered: false,
   };
   s.prepare(
