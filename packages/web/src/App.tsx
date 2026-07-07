@@ -65,6 +65,8 @@ import {
   getAwayDigest,
   markAwaySeen,
   getAgentLogs,
+  getDailyContact,
+  getBeliefs,
   flushIngestQueue,
   logoutSpace,
   onAiActivity,
@@ -234,6 +236,8 @@ export default function App() {
   // The visual legend (🗺️) — auto-shows ONCE per brain so new users learn the
   // galaxy's language, then it's a tap away whenever they forget.
   const [showLegend, setShowLegend] = useState(false);
+  // Ambient Level-2 read on you (foresight or newest belief) shown as a HUD pill.
+  const [selfInsight, setSelfInsight] = useState<{ kind: "foresight" | "belief"; text: string } | null>(null);
   const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
@@ -582,6 +586,23 @@ export default function App() {
     }, 7000);
     return () => window.clearTimeout(t);
   }, [space, loaded, demo]);
+
+  // Ambient self-insight pill: foresight (time-sensitive) wins, else her newest
+  // belief. Fetched once when the brain loads; purely glanceable.
+  useEffect(() => {
+    if (!space || demo || !loaded) return;
+    let alive = true;
+    (async () => {
+      const [contact, beliefs] = await Promise.all([getDailyContact(), getBeliefs()]);
+      if (!alive) return;
+      if (contact?.foresight) setSelfInsight({ kind: "foresight", text: "She sees a pattern coming" });
+      else if (beliefs[0]) setSelfInsight({ kind: "belief", text: beliefs[0].content });
+      else setSelfInsight(null);
+    })().catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [space?.id, demo, loaded]);
 
   // First-run: show the visual legend ONCE per brain (after data loads) so a new
   // user learns the galaxy's language up front; thereafter it's the 🗺️ FAB.
@@ -957,6 +978,20 @@ export default function App() {
             >
               🔥 {streakShown}
             </span>
+          )}
+          {/* Ambient Level-2 presence: her live read on you (foresight or a fresh
+              belief) glanceable from the galaxy, tap to open Insights. */}
+          {selfInsight && !demo && (
+            <button
+              className={`status self-insight-chip ${selfInsight.kind}`}
+              title={`${selfInsight.text} — tap to open Insights`}
+              onClick={() => {
+                setTab("insights");
+                setPanel("dock");
+              }}
+            >
+              {selfInsight.kind === "foresight" ? "🔮" : "🖤"} {selfInsight.text.length > 42 ? `${selfInsight.text.slice(0, 42)}…` : selfInsight.text}
+            </button>
           )}
           {installPrompt && (
             <button

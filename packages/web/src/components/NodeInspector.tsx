@@ -46,6 +46,21 @@ function fmtWhen(raw: string): string {
   return `${abs} · ${rel}`;
 }
 
+/** Plain-language "why is it this size" from the node's real mass signals —
+ *  turns an abstract weight% into understanding you learn by seeing it. */
+function sizeReason(n: GraphNode): string {
+  const bits: string[] = [];
+  if ((n.importance ?? 0) >= 0.66) bits.push("it matters to you");
+  else if ((n.importance ?? 0) <= 0.3) bits.push("it's a lighter note");
+  if ((n.degree ?? 0) >= 6) bits.push("it's richly connected");
+  else if ((n.degree ?? 0) >= 2) bits.push(`${n.degree} connections`);
+  else bits.push("few connections yet");
+  if (Math.abs(n.emotionalWeight ?? 0) >= 0.5) bits.push("it carries real feeling");
+  const created = n.createdAt ? Date.parse(n.createdAt.replace(" ", "T") + "Z") : NaN;
+  if (!Number.isNaN(created) && Date.now() - created > 60 * 8.64e7) bits.push("you've kept it a while");
+  return bits.slice(0, 3).join(", ");
+}
+
 export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo }: Props) {
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
@@ -111,20 +126,37 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
 
   return (
     <div className="dock-body">
-      <span className="chip" style={{ background: colorForType(node.type) }}>
-        {NODE_TYPE_LABEL[normalizeNodeType(node.type)]}
-      </span>
-      {node.origin === "agent" && (
+      {/* Special-body cue first, so beliefs/constellations read distinctly. */}
+      {node.kind === "belief" ? (
+        <span className="chip belief-chip" title="A belief Soumaya consolidated about you (dream cycles)">
+          🖤 Belief she formed
+        </span>
+      ) : node.kind === "moc" ? (
+        <span className="chip" style={{ background: "#ffe9a8", color: "#1a1400" }} title="A constellation hub — a Map of Content">
+          🌌 Constellation
+        </span>
+      ) : (
+        <span className="chip" style={{ background: colorForType(node.type) }}>
+          {NODE_TYPE_LABEL[normalizeNodeType(node.type)]}
+        </span>
+      )}
+      {node.origin === "agent" && node.kind !== "belief" && node.kind !== "moc" && (
         <span className="chip provenance-chip" title="Soumaya authored this — a constellation hub she charted">
           ✦ Charted by Soumaya
         </span>
       )}
-      {node.celestial && (
-        <span className="meta">
-          {CELESTIAL_ICON[node.celestial]} {CELESTIAL_LABEL[node.celestial]} · weight{" "}
-          {Math.round((node.mass ?? 0) * 100)}%
-          {node.degree ? ` · ${node.degree} link${node.degree === 1 ? "" : "s"}` : ""}
-        </span>
+      {node.celestial && node.kind !== "belief" && node.kind !== "moc" && (
+        <>
+          <span className="meta">
+            {CELESTIAL_ICON[node.celestial]} {CELESTIAL_LABEL[node.celestial]} · weight{" "}
+            {Math.round((node.mass ?? 0) * 100)}%
+            {node.degree ? ` · ${node.degree} link${node.degree === 1 ? "" : "s"}` : ""}
+          </span>
+          {/* Why it's this size — the legend, applied in context so it sticks. */}
+          <span className="size-reason" title="What gives this memory its gravitational mass">
+            {CELESTIAL_ICON[node.celestial]} A {CELESTIAL_LABEL[node.celestial]} because {sizeReason(node)}.
+          </span>
+        </>
       )}
       <h2>{node.label}</h2>
       {node.celestialTitle && (

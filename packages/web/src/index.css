@@ -2829,6 +2829,32 @@ button {
 }
 /* Persona view (🎭) inside the chat — the Companion controls, scrollable. */
 .chatdock-persona { padding: 0 4px; }
+/* Inline legend cue in the memory inspector — "why it's this size". */
+.size-reason {
+  display: block;
+  font-size: 0.74rem;
+  opacity: 0.62;
+  line-height: 1.35;
+  margin: 2px 0 4px;
+}
+.belief-chip { background: #9686ff; color: #0b0820; }
+
+/* Ambient self-insight HUD pill (her Level-2 read on you). */
+.self-insight-chip {
+  cursor: pointer;
+  border: 1px solid rgba(150, 134, 255, 0.4);
+  background: rgba(150, 134, 255, 0.12);
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.self-insight-chip.foresight {
+  border-color: rgba(255, 180, 90, 0.45);
+  background: rgba(255, 180, 90, 0.12);
+}
+.self-insight-chip:hover { filter: brightness(1.2); }
+
 /* The Living Legend — visual key to the galaxy (🗺️). */
 .legend-overlay {
   position: fixed;
