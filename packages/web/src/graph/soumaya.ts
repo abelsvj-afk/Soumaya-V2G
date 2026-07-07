@@ -974,6 +974,9 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
       }
 
       if (mode === "idle") {
+        // A previous idle tick's acquireJob fetch may still be in flight — it
+        // would overwrite currentJob when it resolves, eating a replay item.
+        if (isFetching) return;
         // Night Replay first: re-enact her overnight work before new patrols.
         while (replayQueue.length > 0) {
           const it = replayQueue.shift()!;

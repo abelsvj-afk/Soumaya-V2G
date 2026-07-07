@@ -354,5 +354,11 @@ describe("REST API", () => {
     // Marked answered for the rest of the day.
     const after = await get("/api/contact");
     expect(after.body.answered).toBe(true);
+    // ROTATION: answering consumed the question (the cooling memory was tended),
+    // so tomorrow's rebuild must NOT re-ask the same thing. Simulate the new day
+    // by clearing today's row and rebuilding.
+    ctx.handle.sqlite.prepare(`DELETE FROM daily_contact`).run();
+    const tomorrow = await get("/api/contact");
+    expect(tomorrow.body.question?.text ?? "").not.toBe(c.body.question.text);
   });
 });

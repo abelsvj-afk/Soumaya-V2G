@@ -282,6 +282,12 @@ export function ChatDock({
   const clearChat = () => {
     stopSpeaking();
     setMessages([]);
+    // Reset per-conversation state too — `saved` is index-keyed, so leftovers
+    // marked new messages at old indices as already-saved (dead ＋ button), and
+    // a stale distill flag suppressed the next conversation's wrap-up offer.
+    setSaved(new Set());
+    setProposals(null);
+    distilledRef.current = false;
   };
 
   return (

@@ -114,6 +114,14 @@ export class SpacesRepo {
             .prepare(`UPDATE OR IGNORE ${t} SET space_id = ? WHERE space_id = ?`)
             .run(id, DEFAULT_SPACE);
         }
+      } else {
+        // New tenants start with Research Mode explicitly OFF. The NULL→global
+        // fallback exists for pre-migration brains; without this row, a fresh
+        // space would inherit whatever the legacy owner set (fail-open to paid
+        // autonomous work if that was "true").
+        this.h.sqlite
+          .prepare(`INSERT OR IGNORE INTO space_meta (space_id, research_enabled) VALUES (?, 'false')`)
+          .run(id);
       }
     });
     tx();

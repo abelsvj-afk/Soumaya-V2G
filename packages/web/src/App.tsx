@@ -599,6 +599,13 @@ export default function App() {
   // happened since your last visit (flies to each memory and performs it), and
   // while you stay, new server-side events surface as toasts in her voice.
   const replayDoneRef = useRef(false);
+  // Live mirror of the node list: the effect below runs a 60s interval for the
+  // whole session, so closing over the mount-time `data.nodes` silently dropped
+  // events about any memory logged AFTER load (exactly the likeliest events).
+  const nodesRef = useRef<GraphNode[]>([]);
+  useEffect(() => {
+    nodesRef.current = data.nodes as GraphNode[];
+  }, [data.nodes]);
   useEffect(() => {
     if (!space || demo || !loaded) return;
     const key = `brain.replay.lastLog.${space.id}`;
@@ -608,8 +615,7 @@ export default function App() {
       sector_vibe: { replay: "charted the sector around", live: "just charted the sector around" },
       synthesis: { replay: "connected a thread to", live: "just connected a thread to" },
     };
-    const labelOf = (id: number) =>
-      (data.nodes as GraphNode[]).find((n) => n.id === id)?.label ?? null;
+    const labelOf = (id: number) => nodesRef.current.find((n) => n.id === id)?.label ?? null;
     let disposed = false;
 
     const check = async (arrival: boolean) => {

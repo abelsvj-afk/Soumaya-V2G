@@ -72,10 +72,10 @@ export function deriveBehavior(h: DbHandle, spaceId: string = DEFAULT_SPACE): st
     }
   }
 
-  // 2. Writing rhythm: when + how they think.
+  // 2. Writing rhythm: HOW they think. (No time-of-day claim — the server only
+  // has UTC timestamps, and "they log late at night" was confidently wrong for
+  // anyone outside UTC. Length/style is timezone-free.)
   const scored = recent.length >= 3 ? recent : rows.slice(0, 12);
-  const hours = scored.map((r) => new Date(parseTs(r.created_at)).getUTCHours());
-  const lateShare = hours.filter((hr) => hr >= 21 || hr < 5).length / Math.max(1, hours.length);
   const meanLen = avg(scored.map((r) => r.len));
   const style =
     meanLen < 120
@@ -83,8 +83,7 @@ export function deriveBehavior(h: DbHandle, spaceId: string = DEFAULT_SPACE): st
       : meanLen > 500
         ? "long reflections — depth and nuance are welcome, don't oversimplify"
         : null;
-  if (lateShare >= 0.5 && style) lines.push(`They tend to log late at night, in ${style}.`);
-  else if (style) lines.push(`They write in ${style}.`);
+  if (style) lines.push(`They write in ${style}.`);
 
   // 3. Focus shift: what's newly occupying them vs the month before.
   const countBy = (xs: MemRow[]) => {

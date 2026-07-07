@@ -27,6 +27,8 @@ export interface DailyContact {
     nodeLabel: string | null;
     /** Why she's asking — drives the icon + copy in the UI. */
     source: "research" | "contradiction" | "cooling" | "heavy";
+    /** The contradiction insight behind rung 2 — resolved when answered. */
+    insightId?: number;
   } | null;
   /** Her best recent discovery (latest synthesis insight), one line. */
   discovery: { text: string; nodeId: number | null } | null;
@@ -62,19 +64,20 @@ function pickQuestion(ctx: AppContext, spaceId: string): DailyContact["question"
   // 2. A recent unresolved contradiction — she genuinely can't reconcile it alone.
   const contradiction = s
     .prepare(
-      `SELECT i.text, i.node_a AS nodeA, n.label FROM insights i
+      `SELECT i.id AS insightId, i.text, i.node_a AS nodeA, n.label FROM insights i
        JOIN nodes n ON n.id = i.node_a
        WHERE i.space_id = ? AND i.kind = 'contradiction'
          AND i.created_at >= datetime('now', '-14 days')
        ORDER BY i.score DESC, i.id DESC LIMIT 1`,
     )
-    .get(spaceId) as { text: string; nodeA: number; label: string } | undefined;
+    .get(spaceId) as { insightId: number; text: string; nodeA: number; label: string } | undefined;
   if (contradiction) {
     return {
       text: `Two of your memories pull in opposite directions — ${contradiction.text} Which feels true today?`,
       nodeId: contradiction.nodeA,
       nodeLabel: contradiction.label,
       source: "contradiction",
+      insightId: contradiction.insightId,
     };
   }
 
@@ -194,6 +197,27 @@ export async function answerDailyContact(
       edges.create({ source: nodeIds[0], target: qNode, relationship: "relates_to", weight: 0.6 });
     }
     new NodesRepo(ctx.handle, spaceId).tend(qNode); // her ask warmed it too
+  }
+
+  // CONSUME the question — without this the ladder re-picked the same one every
+  // day forever ("come back tomorrow, she'll have a new one" was a lie):
+  // - research: shift the answered question off the node + file the answer;
+  // - contradiction: the user just told her which side is true — resolve it.
+  // (Cooling rotates via the tend above; heavy rotates via the new edge.)
+  const q = contact.question;
+  if (q?.source === "research" && q.nodeId != null) {
+    const node = new NodesRepo(ctx.handle, spaceId).getById(q.nodeId);
+    const remaining = (node?.researchQuestions ?? []).filter((x) => x !== q.text);
+    const answers = { ...(node?.researchAnswers ?? {}), [q.text]: text.slice(0, 2000) };
+    new NodesRepo(ctx.handle, spaceId).updateResearch(
+      q.nodeId,
+      remaining.length > 0 ? remaining : null,
+      answers,
+    );
+  } else if (q?.source === "contradiction" && q.insightId != null) {
+    ctx.handle.sqlite
+      .prepare(`DELETE FROM insights WHERE id = ? AND space_id = ?`)
+      .run(q.insightId, spaceId);
   }
 
   // Same earn path as the ingest route (answering IS tending).

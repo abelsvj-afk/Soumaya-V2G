@@ -173,7 +173,9 @@ one-sided, or conflicting, do NOT bluff a generic answer. Give what you honestly
 can, then set "askBack" to ONE genuine, specific question whose answer would let
 you respond properly next time. Rules for askBack:
 - one question, specific to THEIR situation, never a form-letter prompt;
-- only when it truly helps — everyday factual answers don't need it (omit it);
+- only when it truly helps — everyday factual answers don't need it. When you
+  have no question, set "askBack" to an empty string "" (never invent one just
+  to fill the field);
 - if the recent turns show they already answered your question, don't re-ask.
 
 - Answer grounded in the provided MEMORIES, and cite the node ids you drew from

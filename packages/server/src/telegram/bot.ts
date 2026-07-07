@@ -185,6 +185,15 @@ export async function handleTelegramUpdate(
     }
     const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, body, spaceId);
     const linkCount = result.associativeEdges.length;
+    // A /log while her daily question is pending counts as answering it —
+    // otherwise the same question rode every digest forever for Telegram-first
+    // users. (Best-effort: the reply is very likely responsive to the ask.)
+    ctx.handle.sqlite
+      .prepare(
+        `UPDATE daily_contact SET answered = 1
+         WHERE space_id = ? AND date = date('now') AND answered = 0`,
+      )
+      .run(spaceId);
     // Same reward path as the app's ingest route: fuel + the daily streak
     // (logging from Telegram is tending too — the streak is channel-agnostic).
     const { streak, advanced } = new StreakRepo(ctx.handle, spaceId).touch();
