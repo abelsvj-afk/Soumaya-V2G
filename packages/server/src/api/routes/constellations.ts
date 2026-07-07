@@ -6,6 +6,7 @@ import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EdgesRepo } from "../../repositories/edges.repo.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
+import { SPECIAL_COLORS } from "@brain/shared";
 
 const PromoteBody = z.object({
   name: z.string().trim().min(1).max(60),
@@ -65,7 +66,7 @@ export function constellationRoutes(ctx: AppContext): Router {
         kind: "moc",
         content: summary,
         importance: 0.7, // hubs are weighty by nature → renders large
-        color: "#ffe9a8", // starlight gold so a constellation reads as special
+        color: SPECIAL_COLORS.constellation, // starlight gold so a constellation reads as special
         origin: "agent", // Soumaya authored this hub's summary
       },
       vec,

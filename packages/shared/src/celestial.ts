@@ -45,6 +45,38 @@ export const CELESTIAL_LABEL: Record<CelestialClass, string> = {
   supergiant: "supergiant",
 };
 
+/** One-line meaning per class — what growing to this size actually means. */
+export const CELESTIAL_MEANING: Record<CelestialClass, string> = {
+  asteroid: "a new or fleeting thought, barely massed",
+  moon: "a small memory finding its orbit",
+  planet: "an established memory with real weight",
+  gas_giant: "a heavy, well-connected memory",
+  giant: "a major anchor in your thinking",
+  star: "important, luminous, deeply connected",
+  supergiant: "one of the great weights of your galaxy",
+};
+
+/**
+ * SPECIAL-BODY + EMOTION colors — the single source of truth shared by the
+ * galaxy renderer, the server (belief/constellation authoring), and the Legend,
+ * so the visual key can never drift from what's actually drawn.
+ */
+export const SPECIAL_COLORS = {
+  /** A consolidated belief (dream cycles). */
+  belief: "#9686ff",
+  /** A constellation hub (Map of Content). */
+  constellation: "#ffe9a8",
+  /** The Sun at the galaxy's core. */
+  sun: "#ffcf6b",
+} as const;
+
+/** Link/emotion palette (matches the galaxy's link colors + the chat eye). */
+export const EMOTION_COLORS = {
+  positive: "#ffcd46", // joyful — warm gold
+  heavy: "#9686ff", // heavy — indigo
+  neutral: "#46f58c", // neutral — resting synapse green
+} as const;
+
 export interface MassSignals {
   /** 0..1 — how significant/serious/life-impacting (rated by the LLM). */
   importance?: number;

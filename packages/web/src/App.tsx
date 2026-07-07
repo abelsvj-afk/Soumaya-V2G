@@ -46,6 +46,7 @@ import { SettingsPanel } from "./components/SettingsPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
+import { Legend } from "./components/Legend.js";
 import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
@@ -230,6 +231,9 @@ export default function App() {
   const prevSatRef = useRef(0);
   const [focusMenuOpen, setFocusMenuOpen] = useState(false);
   const [help, setHelp] = useState(false);
+  // The visual legend (🗺️) — auto-shows ONCE per brain so new users learn the
+  // galaxy's language, then it's a tap away whenever they forget.
+  const [showLegend, setShowLegend] = useState(false);
   const [clustered, setClustered] = useState(false);
   const audioRef = useRef<AmbientAudio | null>(null);
   const graphRef = useRef<Graph3DHandle>(null);
@@ -578,6 +582,23 @@ export default function App() {
     }, 7000);
     return () => window.clearTimeout(t);
   }, [space, loaded, demo]);
+
+  // First-run: show the visual legend ONCE per brain (after data loads) so a new
+  // user learns the galaxy's language up front; thereafter it's the 🗺️ FAB.
+  useEffect(() => {
+    if (!space || demo || !loaded) return;
+    const key = `brain.legendSeen.${space.id}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      const t = window.setTimeout(() => {
+        setShowLegend(true);
+        localStorage.setItem(key, "1");
+      }, 5200); // after the fly-in + Observatory have settled
+      return () => window.clearTimeout(t);
+    } catch {
+      /* private mode */
+    }
+  }, [space?.id, demo, loaded]);
 
   // Close the Observatory and release any buffered toasts. The 🔭 FAB reopens it.
   const dismissObs = useCallback(() => {
@@ -984,6 +1005,8 @@ export default function App() {
         />
       )}
 
+      {showLegend && <Legend onClose={() => setShowLegend(false)} />}
+
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}
       {(followStation || followShip || followSatellite) && panel === null && !loreDismissed && (
@@ -1014,6 +1037,9 @@ export default function App() {
           </button>
           <button className="fab fab-flashback" onClick={triggerFlashback} aria-label="Flashback (Serendipity)" title="Surprise me with an old memory">
             ☄️
+          </button>
+          <button className="fab fab-legend" onClick={() => setShowLegend(true)} aria-label="Legend / galaxy key" title="What the colours & bodies mean">
+            🗺️
           </button>
           <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
             ?

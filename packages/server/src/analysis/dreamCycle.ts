@@ -1,3 +1,4 @@
+import { SPECIAL_COLORS } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
@@ -17,7 +18,7 @@ import { evolveLore } from "../lore/engine.js";
  * as a lore chapter (versioned Chronicle) and never deletes anything.
  */
 
-const BELIEF_COLOR = "#9686ff"; // heavy indigo — a belief reads distinct in the galaxy
+const BELIEF_COLOR = SPECIAL_COLORS.belief; // heavy indigo — a belief reads distinct in the galaxy
 const MIN_CLUSTER = 5; // a belief needs real evidence
 const CONFIDENCE_IMPORTANCE = 0.72; // beliefs are weighty → render large
 

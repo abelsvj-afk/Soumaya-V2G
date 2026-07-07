@@ -146,12 +146,17 @@ export async function createLlmProvider(opts: LlmProviderOptions = {}): Promise<
     process.env.OPENAI_API_KEY ?? process.env.OPENAI_API ?? findKey(/openai.*(api|key)/i);
   const geminiKey = process.env.GEMINI_API_KEY ?? findKey(/gemini.*(api|key)/i);
 
-  // If LLM_PROVIDER isn't set, auto-pick based on whichever key is present, so
-  // adding just a key (via `fly secrets set`) is enough to go live.
+  // OpenAI takes FIRST precedence: whenever an OpenAI key is present it's chosen,
+  // even over a stale LLM_PROVIDER=gemini secret — so you don't have to unset an
+  // old env var to switch. An explicit `kind` (tests / callers) still wins, and
+  // LLM_PROVIDER only decides when NO key resolves a provider on its own.
   const resolved: LlmProviderKind =
     kind ??
-    (process.env.LLM_PROVIDER as LlmProviderKind) ??
-    (openaiKey ? "openai" : geminiKey ? "gemini" : "heuristic");
+    (openaiKey
+      ? "openai"
+      : geminiKey
+        ? "gemini"
+        : ((process.env.LLM_PROVIDER as LlmProviderKind) ?? "heuristic"));
 
   // Cloud providers are wrapped so they degrade to the offline heuristic on
   // credit/quota/auth errors instead of taking the whole app down.

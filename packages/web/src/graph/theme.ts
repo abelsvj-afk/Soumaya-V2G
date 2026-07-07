@@ -1,4 +1,4 @@
-import { type CelestialClass, type GraphNode, type NodeType, normalizeNodeType } from "@brain/shared";
+import { type CelestialClass, type GraphNode, type NodeType, normalizeNodeType, EMOTION_COLORS } from "@brain/shared";
 
 /** Per-kind hue — used for chips, dots and as the tint seed for bodies. */
 export const TYPE_COLORS: Record<NodeType, string> = {
@@ -48,13 +48,17 @@ export const BG = "#05010d";
 /**
  * ONE emotional palette for the whole scene — links, packet particles, beacon
  * beams, the chat eye: gold = joyful, indigo = heavy, synapse green = neutral.
- * (Four divergent per-file maps with different thresholds made the same feeling
- * read differently in different places.)
+ * DERIVED from the shared EMOTION_COLORS so the galaxy render and the Legend can
+ * never drift apart (single source of truth in @brain/shared).
  */
+const hexToRgb = (hex: string): [number, number, number] => {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
 export const EMOTION_RGB: Record<"positive" | "heavy" | "neutral", readonly [number, number, number]> = {
-  positive: [255, 205, 70],
-  heavy: [150, 130, 255],
-  neutral: [70, 245, 140],
+  positive: hexToRgb(EMOTION_COLORS.positive),
+  heavy: hexToRgb(EMOTION_COLORS.heavy),
+  neutral: hexToRgb(EMOTION_COLORS.neutral),
 };
 export function emotionKind(ew: number, threshold = 0.12): keyof typeof EMOTION_RGB {
   return ew > threshold ? "positive" : ew < -threshold ? "heavy" : "neutral";
