@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-03 (Claude): Behavioral persona + perf/dedupe sweep (`c7d1d53`, `7cd2884`, `1d967f9`)
+- **Behavioral persona deepening** (`persona/behavior.ts`): live read of last-7d vs the user's
+  own month baseline — emotional trend, volatility, writing rhythm, focus shift, tender ground,
+  daily-question engagement — injected into the chat system prompt (after telemetry, before
+  custom instructions) and the Captain's Log voice. Pure SQL, offline-safe, 4 tests.
+- **Observatory overflow fix**: stack caps at viewport + scrolls internally, sticky Enter,
+  top-right ×.
+- **Perf/dedupe** (audit follow-ups, done by Claude in place of agy): task-sync throttled to
+  3Hz (was 60fps O(nodes)+stringify), link-activity 1s memo, orbits identity-cached node map,
+  dailyDigest cooling via SQL (no more full() per read); ONE emotion palette in theme.ts
+  (links/particles/beacon beams); reconcile threshold shared with associativeLink; heartbeat's
+  global weak-edge prune dropped (autonomy loop owns pruning); deleted dead SFX recipes +
+  findByLabel/dueActionItems/deleteDocEmbedding/AppContext.graph/sun getRadius/satellites
+  onLaunch. 148 tests.
+
 ### 2026-07-03 (Claude): The retention loop — Daily Contact, Night Replay, promise sweep
 Product diagnosis: structurally complete but no reason to return tomorrow. Three batches:
 1. **Daily Contact** — she initiates once a day: a deterministic ladder picks her most
