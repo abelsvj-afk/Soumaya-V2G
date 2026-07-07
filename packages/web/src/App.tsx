@@ -753,6 +753,18 @@ export default function App() {
           const tendKey = `stat.memories_tended.${space.id}`;
           localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
         }
+        // Visual fluency: record which memory TYPES you've opened — you learn the
+        // colour language by navigating it, and it earns "Galaxy Reader".
+        try {
+          const tk = `stat.types_seen.${space.id}`;
+          const seen = new Set<string>(JSON.parse(localStorage.getItem(tk) || "[]"));
+          if (n.type && !seen.has(n.type)) {
+            seen.add(n.type);
+            localStorage.setItem(tk, JSON.stringify([...seen]));
+          }
+        } catch {
+          /* storage unavailable */
+        }
         // Optimistic warm-up: the server reset entropy, but the client copy only
         // refreshed on the next full graph fetch — so a beacon's beam never cut
         // out when you tended its memory mid-session (verified). Mutating the

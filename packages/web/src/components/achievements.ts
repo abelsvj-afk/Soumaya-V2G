@@ -71,6 +71,28 @@ export const ACHIEVEMENTS: Achievement[] = [
   // (First memory / first link / star class / 365 count / all-sectors all live in
   // the CODEX as discoveries now — they were double-rewarded here.)
   {
+    id: "galaxy_reader",
+    name: "Galaxy Reader",
+    icon: "🗺️",
+    desc: "Explored memories across 6+ types — you can read your galaxy at a glance.",
+    test: () => {
+      try {
+        const seen = JSON.parse(localStorage.getItem(`stat.types_seen.${statsSpaceId()}`) || "[]");
+        return Array.isArray(seen) && seen.length >= 6;
+      } catch {
+        return false;
+      }
+    },
+    progress: () => {
+      try {
+        const seen = JSON.parse(localStorage.getItem(`stat.types_seen.${statsSpaceId()}`) || "[]");
+        return { cur: Math.min(Array.isArray(seen) ? seen.length : 0, 6), target: 6 };
+      } catch {
+        return { cur: 0, target: 6 };
+      }
+    },
+  },
+  {
     id: "connector",
     name: "Connector",
     icon: "🕸️",
