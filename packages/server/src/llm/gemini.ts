@@ -180,7 +180,14 @@ export class GeminiProvider implements LlmProvider {
     this.ai = new GoogleGenAI({ apiKey });
   }
 
-  private async json<T>(systemInstruction: string, prompt: string, schema: object): Promise<T> {
+  private async json<T>(
+    systemInstruction: string,
+    prompt: string,
+    schema: object,
+    // Chat runs HOT so her phrasing varies turn to turn (low temp made every
+    // reply the same shape). Structured jobs (extraction/linking) stay cold.
+    temperature = 0.2,
+  ): Promise<T> {
     const res = await this.ai.models.generateContent({
       model: MODEL,
       contents: prompt,
@@ -188,7 +195,7 @@ export class GeminiProvider implements LlmProvider {
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema: schema,
-        temperature: 0.2,
+        temperature,
       },
     });
     // Feed the budget meter — without this the deployment's USD cap never trips.
@@ -269,6 +276,7 @@ export class GeminiProvider implements LlmProvider {
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
       buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked),
       answerSchema,
+      0.85, // conversational warmth + variety
     );
     return {
       answer: raw.answer ?? "",

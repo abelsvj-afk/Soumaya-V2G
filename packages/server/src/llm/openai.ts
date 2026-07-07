@@ -59,7 +59,7 @@ export class OpenAiProvider implements LlmProvider {
     private recordUsage?: (model: string, inputTokens: number, outputTokens: number) => void,
   ) {}
 
-  private async json<T>(system: string, user: string, schema: object, name: string): Promise<T> {
+  private async json<T>(system: string, user: string, schema: object, name: string, temperature = 0.2): Promise<T> {
     const res = await fetch(ENDPOINT, {
       method: "POST",
       headers: {
@@ -68,7 +68,8 @@ export class OpenAiProvider implements LlmProvider {
       },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.2,
+        // Chat runs HOT for varied, human phrasing; structured jobs stay cold.
+        temperature,
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -239,6 +240,7 @@ export class OpenAiProvider implements LlmProvider {
       buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked),
       schema,
       "answer",
+      0.85, // conversational warmth + variety
     );
     return {
       answer: raw.answer ?? "",
