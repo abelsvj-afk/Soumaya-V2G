@@ -105,6 +105,7 @@ const answerSchema = {
       enum: ["happy", "excited", "warm", "thoughtful", "concerned", "sad", "neutral"],
     },
     askBack: { type: Type.STRING },
+    usedRoles: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
   required: ["answer", "citations", "mood"],
 };
@@ -283,6 +284,7 @@ export class GeminiProvider implements LlmProvider {
       citations: Array.isArray(raw.citations) ? raw.citations : [],
       mood: typeof raw.mood === "string" ? raw.mood : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
+      usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
     };
   }
 

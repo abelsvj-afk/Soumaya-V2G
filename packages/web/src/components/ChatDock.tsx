@@ -389,7 +389,7 @@ export function ChatDock({
                 </div>
               )}
               {m.applied && m.applied.length > 0 && (
-                <div className="chatdock-applied" title="The Companion config that shaped this reply (edit via 🎭)">
+                <div className="chatdock-applied" title="The role(s) she adopted for THIS reply (she picks what fits — edit via 🎭)">
                   {m.applied.map((a) => (
                     <span key={a} className="chatdock-applied-chip">
                       {a}

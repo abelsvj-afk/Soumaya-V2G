@@ -29,6 +29,9 @@ export const DEFAULT_CHAT: ChatOptions = { k: 6, depth: 1, kDocs: 4 };
 
 /** Min similarity for an 'auto' instruction profile to be intent-routed in. */
 const AUTO_PROFILE_THRESHOLD = 0.35;
+/** A knowledge-doc chunk must be at least this related to the message to be
+ *  injected — otherwise docs leak into every reply regardless of topic. */
+const KNOWLEDGE_THRESHOLD = 0.3;
 
 /**
  * GraphRAG: embed the question -> KNN seeds -> expand neighborhoods via recursive
@@ -68,15 +71,21 @@ export async function chat(
   }));
 
   // --- AI Companion layers (reuse the single question embedding `vec`) ---
-  // Knowledge-document RAG.
+  // Knowledge-document RAG. RELEVANCE-GATED: only chunks genuinely related to the
+  // message are injected, so knowledge docs stop bleeding into every reply when
+  // they have nothing to do with the topic.
   const knowledgeRepo = new KnowledgeRepo(h, spaceId);
-  const docHits = knnDocs(h.sqlite, vec, opts.kDocs, spaceId);
+  const docHits = knnDocs(h.sqlite, vec, opts.kDocs, spaceId).filter(
+    (d) => d.similarity >= KNOWLEDGE_THRESHOLD,
+  );
   const chunks = knowledgeRepo.chunksByIds(docHits.map((d) => d.chunkId));
   const knowledge =
     chunks.length > 0 ? chunks.map((c) => `[${c.docName}] ${c.content}`).join("\n\n") : undefined;
 
-  // Layer 2: blend active instruction profiles. 'always' profiles always apply;
-  // 'auto' profiles are intent-routed by semantic similarity to the question.
+  // Layer 2: the user's custom instruction profiles are AVAILABLE MODES she may
+  // adopt — 'always' are candidates every turn, 'auto' are intent-routed in — but
+  // she picks the one(s) that FIT the current message (see the prompt), rather
+  // than cramming every active role into every reply.
   const active = new InstructionProfilesRepo(h, spaceId).listActive();
   let routedAuto = new Set<number>();
   if (active.some((p) => p.mode === "auto")) {
@@ -181,9 +190,13 @@ Use this telemetry to guide the user! For example:
   if (behavior) systemExtra += `\n\n${behavior}`;
   if (chosen.length > 0) {
     systemExtra +=
-      "\n\nACTIVE CUSTOM INSTRUCTIONS — the user configured these roles for you ON PURPOSE. " +
-      "They MUST visibly shape this reply (tone, focus, method), highest priority first. " +
-      "Do not fall back to your generic voice while any of these are active:\n" +
+      "\n\nAVAILABLE MODES — the user configured these custom roles/goal-sets for you. " +
+      "Adopt the ONE (or few) that genuinely FIT what they just said, and fully commit " +
+      "to it when you do (its tone, focus, method — e.g. if they invoke an 'IQ test' role, " +
+      "actually run it). Do NOT cram every mode into every reply, and do NOT name-drop or " +
+      "reference a role that doesn't fit the current message — if none fit, just be yourself. " +
+      "In `usedRoles`, list the exact name(s) of any role you actually applied this turn " +
+      "(empty if none):\n" +
       chosen.map((p, i) => `${i + 1}. ${p.name}: ${p.body}`).join("\n\n");
   }
 
@@ -239,10 +252,12 @@ Use this telemetry to guide the user! For example:
   const validMood = (CHAT_MOODS as readonly string[]).includes(mood ?? "")
     ? (mood as ChatMood)
     : undefined;
-  // Surface WHICH Companion config shaped this reply — users couldn't tell their
-  // custom roles / knowledge docs were being applied at all.
-  const appliedRoles = chosen.map((p) => p.name);
-  const appliedDocs = [...new Set(chunks.map((c) => c.docName))];
+  // HONEST applied chips: only the roles she ACTUALLY adopted this turn (from her
+  // own report), not every active profile — so the chips stop implying she used
+  // all of them on every reply. Fall back to none if she reported nothing.
+  const activeNames = new Set(chosen.map((p) => p.name));
+  const appliedRoles = (raw.usedRoles ?? []).filter((n) => activeNames.has(n));
+  const appliedDocs = [...new Set(chunks.map((c) => c.docName))]; // already relevance-gated
   return {
     answer,
     citations: validCitations,

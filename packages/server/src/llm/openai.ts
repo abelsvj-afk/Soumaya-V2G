@@ -232,8 +232,9 @@ export class OpenAiProvider implements LlmProvider {
           enum: ["happy", "excited", "warm", "thoughtful", "concerned", "sad", "neutral"],
         },
         askBack: { type: "string" },
+        usedRoles: { type: "array", items: { type: "string" } },
       },
-      required: ["answer", "citations", "mood", "askBack"],
+      required: ["answer", "citations", "mood", "askBack", "usedRoles"],
     };
     const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
@@ -247,6 +248,7 @@ export class OpenAiProvider implements LlmProvider {
       citations: Array.isArray(raw.citations) ? raw.citations : [],
       mood: typeof raw.mood === "string" ? raw.mood : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
+      usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
     };
   }
 

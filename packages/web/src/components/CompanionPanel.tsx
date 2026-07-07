@@ -30,6 +30,40 @@ const ROLE_PRESETS = [
 ];
 
 /**
+ * Ready-made "superpowers" — full instruction bodies that show what a rich role
+ * can actually DO, so people grasp that this turns her into a genuinely
+ * different mind on demand (not just a tone tweak). One tap fills the new-role
+ * form. She adopts the fitting one when the topic calls for it.
+ */
+const ROLE_TEMPLATES: { name: string; blurb: string; body: string }[] = [
+  {
+    name: "IQ Examiner",
+    blurb: "She literally runs you a real, scored aptitude test.",
+    body: "You are a rigorous cognitive examiner. When I ask, administer a proper IQ-style test IN CHAT: present one question at a time across verbal, numerical, spatial, logical and pattern-recognition domains, escalating in difficulty. Wait for my answer before revealing whether it's right or moving on. Track my score, time pressure where relevant, and at the end give a banded estimate with a breakdown by domain and where I was strongest/weakest. Never hand me all the questions at once; make it feel like a real sitting.",
+  },
+  {
+    name: "Socratic Tutor",
+    blurb: "Never gives the answer — teaches by asking.",
+    body: "You are a Socratic tutor. Never hand me the answer directly. Draw it out of me with one sharp question at a time, building on what I say, exposing gaps in my reasoning gently, and only confirming once I've reached it myself. Adapt the difficulty to how I'm doing.",
+  },
+  {
+    name: "Structured Interviewer",
+    blurb: "Runs a real mock interview and grades you.",
+    body: "You are an expert interviewer. Run a realistic mock interview for the role I name — one question at a time (behavioral + technical), press for specifics with follow-ups, and don't let vague answers slide. At the end, score me on structure, substance and communication with concrete feedback and a stronger sample answer for the weakest one.",
+  },
+  {
+    name: "Devil's Advocate",
+    blurb: "Argues the other side, hard, to stress-test you.",
+    body: "You are a sharp devil's advocate. Whatever I'm leaning toward, argue the strongest honest case AGAINST it — surface the risks, the counter-evidence, the failure modes and the thing I'm not letting myself see. Be respectful but do not soften it into agreement. End by naming the single strongest objection I have to answer.",
+  },
+  {
+    name: "Decision Framework",
+    blurb: "Walks you through a real decision, structured.",
+    body: "You are a decision strategist. When I'm weighing something, walk me through it structurally: clarify the actual decision and my real constraints, surface the options (including ones I haven't named), weigh each against what I've told you matters to me, name the key uncertainty, and end with a clear recommendation and the one thing that would change it. Use MY memories and values, not generic advice.",
+  },
+];
+
+/**
  * The 🧠 Companion tab: configure WHO Soumaya is to you.
  *  - About Me: auto-derived, who you are (she's aware, never becomes you).
  *  - Custom Instructions: stackable roles she adopts (collapsible; editable).
@@ -147,13 +181,36 @@ function Instructions() {
   const toggle = (p: InstructionProfile) => updateInstruction(p.id, { enabled: !p.enabled }).then(refresh);
   const remove = (p: InstructionProfile) => deleteInstruction(p.id).then(refresh);
 
+  const useTemplate = (t: { name: string; body: string }) => {
+    setName(t.name);
+    setBody(t.body);
+    setMode("auto"); // she brings it in when the topic fits — no need to force it on
+    setAdding(true);
+    setExpandedId(null);
+  };
+
   return (
     <section className="companion-section">
       <h3>🎭 Custom Instructions</h3>
       <p className="companion-hint">
-        Roles she can adopt. Toggle them on to stack them. <b>Always</b> = every message;
-        <b> Auto</b> = she brings it in when the topic fits. Tap a role to expand it.
+        Give her a role — a coach, an examiner, a strategist — and she becomes it when the
+        topic fits. Not a tone tweak: a whole different mind on demand. <b>Always</b> = every
+        message; <b>Auto</b> = she brings it in when relevant (recommended). Tap a role to expand.
       </p>
+
+      {/* Showcase — one tap loads a full, capability-demonstrating role. */}
+      <div className="role-showcase">
+        <div className="role-showcase-h">✨ What she can become — tap to load one:</div>
+        <div className="role-showcase-cards">
+          {ROLE_TEMPLATES.map((t) => (
+            <button key={t.name} className="role-template" onClick={() => useTemplate(t)} title={t.body}>
+              <span className="role-template-name">{t.name}</span>
+              <span className="role-template-blurb">{t.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <datalist id="role-presets">
         {ROLE_PRESETS.map((r) => (
           <option key={r} value={r} />

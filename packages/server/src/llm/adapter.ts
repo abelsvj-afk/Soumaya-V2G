@@ -59,6 +59,9 @@ export interface AnswerResult {
   citations: number[];
   mood?: string;
   askBack?: string;
+  /** Names of the custom roles she ACTUALLY adopted this turn (she picks the
+   *  fitting one(s); empty when none applied) — drives the honest applied chips. */
+  usedRoles?: string[];
 }
 
 /**
