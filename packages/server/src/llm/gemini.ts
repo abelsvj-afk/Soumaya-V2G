@@ -13,6 +13,7 @@ import {
   CHRONICLE_SYSTEM,
   PLAN_SYSTEM,
   DISTILL_SYSTEM,
+  CONSOLIDATE_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -24,6 +25,7 @@ import {
   buildChroniclePrompt,
   buildPlanPrompt,
   buildDistillPrompt,
+  buildConsolidatePrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -155,6 +157,15 @@ const distillSchema = {
     summaries: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
   required: ["summaries"],
+};
+
+const consolidateSchema = {
+  type: Type.OBJECT,
+  properties: {
+    belief: { type: Type.STRING },
+    confidence: { type: Type.NUMBER },
+  },
+  required: ["belief", "confidence"],
 };
 
 export class GeminiProvider implements LlmProvider {
@@ -294,6 +305,18 @@ export class GeminiProvider implements LlmProvider {
       logSchema,
     );
     return raw.log;
+  }
+
+  async consolidate(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }> {
+    const raw = await this.json<{ belief: string; confidence: number }>(
+      CONSOLIDATE_SYSTEM,
+      buildConsolidatePrompt(nodes),
+      consolidateSchema,
+    );
+    return {
+      belief: String(raw.belief ?? "").trim(),
+      confidence: typeof raw.confidence === "number" ? raw.confidence : 0.5,
+    };
   }
 
   async chronicle(subject: string, context: string): Promise<string> {

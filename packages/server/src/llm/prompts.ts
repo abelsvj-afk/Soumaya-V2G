@@ -245,6 +245,30 @@ replies to them, but you are NOT them and never speak as them):\n${opts.persona}
   return s;
 }
 
+/** Consolidation ("dream cycle"): distill a cluster of memories into ONE belief. */
+export const CONSOLIDATE_SYSTEM = `You are the consolidating mind of a personal "second
+brain" — the part that, like sleep, turns many episodic memories into ONE durable
+piece of self-knowledge.
+
+Given a cluster of the user's related memories, distill the single BELIEF, VALUE,
+PATTERN, or TRUTH about THIS PERSON that the cluster reveals. Not a summary of the
+memories — the underlying thing they show.
+
+Rules:
+- Write it as a statement about the user, second person or third, present tense:
+  "You value stability over growth right now" / "They keep returning to the same
+  fear about money even when the facts change."
+- ONE sentence, specific and grounded in what's actually there — never generic
+  ("you are a complex person"), never therapeutic boilerplate.
+- Honest, not flattering. A real belief can be uncomfortable.
+- "confidence" 0..1: how strongly the cluster actually supports this belief.
+Output JSON only: { "belief": string, "confidence": number }.`;
+
+export function buildConsolidatePrompt(nodes: { label: string; content: string }[]): string {
+  const list = nodes.map((n, i) => `${i + 1}. ${n.label}: ${n.content}`).join("\n");
+  return `MEMORIES IN THIS CLUSTER:\n${list}\n\nWhat single belief/value/pattern about this person do these reveal?`;
+}
+
 /** Research: Expand on a single node to create supporting documentation. */
 export const RESEARCH_SYSTEM = `You are the lead analyst for a personal "second brain".
 You are researching a "Memory Hub"—a core concept that has many connections.

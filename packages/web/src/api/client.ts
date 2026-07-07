@@ -713,6 +713,23 @@ export async function askChat(
   );
 }
 
+/** A belief she's consolidated about you (dream cycles). */
+export interface Belief {
+  id: number;
+  content: string;
+  createdAt: string;
+  evidence: number;
+}
+export async function getBeliefs(): Promise<Belief[]> {
+  try {
+    const res = await afetch(`${API}/digest/beliefs`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Acknowledge a due reminder (clears remind_at so it stops re-surfacing). */
 export async function ackReminder(id: number): Promise<boolean> {
   try {

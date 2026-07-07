@@ -2,10 +2,11 @@ import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
 import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
-import { selectJob, executeJob } from "./maintenance/agent.js";
+import { selectJob, executeJob, researchEnabled } from "./maintenance/agent.js";
 import { evolveLore } from "./lore/engine.js";
 import { refreshPersona } from "./persona/derive.js";
 import { reconcileConstellations } from "./analysis/constellationReconcile.js";
+import { runDreamCycle } from "./analysis/dreamCycle.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -134,6 +135,32 @@ if (process.env.AUTONOMY !== "off") {
           reconcileConstellations(ctx.handle, spaceId);
         } catch (e) {
           console.error("[autonomy] constellation reconcile failed:", e);
+        }
+        // Dream cycle (Level 2): once per UTC day per brain, consolidate the densest
+        // cluster into a durable belief. LLM when Research Mode + budget allow (counts
+        // toward the paid ceiling); otherwise a free offline template. Additive-only.
+        try {
+          const today = new Date().toISOString().slice(0, 10);
+          const dreamt = ctx.handle.sqlite
+            .prepare(`SELECT last_dream_date FROM space_meta WHERE space_id = ?`)
+            .get(spaceId) as { last_dream_date: string | null } | undefined;
+          if (dreamt?.last_dream_date !== today) {
+            const canPay =
+              researchEnabled(ctx, spaceId) && !ctx.usage.overBudget() && paidThisTick < MAX_PAID_PER_TICK;
+            const beliefId = await runDreamCycle(ctx, spaceId, canPay);
+            if (beliefId != null) {
+              if (canPay) paidThisTick++;
+              ctx.handle.sqlite
+                .prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`)
+                .run(spaceId);
+              ctx.handle.sqlite
+                .prepare(`UPDATE space_meta SET last_dream_date = ? WHERE space_id = ?`)
+                .run(today, spaceId);
+              console.log(`[autonomy] ${spaceId.slice(0, 8)}: dreamed belief #${beliefId}`);
+            }
+          }
+        } catch (e) {
+          console.error("[autonomy] dream cycle failed:", e);
         }
         const job = await selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback

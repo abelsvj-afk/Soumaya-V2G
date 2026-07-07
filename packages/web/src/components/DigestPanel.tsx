@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, getBeliefs, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog, type Belief } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 
@@ -43,6 +43,7 @@ export function DigestPanel({
   // Captain's Log lives here (moved from the Soumaya tab): it's her narrative
   // read on the day — the same job as the daily digest, so they read together.
   const [dailyLog, setDailyLog] = useState<DailyLog | null>(null);
+  const [beliefs, setBeliefs] = useState<Belief[]>([]);
   const [busy, setBusy] = useState(false);
   const [showAllInsights, setShowAllInsights] = useState(false);
 
@@ -105,6 +106,9 @@ export function DigestPanel({
     getDailyLog()
       .then((dl) => dl && setDailyLog(dl))
       .catch(() => {});
+    getBeliefs()
+      .then(setBeliefs)
+      .catch(() => {});
   }, []);
 
   async function run() {
@@ -138,6 +142,29 @@ export function DigestPanel({
 
   return (
     <div className="dock-body">
+      {/* What she believes about you — consolidated from clusters (dream cycles). */}
+      {beliefs.length > 0 && (
+        <section className="beliefs-section" style={{ marginBottom: "16px" }}>
+          <h3>🖤 What she believes about you</h3>
+          <p className="empty small" style={{ marginTop: "-4px" }}>
+            Durable understanding she's distilled from clusters of your memories — it deepens as you grow.
+          </p>
+          <ul className="beliefs-list">
+            {beliefs.map((b) => (
+              <li
+                key={b.id}
+                className="belief-card"
+                onClick={() => onFocus(b.id)}
+                title="Fly to this belief and its evidence"
+              >
+                <span className="belief-text">{b.content}</span>
+                <span className="belief-evi">from {b.evidence} {b.evidence === 1 ? "memory" : "memories"}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* Captain's Log — her once-a-day narrative entry (autonomous daily_log job). */}
       {dailyLog && (
         <div className="daily-log" style={{ marginBottom: "16px", padding: "1rem", backgroundColor: "rgba(100, 200, 255, 0.05)", borderLeft: "3px solid rgba(100, 200, 255, 0.5)", borderRadius: "0 4px 4px 0" }}>

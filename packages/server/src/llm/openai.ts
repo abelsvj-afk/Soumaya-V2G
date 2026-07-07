@@ -12,6 +12,7 @@ import {
   CHRONICLE_SYSTEM,
   PLAN_SYSTEM,
   DISTILL_SYSTEM,
+  CONSOLIDATE_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -23,6 +24,7 @@ import {
   buildChroniclePrompt,
   buildPlanPrompt,
   buildDistillPrompt,
+  buildConsolidatePrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -313,6 +315,24 @@ export class OpenAiProvider implements LlmProvider {
       "chronicle",
     );
     return raw.lore;
+  }
+
+  async consolidate(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }> {
+    const raw = await this.json<{ belief: string; confidence: number }>(
+      CONSOLIDATE_SYSTEM,
+      buildConsolidatePrompt(nodes),
+      {
+        type: "object",
+        properties: { belief: { type: "string" }, confidence: { type: "number" } },
+        required: ["belief", "confidence"],
+        additionalProperties: false,
+      },
+      "consolidate",
+    );
+    return {
+      belief: String(raw.belief ?? "").trim(),
+      confidence: typeof raw.confidence === "number" ? raw.confidence : 0.5,
+    };
   }
 
   async planJob(summary: string, options: { type: string; objective: string }[]): Promise<number> {

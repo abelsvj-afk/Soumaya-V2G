@@ -21,6 +21,22 @@ export function digestRoutes(ctx: AppContext): Router {
     res.json(new InsightsRepo(ctx.handle, spaceOf(res)).recent());
   });
 
+  // GET /api/digest/beliefs -> what she's consolidated about you (dream cycles).
+  // Newest first; each carries its member (evidence) count.
+  r.get("/beliefs", (_req, res) => {
+    const spaceId = spaceOf(res);
+    const rows = ctx.handle.sqlite
+      .prepare(
+        `SELECT n.id, n.content, n.created_at AS createdAt,
+           (SELECT COUNT(*) FROM edges e WHERE e.space_id = n.space_id AND e.source = n.id AND e.relationship = 'summarizes') AS evidence
+         FROM nodes n
+         WHERE n.space_id = ? AND n.kind = 'belief' AND n.deleted_at IS NULL
+         ORDER BY n.id DESC LIMIT 12`,
+      )
+      .all(spaceId) as { id: number; content: string; createdAt: string; evidence: number }[];
+    res.json(rows);
+  });
+
   // GET /api/digest/daily -> Soumaya's daily digest (free, no LLM call)
   r.get("/daily", (_req, res) => {
     res.json(buildDailyDigest(ctx.handle, spaceOf(res)));
