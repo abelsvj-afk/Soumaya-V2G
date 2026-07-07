@@ -128,8 +128,10 @@ export interface GraphNode {
   celestial?: import("./celestial.js").CelestialClass;
   /** react-force-graph node size hint (mirrors mass). */
   val?: number;
-  /** "action" = a transient to-do; "moc" = a constellation hub; else a normal memory. */
-  kind?: "memory" | "action" | "moc";
+  /** "action" = a transient to-do; "moc" = a constellation hub; "belief" = a
+   *  consolidated understanding she distilled from a cluster (dream cycles);
+   *  else a normal memory. */
+  kind?: "memory" | "action" | "moc" | "belief";
   /** For a `moc` hub: how many member memories it consolidates (enriched on read). */
   memberCount?: number;
   /** ISO timestamp when an action item times out (only for kind === "action"). */

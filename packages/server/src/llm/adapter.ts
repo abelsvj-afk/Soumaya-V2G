@@ -47,6 +47,9 @@ export interface AnswerOptions {
   /** Recent conversation turns, pre-formatted ("User: …\nSoumaya: …") — WITHOUT
    *  this every reply is an amnesiac one-shot, which read as "generic chatbot". */
   history?: string;
+  /** True when her PREVIOUS turn already ended in a question — hard-forces no
+   *  askBack this turn so she can't interrogate the user in a loop. */
+  justAsked?: boolean;
 }
 
 /** Structured chat reply: the answer plus its emotional register and (optionally)
@@ -107,6 +110,10 @@ export interface LlmProvider {
   /** Optional: distill a finished conversation into 0–3 memory-worthy notes. Absent
    *  on heuristic → the caller falls back to a simple extraction. */
   distill?(transcript: string): Promise<string[]>;
+  /** Optional: consolidate a cluster of related memories into ONE durable belief
+   *  statement about the user (dream cycles). Absent on heuristic → the caller's
+   *  template fallback runs. */
+  consolidate?(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
   generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
 }

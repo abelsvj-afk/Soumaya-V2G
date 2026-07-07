@@ -256,7 +256,7 @@ export class GeminiProvider implements LlmProvider {
   async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {
     const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
-      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history),
+      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked),
       answerSchema,
     );
     return {

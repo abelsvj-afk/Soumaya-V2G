@@ -295,6 +295,20 @@ describe("REST API", () => {
     expect(bad.status).toBe(400);
   });
 
+  it("she never asks two turns in a row (no interrogation loop)", async () => {
+    // Her previous turn already ended in a question → this reply MUST NOT ask
+    // again, no matter how heavy/thin the topic (the loop the user hit).
+    const r = await post("/api/chat", {
+      question: "the repossession, losing the house, all of it",
+      history: [
+        { role: "you", text: "everything feels like it's falling apart" },
+        { role: "soumaya", text: "What's the part of this that sits heaviest right now?" },
+      ],
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.askBack ?? "").toBe(""); // suppressed because she just asked
+  });
+
   it("contradiction scan works OFFLINE (provider-aware similarity gate)", async () => {
     // The old flat 0.86 gate was unreachable with hash embeddings (measured
     // ~0.69 for this exact planted pair) — the scan silently found nothing.

@@ -190,6 +190,12 @@ export class ResilientLlmProvider implements LlmProvider {
     return await withTimeout(this.primary.chronicle(subject, context), this.timeoutMs, "chronicle");
   }
 
+  /** Only when the primary supports it; the dream cycle's template is the fallback. */
+  async consolidate(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }> {
+    if (this.blocked || !this.primary.consolidate) throw new Error("consolidate unavailable");
+    return await withTimeout(this.primary.consolidate(nodes), this.timeoutMs, "consolidate");
+  }
+
   /** Only when the primary supports it; the deterministic ladder is the fallback. */
   async planJob(summary: string, options: { type: string; objective: string }[]): Promise<number> {
     if (this.blocked || !this.primary.planJob) throw new Error("planJob unavailable");

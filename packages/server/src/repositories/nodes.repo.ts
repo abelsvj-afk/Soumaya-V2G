@@ -14,7 +14,7 @@ export interface NewNode {
   importance?: number;
   color?: string;
   origin?: "user" | "agent";
-  kind?: "memory" | "action" | "moc";
+  kind?: "memory" | "action" | "moc" | "belief";
   expiresAt?: string;
   occurredAt?: string;
   remindAt?: string;

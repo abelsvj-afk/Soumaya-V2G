@@ -197,13 +197,24 @@ Use this telemetry to guide the user! For example:
     return `${m.role === "you" ? "User" : "Soumaya"}: ${text}`;
   });
 
-  const { answer, citations, mood, askBack } = await deps.llm.answer(question, context, {
+  // Did HER last turn already ask something? Detected from history (robust — no
+  // reliance on the client): if so we HARD-suppress askBack this turn so she can
+  // never interrogate in a loop.
+  const lastSoumaya = [...history].reverse().find((m) => m.role === "soumaya");
+  const justAsked = !!lastSoumaya && lastSoumaya.text.trim().endsWith("?");
+
+  const raw = await deps.llm.answer(question, context, {
     soul: soulText() || undefined,
     systemExtra,
     persona,
     knowledge,
     history: turns.length > 0 ? turns.join("\n") : undefined,
+    justAsked,
   });
+  const { answer, citations, mood } = raw;
+  // Belt to the prompt's rule: if she just asked, drop any askBack she still
+  // produced — she must respond with substance, not another question.
+  const askBack = justAsked ? undefined : raw.askBack;
 
   const refById = new Map<number, NodeRef>(
     ctxNodes.map((n) => [n.id, { id: n.id, label: n.label, type: n.type }]),

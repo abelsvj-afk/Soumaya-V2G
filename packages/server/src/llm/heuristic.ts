@@ -205,10 +205,12 @@ export class HeuristicProvider implements LlmProvider {
         : heavy
           ? "That sounds like it carries real weight, and I don't have memories charted on it yet — I don't want to guess at something that matters."
           : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
-      // Interview instinct (offline flavor): weighty topic + no context → ask, don't bluff.
-      const askBack = heavy
-        ? "Tell me a little more — what's the part of this that sits heaviest right now?"
-        : undefined;
+      // Interview instinct (offline): only when weighty AND she hasn't just asked,
+      // so the offline path can't interrogate in a loop either.
+      const askBack =
+        heavy && !opts?.justAsked
+          ? "Tell me a little more — what's the part of this that sits heaviest right now?"
+          : undefined;
       return { answer: line + kb, citations: [], mood, askBack };
     }
     const top = context.slice(0, 5);
@@ -225,9 +227,9 @@ export class HeuristicProvider implements LlmProvider {
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
       kb +
       `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.${rolesNote})`;
-    // Thin coverage on a weighty topic → one genuine ask-back even offline.
+    // Thin coverage on a weighty topic → one genuine ask-back (never twice running).
     const askBack =
-      heavy && context.length < 3
+      heavy && context.length < 3 && !opts?.justAsked
         ? "What would help most here — talking it through, or charting the facts around it?"
         : undefined;
     return { answer, citations: top.map((c) => c.id), mood, askBack };

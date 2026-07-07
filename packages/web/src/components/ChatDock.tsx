@@ -112,12 +112,20 @@ export function ChatDock({
     if (!q || busy) return;
     setInput("");
     // She sees the recent thread too — this is what makes it a conversation
-    // instead of a series of amnesiac one-shots.
-    const history = messages.slice(-8).map((m) => ({ role: m.role, text: m.text }));
+    // instead of a series of amnesiac one-shots. Fold an ask-back bubble back
+    // INTO its answer turn so the model reads one coherent Soumaya turn (a bare
+    // trailing "?" made it re-ask); the server still detects "just asked".
+    const history: { role: "you" | "soumaya"; text: string }[] = [];
+    for (const m of messages.slice(-9)) {
+      const prev = history[history.length - 1];
+      if (m.ask && prev && prev.role === "soumaya") prev.text = `${prev.text} ${m.text}`;
+      else history.push({ role: m.role, text: m.text });
+    }
+    const trimmed = history.slice(-8);
     setMessages((m) => [...m, { role: "you", text: q }]);
     setBusy(true);
     try {
-      const r = await askChat(q, history);
+      const r = await askChat(q, trimmed);
       const citations = r.citations ?? [];
       // Visibility: which of your Companion roles/docs actually shaped this reply.
       const applied = [
@@ -342,9 +350,10 @@ export function ChatDock({
         <div className="chatdock-msgs" ref={listRef}>
           {messages.length === 0 && (
             <p className="chatdock-empty">
-              Talk to {spaceName} about your galaxy — she answers from your memories and cites them,
-              remembers the thread, and asks back when she needs to understand something better. Tap
-              ＋ on anything worth keeping. (🎭 shapes who she is to you.)
+              {spaceName} has read your whole galaxy. Think out loud with her — "help me decide…",
+              "what am I missing about…", "what have you noticed lately?" — and she'll connect it to
+              what you've logged, name patterns, and push back when it helps. Tap ＋ to keep anything
+              worth saving. (🎭 shapes who she is to you.)
             </p>
           )}
           {messages.map((m, i) => (
