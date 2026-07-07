@@ -2,6 +2,7 @@ import { type ChatMood, type ChatResponse, type NodeRef, CHAT_MOODS, toneFrom } 
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { knn, knnDocs, knnProfiles } from "../db/vec.js";
+import { keywordSearch, fuseRrf } from "../db/fts.js";
 import { multiHopNeighbors } from "../graph/traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InstructionProfilesRepo } from "../repositories/instructions.repo.js";
@@ -44,12 +45,17 @@ export async function chat(
   history: { role: "you" | "soumaya"; text: string }[] = [],
 ): Promise<ChatResponse> {
   const vec = await deps.embeddings.embed(question);
-  const seeds = knn(h.sqlite, vec, opts.k, spaceId);
+  // Hybrid seeds: vector KNN fused with BM25 keyword hits (RRF) — questions that
+  // name a person/place/thing verbatim now reliably pull the right memories even
+  // when the embedding misses them.
+  const vecSeeds = knn(h.sqlite, vec, opts.k, spaceId);
+  const kwSeeds = keywordSearch(h.sqlite, spaceId, question, opts.k);
+  const seedIds = fuseRrf(vecSeeds, kwSeeds, opts.k);
 
   const ids = new Set<number>();
-  for (const s of seeds) {
-    ids.add(s.nodeId);
-    for (const hop of multiHopNeighbors(h.sqlite, s.nodeId, opts.depth)) ids.add(hop.nodeId);
+  for (const sid of seedIds) {
+    ids.add(sid);
+    for (const hop of multiHopNeighbors(h.sqlite, sid, opts.depth)) ids.add(hop.nodeId);
   }
 
   const nodesRepo = new NodesRepo(h, spaceId);

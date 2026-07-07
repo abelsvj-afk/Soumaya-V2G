@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import type { AppContext } from "../../context.js";
 import { insights, nodes } from "../../db/schema.js";
 import { upsertEmbedding } from "../../db/vec.js";
+import { ftsUpsert } from "../../db/fts.js";
 import { GraphService } from "../../graph/service.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { AttachmentsRepo } from "../../repositories/attachments.repo.js";
@@ -183,6 +184,7 @@ export function nodesRoutes(ctx: AppContext): Router {
             .where(and(eq(nodes.id, id), eq(nodes.spaceId, spaceId)))
             .run();
           upsertEmbedding(ctx.handle.sqlite, id, await ctx.embeddings.embed(expandedContent));
+          ftsUpsert(ctx.handle.sqlite, id, research.label || node.label, expandedContent);
         }
       }
     } catch (err) {
@@ -332,6 +334,7 @@ export function nodesRoutes(ctx: AppContext): Router {
         .run();
 
       upsertEmbedding(ctx.handle.sqlite, id, await ctx.embeddings.embed(expandedContent));
+      ftsUpsert(ctx.handle.sqlite, id, node.label, expandedContent);
       nodesRepo.tend(id);
 
       const updatedNode = graphFor(res).getNode(id);

@@ -3,6 +3,7 @@ import type { GraphNode, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { nodes, DEFAULT_SPACE, type NodeRow } from "../db/schema.js";
 import { upsertEmbedding, deleteEmbedding } from "../db/vec.js";
+import { ftsUpsert, ftsDelete } from "../db/fts.js";
 
 export interface NewNode {
   label: string;
@@ -101,6 +102,7 @@ export class NodesRepo {
         .returning()
         .get();
       upsertEmbedding(this.h.sqlite, row.id, embedding);
+      ftsUpsert(this.h.sqlite, row.id, row.label, row.content);
       return row;
     });
     return toGraphNode(tx());
@@ -123,6 +125,7 @@ export class NodesRepo {
       )
       .run(mergedIntoId, id, this.spaceId);
     deleteEmbedding(this.h.sqlite, id); // drop from KNN/redundancy index
+    ftsDelete(this.h.sqlite, id);
     return info.changes > 0;
   }
 
@@ -150,6 +153,7 @@ export class NodesRepo {
       // Drop attached files too, so deleting a memory can't orphan multi-MB blobs.
       this.h.sqlite.prepare(`DELETE FROM attachments WHERE node_id = ?`).run(id);
       deleteEmbedding(this.h.sqlite, id);
+      ftsDelete(this.h.sqlite, id);
       const info = this.h.sqlite.prepare(`DELETE FROM nodes WHERE id = ?`).run(id);
       return info.changes > 0;
     });

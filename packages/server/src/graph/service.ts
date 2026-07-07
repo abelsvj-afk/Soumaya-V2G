@@ -4,6 +4,7 @@ import { DEFAULT_SPACE } from "../db/schema.js";
 import { heuristicImportance } from "../llm/heuristic.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
 import { knn } from "../db/vec.js";
+import { keywordSearch, fuseRrf } from "../db/fts.js";
 import { multiHopNeighbors } from "./traversal.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
@@ -132,15 +133,23 @@ export class GraphService {
     return { nodes: this.enrich(this.nodes.byIds(ids)), links: this.edges.within(ids) };
   }
 
-  /** Semantic search: embed query -> KNN -> nodes with similarity scores. */
+  /**
+   * HYBRID search: semantic KNN fused with BM25 keyword hits via Reciprocal Rank
+   * Fusion. Embeddings alone missed exact names/keywords (badly so under the
+   * offline hash provider); BM25 alone misses paraphrase. Fused order wins.
+   */
   async search(embeddings: EmbeddingProvider, query: string, k = 10): Promise<SearchHit[]> {
     const vec = await embeddings.embed(query);
-    const hits = knn(this.h.sqlite, vec, k, this.spaceId);
-    const byId = new Map(this.nodes.byIds(hits.map((hp) => hp.nodeId)).map((n) => [n.id, n]));
-    return hits
-      .map((hit) => {
-        const node = byId.get(hit.nodeId);
-        return node ? { ...node, similarity: hit.similarity } : undefined;
+    const vecHits = knn(this.h.sqlite, vec, k, this.spaceId);
+    const kwHits = keywordSearch(this.h.sqlite, this.spaceId, query, k);
+    const simById = new Map(vecHits.map((h) => [h.nodeId, h.similarity]));
+    const ordered = fuseRrf(vecHits, kwHits, k);
+    const byId = new Map(this.nodes.byIds(ordered).map((n) => [n.id, n]));
+    return ordered
+      .map((id) => {
+        const node = byId.get(id);
+        // Keyword-only hits carry no cosine — surface them with a neutral score.
+        return node ? { ...node, similarity: simById.get(id) ?? 0.5 } : undefined;
       })
       .filter((x): x is SearchHit => x !== undefined);
   }

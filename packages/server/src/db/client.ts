@@ -3,6 +3,7 @@ import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3"
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "./schema.js";
 import { bootstrapVec, type RawDb } from "./vec.js";
+import { bootstrapFts } from "./fts.js";
 
 export type Schema = typeof schema;
 export type Db = BetterSQLite3Database<Schema>;
@@ -340,6 +341,7 @@ export function createDb(path: string = process.env.DB_PATH ?? "./brain.db"): Db
   bootstrapSchema(sqlite);
   migrateSchema(sqlite);
   bootstrapVec(sqlite);
+  bootstrapFts(sqlite);
   const db = drizzle(sqlite, { schema });
   return { db, sqlite };
 }

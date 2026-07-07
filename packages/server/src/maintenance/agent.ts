@@ -10,6 +10,7 @@ import { GraphService } from "../graph/service.js";
 import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../db/schema.js";
 import { upsertEmbedding, getEmbedding, knn } from "../db/vec.js";
+import { ftsUpsert } from "../db/fts.js";
 
 /**
  * Soumaya's maintenance brain, extracted from the HTTP route so BOTH the
@@ -622,6 +623,7 @@ export async function executeJob(
           .where(and(eq(nodes.id, original.id), eq(nodes.spaceId, spaceId)))
           .run();
         upsertEmbedding(ctx.handle.sqlite, original.id, await ctx.embeddings.embed(expandedContent));
+        ftsUpsert(ctx.handle.sqlite, original.id, research.label || original.label, expandedContent);
         nodesRepo.tend(original.id);
         nodesRepo.setAgent(original.id, "soumaya"); // attribute the deep-dive to her
         description = `Expanded memory hub "${original.label}" with deep-dive research. Node mass increased.`;
@@ -649,6 +651,7 @@ export async function executeJob(
         .where(and(eq(nodes.id, a.id), eq(nodes.spaceId, spaceId)))
         .run();
       upsertEmbedding(ctx.handle.sqlite, a.id, await ctx.embeddings.embed(text));
+      ftsUpsert(ctx.handle.sqlite, a.id, a.label, text);
       // Drop the direct a–b edges FIRST (rerouting would turn them into a–a self-loops).
       ctx.handle.sqlite
         .prepare(
@@ -698,6 +701,7 @@ export async function executeJob(
         .set({ content: `${center.content}\n\n--- Sector Vibe ---\n${vibe}` })
         .where(and(eq(nodes.id, center.id), eq(nodes.spaceId, spaceId)))
         .run();
+      ftsUpsert(ctx.handle.sqlite, center.id, center.label, `${center.content}\n\n--- Sector Vibe ---\n${vibe}`);
       nodesRepo.tend(center.id);
       description = `Charted sector vibe around "${center.label}": ${vibe}`;
     }
