@@ -1,4 +1,4 @@
-import type { RawDb } from "./client.js";
+import type { RawDb } from "./vec.js";
 
 /**
  * Keyword retrieval beside the vector index (Level 2, B1). Embeddings miss exact
