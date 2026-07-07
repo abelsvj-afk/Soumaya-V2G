@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-04 (Claude): Level 2 (she gets wiser) + chat loop fix — spec docs/LEVEL2_INTELLIGENCE.md
+- **Chat fix**: interview instinct had no brake → she asked every turn and her own
+  question echoed back in history, looping. Now `justAsked` is detected server-side
+  (last turn ended in "?") and HARD-suppresses another ask; ANSWER_SYSTEM rewritten
+  around a PURPOSE (make you see something: connect/notice/push-back/decide), questions
+  rare + earned. Client folds ask-bubbles into their answer turn in history.
+- **B1 Hybrid retrieval** (`db/fts.ts`): FTS5 keyword index beside vectors, fused via
+  RRF; adopted in search + chat seeds. Exact names/keywords now recalled (hash
+  embeddings missed them).
+- **B2 Dream cycles** (`analysis/dreamCycle.ts`): once/day/space she consolidates the
+  densest cluster into a `kind:"belief"` node that `summarizes` its evidence — durable
+  self-knowledge that compounds. Revise-not-duplicate (prior text → lore chapter);
+  beliefs render indigo, entropy-exempt; "What she believes about you" atop Insights;
+  `llm.consolidate` seam (gemini+openai) + offline template.
+- **B3 Foresight** (`analysis/foresight.ts`): deterministic recurring-negative detector
+  (monthly/weekday) → "She sees a pattern coming" on the Observatory + folded into the
+  behavioral read so chat leans in during a predicted window.
+- **B4 Undertakings** (`analysis/undertakings.ts`): 5-day autonomy arcs (warm cold belt
+  / chart sector / weave frontier), progress derived from elapsed days (tick-idempotent),
+  progress card in the Soumaya tab. 164 tests.
+
 ### 2026-07-03 (Claude): Behavioral persona + perf/dedupe sweep (`c7d1d53`, `7cd2884`, `1d967f9`)
 - **Behavioral persona deepening** (`persona/behavior.ts`): live read of last-7d vs the user's
   own month baseline — emotional trend, volatility, writing rhythm, focus shift, tender ground,
