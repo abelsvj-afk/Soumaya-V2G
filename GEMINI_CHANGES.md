@@ -165,6 +165,25 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-05 (Claude): Chat authenticity, legibility pass, custom-instruction power, OpenAI-first
+- **Chat authenticity**: every reply used the same insight-paragraph template. Root causes fixed:
+  the prompt said "lead with the insight" every turn (rewrote to TALK LIKE A REAL BACK-AND-FORTH —
+  mirror length/energy, vary openings, banned stock framings, brevity default, insight only when it
+  fits); and every call ran at temperature 0.2 (answer() now 0.85, structured jobs stay 0.2).
+- **OpenAI first precedence**: an OpenAI key now wins even over a stale LLM_PROVIDER=gemini secret.
+- **Living Legend** (`components/Legend.tsx`, 🗺️ FAB): glanceable visual key to the galaxy's whole
+  language (type colours, body sizes, special bodies, emotion links, fleet), auto-shows once/brain.
+  DERIVED from runtime constants so it can't drift; new single-source colours in @brain/shared
+  (SPECIAL_COLORS, EMOTION_COLORS, CELESTIAL_MEANING) used by server render + web theme.
+- **Legibility pass**: inline "why this size" + belief/constellation chips in NodeInspector; ambient
+  self-insight HUD pill (foresight/newest belief → Insights); "Galaxy Reader" award for navigating
+  6+ types.
+- **Custom instructions**: she was forcing every active role + doc into every reply. Now selective —
+  prompt picks the fitting role(s), reports `usedRoles`, applied chips show only what she used;
+  knowledge docs relevance-gated (0.3). Plus ROLE_TEMPLATES showcase (IQ Examiner that runs a real
+  scored test in chat, Socratic Tutor, Interviewer, Devil's Advocate, Decision Framework) so people
+  grasp a role = a different mind on demand. 164 tests.
+
 ### 2026-07-04 (Claude): Level 2 (she gets wiser) + chat loop fix — spec docs/LEVEL2_INTELLIGENCE.md
 - **Chat fix**: interview instinct had no brake → she asked every turn and her own
   question echoed back in history, looping. Now `justAsked` is detected server-side
