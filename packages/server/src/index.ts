@@ -9,6 +9,7 @@ import { reconcileConstellations } from "./analysis/constellationReconcile.js";
 import { runDreamCycle } from "./analysis/dreamCycle.js";
 import { stepUndertaking } from "./analysis/undertakings.js";
 import { applyCognitiveGravity } from "./analysis/cognitive.js";
+import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -171,6 +172,17 @@ if (process.env.AUTONOMY !== "off") {
           applyCognitiveGravity(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
+        }
+        // Working Memory (Cognitive Layer Phase 2): decay the mind space — evaporate
+        // spent thought-motes and consolidate the ones that kept coming back into
+        // real memories. Free/offline (promotion only embeds locally).
+        try {
+          const wm = await sweepWorkingMemory(ctx, spaceId);
+          if (wm.promoted > 0) {
+            console.log(`[autonomy] ${spaceId.slice(0, 8)}: consolidated ${wm.promoted} thought(s)`);
+          }
+        } catch (e) {
+          console.error("[autonomy] working-memory sweep failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

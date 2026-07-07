@@ -52,8 +52,9 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     expect(all.length).toBe(2);
     const goals = listCognitive(ctx, "legacy", "goal");
     expect(goals.length).toBe(1);
-    expect(goals[0].label).toBe("Goal A");
-    expect(goals[0].degree).toBe(0);
+    const first = goals[0]!;
+    expect(first.label).toBe("Goal A");
+    expect(first.degree).toBe(0);
   });
 
   it("clamps progress to 0..1 and returns false for a missing id", async () => {

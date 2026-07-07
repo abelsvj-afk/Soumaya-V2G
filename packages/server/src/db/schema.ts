@@ -257,6 +257,30 @@ export const spaces = sqliteTable("spaces", {
     .default(sql`CURRENT_TIMESTAMP`),
 });
 
+/**
+ * Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" — what you
+ * are thinking NOW. Thought-motes decay unless reinforced; survivors are
+ * consolidated into the permanent galaxy as real nodes (and the mote removed).
+ * Kept SEPARATE from `nodes` so it never enters the galaxy until promoted.
+ */
+export const workingMemory = sqliteTable(
+  "working_memory",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    text: text("text").notNull(),
+    // Where the thought came from: 'manual' | 'chat' | 'goal' | 'priority' | 'emotion'.
+    source: text("source").notNull().default("manual"),
+    // 0..1 charge at `reinforcedAt`; effective strength decays with elapsed time.
+    strength: real("strength").notNull().default(0.6),
+    reinforceCount: integer("reinforce_count").notNull().default(0),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    reinforcedAt: text("reinforced_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("working_memory_space_idx").on(t.spaceId)],
+);
+export type WorkingMemoryRow = typeof workingMemory.$inferSelect;
+
 export type NodeRow = typeof nodes.$inferSelect;
 export type EdgeRow = typeof edges.$inferSelect;
 export type InsightRow = typeof insights.$inferSelect;

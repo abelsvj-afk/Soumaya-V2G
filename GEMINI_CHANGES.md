@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **171 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **181 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,32 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 2 (Working Memory / the mind space)
+- **The flagship omission, filled.** The galaxy modelled long-term memory; it had no model of
+  what you're thinking NOW. Working Memory adds an ephemeral "mind space" of thought-motes that
+  **decay unless reinforced**, and — mimicking short-term → long-term consolidation — the ones you
+  keep returning to are **carried into the permanent galaxy as real memories**.
+- **Deliberately separate from `nodes`**: a new `working_memory` table (additive, idempotent
+  `CREATE TABLE IF NOT EXISTS` in bootstrapSchema; drizzle `workingMemory`) so working memory never
+  pollutes the galaxy until promoted. Space-scoped like every per-user table.
+- **Deterministic, offline decay**: effective strength = `strength − 0.08/hr × hours-since-reinforced`,
+  computed in SQL via `julianday()` (DB-consistent + testable by backdating). Reinforce tops it up
+  (+0.3, cap 1) and resets the clock; 3 reinforcements → auto-consolidate. Only promotion embeds
+  (creates a `type:daily, kind:memory` node) — everything else is LLM-free.
+- **Server**: `analysis/workingMemory.ts` (add/list/reinforce/dismiss/promote/sweep); routes
+  `api/routes/working.ts` (`GET/POST /api/working`, `POST /:id/reinforce`, `POST /:id/promote`,
+  `DELETE /:id`, zod + space-scoped); the free/offline `sweepWorkingMemory` wired into the autonomy
+  loop (evaporates spent motes, consolidates survivors, logs `consolidated`). Soft cap 30 motes/brain.
+- **Web**: a **💭 "Thinking now"** section atop the 🧠 Mind tab (`MindPanel`) — hold a thought, see
+  it glow by strength, ↑ reinforce / ★ consolidate now / × let go; polls so decay stays live. Plus an
+  ambient **Mind Space overlay** (`MindSpace.tsx`) — toggle "✧ Show in space" to float your live
+  thoughts as glowing motes drifting over the galaxy (self-contained, `pointer-events:none`, reads its
+  own localStorage flag via a window event — no prop-drilling). New client funcs; `mind-ws-*` +
+  `mindspace-*` CSS; Help entry.
+- **Tests**: `__tests__/workingMemory.test.ts` (add/list, decay drop-off, sweep evaporation, reinforce
+  top-up, auto-promote at threshold + logged, manual promote, dismiss, missing-id, bound cap, space
+  scoping). Gate: typecheck clean · **181 tests** · web build clean. Spec: docs/COGNITIVE_LAYER.md §Phase 2.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 1 (goals/ideas/skills/identity/… as first-class bodies) — spec docs/COGNITIVE_LAYER.md
 - **The direction, not just the past.** The galaxy modelled memory; it now also models cognition.

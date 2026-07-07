@@ -205,6 +205,22 @@ export function bootstrapSchema(sqlite: RawDb): void {
       PRIMARY KEY (space_id, node_id, visitor_type)
     );
     CREATE INDEX IF NOT EXISTS visitor_stats_space_idx ON visitor_stats(space_id);
+    -- Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" — what
+    -- you're thinking NOW. Thought-motes decay unless reinforced; survivors are
+    -- consolidated into the permanent galaxy (a real node) and the mote is removed.
+    -- Deliberately SEPARATE from the nodes table so working memory never pollutes
+    -- the galaxy until promoted (short-term to long-term consolidation).
+    CREATE TABLE IF NOT EXISTS working_memory (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      text TEXT NOT NULL,
+      source TEXT NOT NULL DEFAULT 'manual',
+      strength REAL NOT NULL DEFAULT 0.6,
+      reinforce_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      reinforced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS working_memory_space_idx ON working_memory(space_id);
   `);
 }
 

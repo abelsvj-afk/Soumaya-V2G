@@ -47,6 +47,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { Legend } from "./components/Legend.js";
+import { MindSpace } from "./components/MindSpace.js";
 import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
@@ -1053,6 +1054,10 @@ export default function App() {
       )}
 
       {showLegend && <Legend onClose={() => setShowLegend(false)} />}
+
+      {/* Ambient Mind Space: live working-memory thoughts drifting over the galaxy
+          (toggled from the 🧠 Mind tab; self-contained + pointer-events:none). */}
+      <MindSpace demo={demo} />
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}

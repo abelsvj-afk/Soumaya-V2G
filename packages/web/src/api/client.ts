@@ -757,6 +757,61 @@ export async function setCognitiveProgress(id: number, value: number): Promise<b
   }
 }
 
+// ── Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" ──────
+export interface Thought {
+  id: number;
+  text: string;
+  source: string;
+  strength: number; // effective (decayed) 0..1
+  reinforceCount: number;
+  createdAt: string;
+}
+export async function getThoughts(): Promise<Thought[]> {
+  try {
+    const res = await afetch(`${API}/working`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+export async function addThought(text: string, source?: string): Promise<{ id: number } | null> {
+  try {
+    const res = await afetch(`${API}/working`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, source }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function reinforceThought(id: number): Promise<{ promotedNodeId: number | null } | null> {
+  try {
+    const res = await afetch(`${API}/working/${id}/reinforce`, { method: "POST" });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function promoteThought(id: number): Promise<{ nodeId: number } | null> {
+  try {
+    const res = await afetch(`${API}/working/${id}/promote`, { method: "POST" });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function dismissThought(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/working/${id}`, { method: "DELETE" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Her current multi-day undertaking (arc), or null. */
 export interface Undertaking {
   id: number;

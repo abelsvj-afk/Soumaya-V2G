@@ -1,8 +1,20 @@
 import { useEffect, useState } from "react";
 import { COGNITIVE_KINDS, COGNITIVE_META, type CognitiveKind } from "@brain/shared";
-import { getCognitive, createCognitive, setCognitiveProgress, type CognitiveItem } from "../api/client.js";
+import {
+  getCognitive,
+  createCognitive,
+  setCognitiveProgress,
+  type CognitiveItem,
+  getThoughts,
+  addThought,
+  reinforceThought,
+  promoteThought,
+  dismissThought,
+  type Thought,
+} from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
+import { mindSpaceEnabled, setMindSpaceEnabled } from "./MindSpace.js";
 
 /**
  * The Mind tab — the COGNITIVE LAYER. Beyond what you've remembered, this is what
@@ -28,10 +40,20 @@ export function MindPanel({
   const [content, setContent] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
+  // Working memory (the mind space): live thoughts you're holding right now.
+  const [thoughts, setThoughts] = useState<Thought[]>([]);
+  const [thought, setThought] = useState("");
+  const [ambient, setAmbient] = useState(mindSpaceEnabled());
 
   const refresh = () => getCognitive().then(setItems).catch(() => {});
+  const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
   useEffect(() => {
-    if (!demo) refresh();
+    if (demo) return;
+    refresh();
+    refreshThoughts();
+    // Thoughts decay server-side; poll gently so the mind space stays live.
+    const t = setInterval(refreshThoughts, 20_000);
+    return () => clearInterval(t);
   }, [demo]);
 
   if (demo) {
@@ -65,6 +87,42 @@ export function MindPanel({
     await setCognitiveProgress(it.id, next);
   };
 
+  // ── Working memory (mind space) handlers ──────────────────────────────────
+  const think = async () => {
+    const text = thought.trim();
+    if (!text) return;
+    setThought("");
+    const r = await addThought(text);
+    if (r) {
+      playSfx("tap");
+      await refreshThoughts();
+    } else {
+      pushToast("Couldn't hold that thought — try again.", "⚠️", 3500);
+    }
+  };
+  const reinforce = async (t: Thought) => {
+    const r = await reinforceThought(t.id);
+    if (r?.promotedNodeId != null) {
+      playSfx("achievement");
+      pushToast(`💭 A recurring thought settled into memory`, "🧠", 4500);
+      onChanged?.();
+    }
+    await refreshThoughts();
+  };
+  const promote = async (t: Thought) => {
+    const r = await promoteThought(t.id);
+    if (r) {
+      playSfx("achievement");
+      pushToast(`💭 Consolidated into your galaxy`, "🧠", 4000);
+      onChanged?.();
+    }
+    await refreshThoughts();
+  };
+  const dismiss = async (t: Thought) => {
+    setThoughts((xs) => xs.filter((x) => x.id !== t.id));
+    await dismissThought(t.id);
+  };
+
   // Group by kind, in the canonical order.
   const byKind = new Map<CognitiveKind, CognitiveItem[]>();
   for (const it of items) {
@@ -76,6 +134,66 @@ export function MindPanel({
 
   return (
     <div className="dock-body mind-panel">
+      {/* ── Working memory: the ephemeral mind space (what you're thinking NOW) ── */}
+      <section className="mind-ws">
+        <div className="mind-ws-head">
+          <h3>💭 Thinking now</h3>
+          <button
+            className={`mind-ws-toggle ${ambient ? "on" : ""}`}
+            onClick={() => {
+              const next = !ambient;
+              setAmbient(next);
+              setMindSpaceEnabled(next);
+            }}
+            title="Float these thoughts around the galaxy"
+          >
+            ✧ {ambient ? "In space" : "Show in space"}
+          </button>
+        </div>
+        <p className="mind-ws-sub" style={{ textAlign: "left", marginBottom: 2 }}>
+          Fades unless you return to it · thoughts you keep returning to become memories
+        </p>
+        <div className="mind-ws-input">
+          <input
+            className="tag-input wide"
+            value={thought}
+            onChange={(e) => setThought(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void think();
+            }}
+            placeholder="Hold a thought in your mind…"
+          />
+          <button className="mini" onClick={() => void think()} disabled={!thought.trim()}>
+            Hold
+          </button>
+        </div>
+        {thoughts.length === 0 ? (
+          <p className="empty small">Your mind space is clear. Hold a thought and watch it glow — reinforce the ones that matter and Soumaya carries them into your galaxy.</p>
+        ) : (
+          <ul className="mind-ws-list">
+            {thoughts.map((t) => (
+              <li
+                key={t.id}
+                className="mind-mote"
+                style={{ opacity: 0.4 + t.strength * 0.6 }}
+                title={`Strength ${Math.round(t.strength * 100)}% · reinforced ${t.reinforceCount}×`}
+              >
+                <span
+                  className="mind-mote-dot"
+                  style={{ boxShadow: `0 0 ${4 + t.strength * 10}px rgba(143,220,255,${0.4 + t.strength * 0.5})` }}
+                />
+                <span className="mind-mote-text">{t.text}</span>
+                <span className="mind-mote-actions">
+                  <button className="mini ghost" onClick={() => void reinforce(t)} title="Reinforce (return to it)">↑</button>
+                  <button className="mini ghost" onClick={() => void promote(t)} title="Consolidate into a memory now">★</button>
+                  <button className="mini ghost" onClick={() => void dismiss(t)} title="Let it go">×</button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       <p className="companion-hint">
         Your mind, not just your memories: what you're <b>pursuing</b> and <b>becoming</b>. Add a
         goal, idea, skill, person, identity or mental model — Soumaya pulls related memories into its
