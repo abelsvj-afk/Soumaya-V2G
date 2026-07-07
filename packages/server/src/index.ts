@@ -12,6 +12,7 @@ import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
 import { stepIdeas } from "./analysis/ideas.js";
+import { stepSkills } from "./analysis/skills.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -201,6 +202,13 @@ if (process.env.AUTONOMY !== "off") {
           stepIdeas(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] ideas step failed:", e);
+        }
+        // Skills leveling (Cognitive Layer Phase 4, free/offline): brighten + level
+        // up skills from accumulated practice (supporting memories).
+        try {
+          stepSkills(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] skills step failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

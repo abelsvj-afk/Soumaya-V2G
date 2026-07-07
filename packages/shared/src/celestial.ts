@@ -193,6 +193,22 @@ export const COGNITIVE_META: Record<CognitiveKind, CognitiveMeta> = {
   },
 };
 
+/**
+ * Skill mastery tiers (Cognitive Layer Phase 4). A skill's 0..1 `progress` — raised
+ * automatically as memories evidence practice — maps to a named level. Single source
+ * so the server (leveling engine) and web (Mind tab label) always agree.
+ */
+export const SKILL_TIERS = ["Novice", "Beginner", "Practiced", "Skilled", "Advanced", "Expert"] as const;
+export type SkillTier = (typeof SKILL_TIERS)[number];
+export function skillTier(progress: number): SkillTier {
+  if (progress >= 1) return "Expert";
+  if (progress >= 0.8) return "Advanced";
+  if (progress >= 0.6) return "Skilled";
+  if (progress >= 0.4) return "Practiced";
+  if (progress >= 0.2) return "Beginner";
+  return "Novice";
+}
+
 export const COGNITIVE_KINDS = Object.keys(COGNITIVE_META) as CognitiveKind[];
 /** Durable cognitive kinds never "cool" (entropy-exempt, like hubs + beliefs). */
 export const DURABLE_COGNITIVE_KINDS = new Set(

@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **195 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **199 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 4 (Skills leveling)
+- **Skills level themselves now** — no more hand-cranking the bar. Every memory that evidences
+  practice (a supporting edge, formed by the same name/semantic linking that runs on ingest) raises a
+  skill's 0..1 `progress` and brightens it. `analysis/skills.ts` `stepSkills`: progress =
+  `min(1, practiceCount/10)`, importance = `0.60 + progress×0.18` (Novice skill 0.60 → mastered 0.78,
+  so a practised skill visibly shines). Progress only **ratchets up** (you can't un-practice), so a
+  manual bump is never clobbered; skills are durable (entropy-exempt) so they hold their level.
+- **Levels**: single-source `SKILL_TIERS` + `skillTier(progress)` in `@brain/shared`
+  (Novice → Beginner → Practiced → Skilled → Advanced → Expert). Crossing a tier logs `skill_leveled`
+  and is returned for a "you leveled up" nudge. The Mind tab shows the tier name beside the bar.
+- **Wiring**: runs on `/api/ingest` (a logged practice levels the skill immediately) and each autonomy
+  tick. Web: tier chip on skill cards (`mind-tier` CSS); Help entry extended. No new API/table.
+- **Tests**: `__tests__/skills.test.ts` (progress+brightness from practice with level-up report, caps
+  at Expert, ratchet-up-never-lowers-manual, idempotent second run). Gate: typecheck clean ·
+  **199 tests** · web build clean.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 3 (Ideas lifecycle: grow / fade / merge / promote)
 - **Ideas are now alive.** `idea` is the one non-durable cognitive kind; it finally has a real arc,

@@ -7,6 +7,7 @@ import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
 import { applyCognitiveGravity } from "../../analysis/cognitive.js";
 import { generateInquiry } from "../../analysis/inquiry.js";
+import { stepSkills } from "../../analysis/skills.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -77,6 +78,7 @@ export function ingestRoutes(ctx: AppContext): Router {
     // it forms and raise a question about it. Both free/offline + best-effort.
     try {
       applyCognitiveGravity(ctx, spaceId);
+      stepSkills(ctx, spaceId); // a logged practice levels the skill right away
       generateInquiry(ctx, spaceId);
     } catch {
       /* best-effort; the autonomy loop retries */

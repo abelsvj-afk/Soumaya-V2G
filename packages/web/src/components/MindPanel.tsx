@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COGNITIVE_KINDS, COGNITIVE_META, type CognitiveKind } from "@brain/shared";
+import { COGNITIVE_KINDS, COGNITIVE_META, skillTier, type CognitiveKind } from "@brain/shared";
 import {
   getCognitive,
   createCognitive,
@@ -353,6 +353,11 @@ export function MindPanel({
                 )}
                 {editId !== it.id && COGNITIVE_META[k].hasProgress && (
                   <div className="mind-progress">
+                    {k === "skill" && (
+                      <span className="mind-tier" title="Level — rises automatically as you log practice">
+                        {skillTier(it.progress ?? 0)}
+                      </span>
+                    )}
                     <button className="mini" onClick={() => void bumpProgress(it, -0.1)} title="Less">–</button>
                     <span className="mind-bar">
                       <span style={{ width: `${Math.round((it.progress ?? 0) * 100)}%`, background: COGNITIVE_META[k].color }} />

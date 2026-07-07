@@ -2859,6 +2859,16 @@ button {
 }
 .mind-bar > span { display: block; height: 100%; border-radius: 3px; transition: width 0.25s ease; }
 .mind-pct { font-size: 0.68rem; opacity: 0.7; min-width: 30px; text-align: right; }
+.mind-tier {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: #9dff8a;
+  background: rgba(157, 255, 138, 0.12);
+  border: 1px solid rgba(157, 255, 138, 0.3);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
 
 /* 💭 Working memory (the mind space) — glowing thought-motes that decay. */
 .mind-ws {
