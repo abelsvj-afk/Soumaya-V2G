@@ -281,6 +281,27 @@ export const workingMemory = sqliteTable(
 );
 export type WorkingMemoryRow = typeof workingMemory.$inferSelect;
 
+/**
+ * Inquiries — connections Soumaya notices on her own (a new memory bridging two
+ * people/goals, sitting near an existing anchor, or joining an emerging theme) and
+ * raises as a question. Answering ingests + links, so noticing grows the graph.
+ */
+export const inquiries = sqliteTable(
+  "inquiries",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    question: text("question").notNull(),
+    kind: text("kind").notNull(),
+    nodeIds: text("node_ids").notNull().default("[]"), // JSON array of involved ids
+    signature: text("signature").notNull(), // dedupe key (so a dismissed one never re-asks)
+    status: text("status").notNull().default("open"), // open | answered | dismissed
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("inquiries_space_idx").on(t.spaceId, t.status)],
+);
+export type InquiryRow = typeof inquiries.$inferSelect;
+
 export type NodeRow = typeof nodes.$inferSelect;
 export type EdgeRow = typeof edges.$inferSelect;
 export type InsightRow = typeof insights.$inferSelect;

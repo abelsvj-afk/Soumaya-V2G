@@ -769,6 +769,44 @@ export async function updateCognitive(id: number, patch: { label?: string; conte
   }
 }
 
+// ── Inquiries: connections Soumaya noticed and wants to ask about ─────────────
+export interface Inquiry {
+  id: number;
+  question: string;
+  kind: string;
+  nodes: { id: number; label: string }[];
+  createdAt: string;
+}
+export async function getInquiries(): Promise<Inquiry[]> {
+  try {
+    const res = await afetch(`${API}/inquiries`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+export async function answerInquiry(id: number, text: string): Promise<{ nodeIds: number[]; fuelEarned: number } | null> {
+  try {
+    const res = await afetch(`${API}/inquiries/${id}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function dismissInquiry(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/inquiries/${id}/dismiss`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ── Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" ──────
 export interface Thought {
   id: number;

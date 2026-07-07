@@ -2884,6 +2884,43 @@ button {
 }
 .mind-ws-toggle.on { background: rgba(143, 220, 255, 0.2); }
 
+/* 💭 "Soumaya noticed…" — the proactive-inquiry card (top-centre, above the HUD). */
+.noticing-card {
+  position: fixed;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 57;
+  width: min(94vw, 420px);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(20, 28, 52, 0.94), rgba(12, 18, 36, 0.94));
+  border: 1px solid rgba(150, 134, 255, 0.4);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(150, 134, 255, 0.15);
+  backdrop-filter: blur(8px);
+  animation: noticing-in 0.4s ease;
+}
+@keyframes noticing-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.noticing-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.noticing-eye { font-size: 1rem; }
+.noticing-title { font-size: 0.74rem; font-weight: 600; color: #cbbcff; letter-spacing: 0.02em; flex: 1 1 auto; }
+.noticing-x {
+  background: transparent; border: none; color: #9aa7c7; cursor: pointer; font-size: 1.1rem; line-height: 1; padding: 0 2px;
+}
+.noticing-q { margin: 0 0 8px; font-size: 0.9rem; color: #eaf0ff; line-height: 1.4; }
+.noticing-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.noticing-chip {
+  padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; cursor: pointer;
+  background: rgba(150, 134, 255, 0.16); border: 1px solid rgba(150, 134, 255, 0.35); color: #d9d2ff;
+  max-width: 46%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.noticing-chip:hover { background: rgba(150, 134, 255, 0.28); }
+.noticing-card .companion-textarea { width: 100%; margin-bottom: 8px; }
+.noticing-actions { display: flex; gap: 8px; align-items: center; }
+@supports (padding: env(safe-area-inset-top)) {
+  .noticing-card { top: calc(62px + env(safe-area-inset-top)); }
+}
+
 /* 💭 Ambient Mind Space overlay — drifting glowing thought-motes over the galaxy. */
 .mindspace-layer {
   position: fixed;

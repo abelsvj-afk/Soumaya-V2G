@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **185 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **191 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,37 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Proactive intelligence — "Soumaya noticed…" inquiries (user ask: "they have to be smart")
+- **The ask, generalised**: she shouldn't just link — she should NOTICE when a new memory has
+  implications for other memories/people/goals/knowledge and *ask* about it, across every scope (the
+  relationship example was one case, not the whole feature).
+- **Engine** (`analysis/inquiry.ts`, deterministic + offline, no LLM needed to ask) — three grounded
+  heuristics over recent memories: **BRIDGE** (a memory ties two unconnected anchors/hubs → "what's
+  the dynamic between X and Y?"), **ANCHOR** (a memory sits semantically ON a person/goal it never
+  named, sim ≥0.6 → "is this about X?" — the 'girlfriend, no name' case), **THEME** (a keyword recurs
+  across ≥3 recent memories with no hub → "is this becoming its own thread?"). One inquiry/run,
+  `MAX_OPEN=3`, deduped by signature (a **dismissed** noticing never returns), unique index enforces it.
+- **Answering IS logging** (same pattern as Daily Contact): the reply is ingested (extraction +
+  embedding + linking), tied to every body she asked about, and pays the normal fuel/streak earn path.
+- **Wiring**: generated in the autonomy loop AND right after `/api/ingest` (so a noticing can appear
+  the moment you add a memory). New `inquiries` table (additive/idempotent + drizzle). Route
+  `/api/inquiries` (list / answer / dismiss). **Bonus fix**: ingest now also runs
+  `applyCognitiveGravity`, so a NEW memory links to existing Mind anchors immediately (the follow-up
+  gap from the last change).
+- **Web**: a floating **"💭 Soumaya noticed…"** card (`NoticingCard.tsx`, top-centre, hidden while a
+  panel is open) — the question, fly-to chips for the bodies she means, an answer box (⌘/Ctrl+Enter),
+  and "Not now". Polls + re-checks after each ingest (`brain-memory-added`). Client funcs; Help entry.
+- **Tests**: `__tests__/inquiry.test.ts` — bridge (two people), theme (keyword, no hub), dedupe of a
+  dismissed inquiry, open-cap, answer-ingests-links-closes, and stays-quiet-when-nothing. Gate:
+  typecheck clean · **191 tests** · web build clean.
+
+### 2026-07-07 (Claude): Music — playlist of 3 loops (Deep Space · Slow Tide · Interstellar)
+- Single ambient loop → a **playlist**. Music FAB: click = play/pause, **double-click = next track**
+  (a 240ms click timer disambiguates). A **now-playing chip** shows title + position (2/3) and skips
+  on click; the **title pops up** on every change; last track persists across sessions. `audio.ts` is
+  now a playlist engine (TRACKS, `next()`/`playTrack()`, crossfade, `brain-music-track` event). Two
+  new mp3s bundled in `/public`. Structured to become unlockable later; all play in every brain now.
 
 ### 2026-07-07 (Claude): Mind-tab linking fix + edit buttons (user-reported)
 - **The bug the user caught**: adding a Mind object (e.g. a person "Shaquavia", "Kickman Danny") did

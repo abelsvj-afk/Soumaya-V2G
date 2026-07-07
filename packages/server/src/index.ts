@@ -10,6 +10,7 @@ import { runDreamCycle } from "./analysis/dreamCycle.js";
 import { stepUndertaking } from "./analysis/undertakings.js";
 import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
+import { generateInquiry } from "./analysis/inquiry.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -183,6 +184,14 @@ if (process.env.AUTONOMY !== "off") {
           }
         } catch (e) {
           console.error("[autonomy] working-memory sweep failed:", e);
+        }
+        // Proactive intelligence (free, offline): notice a new structural connection
+        // (a memory bridging two people/goals, sitting near an anchor, or an emerging
+        // theme) and raise ONE grounded question for the user to answer.
+        try {
+          generateInquiry(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] inquiry generation failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

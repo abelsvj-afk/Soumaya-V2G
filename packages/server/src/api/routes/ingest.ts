@@ -5,6 +5,8 @@ import { ingest } from "../../ingestion/pipeline.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
+import { applyCognitiveGravity } from "../../analysis/cognitive.js";
+import { generateInquiry } from "../../analysis/inquiry.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -70,6 +72,15 @@ export function ingestRoutes(ctx: AppContext): Router {
       EARN_MEMORY + EARN_LINK * result.associativeEdges.length + (advanced ? STREAK_DAY_BONUS : 0);
     const econ = new EconomyRepo(ctx.handle, spaceId);
     econ.add(fuelEarned);
+    // A fresh memory may support an existing Mind anchor (goal/person/…) — pull it
+    // into orbit right away, then let Soumaya notice any new structural connection
+    // it forms and raise a question about it. Both free/offline + best-effort.
+    try {
+      applyCognitiveGravity(ctx, spaceId);
+      generateInquiry(ctx, spaceId);
+    } catch {
+      /* best-effort; the autonomy loop retries */
+    }
     res.json({ ...result, fuelEarned, fuel: econ.toFuel(), streak, streakAdvanced: advanced });
   });
   return r;

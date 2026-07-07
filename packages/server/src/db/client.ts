@@ -221,6 +221,22 @@ export function bootstrapSchema(sqlite: RawDb): void {
       reinforced_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS working_memory_space_idx ON working_memory(space_id);
+    -- Inquiries (the proactive-intelligence layer): connections Soumaya NOTICES on
+    -- her own — a new memory that bridges two people/goals, sits near an existing
+    -- anchor, or joins an emerging theme — surfaced as a question for you to answer.
+    -- Answering ingests + links, so her noticing literally grows the graph.
+    CREATE TABLE IF NOT EXISTS inquiries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      question TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      node_ids TEXT NOT NULL DEFAULT '[]',
+      signature TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'open',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS inquiries_space_idx ON inquiries(space_id, status);
+    CREATE UNIQUE INDEX IF NOT EXISTS inquiries_sig_idx ON inquiries(space_id, signature);
   `);
 }
 

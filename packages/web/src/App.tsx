@@ -48,6 +48,7 @@ import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { Legend } from "./components/Legend.js";
 import { MindSpace } from "./components/MindSpace.js";
+import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { LoginScreen } from "./components/LoginScreen.js";
@@ -381,6 +382,9 @@ export default function App() {
       const g = await getGraph();
       setData(g);
       getFuel().then((f) => f && setFuel(f)).catch(() => {});
+      // Let the proactive "she noticed…" card re-check (a fresh memory can form a
+      // new structural connection worth a question, generated server-side on ingest).
+      if (newIds && newIds.length > 0) window.dispatchEvent(new Event("brain-memory-added"));
       if (newIds && newIds.length > 0) {
         // Give the graph a moment to render the new nodes before rippling them.
         setTimeout(() => {
@@ -1090,6 +1094,10 @@ export default function App() {
       {/* Ambient Mind Space: live working-memory thoughts drifting over the galaxy
           (toggled from the 🧠 Mind tab; self-contained + pointer-events:none). */}
       <MindSpace demo={demo} />
+
+      {/* Proactive intelligence: "Soumaya noticed…" — a grounded question about a
+          connection she spotted. Hidden while a panel is open so it never covers it. */}
+      <NoticingCard onFocus={focus} onAnswered={() => refresh()} hidden={panel !== null} demo={demo} />
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}
