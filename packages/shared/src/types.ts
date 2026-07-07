@@ -74,7 +74,8 @@ export type RelationshipType =
   | "contradicts"
   | "caused_by"
   | "documentation"
-  | "summarizes"; // a constellation hub → one of its member memories
+  | "summarizes" // a constellation hub → one of its member memories
+  | "supports"; // a memory/idea → a cognitive anchor (goal/identity/skill)
 
 /** Convenience runtime lists (also exercised by the seed script). */
 export const NODE_TYPES: readonly NodeType[] = [
@@ -129,9 +130,12 @@ export interface GraphNode {
   /** react-force-graph node size hint (mirrors mass). */
   val?: number;
   /** "action" = a transient to-do; "moc" = a constellation hub; "belief" = a
-   *  consolidated understanding she distilled from a cluster (dream cycles);
-   *  else a normal memory. */
-  kind?: "memory" | "action" | "moc" | "belief";
+   *  consolidated understanding she distilled from a cluster (dream cycles); a
+   *  CognitiveKind ("goal"/"idea"/"skill"/… — the cognitive layer, see
+   *  docs/COGNITIVE_LAYER.md); else a normal memory. */
+  kind?: "memory" | "action" | "moc" | "belief" | import("./celestial.js").CognitiveKind;
+  /** 0..1 progress — goal completion / skill level (cognitive layer). */
+  progress?: number;
   /** For a `moc` hub: how many member memories it consolidates (enriched on read). */
   memberCount?: number;
   /** ISO timestamp when an action item times out (only for kind === "action"). */

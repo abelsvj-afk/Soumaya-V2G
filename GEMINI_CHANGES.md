@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **85 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **171 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,33 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 1 (goals/ideas/skills/identity/… as first-class bodies) — spec docs/COGNITIVE_LAYER.md
+- **The direction, not just the past.** The galaxy modelled memory; it now also models cognition.
+  Nine new cognitive object kinds — `goal · idea · skill · person_entity · identity · mental_model ·
+  intention · future_event · motivation` — each a first-class body with its own colour/icon/importance,
+  all from a single-source `COGNITIVE_META` map (`@brain/shared/celestial.ts`) so render + Legend +
+  Mind panel can never drift.
+- **Gravity via edges, NO orbit rewrite** (the key insight): the orbit system already parents each
+  body to its heaviest connected neighbour, so a *heavy* cognitive anchor + `supports` edges makes its
+  memories orbit it. `applyCognitiveGravity` (free/offline autonomy step) knn-matches each weighty
+  anchor (goal/identity/skill/person/motivation) to strongly-similar unlinked real memories (cosine
+  ≥0.55) and grows up to 3 `supports` edges/anchor/run — so your memories visibly drift toward what
+  they serve over time. `graph/orbits.ts` (RED ZONE) untouched.
+- **Durable = entropy-exempt**: durable cognitive kinds never "cool" (same treatment as hubs/beliefs),
+  via `DURABLE_COGNITIVE_KINDS` in the graph service enrichment.
+- **Progress**: goals + skills carry a 0..1 `progress` (new additive `nodes.progress` column —
+  bootstrap + `migrateSchema` idempotent ALTER + drizzle + repo). Nudge it in the Mind tab.
+- **Server**: `analysis/cognitive.ts` (create/list/setProgress/applyCognitiveGravity),
+  `api/routes/cognitive.ts` (`GET /api/cognitive[?kind]`, `POST /api/cognitive`,
+  `POST /api/cognitive/:id/progress`, all zod-validated + space-scoped), wired into the autonomy loop.
+- **Web**: new **🧠 Mind tab** (`components/MindPanel.tsx`) — create/list cognitive objects grouped by
+  kind with progress bars + fly-to; creating reloads the galaxy so the new body is immediately
+  focusable. New `mind-*` CSS. Legend gains a derived "Your mind (the cognitive layer)" section; Help
+  gains a Mind entry. `client.ts` getCognitive/createCognitive/setCognitiveProgress.
+- **Tests**: `__tests__/cognitive.test.ts` (create/meta-derived fields, progress clamp + 404, gravity
+  cap, anchor-never-links-anchor, durable entropy-exemption). Gate: typecheck clean · **171 tests** ·
+  web build clean.
 
 ### 2026-07-05 (Claude): Chat authenticity, legibility pass, custom-instruction power, OpenAI-first
 - **Chat authenticity**: every reply used the same insight-paragraph template. Root causes fixed:

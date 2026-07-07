@@ -40,6 +40,8 @@ export const nodes = sqliteTable("nodes", {
   tags: text("tags"),
   researchQuestions: text("research_questions"),
   researchAnswers: text("research_answers"),
+  // Cognitive layer: 0..1 progress (goal completion / skill level).
+  progress: real("progress"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

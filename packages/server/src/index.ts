@@ -8,6 +8,7 @@ import { refreshPersona } from "./persona/derive.js";
 import { reconcileConstellations } from "./analysis/constellationReconcile.js";
 import { runDreamCycle } from "./analysis/dreamCycle.js";
 import { stepUndertaking } from "./analysis/undertakings.js";
+import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -162,6 +163,14 @@ if (process.env.AUTONOMY !== "off") {
           }
         } catch (e) {
           console.error("[autonomy] dream cycle failed:", e);
+        }
+        // Cognitive gravity (free, offline): pull memories toward the goals /
+        // identity / skills they support, so the galaxy models what you're working
+        // toward, not just what you remember.
+        try {
+          applyCognitiveGravity(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] cognitive gravity failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

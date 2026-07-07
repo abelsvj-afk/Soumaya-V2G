@@ -77,6 +77,128 @@ export const EMOTION_COLORS = {
   neutral: "#46f58c", // neutral — resting synapse green
 } as const;
 
+/**
+ * The COGNITIVE LAYER — object classes that model what the mind is THINKING, not
+ * just what it has remembered (see docs/COGNITIVE_LAYER.md). Each is a `nodes` row
+ * with one of these `kind` values (the same proven pattern as `moc`/`belief`).
+ * This one map is the single source of truth for colour/label/icon/durability used
+ * by the galaxy renderer, the Legend, and the Mind panel — so the visual language
+ * can never drift.
+ */
+export type CognitiveKind =
+  | "goal"
+  | "idea"
+  | "skill"
+  | "person_entity"
+  | "identity"
+  | "mental_model"
+  | "intention"
+  | "future_event"
+  | "motivation";
+
+export interface CognitiveMeta {
+  label: string;
+  icon: string;
+  color: string;
+  blurb: string;
+  /** Durable = entropy-exempt (doesn't cool); ephemeral kinds get lifecycles later. */
+  durable: boolean;
+  /** Default importance → drives how large/anchoring it renders. */
+  importance: number;
+  /** Whether this kind carries a 0..1 progress (goals complete, skills level). */
+  hasProgress: boolean;
+}
+
+export const COGNITIVE_META: Record<CognitiveKind, CognitiveMeta> = {
+  goal: {
+    label: "Goal",
+    icon: "🎯",
+    color: "#ff9d3c",
+    blurb: "A long-term aim your memories orbit and drift toward.",
+    durable: true,
+    importance: 0.82,
+    hasProgress: true,
+  },
+  idea: {
+    label: "Idea",
+    icon: "💡",
+    color: "#8fdcff",
+    blurb: "A potential future — it can grow, split, merge, or fade.",
+    durable: false,
+    importance: 0.4,
+    hasProgress: false,
+  },
+  skill: {
+    label: "Skill",
+    icon: "🧬",
+    color: "#9dff8a",
+    blurb: "A capability that brightens as you practice it.",
+    durable: true,
+    importance: 0.6,
+    hasProgress: true,
+  },
+  person_entity: {
+    label: "Person",
+    icon: "❤️",
+    color: "#ff9ec7",
+    blurb: "A person themselves — your interactions orbit them.",
+    durable: true,
+    importance: 0.7,
+    hasProgress: false,
+  },
+  identity: {
+    label: "Identity",
+    icon: "🏛️",
+    color: "#fff4d6",
+    blurb: "Who you are — a core that brightens as evidence accrues.",
+    durable: true,
+    importance: 0.9,
+    hasProgress: false,
+  },
+  mental_model: {
+    label: "Mental Model",
+    icon: "🧠",
+    color: "#c9a6ff",
+    blurb: "A reasoning tool — how you think, applied across memories.",
+    durable: true,
+    importance: 0.62,
+    hasProgress: false,
+  },
+  intention: {
+    label: "Intention",
+    icon: "🌠",
+    color: "#ffe9a8",
+    blurb: "A short-lived plan — a comet passing through.",
+    durable: false,
+    importance: 0.3,
+    hasProgress: false,
+  },
+  future_event: {
+    label: "Future Event",
+    icon: "⏳",
+    color: "#a8d8ff",
+    blurb: "Something ahead — an appointment, deadline, or prediction.",
+    durable: false,
+    importance: 0.4,
+    hasProgress: false,
+  },
+  motivation: {
+    label: "Motivation",
+    icon: "🔥",
+    color: "#ff7a45",
+    blurb: "A drive that pulls on your behavior — a gravity well.",
+    durable: true,
+    importance: 0.72,
+    hasProgress: false,
+  },
+};
+
+export const COGNITIVE_KINDS = Object.keys(COGNITIVE_META) as CognitiveKind[];
+/** Durable cognitive kinds never "cool" (entropy-exempt, like hubs + beliefs). */
+export const DURABLE_COGNITIVE_KINDS = new Set(
+  COGNITIVE_KINDS.filter((k) => COGNITIVE_META[k].durable),
+);
+
 export interface MassSignals {
   /** 0..1 — how significant/serious/life-impacting (rated by the LLM). */
   importance?: number;

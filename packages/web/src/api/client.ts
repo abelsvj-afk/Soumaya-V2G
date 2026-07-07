@@ -713,6 +713,50 @@ export async function askChat(
   );
 }
 
+/** A cognitive object (goal/idea/skill/identity/…) — the cognitive layer. */
+export interface CognitiveItem {
+  id: number;
+  kind: string;
+  label: string;
+  content: string;
+  progress: number | null;
+  degree: number;
+  createdAt: string;
+}
+export async function getCognitive(kind?: string): Promise<CognitiveItem[]> {
+  try {
+    const res = await afetch(`${API}/cognitive${kind ? `?kind=${encodeURIComponent(kind)}` : ""}`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+export async function createCognitive(kind: string, label: string, content?: string): Promise<{ id: number } | null> {
+  try {
+    const res = await afetch(`${API}/cognitive`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind, label, content }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+export async function setCognitiveProgress(id: number, value: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/progress`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 /** Her current multi-day undertaking (arc), or null. */
 export interface Undertaking {
   id: number;

@@ -1,4 +1,4 @@
-import { type GraphData, type GraphNode, deriveMass, classify, entropyFrom } from "@brain/shared";
+import { type GraphData, type GraphNode, deriveMass, classify, entropyFrom, DURABLE_COGNITIVE_KINDS } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { heuristicImportance } from "../llm/heuristic.js";
@@ -86,7 +86,12 @@ export class GraphService {
       // Action items and constellation hubs never "cool".
       const days = daysSince(n.lastTendedAt ?? n.createdAt);
       const entropy =
-        n.kind === "action" || n.kind === "moc" || n.kind === "belief" ? 0 : entropyFrom(days, degree);
+        n.kind === "action" ||
+        n.kind === "moc" ||
+        n.kind === "belief" ||
+        (n.kind != null && DURABLE_COGNITIVE_KINDS.has(n.kind as never))
+          ? 0
+          : entropyFrom(days, degree);
       // A constellation hub's degree IS its member count (every edge is a member).
       const memberCount = n.kind === "moc" ? degree : undefined;
       return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy, memberCount };

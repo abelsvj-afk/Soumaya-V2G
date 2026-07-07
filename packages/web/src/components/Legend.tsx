@@ -7,6 +7,8 @@ import {
   CELESTIAL_MEANING,
   SPECIAL_COLORS,
   EMOTION_COLORS,
+  COGNITIVE_KINDS,
+  COGNITIVE_META,
   type NodeType,
 } from "@brain/shared";
 import { TYPE_COLORS } from "../graph/theme.js";
@@ -100,6 +102,25 @@ export function Legend({ onClose }: { onClose: () => void }) {
                 <span className="legend-name">The Sun</span>
                 <span className="legend-meaning">the core your whole galaxy orbits</span>
               </li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Your mind (the cognitive layer)</h3>
+            <p className="legend-note">
+              Beyond what you remember — what you're pursuing and becoming. Map these in the 🧠 Mind
+              tab; your memories drift into their orbit over time.
+            </p>
+            <ul className="legend-list">
+              {COGNITIVE_KINDS.map((k) => (
+                <li key={k}>
+                  <Swatch color={COGNITIVE_META[k].color} ring={COGNITIVE_META[k].durable} />
+                  <span className="legend-name">
+                    {COGNITIVE_META[k].icon} {COGNITIVE_META[k].label}
+                  </span>
+                  <span className="legend-meaning">{COGNITIVE_META[k].blurb}</span>
+                </li>
+              ))}
             </ul>
           </section>
 

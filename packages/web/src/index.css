@@ -2748,6 +2748,55 @@ button {
 .companion-tryhint { margin-top: 14px; opacity: 0.75; font-style: italic; }
 .mini.ghost { background: transparent; opacity: 0.7; }
 
+/* 🧠 Mind tab — the cognitive layer (goals/ideas/skills/identity/…). Colours per
+   card come inline from COGNITIVE_META so this stylesheet never duplicates them. */
+.mind-panel .companion-hint { margin-bottom: 10px; }
+.mind-kind-row { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 8px; }
+.mind-kind {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cfe6ff;
+  cursor: pointer;
+  font-size: 0.74rem;
+  white-space: nowrap;
+}
+.mind-kind.on { background: rgba(91, 214, 255, 0.2); border-color: rgba(122, 200, 255, 0.55); }
+.mind-section { margin-top: 14px; }
+.mind-section h3 { margin: 0 0 6px; font-size: 0.82rem; font-weight: 600; }
+.mind-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.mind-card {
+  border-left: 3px solid #888;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  padding: 7px 9px;
+}
+.mind-card-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  width: 100%;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.mind-card-label { font-size: 0.86rem; color: #eaf4ff; }
+.mind-card-sub { font-size: 0.68rem; opacity: 0.6; white-space: nowrap; }
+.mind-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.mind-bar {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.mind-bar > span { display: block; height: 100%; border-radius: 3px; transition: width 0.25s ease; }
+.mind-pct { font-size: 0.68rem; opacity: 0.7; min-width: 30px; text-align: right; }
+
 /* 💬 Chat FAB (right column, above the Observatory FAB). */
 .fab-chat { bottom: 242px; right: 14px; font-size: 22px; }
 @supports (padding: env(safe-area-inset-bottom)) {

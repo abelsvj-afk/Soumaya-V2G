@@ -12,6 +12,7 @@ import { HangarPanel } from "./HangarPanel.js";
 import { InboxPanel } from "./InboxPanel.js";
 import { LibraryPanel } from "./LibraryPanel.js";
 import { CodexPanel } from "./CodexPanel.js";
+import { MindPanel } from "./MindPanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel, Streak } from "@brain/shared";
 
@@ -24,6 +25,7 @@ import type { Fuel, Streak } from "@brain/shared";
 export type DockTab =
   | "details"
   | "list"
+  | "mind"
   | "actions"
   | "insights"
   | "soumaya"
@@ -70,6 +72,7 @@ interface Props {
 const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "details", label: "ⓘ", name: "Details" },
   { id: "list", label: "📚", name: "Browse" },
+  { id: "mind", label: "🧠", name: "Mind" },
   { id: "actions", label: "✅", name: "Agenda" },
   { id: "insights", label: "✨", name: "Insights" },
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
@@ -225,6 +228,7 @@ export function RightDock({
             )}
           </div>
         )}
+        {tab === "mind" && <MindPanel onFocus={onFocus} demo={demo} onChanged={() => onChanged?.(-1)} />}
         {tab === "actions" && (
           <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} readOnly={demo} />
         )}

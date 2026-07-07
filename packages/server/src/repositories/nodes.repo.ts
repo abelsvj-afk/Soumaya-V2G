@@ -14,7 +14,9 @@ export interface NewNode {
   importance?: number;
   color?: string;
   origin?: "user" | "agent";
-  kind?: "memory" | "action" | "moc" | "belief";
+  kind?: GraphNode["kind"];
+  /** 0..1 progress (goal completion / skill level) — cognitive layer. */
+  progress?: number;
   expiresAt?: string;
   occurredAt?: string;
   remindAt?: string;
@@ -33,7 +35,8 @@ function toGraphNode(row: NodeRow): GraphNode {
     color: row.color ?? undefined,
     origin: (row.origin as "user" | "agent" | null) ?? undefined,
     agent: row.agent ?? undefined,
-    kind: (row.kind as "memory" | "action" | "moc" | null) ?? undefined,
+    kind: (row.kind as GraphNode["kind"]) ?? undefined,
+    progress: row.progress ?? undefined,
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
     occurredAt: row.occurredAt ?? undefined,
@@ -93,6 +96,7 @@ export class NodesRepo {
           color: input.color ?? null,
           origin: input.origin ?? null,
           kind: input.kind ?? null,
+          progress: input.progress ?? null,
           expiresAt: input.expiresAt ?? null,
           occurredAt: input.occurredAt ?? null,
           remindAt: input.remindAt ?? null,
