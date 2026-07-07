@@ -732,16 +732,26 @@ export async function getCognitive(kind?: string): Promise<CognitiveItem[]> {
     return [];
   }
 }
-export async function createCognitive(kind: string, label: string, content?: string): Promise<{ id: number } | null> {
+export async function createCognitive(kind: string, label: string, content?: string, date?: string): Promise<{ id: number } | null> {
   try {
     const res = await afetch(`${API}/cognitive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, label, content }),
+      body: JSON.stringify({ kind, label, content, date }),
     });
     return res.ok ? await res.json() : null;
   } catch {
     return null;
+  }
+}
+export interface UpcomingEvent { id: number; label: string; date: string; inDays: number }
+export async function getUpcomingEvents(): Promise<UpcomingEvent[]> {
+  try {
+    const res = await afetch(`${API}/cognitive/events/upcoming`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
   }
 }
 export async function setCognitiveProgress(id: number, value: number): Promise<boolean> {

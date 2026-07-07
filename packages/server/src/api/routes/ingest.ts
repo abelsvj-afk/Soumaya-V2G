@@ -9,6 +9,7 @@ import { applyCognitiveGravity } from "../../analysis/cognitive.js";
 import { generateInquiry } from "../../analysis/inquiry.js";
 import { stepSkills } from "../../analysis/skills.js";
 import { stepIdentities } from "../../analysis/identity.js";
+import { stepDrives } from "../../analysis/drives.js";
 import { spaceOf } from "../middleware.js";
 
 const IngestBody = z.object({
@@ -81,6 +82,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       applyCognitiveGravity(ctx, spaceId);
       stepSkills(ctx, spaceId); // a logged practice levels the skill right away
       stepIdentities(ctx, spaceId); // affirm/contest identities from the new memory
+      stepDrives(ctx, spaceId); // a memory can fulfil an intention / brighten a drive
       generateInquiry(ctx, spaceId);
     } catch {
       /* best-effort; the autonomy loop retries */

@@ -15,6 +15,8 @@ import { stepIdeas } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
 import { stepIdentities } from "./analysis/identity.js";
 import { mergeDuplicatePeople } from "./analysis/people.js";
+import { rollPastEvents } from "./analysis/future.js";
+import { stepDrives } from "./analysis/drives.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -226,6 +228,14 @@ if (process.env.AUTONOMY !== "off") {
           mergeDuplicatePeople(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] people merge failed:", e);
+        }
+        // Phase 7 (free/offline): roll past-due future events into memory, and
+        // advance drives — fulfil/expire intentions, brighten motivations.
+        try {
+          rollPastEvents(ctx, spaceId);
+          stepDrives(ctx, spaceId);
+        } catch (e) {
+          console.error("[autonomy] phase-7 step failed:", e);
         }
         // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
         // Free (advances by elapsed days, tends one relevant memory per step);

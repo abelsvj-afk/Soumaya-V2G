@@ -6,6 +6,7 @@ import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive }
 import { promoteIdeaToGoal } from "../../analysis/ideas.js";
 import { cognitiveEvidence } from "../../analysis/identity.js";
 import { personProfile } from "../../analysis/people.js";
+import { upcomingEvents } from "../../analysis/future.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
@@ -13,6 +14,8 @@ const CreateBody = z.object({
   kind: z.enum(COGNITIVE_KINDS as [string, ...string[]]),
   label: z.string().min(1).max(200),
   content: z.string().max(4000).optional(),
+  // For a future_event: when it's due (ISO datetime).
+  date: z.string().datetime().optional(),
 });
 const ProgressBody = z.object({ value: z.number().min(0).max(1) });
 const EditBody = z
@@ -33,15 +36,22 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     res.json(listCognitive(ctx, spaceOf(res), kind));
   });
 
-  // POST /api/cognitive { kind, label, content? } -> create one.
+  // GET /api/cognitive/events/upcoming -> the future-events timeline (soonest first).
+  r.get("/events/upcoming", (_req, res) => {
+    res.json(upcomingEvents(ctx, spaceOf(res)));
+  });
+
+  // POST /api/cognitive { kind, label, content?, date? } -> create one.
   r.post("/", async (req, res) => {
     const parsed = CreateBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Body must be { kind, label, content? }", issues: parsed.error.issues });
+      res.status(400).json({ error: "Body must be { kind, label, content?, date? }", issues: parsed.error.issues });
       return;
     }
     const spaceId = spaceOf(res);
-    const id = await createCognitive(ctx, spaceId, parsed.data.kind as never, parsed.data.label, parsed.data.content ?? "");
+    const id = await createCognitive(ctx, spaceId, parsed.data.kind as never, parsed.data.label, parsed.data.content ?? "", {
+      date: parsed.data.date,
+    });
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));
   });
 

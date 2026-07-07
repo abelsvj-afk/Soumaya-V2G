@@ -2827,6 +2827,11 @@ button {
 }
 .mind-edit { display: flex; flex-direction: column; gap: 6px; }
 .mind-edit .row { display: flex; gap: 6px; }
+.mind-date { display: flex; align-items: center; gap: 8px; font-size: 0.74rem; color: #cfe6ff; }
+.mind-date input {
+  flex: 1 1 auto; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 7px; color: #eaf4ff; padding: 4px 8px; font-size: 0.78rem; color-scheme: dark;
+}
 .mind-promote {
   margin-top: 6px;
   width: 100%;

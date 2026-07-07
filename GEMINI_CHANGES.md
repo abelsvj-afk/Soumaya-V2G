@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **207 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **210 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,29 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Cognitive Layer — Phase 7 (Future events · Intentions · Motivations) — cognitive model COMPLETE
+- The finale gives the last kinds real dynamics — the temporal + ephemeral cognition. All offline.
+- **FUTURE EVENTS** (`analysis/future.ts`): a `future_event` carries a real date (stored in `remind_at`;
+  create accepts `date`). `upcomingEvents` / `GET /api/cognitive/events/upcoming` = a "what's ahead"
+  timeline sorted soonest-first with days-until; the Mind tab shows a live countdown ("in 3d", "today",
+  "overdue N d") and a date picker on the add form. `rollPastEvents` (autonomy): once an event's date
+  passes it **rolls into the past** — becomes an ordinary memory dated to when it occurred (logged
+  `event_passed`).
+- **INTENTIONS** (`analysis/drives.ts` `stepDrives`): an `intention` is an ephemeral comet — if a memory
+  comes to support it you **acted on it → fulfilled**, settling into memory (`intention_fulfilled`); if
+  it's never acted on it **expires** after 10 days and fades (`intention_expired`).
+- **MOTIVATIONS**: a `motivation` is a durable gravity well that **brightens** as aligned memories
+  accrue (importance 0.72 → 0.94), so a strong drive becomes a heavy well. Mental models + motivations
+  also get an "Applied to" / "Pulls on" expander in the Mind tab (reusing the evidence endpoint).
+- **Wiring**: `rollPastEvents` + `stepDrives` in the autonomy loop; `stepDrives` on `/api/ingest` (a new
+  memory can fulfil an intention / brighten a motivation immediately). Web: date input + countdown +
+  linked-memory expanders; `getUpcomingEvents` client fn; `mind-date` CSS; Help entry extended.
+- **Tests**: `__tests__/phase7.test.ts` (timeline order + roll-past→memory, intention fulfil vs expire,
+  motivation brightening). Gate: typecheck clean · **210 tests** · web build clean.
+- **The Cognitive Layer is now complete** (Phases 1–7): Goals, Working Memory, Ideas, Skills, Identity,
+  People, and Motivations/Mental-models/Intentions/Future-events — every cognitive kind has live
+  dynamics, plus the proactive "Soumaya noticed…" inquiry layer.
 
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 6 (People as entities · lightweight CRM)
 - **People are now first-class relationships you can read.** A `person_entity` is a person your

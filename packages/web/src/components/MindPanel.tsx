@@ -3,6 +3,8 @@ import { COGNITIVE_KINDS, COGNITIVE_META, skillTier, type CognitiveKind } from "
 import {
   getCognitive,
   createCognitive,
+  getUpcomingEvents,
+  type UpcomingEvent,
   setCognitiveProgress,
   updateCognitive,
   promoteIdea,
@@ -46,6 +48,8 @@ export function MindPanel({
   const [kind, setKind] = useState<CognitiveKind>("goal");
   const [label, setLabel] = useState("");
   const [content, setContent] = useState("");
+  const [eventDate, setEventDate] = useState(""); // for future_event
+  const [events, setEvents] = useState<Record<number, UpcomingEvent>>({});
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   // Inline editing of a cognitive object (label + content).
@@ -70,11 +74,16 @@ export function MindPanel({
   const refresh = () => getCognitive().then(setItems).catch(() => {});
   const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
   const refreshSuggestions = () => getPersonSuggestions().then(setSuggestions).catch(() => {});
+  const refreshEvents = () =>
+    getUpcomingEvents()
+      .then((es) => setEvents(Object.fromEntries(es.map((e) => [e.id, e]))))
+      .catch(() => {});
   useEffect(() => {
     if (demo) return;
     refresh();
     refreshThoughts();
     refreshSuggestions();
+    refreshEvents();
     // Thoughts decay server-side; poll gently so the mind space stays live.
     const t = setInterval(refreshThoughts, 20_000);
     return () => clearInterval(t);
@@ -88,14 +97,17 @@ export function MindPanel({
     if (!label.trim()) return;
     setBusy(true);
     try {
-      const r = await createCognitive(kind, label.trim(), content.trim() || undefined);
+      const iso = kind === "future_event" && eventDate ? new Date(eventDate).toISOString() : undefined;
+      const r = await createCognitive(kind, label.trim(), content.trim() || undefined, iso);
       if (r) {
         playSfx("achievement");
         pushToast(`${COGNITIVE_META[kind].icon} ${COGNITIVE_META[kind].label} added to your galaxy`, "🧠", 4500);
         setLabel("");
         setContent("");
+        setEventDate("");
         setAdding(false);
         await refresh();
+        if (kind === "future_event") await refreshEvents();
         onChanged?.(); // reload the galaxy so the new body appears + is focusable
       } else {
         pushToast("Couldn't add that — try again.", "⚠️", 4000);
@@ -357,6 +369,12 @@ export function MindPanel({
             onChange={(e) => setContent(e.target.value)}
             placeholder={COGNITIVE_META[kind].blurb}
           />
+          {kind === "future_event" && (
+            <label className="mind-date">
+              <span>When?</span>
+              <input type="datetime-local" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
+            </label>
+          )}
           <div className="row">
             <button onClick={add} disabled={busy || !label.trim()}>
               {busy ? "Adding…" : `Add ${COGNITIVE_META[kind].label}`}
@@ -405,7 +423,15 @@ export function MindPanel({
                   <div className="mind-card-row">
                     <button className="mind-card-main" onClick={() => onFocus(it.id)} title="Fly to it">
                       <span className="mind-card-label">{it.label}</span>
-                      <span className="mind-card-sub">{it.degree} linked</span>
+                      <span className="mind-card-sub">
+                        {k === "future_event" && events[it.id]
+                          ? events[it.id]!.inDays < 0
+                            ? `overdue ${-events[it.id]!.inDays}d`
+                            : events[it.id]!.inDays === 0
+                              ? "today"
+                              : `in ${events[it.id]!.inDays}d`
+                          : `${it.degree} linked`}
+                      </span>
                     </button>
                     <button className="mini ghost" onClick={() => startEdit(it)} title="Edit">✎</button>
                   </div>
@@ -469,6 +495,24 @@ export function MindPanel({
                         {evidence[it.id]!.for.length === 0 && evidence[it.id]!.against.length === 0 && (
                           <p className="empty small">No evidence yet — log memories that express (or challenge) who you are.</p>
                         )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {editId !== it.id && (k === "mental_model" || k === "motivation") && it.degree > 0 && (
+                  <div className="mind-evidence">
+                    <button className="mind-ev-toggle" onClick={() => void toggleEvidence(it)}>
+                      {evidenceOpen === it.id ? "▾" : "▸"} {k === "mental_model" ? "Applied to" : "Pulls on"}
+                      {evidence[it.id] && <span className="mind-ev-counts"><span className="ev-for">{evidence[it.id]!.for.length}</span></span>}
+                    </button>
+                    {evidenceOpen === it.id && evidence[it.id] && (
+                      <div className="mind-ev-body">
+                        <div className="mind-ev-group">
+                          {evidence[it.id]!.for.slice(0, 10).map((n) => (
+                            <button key={n.id} className="mind-ev-chip" onClick={() => onFocus(n.id)}>{n.label}</button>
+                          ))}
+                          {evidence[it.id]!.for.length === 0 && <p className="empty small">Nothing linked yet.</p>}
+                        </div>
                       </div>
                     )}
                   </div>

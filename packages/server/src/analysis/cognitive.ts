@@ -56,11 +56,13 @@ export async function createCognitive(
   kind: CognitiveKind,
   label: string,
   content: string,
+  opts: { date?: string } = {},
 ): Promise<number> {
   const meta = COGNITIVE_META[kind];
   const repo = new NodesRepo(ctx.handle, spaceId);
   const emb = await ctx.embeddings.embed(`${label}. ${content}`);
   // Cognitive objects use `type:"concept"` (abstract) but a cognitive `kind`.
+  // A future_event carries its date in `remind_at` (drives the timeline + roll-past).
   const node = repo.create(
     {
       label: label.slice(0, 200),
@@ -71,6 +73,7 @@ export async function createCognitive(
       color: meta.color,
       origin: "user",
       progress: meta.hasProgress ? 0 : undefined,
+      remindAt: kind === "future_event" ? opts.date : undefined,
     },
     emb,
   );
