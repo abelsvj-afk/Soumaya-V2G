@@ -713,6 +713,26 @@ export async function askChat(
   );
 }
 
+/** Her current multi-day undertaking (arc), or null. */
+export interface Undertaking {
+  id: number;
+  kind: string;
+  title: string;
+  total: number;
+  done: number;
+  status: "active" | "done";
+  startedAt: string;
+  endsAt: string | null;
+}
+export async function getUndertaking(): Promise<Undertaking | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/undertaking`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 /** A belief she's consolidated about you (dream cycles). */
 export interface Belief {
   id: number;

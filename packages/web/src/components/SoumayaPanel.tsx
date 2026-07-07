@@ -3,6 +3,7 @@ import { type Fuel } from "@brain/shared";
 import {
   getAgentLogs,
   getFuel,
+  getUndertaking,
   getSettings,
   updateSetting,
   getUsage,
@@ -14,6 +15,7 @@ import {
   type AgentLog,
   type JobRationale,
   type Usage,
+  type Undertaking,
 } from "../api/client.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -43,6 +45,7 @@ export function SoumayaPanel({
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [undertaking, setUndertaking] = useState<Undertaking | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [budgetInput, setBudgetInput] = useState("");
   const [budgetError, setBudgetError] = useState<string | null>(null);
@@ -84,16 +87,18 @@ export function SoumayaPanel({
   // Fetch telemetry/logs
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData, fuelData] = await Promise.all([
+      const [logsData, settings, usageData, fuelData, arc] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
         getFuel(),
+        getUndertaking(),
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
       if (usageData) setUsage(usageData);
       if (fuelData) setFuel(fuelData);
+      setUndertaking(arc);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
     } finally {
@@ -149,6 +154,19 @@ export function SoumayaPanel({
           )}
         </div>
       </div>
+
+      {/* Her multi-day undertaking — autonomy with a narrative arc. */}
+      {undertaking && undertaking.status === "active" && (
+        <div className="undertaking-card">
+          <div className="undertaking-head">
+            <span>🎯 {undertaking.title}</span>
+            <span className="undertaking-day">Day {undertaking.done} of {undertaking.total}</span>
+          </div>
+          <div className="undertaking-bar">
+            <span style={{ width: `${Math.round((undertaking.done / undertaking.total) * 100)}%` }} />
+          </div>
+        </div>
+      )}
 
       {/* 1. Active Flight Tasks (At the top) */}
       <div className="ship-tasks-section" style={{ marginTop: "10px", paddingTop: "5px", borderTop: "none" }}>

@@ -166,6 +166,20 @@ export function bootstrapSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (space_id, reward_key)
     );
+    -- Undertakings (Level 2): a multi-day arc Soumaya commits to, so her autonomy
+    -- has narrative ("Day 3 of 5 — Warming the cold belt") instead of 5-min ticks.
+    CREATE TABLE IF NOT EXISTS undertakings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      total INTEGER NOT NULL DEFAULT 1,
+      done INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      ends_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS undertakings_space_idx ON undertakings(space_id, status);
     -- The Daily Contact: her one question/discovery per brain per day, persisted
     -- so it stays stable across reloads; answered flips when the user replies.
     CREATE TABLE IF NOT EXISTS daily_contact (

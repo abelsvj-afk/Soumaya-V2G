@@ -7,6 +7,7 @@ import { evolveLore } from "./lore/engine.js";
 import { refreshPersona } from "./persona/derive.js";
 import { reconcileConstellations } from "./analysis/constellationReconcile.js";
 import { runDreamCycle } from "./analysis/dreamCycle.js";
+import { stepUndertaking } from "./analysis/undertakings.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
@@ -161,6 +162,19 @@ if (process.env.AUTONOMY !== "off") {
           }
         } catch (e) {
           console.error("[autonomy] dream cycle failed:", e);
+        }
+        // Undertakings (Level 2): a multi-day arc so her autonomy has narrative.
+        // Free (advances by elapsed days, tends one relevant memory per step);
+        // start/finish are logged so the user sees the arc begin and complete.
+        try {
+          const event = stepUndertaking(ctx, spaceId);
+          if (event) {
+            ctx.handle.sqlite
+              .prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, 'undertaking', ?, '[]')`)
+              .run(spaceId, event);
+          }
+        } catch (e) {
+          console.error("[autonomy] undertaking step failed:", e);
         }
         const job = await selectJob(ctx, spaceId);
         if (!job || job.type === "patrol") continue; // skip the no-op patrol fallback

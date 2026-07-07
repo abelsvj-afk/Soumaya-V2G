@@ -8,6 +8,7 @@ import { agentLogs, dailyLogs } from "../../db/schema.js";
 import { spaceOf } from "../middleware.js";
 import { eq, desc } from "drizzle-orm";
 import { selectJob, executeJob, researchEnabled, setResearchEnabled } from "../../maintenance/agent.js";
+import { activeUndertaking } from "../../analysis/undertakings.js";
 
 const CompleteJobSchema = z.object({
   type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
@@ -151,6 +152,13 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       .run(spaceId, key);
     const fuel = new EconomyRepo(ctx.handle, spaceId).add(EARN_CODEX_DISCOVERY);
     res.json({ awarded: true, fuel });
+  });
+
+  /**
+   * GET /api/maintenance/undertaking -> her current multi-day arc (or null).
+   */
+  r.get("/undertaking", (_req, res) => {
+    res.json(activeUndertaking(ctx, spaceOf(res)));
   });
 
   /**
