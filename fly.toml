@@ -33,8 +33,12 @@ primary_region = 'iad'
 
   [[http_service.checks]]
     interval = '15s'
-    timeout = '3s'
-    grace_period = '20s'
+    # Loosened from 3s/20s: a cold boot loads the baked MiniLM model into memory,
+    # which can exceed a 20s grace on a shared CPU — the app was getting marked
+    # unhealthy during startup, so /api/* returned intermittent failures and the
+    # client hung on the loading screen. 90s grace covers a slow first boot.
+    timeout = '5s'
+    grace_period = '90s'
     method = 'GET'
     path = '/api/health'
 

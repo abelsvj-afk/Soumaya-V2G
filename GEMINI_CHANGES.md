@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-07 (Claude): Server-side freeze causes — graceful shutdown (EBUSY) + health-check grace (cold boot)
+- The user's Fly logs revealed the freeze may be **server-side**, not just a stale bundle:
+  `error umounting /data: EBUSY` + `Health check on 8080 failed — app not responding`. A dead/unhealthy
+  server means `/api/graph` never answers, so the client hangs on the loading sun.
+- **Graceful shutdown** (`index.ts`): the server had NO SIGTERM handler, so on a deploy it never released
+  the SQLite handle on `/data` — Fly couldn't unmount the volume to migrate it (EBUSY), stalling deploys
+  and flapping health checks. Added a SIGTERM/SIGINT handler that stops the listener, `wal_checkpoint
+  (TRUNCATE)`s + closes the DB (releasing the volume), and hard-exits after 8s so a keep-alive socket
+  can't hold it busy.
+- **Health-check grace** (`fly.toml`): loosened `3s/20s → 5s/90s`. A cold boot loads the baked MiniLM
+  model into memory, which can exceed a 20s grace on a shared CPU — the app was being marked unhealthy
+  *during startup*, returning intermittent `/api/*` failures. 90s grace covers a slow first boot.
+- **Deploy blockers surfaced (not fixable from the repo)**: the deploy machine's `git fetch` failed
+  ("Password authentication is not supported") — it needs a GitHub PAT or SSH remote (or, durably, Fly's
+  native GitHub auto-deploy so pushes build without git creds/flyctl on the box). Flagged to the user.
+
 ### 2026-07-07 (Claude): BULLETPROOF boot failsafe — escape the infinite loading sun even with a stale bundle
 - User still saw the frozen loading screen. Root truth: the earlier client fixes are CORRECT (old
   `getGraph` swallowed errors so a hung fetch never settled → `loaded` stuck; new code times out), but

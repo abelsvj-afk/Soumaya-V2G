@@ -24,13 +24,39 @@ const PORT = Number(process.env.PORT ?? 3001);
 const ctx = await buildContext();
 const app = createApp(ctx);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
   console.log(`[server] embeddings: ${ctx.embeddings.model} (${ctx.embeddings.dim}d)`);
   console.log(
     `[server] llm: ${ctx.llm.model} ${ctx.llm.available ? "(active)" : "(heuristic fallback — set GEMINI_API_KEY)"}`,
   );
 });
+
+// Graceful shutdown: on a deploy, Fly sends SIGTERM and needs the machine to
+// release the /data volume so the new machine can mount it. If we don't close the
+// SQLite handle, the volume stays busy ("EBUSY unmounting /data") and the deploy
+// stalls / health checks flap. Checkpoint the WAL + close the DB, then exit fast.
+let shuttingDown = false;
+function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] ${signal} — shutting down gracefully`);
+  const done = () => {
+    try {
+      ctx.handle.sqlite.pragma("wal_checkpoint(TRUNCATE)"); // flush WAL into the db file
+    } catch { /* best-effort */ }
+    try {
+      ctx.handle.sqlite.close(); // release the /data file handle so the volume can unmount
+    } catch { /* best-effort */ }
+    process.exit(0);
+  };
+  // Stop accepting new connections, then close the DB. Hard-exit after 8s so a
+  // lingering keep-alive socket can never hold the volume busy indefinitely.
+  server.close(done);
+  setTimeout(done, 8000).unref();
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 // Telegram: if a bot token + webhook secret + public URL are set, point Telegram
 // at our webhook on boot. Without all three we stay silent (feature is opt-in).
