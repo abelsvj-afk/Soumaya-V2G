@@ -11,7 +11,7 @@ import { stepUndertaking } from "./analysis/undertakings.js";
 import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
-import { stepIdeas } from "./analysis/ideas.js";
+import { stepIdeas, splitRipeIdea } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
 import { stepIdentities } from "./analysis/identity.js";
 import { mergeDuplicatePeople } from "./analysis/people.js";
@@ -204,6 +204,8 @@ if (process.env.AUTONOMY !== "off") {
         // stays user-triggered.
         try {
           stepIdeas(ctx, spaceId);
+          // Branch a two-thread idea into two (offline-safe naming; skips over-budget).
+          await splitRipeIdea(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] ideas step failed:", e);
         }

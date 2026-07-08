@@ -9,7 +9,7 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { GraphService } from "../graph/service.js";
 import { createCognitive } from "../analysis/cognitive.js";
-import { stepIdeas, promoteIdeaToGoal, ripeIdeaIds } from "../analysis/ideas.js";
+import { stepIdeas, promoteIdeaToGoal, ripeIdeaIds, splitRipeIdea } from "../analysis/ideas.js";
 import { COGNITIVE_META } from "@brain/shared";
 
 let handle: DbHandle;
@@ -70,6 +70,45 @@ describe("ideas lifecycle (Cognitive Layer Phase 3)", () => {
       .prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id = 'legacy' AND target = ? AND relationship = 'supports'`)
       .get(survivor) as { c: number };
     expect(sup.c).toBe(3);
+  });
+
+  it("splits a two-thread idea into two branches, redistributing support", async () => {
+    const id = await createCognitive(ctx, "legacy", "idea", "A creative project", "");
+    const repo = new NodesRepo(handle, "legacy");
+    const edges = new EdgesRepo(handle, "legacy");
+    // Two clearly-distinct clusters of supporting memories (dissimilar embeddings).
+    for (let i = 0; i < 3; i++) {
+      const m = repo.create({ label: `music ${i}`, type: "daily", content: "recording guitar songs in the studio" } as never, await embeddings.embed("recording guitar songs in the studio"));
+      edges.create({ source: m.id, target: id, relationship: "supports", weight: 0.7 });
+    }
+    for (let i = 0; i < 3; i++) {
+      const m = repo.create({ label: `garden ${i}`, type: "daily", content: "planting tomatoes in the vegetable garden" } as never, await embeddings.embed("planting tomatoes in the vegetable garden"));
+      edges.create({ source: m.id, target: id, relationship: "supports", weight: 0.7 });
+    }
+
+    const branchId = await splitRipeIdea(ctx, "legacy");
+    expect(branchId).not.toBeNull();
+    // Now two ideas exist...
+    const ideas = handle.sqlite
+      .prepare(`SELECT id FROM nodes WHERE space_id = 'legacy' AND kind = 'idea' AND deleted_at IS NULL`)
+      .all() as { id: number }[];
+    expect(ideas.length).toBe(2);
+    // ...and each carries a share of the six supporting memories (split, not duplicated).
+    const supA = (handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id='legacy' AND target=? AND relationship='supports'`).get(id) as { c: number }).c;
+    const supB = (handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id='legacy' AND target=? AND relationship='supports'`).get(branchId) as { c: number }).c;
+    expect(supA).toBeGreaterThanOrEqual(2);
+    expect(supB).toBeGreaterThanOrEqual(2);
+    expect(supA + supB).toBe(6);
+  });
+
+  it("does not split a single coherent idea", async () => {
+    const id = await createCognitive(ctx, "legacy", "idea", "One clear idea", "");
+    const edges = new EdgesRepo(handle, "legacy");
+    for (let i = 0; i < 6; i++) {
+      const m = new NodesRepo(handle, "legacy").create({ label: `s${i}`, type: "daily", content: "the same coherent theme" } as never, await embeddings.embed("the same coherent theme"));
+      edges.create({ source: m.id, target: id, relationship: "supports", weight: 0.7 });
+    }
+    expect(await splitRipeIdea(ctx, "legacy")).toBeNull();
   });
 
   it("flags ripe ideas and promotes one into a goal", async () => {

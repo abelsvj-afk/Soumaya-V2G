@@ -162,22 +162,33 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
 
   const memoriesWith = new Map<string, Set<number>>(); // lowercased name → memory ids
   const display = new Map<string, string>(); // lowercased → canonical display
+  const midSentence = new Set<string>(); // saw the name NOT at a sentence start at least once
+  // Scan with position so we can tell a real proper noun from a word that's only
+  // capitalised because it starts a sentence ("Today…", "Went…").
+  const wordRe = /\b[A-Z][a-z]{2,}\b/g;
   for (const m of rows) {
+    const text = `${m.label}. ${m.content}`;
     const seen = new Set<string>();
-    for (const raw of `${m.label} ${m.content}`.split(/[^A-Za-z']+/)) {
-      if (!/^[A-Z][a-z]{2,}$/.test(raw)) continue; // Capitalised, ≥3 chars
+    let match: RegExpExecArray | null;
+    while ((match = wordRe.exec(text)) !== null) {
+      const raw = match[0];
       const key = raw.toLowerCase();
       if (NAME_STOP.has(key) || existing.has(key)) continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (!memoriesWith.has(key)) memoriesWith.set(key, new Set());
-      memoriesWith.get(key)!.add(m.id);
-      if (!display.has(key)) display.set(key, raw);
+      // Is this occurrence mid-sentence? (not preceded by start / . ! ? / newline)
+      const prev = text.slice(0, match.index).replace(/\s+$/, "");
+      const sentenceStart = prev === "" || /[.!?]$/.test(prev);
+      if (!sentenceStart) midSentence.add(key);
+      if (!seen.has(key)) {
+        seen.add(key);
+        if (!memoriesWith.has(key)) memoriesWith.set(key, new Set());
+        memoriesWith.get(key)!.add(m.id);
+        if (!display.has(key)) display.set(key, raw);
+      }
     }
   }
 
   return [...memoriesWith.entries()]
-    .filter(([, ids]) => ids.size >= 2)
+    .filter(([key, ids]) => ids.size >= 2 && midSentence.has(key)) // real name, seen mid-sentence
     .map(([key, ids]) => ({ name: display.get(key)!, count: ids.size }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);

@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **210 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **214 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Deferred items — idea splitting + sharpened negation/name heuristics
+- **Idea SPLIT** (`analysis/ideas.ts` `splitRipeIdea`, the Phase-3 leftover): when an idea's supporting
+  memories clearly form TWO threads (≥5 supports, the two most-dissimilar seeds cosine ≤0.45, each
+  cluster ≥2), it branches into two ideas. Branch names come from `summarizeSector` (on every provider,
+  so offline-safe — heuristic names each cluster; a cloud LLM names them better). Conservative: one
+  split/run, only genuine two-cluster ideas, **skips when over the API budget** so free autonomy never
+  spends. Original keeps branch A (renamed), a new idea takes branch B with its supports moved over
+  (logged `idea_split`). Wired into the autonomy loop.
+- **Sharper identity negation** (`analysis/identity.ts`): contesting evidence must now be a negation
+  NEAR the identity mention (a ~26-char window before it), not anywhere in the memory — so "not
+  everything went well, but I'm still a builder" reads as **affirming**, where the old whole-text check
+  wrongly flagged it as contesting.
+- **Sharper people suggestions** (`analysis/people.ts`): a candidate name must appear **mid-sentence at
+  least once** (position-aware scan) — so a word only ever capitalised because it starts a sentence
+  ("Running…", "Today…") is no longer mistaken for a person, while a real mid-sentence name still is.
+- **Tests**: idea two-cluster split + no-split-on-coherent; identity far-negation stays affirming;
+  people ignore sentence-start-only words. Gate: typecheck clean · **214 tests** · web build clean.
 
 ### 2026-07-07 (Claude): FREEZE FIX (infinite loading sun) + adaptive graphics/performance system
 - **Root cause of the freeze**: `afetch` used raw `fetch` with **NO timeout**, so a single stalled

@@ -1,6 +1,7 @@
 import { COGNITIVE_META } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
+import { EdgesRepo } from "../repositories/edges.repo.js";
 import { knn, getEmbedding } from "../db/vec.js";
 
 /**
@@ -163,6 +164,113 @@ export function stepIdeas(ctx: AppContext, spaceId: string): IdeasStep {
   }
 
   return step;
+}
+
+/** Minimum supporting memories before an idea can be considered for a split. */
+const SPLIT_MIN_SUPPORT = 5;
+/** Two seed memories this dissimilar (cosine ≤) mean the idea holds two threads. */
+const SPLIT_SEED_SIM = 0.45;
+
+function cosine(a: Float32Array, b: Float32Array): number {
+  let dot = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) dot += a[i]! * b[i]!;
+  return dot; // embeddings are L2-normalized, so dot = cosine
+}
+
+/**
+ * Idea SPLIT (Phase 3, deferred item): when an idea has accumulated enough support
+ * that its backing memories clearly form TWO distinct threads, branch it into two
+ * ideas so a blurred "maybe-project" resolves into its real parts. Branch names come
+ * from `summarizeSector` (implemented on every provider, so this is offline-safe —
+ * the heuristic names each cluster from its memories; a cloud LLM names them better).
+ *
+ * Conservative: at most one split per run, only genuine two-cluster ideas, and skip
+ * when over the API budget so it never drives cloud spend from free autonomy. Returns
+ * the new idea's id if a split happened, else null.
+ */
+export async function splitRipeIdea(ctx: AppContext, spaceId: string): Promise<number | null> {
+  if (ctx.usage.overBudget()) return null; // never spend from free autonomy
+  const s = ctx.handle.sqlite;
+  const ideas = s
+    .prepare(`SELECT id, label FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'idea'`)
+    .all(spaceId) as { id: number; label: string }[];
+
+  for (const idea of ideas) {
+    const backers = s
+      .prepare(
+        `SELECT n.id, n.label, n.content FROM edges e JOIN nodes n ON n.id = e.source
+         WHERE e.space_id = ? AND e.target = ? AND e.relationship = 'supports' AND n.deleted_at IS NULL`,
+      )
+      .all(spaceId, idea.id) as { id: number; label: string; content: string }[];
+    if (backers.length < SPLIT_MIN_SUPPORT) continue;
+
+    const embs = new Map<number, Float32Array>();
+    for (const b of backers) {
+      const e = getEmbedding(s, b.id);
+      if (e) embs.set(b.id, e);
+    }
+    const withEmb = backers.filter((b) => embs.has(b.id));
+    if (withEmb.length < SPLIT_MIN_SUPPORT) continue;
+
+    // Two seeds = the most dissimilar pair. If even they're similar, it's one thread.
+    let seedA = withEmb[0]!;
+    let seedB = withEmb[1]!;
+    let worst = 2;
+    for (let i = 0; i < withEmb.length; i++) {
+      for (let j = i + 1; j < withEmb.length; j++) {
+        const sim = cosine(embs.get(withEmb[i]!.id)!, embs.get(withEmb[j]!.id)!);
+        if (sim < worst) {
+          worst = sim;
+          seedA = withEmb[i]!;
+          seedB = withEmb[j]!;
+        }
+      }
+    }
+    if (worst > SPLIT_SEED_SIM) continue; // one coherent idea, not two
+
+    // Assign each backer to its nearer seed.
+    const groupA: typeof withEmb = [];
+    const groupB: typeof withEmb = [];
+    for (const b of withEmb) {
+      const e = embs.get(b.id)!;
+      (cosine(e, embs.get(seedA.id)!) >= cosine(e, embs.get(seedB.id)!) ? groupA : groupB).push(b);
+    }
+    if (groupA.length < 2 || groupB.length < 2) continue; // not a clean two-way split
+
+    // Name each branch (offline-safe: heuristic summarizes from the cluster's labels).
+    const nameA = (await ctx.llm.summarizeSector(groupA.map((m) => ({ label: m.label, content: m.content })))).slice(0, 80);
+    const nameB = (await ctx.llm.summarizeSector(groupB.map((m) => ({ label: m.label, content: m.content })))).slice(0, 80);
+
+    // Keep the original idea as branch A (renamed); create a new idea for branch B and
+    // move B's supporting edges onto it.
+    s.prepare(`UPDATE nodes SET label = ? WHERE id = ? AND space_id = ?`).run(nameA || idea.label, idea.id, spaceId);
+    const repo = new NodesRepo(ctx.handle, spaceId);
+    const meta = COGNITIVE_META.idea;
+    const emb = await ctx.embeddings.embed(nameB || `${idea.label} (branch)`);
+    const branch = repo.create(
+      { label: nameB || `${idea.label} (branch)`, type: "concept", kind: "idea", content: nameB || idea.label, importance: meta.importance, color: meta.color, origin: "agent" },
+      emb,
+    );
+    const edges = new EdgesRepo(ctx.handle, spaceId);
+    for (const b of groupB) {
+      s.prepare(`DELETE FROM edges WHERE space_id = ? AND source = ? AND target = ? AND relationship = 'supports'`).run(spaceId, b.id, idea.id);
+      if (!edges.exists(b.id, branch.id)) {
+        edges.create({ source: b.id, target: branch.id, relationship: "supports", weight: 0.7 });
+      }
+    }
+    try {
+      s.prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, 'idea_split', ?, ?)`).run(
+        spaceId,
+        `An idea split into two threads: "${nameA || idea.label}" and "${nameB}".`,
+        JSON.stringify([idea.id, branch.id]),
+      );
+    } catch {
+      /* best-effort */
+    }
+    return branch.id; // one split per run
+  }
+  return null;
 }
 
 /** Ids of ideas ripe to become goals (enough support), for a nudge / UI hint. */

@@ -68,6 +68,16 @@ describe("identity core (Cognitive Layer Phase 5)", () => {
     expect(ev.against.map((n) => n.id)).toContain(m.id);
   });
 
+  it("only counts a negation as contesting when it's NEAR the identity mention", async () => {
+    // "not" is far from "builder" here → this is AFFIRMING, not contesting.
+    const m = await mem("x", "not everything went well today, but I'm still a builder at heart");
+    const id = await createCognitive(ctx, "legacy", "identity", "builder", "");
+    stepIdentities(ctx, "legacy");
+    const ev = cognitiveEvidence(ctx, "legacy", id)!;
+    expect(ev.against.length).toBe(0);
+    expect(ev.for.map((n) => n.id)).toContain(m.id);
+  });
+
   it("evidence for a non-identity anchor reports supporters as 'for' only", async () => {
     await mem("g", "sailing lesson number three");
     const goal = await createCognitive(ctx, "legacy", "goal", "sailing", "");

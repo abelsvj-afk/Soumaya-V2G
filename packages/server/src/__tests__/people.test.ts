@@ -88,4 +88,16 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     expect(names).not.toContain("Monday");
     expect(names).not.toContain("Carlos"); // already an entity
   });
+
+  it("ignores words only ever capitalised at a sentence start (not real names)", async () => {
+    // "Blake" always appears mid-sentence → a real name. "Running" only ever starts
+    // a sentence → capitalisation-by-position, not a person.
+    await mem("m1", "went climbing with Blake");
+    await mem("m2", "dinner with Blake afterwards");
+    await mem("m3", "Running felt amazing today");
+    await mem("m4", "Running is becoming a habit");
+    const names = suggestPeople(ctx, "legacy").map((s) => s.name);
+    expect(names).toContain("Blake");
+    expect(names).not.toContain("Running");
+  });
 });

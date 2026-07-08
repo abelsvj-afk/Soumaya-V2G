@@ -32,9 +32,27 @@ const CONTRA_MARKERS = [
   "failed to", "struggle to", "struggling", "hardly", "barely", "lost my",
 ];
 
-function hasNegation(text: string): boolean {
-  const t = text.toLowerCase();
-  return CONTRA_MARKERS.some((m) => t.includes(m));
+/**
+ * Contesting evidence must be a negation NEAR the identity mention, not just anywhere
+ * in the memory — so "proud to be a builder, I never doubted it" reads as affirming,
+ * while "I'm not a builder anymore" reads as contesting. We look only at the short
+ * window of text immediately BEFORE each mention of the identity.
+ */
+const NEGATION_WINDOW = 26; // chars before a mention (~3-4 words) to inspect
+function negatedNear(text: string, tokens: string[]): boolean {
+  const lower = text.toLowerCase();
+  for (const token of tokens) {
+    const esc = token.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(^|[^a-z0-9])${esc}([^a-z0-9]|$)`, "g");
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(lower)) !== null) {
+      const start = m.index + m[1]!.length;
+      const before = lower.slice(Math.max(0, start - NEGATION_WINDOW), start);
+      if (CONTRA_MARKERS.some((marker) => before.includes(marker))) return true;
+      if (re.lastIndex === m.index) re.lastIndex++; // avoid zero-width loop
+    }
+  }
+  return false;
 }
 
 export interface IdentityEvidence {
@@ -65,7 +83,7 @@ export function evaluateIdentity(ctx: AppContext, spaceId: string, id: number, l
     for (const r of rows) {
       const hay = `${r.label}\n${r.content}`;
       if (!tokens.some((t) => mentions(hay, t))) continue; // whole-word only
-      const against = hasNegation(hay);
+      const against = negatedNear(hay, tokens);
       const rel = against ? "contradicts" : "supports";
       const opp = against ? "supports" : "contradicts";
       // Ensure the correct edge exists and the opposite one doesn't.
