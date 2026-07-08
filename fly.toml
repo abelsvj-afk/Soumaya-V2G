@@ -39,7 +39,10 @@ primary_region = 'iad'
     path = '/api/health'
 
 [[vm]]
-  memory = '1gb'
+  # Raised 1gb -> 2gb: the SQLite + sqlite-vec vector index + the baked MiniLM model
+  # can spike past 1GB on a busy brain, and an OOM-killed server is exactly what
+  # leaves the client hanging on the loading sun. Headroom keeps /api/graph responsive.
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 1024
+  memory_mb = 2048

@@ -1941,6 +1941,47 @@ body,
   font-size: 13px;
   letter-spacing: 0.06em;
 }
+.loading.recovery { z-index: 60; }
+/* FPS "switch to Performance Mode?" suggestion banner (bottom-centre). */
+.perf-suggest {
+  position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+  z-index: 58; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center;
+  max-width: 92vw; padding: 8px 12px; border-radius: 999px;
+  background: rgba(20, 26, 46, 0.92); border: 1px solid rgba(255, 205, 70, 0.4); backdrop-filter: blur(6px);
+  font-size: 0.78rem; color: #eaf0ff;
+}
+.perf-suggest button {
+  padding: 4px 12px; border-radius: 999px; font-size: 0.76rem; cursor: pointer;
+  background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.18); color: #eaf4ff;
+}
+.perf-suggest .perf-yes { background: rgba(255, 205, 70, 0.28); border-color: rgba(255, 205, 70, 0.5); font-weight: 600; }
+@supports (padding: env(safe-area-inset-bottom)) {
+  .perf-suggest { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
+.recovery-card {
+  max-width: min(92vw, 420px);
+  padding: 22px 20px;
+  border-radius: 16px;
+  background: rgba(20, 26, 46, 0.9);
+  border: 1px solid rgba(150, 134, 255, 0.35);
+  text-align: center;
+}
+.recovery-card h2 { margin: 0 0 8px; font-size: 1.05rem; color: #eaf0ff; }
+.recovery-card > p { margin: 0 0 16px; font-size: 0.86rem; color: #b9c3dd; line-height: 1.5; }
+.recovery-actions { display: flex; flex-direction: column; gap: 8px; }
+.recovery-actions button {
+  padding: 10px; border-radius: 10px; font-size: 0.9rem; cursor: pointer;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.15); color: #eaf4ff;
+}
+.recovery-actions .recovery-primary { background: rgba(150, 134, 255, 0.25); border-color: rgba(150, 134, 255, 0.5); font-weight: 600; }
+.recovery-actions button:hover { background: rgba(255, 255, 255, 0.12); }
+.recovery-diag-toggle {
+  margin-top: 12px; background: transparent; border: none; color: #8ea0c4; font-size: 0.74rem; cursor: pointer;
+}
+.recovery-diag {
+  margin: 8px 0 0; padding: 10px; border-radius: 8px; text-align: left;
+  background: rgba(0, 0, 0, 0.4); color: #9fd4ff; font-size: 0.72rem; line-height: 1.5; overflow-x: auto;
+}
 .loader-orb {
   width: 64px;
   height: 64px;
@@ -3439,6 +3480,25 @@ button {
 }
 .settings-field input:focus { outline: none; border-color: rgba(91, 214, 255, 0.6); }
 .settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+
+/* 🎨 Graphics & performance controls */
+.gfx-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.gfx-mode {
+  display: flex; flex-direction: column; gap: 1px; text-align: left;
+  padding: 7px 9px; border-radius: 9px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); color: #eaf4ff;
+}
+.gfx-mode b { font-size: 0.82rem; }
+.gfx-mode em { font-size: 0.64rem; opacity: 0.65; font-style: normal; }
+.gfx-mode.on { background: rgba(143, 220, 255, 0.18); border-color: rgba(143, 220, 255, 0.5); }
+.gfx-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; font-size: 0.82rem; color: #dCe7ff; }
+.seg { display: inline-flex; border-radius: 999px; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.14); }
+.seg button {
+  padding: 3px 9px; font-size: 0.7rem; cursor: pointer; background: transparent; color: #b9c3dd; border: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+.seg button:last-child { border-right: none; }
+.seg button.on { background: rgba(143, 220, 255, 0.25); color: #eaf4ff; }
 .settings-toggle > span { display: flex; flex-direction: column; gap: 2px; font-size: 0.86rem; color: #eaf2ff; }
 .settings-toggle em { font-style: normal; font-size: 0.76rem; color: #8fa3c4; }
 .switch {

@@ -39,6 +39,7 @@ function getFigurineLabel(type: string): string {
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
+import { setGraphicsMode, resolveGraphics, getGraphics } from "./graph/graphicsConfig.js";
 import { IngestPanel } from "./components/IngestPanel.js";
 import { Observatory } from "./components/Observatory.js";
 import { ChatDock } from "./components/ChatDock.js";
@@ -186,6 +187,11 @@ export default function App() {
 
   const [panel, setPanel] = useState<Panel>(null);
   const [loaded, setLoaded] = useState(false);
+  // Startup recovery: set when initialization fails/stalls so we show a recovery
+  // screen (Retry / Performance Mode / Diagnostics) instead of freezing on the sun.
+  const [initError, setInitError] = useState<null | "timeout" | "error">(null);
+  const [showDiag, setShowDiag] = useState(false);
+  const [perfSuggest, setPerfSuggest] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
   const [aiBusy, setAiBusy] = useState(0);
   const [music, setMusic] = useState(false);
@@ -379,8 +385,11 @@ export default function App() {
       return;
     }
     try {
+      console.info("[BOOT] loading graph");
       const g = await getGraph();
+      console.info(`[BOOT] graph received (${g.nodes.length} nodes)`);
       setData(g);
+      setInitError(null);
       getFuel().then((f) => f && setFuel(f)).catch(() => {});
       // Let the proactive "she noticed…" card re-check (a fresh memory can form a
       // new structural connection worth a question, generated server-side on ingest).
@@ -412,8 +421,15 @@ export default function App() {
           setSelected(g.nodes.find((n) => n.id === newIds[0]) ?? null);
         }, 550);
       }
+    } catch (err) {
+      // A stalled/failed graph load no longer freezes the app — surface a recovery
+      // screen. AbortError = our boot timeout tripped.
+      const timedOut = err instanceof DOMException && err.name === "AbortError";
+      console.error(`[BOOT] graph load ${timedOut ? "timed out" : "failed"}:`, err);
+      setInitError(timedOut ? "timeout" : "error");
     } finally {
       setLoaded(true);
+      console.info("[BOOT] loaded complete");
     }
     getHealth()
       .then(setHealth)
@@ -448,10 +464,54 @@ export default function App() {
     }
   }, [visitorCount, followVisitor]);
 
+  // Watchdog: no matter what happens in the boot chain (a hung request, a stalled
+  // WebGL init, a thrown effect), never sit on the loading sun forever — force the
+  // overlay to clear after a hard ceiling and, if we still have no data, offer
+  // recovery. This is the last line of defense behind the per-request timeouts.
+  useEffect(() => {
+    if (loaded) return;
+    const t = window.setTimeout(() => {
+      if (!loaded) {
+        console.warn("[BOOT] watchdog tripped — forcing loaded, offering recovery");
+        setInitError((e) => e ?? "timeout");
+        setLoaded(true);
+      }
+    }, 15_000);
+    return () => window.clearTimeout(t);
+  }, [loaded]);
+
+  // FPS monitor: after a warm-up, sample the frame rate; if it stays rough and the
+  // pilot isn't already in Performance Mode, OFFER (never force) a downgrade. Auto
+  // Mode already picks a sane tier — this catches devices that still struggle.
+  useEffect(() => {
+    if (demo) return;
+    let frames = 0, t0 = performance.now(), lowStreak = 0, raf = 0, stopped = false;
+    const sample = () => {
+      frames++;
+      const now = performance.now();
+      if (now - t0 >= 2000) {
+        const fps = (frames * 1000) / (now - t0);
+        frames = 0;
+        t0 = now;
+        lowStreak = fps < 24 ? lowStreak + 1 : 0;
+        if (lowStreak >= 3 && getGraphics().mode !== "performance") {
+          setPerfSuggest(true);
+          stopped = true;
+          return;
+        }
+      }
+      if (!stopped) raf = requestAnimationFrame(sample);
+    };
+    const warm = window.setTimeout(() => { raf = requestAnimationFrame(sample); }, 8000);
+    return () => { window.clearTimeout(warm); cancelAnimationFrame(raf); };
+  }, [demo]);
+
   // Resolve the stored brain (if any) on first load.
   useEffect(() => {
+    console.info("[BOOT] auth started");
     currentSpace()
       .then((sp) => {
+        console.info(`[BOOT] auth finished (${sp ? "brain open" : "no brain"})`);
         setSpace(sp);
         const params = new URLSearchParams(window.location.search);
         // Only allow demo mode if logged in as "soumaya" (case-insensitive)
@@ -966,16 +1026,90 @@ export default function App() {
         spaceId={space?.id ?? ""}
       />
 
-      {!loaded && (
+      {!loaded && !initError && (
         <div className="loading">
           <div className="loader-orb" />
           <p>Mapping your galaxy…</p>
         </div>
       )}
 
+      {initError && (
+        <div className="loading recovery">
+          <div className="recovery-card">
+            <h2>Soumaya couldn't finish loading</h2>
+            <p>
+              {initError === "timeout"
+                ? "The connection stalled. Your brain is safe — let's try again."
+                : "Something interrupted startup. Your brain is safe — let's try again."}
+            </p>
+            <div className="recovery-actions">
+              <button
+                className="recovery-primary"
+                onClick={() => {
+                  setInitError(null);
+                  setLoaded(false);
+                  void refresh();
+                }}
+              >
+                ↻ Retry
+              </button>
+              <button
+                onClick={() => {
+                  setGraphicsMode("performance");
+                  setInitError(null);
+                  setLoaded(false);
+                  void refresh();
+                }}
+                title="Lighter rendering for weaker phones"
+              >
+                ⚡ Performance Mode
+              </button>
+              <button onClick={() => window.location.reload()}>⟳ Reload app</button>
+            </div>
+            <button className="recovery-diag-toggle" onClick={() => setShowDiag((d) => !d)}>
+              {showDiag ? "▾ Hide diagnostics" : "▸ View diagnostics"}
+            </button>
+            {showDiag && (
+              <pre className="recovery-diag">
+                {(() => {
+                  const g = resolveGraphics();
+                  const nav = navigator as unknown as { deviceMemory?: number };
+                  return [
+                    `cause: ${initError}`,
+                    `tier: ${g.tier}`,
+                    `deviceMemory: ${nav.deviceMemory ?? "?"} GB`,
+                    `cores: ${navigator.hardwareConcurrency ?? "?"}`,
+                    `dpr: ${window.devicePixelRatio || 1} → render ${g.pixelRatio.toFixed(2)}`,
+                    `bloom: ${g.bloom} · stars: ${g.starCount} · fps: ${g.fpsCap}`,
+                    `online: ${navigator.onLine}`,
+                  ].join("\n");
+                })()}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+
       {aiBusy > 0 && (
         <div className="ai-busy">
           <span className="ai-dot" /> {space?.name ?? "Soumaya"} is thinking…
+        </div>
+      )}
+
+      {perfSuggest && (
+        <div className="perf-suggest">
+          <span>Soumaya noticed some lag — switch to Performance Mode?</span>
+          <button
+            className="perf-yes"
+            onClick={() => {
+              setGraphicsMode("performance");
+              setPerfSuggest(false);
+              pushToast("Performance Mode on — smoother now. Reload for the full effect.", "⚡", 5000);
+            }}
+          >
+            Switch
+          </button>
+          <button onClick={() => setPerfSuggest(false)}>Not now</button>
         </div>
       )}
 

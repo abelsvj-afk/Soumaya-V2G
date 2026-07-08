@@ -165,6 +165,34 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-07 (Claude): FREEZE FIX (infinite loading sun) + adaptive graphics/performance system
+- **Root cause of the freeze**: `afetch` used raw `fetch` with **NO timeout**, so a single stalled
+  `/api/graph` never settled — the loading overlay (`!loaded`) never cleared AND the `tracked()`
+  activity counter never decremented, so "Soumaya is thinking…" stuck too. Both symptoms, one hang.
+  - **Fix**: `afetch` now enforces a timeout (default 60s for slow LLM calls; **boot reads get a 12s
+    `BOOT_TIMEOUT_MS`** — `getGraph`/`currentSpace`/`getHealth`/`getFuel`). Nothing can hang forever.
+  - **Watchdog**: a hard 15s ceiling in App forces the sun to clear no matter what (covers a synchronous
+    WebGL/init stall too), and a **recovery screen** appears — "Soumaya couldn't finish loading" with
+    **Retry / Performance Mode / Reload / View diagnostics** (device + resolved-graphics dump).
+  - **Boot logging**: `[BOOT] auth started/finished · loading graph · graph received · loaded complete`
+    so the exact stall point is visible in the console.
+- **Adaptive graphics system** (`graph/graphicsConfig.ts`) — one central config Graph3D CONSUMES (it
+  never decides perf itself). Modes **Auto / Performance / Balanced / Quality** + individual knobs
+  (bloom, star density, particles, animation, render quality, battery saver, FPS cap), persisted in
+  `localStorage`, with device detection (`deviceMemory`/`hardwareConcurrency`/DPI/screen → tier).
+  `resolveGraphics()` → concrete numbers.
+  - **Graph3D wired**: **pixel ratio cap** (the #1 mobile GPU cost — a 3× retina phone renders 9× the
+    pixels; capping it prevents most freezes), **bloom skipped** on weak/Performance tiers, **star
+    count** from density, and an **FPS cap** gating the animation tick. Cheap knobs (pixel ratio, FPS)
+    re-apply live on settings change; stars/bloom apply on reload.
+  - **Settings → 🎨 Graphics & performance**: mode picker + all individual controls + battery saver.
+  - **FPS monitor**: after warm-up, if the frame rate stays rough and you're not already in Performance
+    Mode, it OFFERS (never forces) a switch via a dismissible banner.
+- **Backend headroom** (`fly.toml`): VM memory `1gb → 2gb` — an OOM-killed server is exactly what left
+  the client hanging; headroom keeps `/api/graph` responsive. (Applies on next `agy` deploy.)
+- Same app on every device — a flagship gets the cinematic galaxy, a budget phone gets the full
+  second-brain optimized, never fewer features. Gate: typecheck clean · 210 tests · web build clean.
+
 ### 2026-07-07 (Claude): Fleet UX + emoji de-collision + image-asset brief (docs/IMAGE_ASSETS.md)
 - **Fleet emoji collision fixed** (`graph/fleet.ts`): beacon/scout/defender were `🛰️ / 🛰 / 🚀` —
   beacon & scout were the SAME satellite emoji. Now `📡 (beacon) / 🛰️ (scout) / 🛡️ (defender)` —

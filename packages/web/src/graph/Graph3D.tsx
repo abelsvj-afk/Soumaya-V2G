@@ -14,6 +14,7 @@ import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfield.js";
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
+import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
 import { makeCollisionBursts } from "./effects.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeEngineAudio } from "./engineAudio.js";
@@ -653,6 +654,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const lastTasksJsonRef = useRef("");
 
   const bloomRef = useRef<{ strength: number } | null>(null);
+  const gfxRef = useRef<ResolvedGraphics | null>(null);
   const initialFramedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
@@ -733,10 +735,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let satellites: SatelliteSystem | null = null;
     let subAgents: SubAgentSystem | null = null;
     
+    // Adaptive graphics: the central config decides how heavy we render (Graph3D
+    // never decides itself). Weak devices get fewer stars, no bloom, a capped pixel
+    // ratio and FPS — the SAME app, optimized. Held in a ref so live setting changes
+    // can retune the cheap knobs (pixel ratio, FPS) without a reload.
+    const gfx: ResolvedGraphics = resolveGraphics();
+    gfxRef.current = gfx;
     try {
+      // Cap the renderer's pixel ratio FIRST — the single biggest GPU cost on mobile
+      // (a 3× retina phone renders 9× the pixels). This alone prevents most freezes.
+      try {
+        fg.renderer().setPixelRatio(gfx.pixelRatio);
+      } catch {
+        /* renderer not ready yet — the effect below re-applies it */
+      }
       scene.background = makeSpaceBackground();
       loadNebulaSkybox(scene);
-      scene.add(makeStarfield());
+      scene.add(makeStarfield(gfx.starCount));
       scene.add(makeNebulae());
       scene.add(makeGalaxies());
       scene.add(makeConstellations());
@@ -791,7 +806,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       subAgents = makeSubAgents();
       subAgentsRef.current = subAgents;
       scene.add(subAgents.group);
-      bloomRef.current = addBloom(fg, {});
+      // Bloom is expensive post-processing — skip it entirely on Performance/weak
+      // devices (a major GPU + VRAM saving), else add it at the resolved strength.
+      bloomRef.current = gfx.bloom ? addBloom(fg, { strength: gfx.bloomStrength }) : null;
 
       // Click detection for Soumaya's ship
       const canvas = fg.renderer().domElement;
@@ -944,6 +961,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     let raf = 0;
     let last = performance.now() * 0.001;
+    let lastFrameMs = 0; // FPS-cap gate (adaptive graphics)
     let lastDist = 0;
     let lastRefreshTime = 0;
     let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
@@ -952,7 +970,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let followAnchorId: number | null = null;
     const followPos = new THREE.Vector3();
     const tick = () => {
-      const now = performance.now() * 0.001;
+      raf = requestAnimationFrame(tick); // keep the loop alive even on capped frames
+      // FPS cap (adaptive graphics): on Performance / battery-saver, skip this frame's
+      // animation work when we're ahead of the target rate — a real CPU saving on weak
+      // phones without touching functionality.
+      const nowMs = performance.now();
+      const cap = gfxRef.current?.fpsCap ?? 60;
+      if (nowMs - lastFrameMs < 1000 / cap - 1.5) return;
+      lastFrameMs = nowMs;
+
+      const now = nowMs * 0.001;
       const dt = Math.min(0.05, now - last);
       last = now;
 
@@ -1462,8 +1489,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Single damped update per frame (required for inertia + zoom-to-cursor).
       controls?.update();
-
-      raf = requestAnimationFrame(tick);
     };
     tick();
     return () => {
@@ -1516,6 +1541,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
       fg.__brainInited = false; // allow a clean re-init if this fg instance is reused
     };
+  }, []);
+
+  // Live-apply the cheap graphics knobs when Settings change: pixel ratio + FPS cap
+  // update instantly (huge on mobile); star count + bloom need a reload (the Settings
+  // panel says so), since they're one-time scene construction.
+  useEffect(() => {
+    const apply = () => {
+      const g = resolveGraphics();
+      gfxRef.current = g;
+      try {
+        (fgRef.current as any)?.renderer?.().setPixelRatio(g.pixelRatio);
+      } catch {
+        /* renderer may be mid-teardown */
+      }
+    };
+    window.addEventListener("brain-graphics-change", apply);
+    return () => window.removeEventListener("brain-graphics-change", apply);
   }, []);
 
   // Hover highlighting: dim node groups that aren't the focus or its neighbors.

@@ -72,12 +72,30 @@ function storeSpace(id: string | null, name?: string): void {
   }
 }
 
-/** fetch wrapper that attaches the current brain's id to every request. */
-function afetch(path: string, init: RequestInit = {}): Promise<Response> {
+/**
+ * Default request timeout. LLM-backed calls (chat/research/ingest) can be slow, so
+ * this is generous — but NOTHING is allowed to hang forever (that froze the app on
+ * boot: a stalled /api/graph never settled, so the loading overlay + the "thinking"
+ * counter stuck permanently). Boot-critical reads pass a much shorter timeout.
+ */
+const DEFAULT_TIMEOUT_MS = 60_000;
+/** Boot reads must fail fast so the app can recover instead of freezing on the sun. */
+export const BOOT_TIMEOUT_MS = 12_000;
+
+/**
+ * fetch wrapper that attaches the current brain's id AND enforces a timeout, so a
+ * stalled network/server can never hang a request forever. Aborts on timeout unless
+ * the caller supplies its own AbortSignal.
+ */
+function afetch(path: string, init: RequestInit = {}, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<Response> {
   const headers = new Headers(init.headers);
   const id = getSpaceId();
   if (id) headers.set("x-space-id", id);
-  return fetch(path, { ...init, headers });
+  // If the caller passed its own signal, respect it; otherwise time out ourselves.
+  if (init.signal) return fetch(path, { ...init, headers });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(path, { ...init, headers, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 export interface AuthResult {
@@ -105,7 +123,7 @@ export async function authSpace(gamerTag: string, passcode: string, name?: strin
 export async function currentSpace(): Promise<{ id: string; name: string; gamerTag?: string } | null> {
   if (!getSpaceId()) return null;
   try {
-    const res = await afetch(`${API}/space/me`);
+    const res = await afetch(`${API}/space/me`, {}, BOOT_TIMEOUT_MS);
     if (!res.ok) return null;
     const body = (await res.json()) as { id: string; name: string; gamerTag?: string };
     storeSpace(body.id, body.name);
@@ -177,16 +195,13 @@ export interface Health {
 }
 
 export async function getGraph(limit = 300): Promise<GraphData> {
-  try {
-    const res = await afetch(`${API}/graph?limit=${limit}`);
-    const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
-    return {
-      nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
-      links: Array.isArray(d?.links) ? d!.links! : [],
-    };
-  } catch {
-    return { nodes: [], links: [] };
-  }
+  // Boot-critical: a short timeout so a stalled server can't freeze the loading sun.
+  const res = await afetch(`${API}/graph?limit=${limit}`, {}, BOOT_TIMEOUT_MS);
+  const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
+  return {
+    nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
+    links: Array.isArray(d?.links) ? d!.links! : [],
+  };
 }
 
 type IngestOpts = {
@@ -392,7 +407,7 @@ export async function getNeighbors(id: number, depth = 2): Promise<GraphData> {
 }
 
 export async function getHealth(): Promise<Health> {
-  const res = await afetch(`${API}/health`);
+  const res = await afetch(`${API}/health`, {}, BOOT_TIMEOUT_MS);
   return res.json() as Promise<Health>;
 }
 
@@ -440,7 +455,7 @@ export async function getDailyDigest(): Promise<DailyDigest> {
 /** This brain's Celestial Economy fuel (free, space-scoped). */
 export async function getFuel(): Promise<Fuel | null> {
   try {
-    const res = await afetch(`${API}/maintenance/fuel`);
+    const res = await afetch(`${API}/maintenance/fuel`, {}, BOOT_TIMEOUT_MS);
     if (!res.ok) return null;
     const d = await res.json().catch(() => null);
     return d && typeof d.fuel === "number" ? (d as Fuel) : null;

@@ -2,6 +2,15 @@ import { useEffect, useState } from "react";
 import { currentSpace, updateProfile } from "../api/client.js";
 import { isVoiceEnabled, setVoiceEnabled, isVoiceSupported } from "../voice.js";
 import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
+import {
+  getGraphics,
+  setGraphicsMode,
+  setGraphicsField,
+  resolveGraphics,
+  GRAPHICS_MODES,
+  type GraphicsSettings,
+  type Level,
+} from "../graph/graphicsConfig.js";
 
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
@@ -23,7 +32,21 @@ export function SettingsPanel({
   const [msg, setMsg] = useState("");
   const [voice, setVoice] = useState(isVoiceEnabled());
   const [sfx, setSfx] = useState(sfxEnabled());
+  const [gfx, setGfx] = useState<GraphicsSettings>(getGraphics());
   const voiceSupported = isVoiceSupported();
+  const resolved = resolveGraphics(gfx);
+
+  const pickMode = (m: GraphicsSettings["mode"]) => setGfx(setGraphicsMode(m));
+  const setField = <K extends keyof GraphicsSettings>(k: K, v: GraphicsSettings[K]) => setGfx(setGraphicsField(k, v));
+  const Seg = <T extends string>({ value, options, onPick }: { value: T; options: T[]; onPick: (v: T) => void }) => (
+    <span className="seg">
+      {options.map((o) => (
+        <button key={o} className={value === o ? "on" : ""} onClick={() => onPick(o)}>
+          {o[0]!.toUpperCase() + o.slice(1)}
+        </button>
+      ))}
+    </span>
+  );
 
   useEffect(() => {
     currentSpace().then((s) => {
@@ -126,6 +149,48 @@ export function SettingsPanel({
               <span className="knob" />
             </button>
           </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>🎨 Graphics &amp; performance</h3>
+          <p className="settings-note" style={{ fontSize: "12px", opacity: 0.75, margin: "0 0 10px" }}>
+            One galaxy, tuned to your device. Weaker phones get the full experience, optimized —
+            never fewer features. Detected: <b>{resolved.tier}</b>.
+          </p>
+          <div className="gfx-modes">
+            {GRAPHICS_MODES.map((m) => (
+              <button
+                key={m.id}
+                className={`gfx-mode ${gfx.mode === m.id ? "on" : ""}`}
+                onClick={() => pickMode(m.id)}
+                title={m.hint}
+              >
+                <b>{m.label}</b>
+                <em>{m.hint}</em>
+              </button>
+            ))}
+          </div>
+
+          <label className="settings-toggle">
+            <span>Bloom glow <em>Cinematic light bloom (costly on weak GPUs).</em></span>
+            <button className={`switch ${gfx.bloom ? "on" : ""}`} onClick={() => setField("bloom", !gfx.bloom)} aria-pressed={gfx.bloom}>
+              <span className="knob" />
+            </button>
+          </label>
+          <div className="gfx-row"><span>Star density</span><Seg value={gfx.starDensity} options={["low", "medium", "high"] as Level[]} onPick={(v) => setField("starDensity", v)} /></div>
+          <div className="gfx-row"><span>Particle effects</span><Seg value={gfx.particles} options={["low", "medium", "high"] as Level[]} onPick={(v) => setField("particles", v)} /></div>
+          <div className="gfx-row"><span>Animation quality</span><Seg value={gfx.animationQuality} options={["low", "medium", "high"] as Level[]} onPick={(v) => setField("animationQuality", v)} /></div>
+          <div className="gfx-row"><span>Render quality</span><Seg value={gfx.renderQuality} options={["auto", "low", "medium", "high"]} onPick={(v) => setField("renderQuality", v as GraphicsSettings["renderQuality"])} /></div>
+          <div className="gfx-row"><span>FPS cap</span><Seg value={String(gfx.fpsCap)} options={["30", "45", "60"]} onPick={(v) => setField("fpsCap", Number(v) as GraphicsSettings["fpsCap"])} /></div>
+          <label className="settings-toggle">
+            <span>Battery saver <em>Caps FPS, drops bloom + resolution to save power.</em></span>
+            <button className={`switch ${gfx.batterySaver ? "on" : ""}`} onClick={() => setField("batterySaver", !gfx.batterySaver)} aria-pressed={gfx.batterySaver}>
+              <span className="knob" />
+            </button>
+          </label>
+          <p className="settings-note" style={{ fontSize: "11px", opacity: 0.6, margin: "8px 0 0" }}>
+            Resolution &amp; FPS apply instantly. Star density &amp; bloom apply on next reload.
+          </p>
         </section>
       </div>
     </div>
