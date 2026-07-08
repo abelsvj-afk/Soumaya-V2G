@@ -165,6 +165,17 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-08 (Claude): Self-healing boot — the freeze is now cured at the source
+- Confirmed via the orange failsafe orb (introduced only in c00a10b) that the NEW build IS deploying and
+  /api/health is green — so it was never the server or GitHub. The remaining hang was a stale cached JS
+  bundle under the old cache-first service worker, plus a manual "Reset" button nobody knew to tap.
+- index.html now AUTO-HEALS: if boot stalls ~7s it clears the service worker + all caches and hard-reloads
+  ONCE (sessionStorage-guarded so it can't loop); only if still stuck does the manual panel show.
+- sw.js: cache-first -> NETWORK-FIRST for JS/CSS, so an installed PWA can never serve a stale bundle when
+  online (ends the whole infinite-loading-screen class). Cache is offline fallback only.
+- Pushed to claude + fast-forwarded master (the real deploy branch, now kept in sync). Takes effect on the
+  next deploy; after that, devices self-heal with no user action.
+
 ### 2026-07-07 (Claude): Server-side freeze causes — graceful shutdown (EBUSY) + health-check grace (cold boot)
 - The user's Fly logs revealed the freeze may be **server-side**, not just a stale bundle:
   `error umounting /data: EBUSY` + `Health check on 8080 failed — app not responding`. A dead/unhealthy
