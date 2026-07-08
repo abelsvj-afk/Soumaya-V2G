@@ -17,6 +17,8 @@ export interface NewNode {
   kind?: GraphNode["kind"];
   /** 0..1 progress (goal completion / skill level) — cognitive layer. */
   progress?: number;
+  /** Cognitive layer: other names this entry answers to (person/place aliases). */
+  aliases?: string[];
   expiresAt?: string;
   occurredAt?: string;
   remindAt?: string;
@@ -37,6 +39,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     agent: row.agent ?? undefined,
     kind: (row.kind as GraphNode["kind"]) ?? undefined,
     progress: row.progress ?? undefined,
+    aliases: parseTags(row.aliases),
     expiresAt: row.expiresAt ?? undefined,
     lastTendedAt: row.lastTendedAt ?? undefined,
     occurredAt: row.occurredAt ?? undefined,
@@ -97,6 +100,7 @@ export class NodesRepo {
           origin: input.origin ?? null,
           kind: input.kind ?? null,
           progress: input.progress ?? null,
+          aliases: input.aliases && input.aliases.length > 0 ? JSON.stringify(input.aliases) : null,
           expiresAt: input.expiresAt ?? null,
           occurredAt: input.occurredAt ?? null,
           remindAt: input.remindAt ?? null,

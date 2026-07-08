@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getInquiries, answerInquiry, dismissInquiry, rejectInquiry, type Inquiry } from "../api/client.js";
+import { getInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry, type Inquiry } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 
@@ -73,6 +73,15 @@ export function NoticingCard({
     pushToast("Got it — I won't tie those together.", "🧠", 3500);
     onAnswered?.(); // the galaxy may lose an edge → refresh
   };
+  const confirm = async () => {
+    setInquiries((xs) => xs.filter((x) => x.id !== q.id));
+    await confirmInquiry(q.id);
+    playSfx("achievement");
+    pushToast("Connected ✦ — woven into your galaxy.", "🧠", 3500);
+    onAnswered?.();
+  };
+  // A one-tap "yes, connect" makes sense for the connection-style noticings.
+  const canConfirm = q.kind === "anchor" || q.kind === "bridge";
 
   return (
     <div className="noticing-card" role="dialog" aria-label="Soumaya noticed something">
@@ -102,11 +111,16 @@ export function NoticingCard({
         placeholder="Tell her… (this becomes a memory, linked in)"
       />
       <div className="noticing-actions">
+        {canConfirm && (
+          <button className="noticing-confirm" onClick={() => void confirm()} title="Connect them">
+            ✦ Yes, connect
+          </button>
+        )}
         <button onClick={() => void send()} disabled={busy || !reply.trim()}>
           {busy ? "Weaving…" : "Answer"}
         </button>
         <button className="mini ghost" onClick={() => void reject()} title="Sever this connection and don't suggest it again">
-          These don't relate
+          Not related
         </button>
         <button className="mini ghost" onClick={() => void wave()}>Not now</button>
       </div>

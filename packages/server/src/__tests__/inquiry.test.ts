@@ -14,6 +14,7 @@ import {
   dismissInquiry,
   answerInquiry,
   rejectInquiry,
+  confirmInquiry,
 } from "../analysis/inquiry.js";
 import { isRejected } from "../analysis/rejections.js";
 
@@ -128,6 +129,20 @@ describe("inquiry engine (proactive intelligence)", () => {
     // ...the inquiry is closed, and the same situation won't be re-raised.
     expect(listInquiries(ctx, "legacy").length).toBe(0);
     expect(generateInquiry(ctx, "legacy")).toBeNull();
+  });
+
+  it("'yes, connect' draws the edge between the bodies she surfaced (bridge)", async () => {
+    const a = await createCognitive(ctx, "legacy", "person_entity", "Alena", "");
+    const b = await createCognitive(ctx, "legacy", "person_entity", "Marcus", "");
+    const m = await mem("dinner", "the evening out");
+    const edges = new EdgesRepo(handle, "legacy");
+    edges.create({ source: m.id, target: a, relationship: "relates_to", weight: 0.6 });
+    edges.create({ source: m.id, target: b, relationship: "relates_to", weight: 0.6 });
+    const id = generateInquiry(ctx, "legacy")!;
+
+    expect(confirmInquiry(ctx, "legacy", id)).toBe(true);
+    expect(edges.exists(a, b) || edges.exists(b, a)).toBe(true); // now connected
+    expect(listInquiries(ctx, "legacy").length).toBe(0);
   });
 
   it("stays quiet when there's nothing worth asking", async () => {

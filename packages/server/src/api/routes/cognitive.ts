@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { COGNITIVE_KINDS } from "@brain/shared";
 import type { AppContext } from "../../context.js";
-import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive } from "../../analysis/cognitive.js";
+import { createCognitive, listCognitive, setCognitiveProgress, updateCognitive, unlinkMemory, pruneAnchorLinks } from "../../analysis/cognitive.js";
 import { promoteIdeaToGoal } from "../../analysis/ideas.js";
 import { cognitiveEvidence } from "../../analysis/identity.js";
 import { personProfile } from "../../analysis/people.js";
@@ -10,19 +10,27 @@ import { upcomingEvents } from "../../analysis/future.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
 
+const AliasList = z.array(z.string().min(1).max(60)).max(12);
 const CreateBody = z.object({
   kind: z.enum(COGNITIVE_KINDS as [string, ...string[]]),
   label: z.string().min(1).max(200),
   content: z.string().max(4000).optional(),
+  // Other names this entry answers to (person/place aliases), so vague memories link.
+  aliases: AliasList.optional(),
   // For a future_event: when it's due (ISO datetime).
   date: z.string().datetime().optional(),
 });
 const ProgressBody = z.object({ value: z.number().min(0).max(1) });
 const EditBody = z
-  .object({ label: z.string().min(1).max(200).optional(), content: z.string().max(4000).optional() })
-  .refine((b) => b.label !== undefined || b.content !== undefined, {
-    message: "Provide label and/or content",
+  .object({
+    label: z.string().min(1).max(200).optional(),
+    content: z.string().max(4000).optional(),
+    aliases: AliasList.optional(),
+  })
+  .refine((b) => b.label !== undefined || b.content !== undefined || b.aliases !== undefined, {
+    message: "Provide label, content, and/or aliases",
   });
+const UnlinkBody = z.object({ memoryId: z.number().int() });
 
 /** The cognitive layer: create/list/track goals, ideas, skills, identity, etc. */
 export function cognitiveRoutes(ctx: AppContext): Router {
@@ -51,6 +59,7 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     const spaceId = spaceOf(res);
     const id = await createCognitive(ctx, spaceId, parsed.data.kind as never, parsed.data.label, parsed.data.content ?? "", {
       date: parsed.data.date,
+      aliases: parsed.data.aliases,
     });
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));
   });
@@ -74,6 +83,29 @@ export function cognitiveRoutes(ctx: AppContext): Router {
       return;
     }
     res.json(new GraphService(ctx.handle, spaceId).getNode(id));
+  });
+
+  // POST /api/cognitive/:id/unlink { memoryId } -> sever one memory + remember it's unrelated.
+  r.post("/:id/unlink", (req, res) => {
+    const id = Number(req.params.id);
+    const parsed = UnlinkBody.safeParse(req.body);
+    if (!Number.isInteger(id) || !parsed.success) {
+      res.status(400).json({ error: "Body must be { memoryId }" });
+      return;
+    }
+    unlinkMemory(ctx, spaceOf(res), id, parsed.data.memoryId);
+    res.json({ ok: true });
+  });
+
+  // POST /api/cognitive/:id/prune -> sever every link that doesn't name this entry.
+  r.post("/:id/prune", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    const pruned = pruneAnchorLinks(ctx, spaceOf(res), id);
+    res.json({ ok: true, pruned });
   });
 
   // GET /api/cognitive/:id/evidence -> affirming/contesting memories (identity core).

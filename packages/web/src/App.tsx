@@ -9,6 +9,20 @@ function focusItemStyle(index: number, open: boolean): CSSProperties {
     : { transform: "translateY(0) scale(0.4)", opacity: 0, pointerEvents: "none" };
 }
 
+/** Position a song dot on an arc fanning up-and-right from the music FAB (bottom-left). */
+function songDotStyle(i: number, total: number): CSSProperties {
+  const start = 16, end = 100; // degrees
+  const t = total <= 1 ? 0.5 : i / (total - 1);
+  const rad = ((start + (end - start) * t) * Math.PI) / 180;
+  const R = 78;
+  return {
+    position: "fixed",
+    left: `${36 + Math.cos(rad) * R}px`,
+    bottom: `${152 + Math.sin(rad) * R}px`,
+    transform: "translate(-50%, 50%)",
+  };
+}
+
 function getFigurineIcon(type: string): string {
   switch (type) {
     case "station": return "🌐";
@@ -38,7 +52,7 @@ function getFigurineLabel(type: string): string {
 }
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
-import { makeAmbientAudio, type AmbientAudio } from "./graph/audio.js";
+import { makeAmbientAudio, TRACKS, type AmbientAudio } from "./graph/audio.js";
 import { setGraphicsMode, resolveGraphics, getGraphics } from "./graph/graphicsConfig.js";
 import { IngestPanel } from "./components/IngestPanel.js";
 import { Observatory } from "./components/Observatory.js";
@@ -196,7 +210,12 @@ export default function App() {
   const [aiBusy, setAiBusy] = useState(0);
   const [music, setMusic] = useState(false);
   const [musicTrack, setMusicTrack] = useState<{ title: string; index: number; total: number } | null>(null);
+  const [nowPlayingVisible, setNowPlayingVisible] = useState(false); // the name popup fades out
+  const [songMenuOpen, setSongMenuOpen] = useState(false); // radial song dots around the FAB
   const musicClickTimer = useRef<number | null>(null);
+  const musicLongPress = useRef<number | null>(null);
+  const musicSuppressClick = useRef(false);
+  const nowPlayingTimer = useRef<number | null>(null);
   const [followShip, setFollowShip] = useState(false);
   const [followStation, setFollowStation] = useState(false);
   const [followSatellite, setFollowSatellite] = useState(false);
@@ -337,9 +356,20 @@ export default function App() {
     audioRef.current.next();
     setMusic(audioRef.current.playing);
   }, []);
+  const playSong = useCallback((i: number) => {
+    if (!audioRef.current) audioRef.current = makeAmbientAudio();
+    audioRef.current.playTrack(i);
+    setMusic(audioRef.current.playing);
+    setSongMenuOpen(false);
+  }, []);
   // Single click = play/pause; double click = next track (a short timer lets a
   // second click cancel the toggle so a double-click cleanly skips the song).
+  // Long-press opens the radial song menu (handled by pointer handlers below).
   const onMusicClick = useCallback(() => {
+    if (musicSuppressClick.current) {
+      musicSuppressClick.current = false; // this click was the end of a long-press
+      return;
+    }
     if (musicClickTimer.current != null) {
       window.clearTimeout(musicClickTimer.current);
       musicClickTimer.current = null;
@@ -351,16 +381,41 @@ export default function App() {
       toggleMusic();
     }, 240);
   }, [toggleMusic, nextMusic]);
+  // Press-and-hold (~450ms) reveals the song dots circling the button.
+  const onMusicPointerDown = useCallback(() => {
+    musicLongPress.current = window.setTimeout(() => {
+      musicLongPress.current = null;
+      musicSuppressClick.current = true;
+      setSongMenuOpen((v) => !v);
+      playSfx("tap");
+    }, 450);
+  }, []);
+  const onMusicPointerUp = useCallback(() => {
+    if (musicLongPress.current != null) {
+      window.clearTimeout(musicLongPress.current);
+      musicLongPress.current = null;
+    }
+  }, []);
 
-  // Now-playing cue: when the track changes, pop the title + show the chip.
+  // Now-playing cue: when the track changes, reveal the title chip, then FADE it out
+  // after a few seconds (it used to sit on screen the whole time).
   useEffect(() => {
     const onTrack = (e: Event) => {
       const d = (e as CustomEvent<{ playing: boolean; index: number; title: string; total: number }>).detail;
       setMusicTrack({ title: d.title, index: d.index, total: d.total });
-      if (d.playing) pushToast(`♪ ${d.title} · ${d.index + 1}/${d.total}`, "🎵", 3200);
+      if (d.playing) {
+        setNowPlayingVisible(true);
+        if (nowPlayingTimer.current != null) window.clearTimeout(nowPlayingTimer.current);
+        nowPlayingTimer.current = window.setTimeout(() => setNowPlayingVisible(false), 4200);
+      } else {
+        setNowPlayingVisible(false);
+      }
     };
     window.addEventListener("brain-music-track", onTrack);
-    return () => window.removeEventListener("brain-music-track", onTrack);
+    return () => {
+      window.removeEventListener("brain-music-track", onTrack);
+      if (nowPlayingTimer.current != null) window.clearTimeout(nowPlayingTimer.current);
+    };
   }, []);
 
   // A fake "fuller galaxy" preview — generated once, never persisted/weighted.
@@ -1451,14 +1506,31 @@ export default function App() {
             );
           })()}
           <button
-            className={`fab fab-music ${music ? "on" : ""}`}
+            className={`fab fab-music ${music ? "on" : ""} ${songMenuOpen ? "menu-open" : ""}`}
             onClick={onMusicClick}
-            aria-label="Toggle ambient music (double-click for next track)"
-            title="Ambient space music · click to play/pause, double-click to skip"
+            onPointerDown={onMusicPointerDown}
+            onPointerUp={onMusicPointerUp}
+            onPointerLeave={onMusicPointerUp}
+            aria-label="Ambient music: click to play/pause, double-click to skip, hold for the song list"
+            title="Click = play/pause · double-click = next · hold = song list"
           >
             {music ? "🔊" : "🔈"}
           </button>
-          {music && musicTrack && (
+          {/* Radial song menu — dots circling the music button (press-and-hold to open). */}
+          {songMenuOpen &&
+            TRACKS.map((t, i) => (
+              <button
+                key={t.id}
+                className={`song-dot ${musicTrack?.index === i ? "current" : ""}`}
+                style={songDotStyle(i, TRACKS.length)}
+                onClick={() => playSong(i)}
+                title={t.title}
+              >
+                <span className="song-dot-n">{i + 1}</span>
+                <span className="song-dot-name">{t.title}</span>
+              </button>
+            ))}
+          {music && musicTrack && nowPlayingVisible && (
             <button
               className="now-playing"
               onClick={nextMusic}

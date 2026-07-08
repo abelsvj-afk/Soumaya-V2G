@@ -34,11 +34,15 @@ const MAX_OPEN = 3;
 /** Only reason about memories touched recently, so noticing tracks what you add. */
 const RECENT_DAYS = 21;
 /**
- * Semantic floor for the ANCHOR "this sits on that" heuristic. Raised 0.6 → 0.78:
- * she should only ask about a genuinely strong overlap, not a vague resemblance
- * (asking "is this about your girlfriend?" for an unrelated note is worse than silence).
+ * Semantic floor for the ANCHOR "this sits on that" heuristic. She only ASKS about
+ * a genuinely strong overlap, not a vague resemblance. People + identities get an
+ * even STRICTER bar — she'll surface "this really seems to be about <person>, even
+ * though you didn't name them — connect?" only when it's obvious, never on a whim.
+ * (She never auto-links people by vibe; she asks, and you confirm or reject.)
  */
 const ANCHOR_SIM = 0.78;
+const ANCHOR_SIM_STRICT = 0.85;
+const STRICT_KINDS = new Set<string>(["person_entity", "identity"]);
 /** Common words that never make a meaningful "theme". */
 const STOPWORDS = new Set([
   "the", "and", "for", "with", "that", "this", "have", "from", "your", "you", "was", "are",
@@ -123,19 +127,20 @@ function bridgeCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): C
 /** ANCHOR: a recent memory that sits semantically on an anchor it doesn't name. */
 function anchorCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Candidate | null {
   const s = ctx.handle.sqlite;
-  // People + identities link by NAME, not vibe — never ask "is this unrelated note
-  // about your girlfriend?". Only kinds that legitimately gather thematic memories.
-  const askableKinds = Object.keys(COGNITIVE_META).filter((k) => k !== "person_entity" && k !== "identity");
+  const kinds = Object.keys(COGNITIVE_META);
   const anchors = s
     .prepare(
       `SELECT id, label, kind FROM nodes
-       WHERE space_id = ? AND deleted_at IS NULL AND kind IN (${askableKinds.map(() => "?").join(",")})`,
+       WHERE space_id = ? AND deleted_at IS NULL AND kind IN (${kinds.map(() => "?").join(",")})`,
     )
-    .all(spaceId, ...askableKinds) as { id: number; label: string; kind: string }[];
+    .all(spaceId, ...kinds) as { id: number; label: string; kind: string }[];
   for (const a of anchors) {
     const emb = getEmbedding(s, a.id);
     if (!emb) continue;
-    const hits = knn(s, emb, 8, spaceId).filter((h) => h.nodeId !== a.id && h.similarity >= ANCHOR_SIM);
+    // People/identities need a much stronger overlap before she'll even ASK — so a
+    // person is only surfaced when a memory is *obviously* about them, not by vibe.
+    const floor = STRICT_KINDS.has(a.kind) ? ANCHOR_SIM_STRICT : ANCHOR_SIM;
+    const hits = knn(s, emb, 8, spaceId).filter((h) => h.nodeId !== a.id && h.similarity >= floor);
     for (const h of hits) {
       const mem = s
         .prepare(
@@ -313,6 +318,39 @@ export function rejectInquiry(ctx: AppContext, spaceId: string, id: number): boo
     }
   }
   s.prepare(`UPDATE inquiries SET status = 'dismissed' WHERE id = ? AND space_id = ?`).run(id, spaceId);
+  return true;
+}
+
+/**
+ * "Yes, connect them" — confirm a connection she surfaced WITHOUT typing an answer.
+ * For an ANCHOR noticing ("this is about <person/goal>") it draws the supports edge
+ * memory→anchor; for a BRIDGE it links the two entities; a THEME just closes. This
+ * is the one-tap path for "she brought two obviously-related things to my attention."
+ */
+export function confirmInquiry(ctx: AppContext, spaceId: string, id: number): boolean {
+  const s = ctx.handle.sqlite;
+  const row = s
+    .prepare(`SELECT kind, node_ids AS nodeIds FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
+    .get(id, spaceId) as { kind: string; nodeIds: string } | undefined;
+  if (!row) return false;
+  let ids: number[] = [];
+  try {
+    ids = JSON.parse(row.nodeIds);
+  } catch {
+    /* ignore */
+  }
+  const edges = new EdgesRepo(ctx.handle, spaceId);
+  const repo = new NodesRepo(ctx.handle, spaceId);
+  const linkOnce = (src: number, tgt: number, rel: "supports" | "relates_to") => {
+    if (!edges.exists(src, tgt) && !edges.exists(tgt, src)) edges.create({ source: src, target: tgt, relationship: rel, weight: 0.7 });
+    repo.tend(tgt);
+  };
+  if (row.kind === "anchor" && ids[0] != null && ids[1] != null) {
+    linkOnce(ids[1], ids[0], "supports"); // memory → anchor
+  } else if (row.kind === "bridge" && ids[0] != null && ids[1] != null) {
+    linkOnce(ids[0], ids[1], "relates_to"); // the two entities relate after all
+  }
+  s.prepare(`UPDATE inquiries SET status = 'answered' WHERE id = ? AND space_id = ?`).run(id, spaceId);
   return true;
 }
 

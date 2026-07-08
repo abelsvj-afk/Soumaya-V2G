@@ -82,11 +82,11 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
   }
 
   it("links a person to the memories that MENTION them, on creation (the name-match fix)", async () => {
-    await mem("date night", "Dinner with Shaquavia was wonderful");
-    await mem("plans", "Shaquavia and I are planning a trip");
+    await mem("date night", "Dinner with Mara was wonderful");
+    await mem("plans", "Mara and I are planning a trip");
     await mem("work", "Finished the quarterly report at the office"); // unrelated
     // Adding the person immediately links her memories — no autonomy tick needed.
-    const personId = await createCognitive(ctx, "legacy", "person_entity", "Shaquavia", "");
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Mara", "");
     expect(supportsInto(personId)).toBe(2); // the two that name her, not the unrelated one
   });
 
@@ -128,8 +128,18 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     const goalId = await createCognitive(ctx, "legacy", "goal", "Topic", "alpha beta gamma delta epsilon zeta");
     expect(supportsInto(goalId)).toBeGreaterThanOrEqual(1);
     // A person does NOT — she isn't named in it, so it's not a real connection.
-    const personId = await createCognitive(ctx, "legacy", "person_entity", "Shakabiya", "alpha beta gamma delta epsilon zeta");
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Alena", "alpha beta gamma delta epsilon zeta");
     expect(supportsInto(personId)).toBe(0);
+  });
+
+  it("links VAGUE memories via aliases (no exact name needed)", async () => {
+    await mem("m1", "my girlfriend and I went hiking");
+    await mem("m2", "spent the weekend with my girl");
+    await mem("m3", "quarterly budget review"); // unrelated
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Mara", "", {
+      aliases: ["girlfriend", "my girl"],
+    });
+    expect(supportsInto(personId)).toBe(2); // both vague mentions, not the unrelated one
   });
 
   it("respects a rejected pair — gravity won't re-link what the user severed", async () => {

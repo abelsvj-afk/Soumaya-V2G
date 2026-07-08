@@ -8,6 +8,8 @@ import {
   setCognitiveProgress,
   updateCognitive,
   promoteIdea,
+  unlinkCognitive,
+  pruneCognitive,
   getCognitiveEvidence,
   getPersonProfile,
   getPersonSuggestions,
@@ -48,6 +50,9 @@ export function MindPanel({
   const [kind, setKind] = useState<CognitiveKind>("goal");
   const [label, setLabel] = useState("");
   const [content, setContent] = useState("");
+  const [aliasText, setAliasText] = useState(""); // comma-separated aliases (create)
+  const [editAliases, setEditAliases] = useState(""); // comma-separated aliases (edit)
+  const [showHelp, setShowHelp] = useState(false); // "how the Mind works" explainer
   const [eventDate, setEventDate] = useState(""); // for future_event
   const [events, setEvents] = useState<Record<number, UpcomingEvent>>({});
   const [busy, setBusy] = useState(false);
@@ -98,12 +103,14 @@ export function MindPanel({
     setBusy(true);
     try {
       const iso = kind === "future_event" && eventDate ? new Date(eventDate).toISOString() : undefined;
-      const r = await createCognitive(kind, label.trim(), content.trim() || undefined, iso);
+      const aliases = aliasText.split(",").map((t) => t.trim()).filter(Boolean);
+      const r = await createCognitive(kind, label.trim(), content.trim() || undefined, iso, aliases.length ? aliases : undefined);
       if (r) {
         playSfx("achievement");
         pushToast(`${COGNITIVE_META[kind].icon} ${COGNITIVE_META[kind].label} added to your galaxy`, "🧠", 4500);
         setLabel("");
         setContent("");
+        setAliasText("");
         setEventDate("");
         setAdding(false);
         await refresh();
@@ -127,10 +134,12 @@ export function MindPanel({
     setEditId(it.id);
     setEditLabel(it.label);
     setEditContent(it.content ?? "");
+    setEditAliases((it.aliases ?? []).join(", "));
   };
   const saveEdit = async () => {
     if (editId == null || !editLabel.trim()) return;
-    const ok = await updateCognitive(editId, { label: editLabel.trim(), content: editContent.trim() });
+    const aliases = editAliases.split(",").map((t) => t.trim()).filter(Boolean);
+    const ok = await updateCognitive(editId, { label: editLabel.trim(), content: editContent.trim(), aliases });
     setEditId(null);
     if (ok) {
       playSfx("tap");
@@ -208,6 +217,23 @@ export function MindPanel({
       const p = await getPersonProfile(it.id);
       if (p) setProfiles((m) => ({ ...m, [it.id]: p }));
     }
+  };
+  const unlinkOne = async (anchorId: number, memoryId: number) => {
+    setProfiles((m) => {
+      const p = m[anchorId];
+      if (!p) return m;
+      return { ...m, [anchorId]: { ...p, interactions: p.interactions.filter((i) => i.id !== memoryId), count: Math.max(0, p.count - 1) } };
+    });
+    await unlinkCognitive(anchorId, memoryId);
+    onChanged?.();
+  };
+  const pruneLinks = async (it: CognitiveItem) => {
+    const n = await pruneCognitive(it.id);
+    setProfiles((m) => ({ ...m })); // force re-fetch on next open
+    setProfiles((m) => { const c = { ...m }; delete c[it.id]; return c; });
+    pushToast(n > 0 ? `Cleaned up ${n} link${n === 1 ? "" : "s"} that didn't name ${it.label}.` : `Nothing to clean — every link names ${it.label}.`, "🧹", 4000);
+    await refresh();
+    onChanged?.();
   };
   const addPerson = async (name: string) => {
     const r = await createCognitive("person_entity", name);
@@ -323,6 +349,21 @@ export function MindPanel({
         )}
       </section>
 
+      <button className="mind-explain-toggle" onClick={() => setShowHelp((v) => !v)}>
+        {showHelp ? "▾" : "▸"} How does the Mind work?
+      </button>
+      {showHelp && (
+        <div className="mind-explain">
+          <p><b>The Mind is what you're pursuing and becoming</b> — separate from what you've just remembered.</p>
+          <ul>
+            <li><b>Add an entry</b> (a goal, a person, an idea, an identity…) and it becomes a body in your galaxy.</li>
+            <li><b>Your memories connect to it automatically</b> — a memory that names a person, or is clearly about a goal, drifts into its orbit.</li>
+            <li><b>Vague on purpose?</b> Add <b>aliases</b> (e.g. a person called "girlfriend, my girl") so memories that don't use the exact name still connect.</li>
+            <li><b>She'll ask</b> when something seems related but she isn't sure — answer, connect it in one tap, or tell her it doesn't relate (she remembers).</li>
+            <li><b>Goals</b> track progress · <b>skills</b> level up as you practice · <b>ideas</b> grow, merge or fade · <b>identities</b> brighten with evidence.</li>
+          </ul>
+        </div>
+      )}
       <p className="companion-hint">
         Your mind, not just your memories: what you're <b>pursuing</b> and <b>becoming</b>. Add a
         goal, idea, skill, person, identity or mental model — Soumaya pulls related memories into its
@@ -375,6 +416,12 @@ export function MindPanel({
               <input type="datetime-local" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
             </label>
           )}
+          <input
+            className="tag-input wide"
+            value={aliasText}
+            onChange={(e) => setAliasText(e.target.value)}
+            placeholder="Also called… (comma-separated — e.g. girlfriend, my girl)"
+          />
           <div className="row">
             <button onClick={add} disabled={busy || !label.trim()}>
               {busy ? "Adding…" : `Add ${COGNITIVE_META[kind].label}`}
@@ -414,6 +461,12 @@ export function MindPanel({
                       onChange={(e) => setEditContent(e.target.value)}
                       placeholder={COGNITIVE_META[k].blurb}
                     />
+                    <input
+                      className="tag-input wide"
+                      value={editAliases}
+                      onChange={(e) => setEditAliases(e.target.value)}
+                      placeholder="Also called… (comma-separated)"
+                    />
                     <div className="row">
                       <button className="mini" onClick={() => void saveEdit()} disabled={!editLabel.trim()}>Save</button>
                       <button className="mini ghost" onClick={() => setEditId(null)}>Cancel</button>
@@ -422,7 +475,10 @@ export function MindPanel({
                 ) : (
                   <div className="mind-card-row">
                     <button className="mind-card-main" onClick={() => onFocus(it.id)} title="Fly to it">
-                      <span className="mind-card-label">{it.label}</span>
+                      <span className="mind-card-label">
+                        {it.label}
+                        {it.aliases && it.aliases.length > 0 && <span className="mind-card-aka"> · aka {it.aliases.join(", ")}</span>}
+                      </span>
                       <span className="mind-card-sub">
                         {k === "future_event" && events[it.id]
                           ? events[it.id]!.inDays < 0
@@ -536,13 +592,21 @@ export function MindPanel({
                           {" · "}<span className={`person-tone tone-${profiles[it.id]!.tone}`}>{profiles[it.id]!.tone}</span>
                         </p>
                         {profiles[it.id]!.interactions.length > 0 ? (
-                          <div className="mind-ev-group">
-                            {profiles[it.id]!.interactions.slice(0, 10).map((n) => (
-                              <button key={n.id} className="mind-ev-chip" onClick={() => onFocus(n.id)}>{n.label}</button>
-                            ))}
-                          </div>
+                          <>
+                            <div className="mind-ev-group">
+                              {profiles[it.id]!.interactions.slice(0, 12).map((n) => (
+                                <span key={n.id} className="mind-ev-chip removable">
+                                  <button className="mind-ev-chip-label" onClick={() => onFocus(n.id)}>{n.label}</button>
+                                  <button className="mind-ev-chip-x" title="Not related — unlink" onClick={() => void unlinkOne(it.id, n.id)}>×</button>
+                                </span>
+                              ))}
+                            </div>
+                            <button className="mind-prune" onClick={() => void pruneLinks(it)} title="Sever every link that doesn't actually name this person">
+                              🧹 Clean up links that don't name {it.label}
+                            </button>
+                          </>
                         ) : (
-                          <p className="empty small">No interactions yet — memories that mention them will appear here.</p>
+                          <p className="empty small">No interactions yet — memories that mention them (or an alias) will appear here.</p>
                         )}
                       </div>
                     )}

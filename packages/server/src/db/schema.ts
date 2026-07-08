@@ -42,6 +42,9 @@ export const nodes = sqliteTable("nodes", {
   researchAnswers: text("research_answers"),
   // Cognitive layer: 0..1 progress (goal completion / skill level).
   progress: real("progress"),
+  // Cognitive layer: JSON array of aliases so vague memories ("my girlfriend") link
+  // to a named Mind entry without the exact name.
+  aliases: text("aliases"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **217 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **219 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,32 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): Aliases (vague memories connect) + smart-surface + unlink/prune + Mind explainer + music UX
+- **Vague memories connect now — via ALIASES.** You won't always type the exact name; tell a Mind
+  entry what else it's called ("girlfriend, my girl") and memories that use those words link precisely,
+  no vibe-guessing. New additive `nodes.aliases` column; create/edit take an aliases field; linking
+  matches label + every alias (whole-word/phrase). **No hardcoded names anywhere** (scrubbed).
+- **She's smart about obviously-related things too** — re-enabled the semantic "is this about <X>?"
+  noticing for people/identities but at a **much stricter bar (0.85)** so she only surfaces it when it's
+  obvious, never on a whim. And a new one-tap **"✦ Yes, connect"** on the noticing card draws the edge
+  (`confirmInquiry`), so "bring it to my attention → connect" is one tap. (Auto-linking people still
+  requires a name/alias; the semantic path only *asks*, never silently links.)
+- **"Do both" — unlink + bulk prune** (Mind tab, person Relationship view): each interaction chip has a
+  **×** to sever + remember-as-unrelated (`unlinkCognitive`), and a **"🧹 Clean up links that don't name
+  <person>"** button prunes every vibe-created link that doesn't actually name them (`pruneCognitive`).
+- **The Mind tab now explains itself**: a "▸ How does the Mind work?" expander (what entries are, how
+  memories connect, aliases, her asking, per-kind dynamics). Aliases shown on cards ("· aka …").
+- **Music UX (as requested)**: the now-playing name **fades out after ~4s** (it used to sit forever);
+  **press-and-hold** the music button opens a **radial menu of song dots** circling it — tap one to jump
+  to that track. Click = play/pause, double-click = next still stand.
+- **Redundancy check (Observatory daily question vs the noticing card)**: verdict in the reply — they
+  overlap in *feel* but differ in role (daily ritual filling graph gaps vs reactive structural
+  noticing). The confirm/reject/answer actions make the card an actionable tool, not just a second
+  question. Left both, differentiated; offered a full merge if wanted.
+- **Tests**: alias-linked vague memories; one-tap confirm draws the edge. Gate: typecheck clean ·
+  **219 tests** · web build clean. (Note: standing items — richer per-feature gamification + tighter
+  adherence to docs/AI_ENGINEERING_WORKFLOW.md — acknowledged as ongoing.)
 
 ### 2026-07-07 (Claude): No false connections + "these don't relate" + no cut-off text (user-reported)
 - **She stops inventing connections** (the girlfriend-linked-to-unrelated-memories bug):

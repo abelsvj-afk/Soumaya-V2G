@@ -36,6 +36,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
       research_questions TEXT,
       research_answers TEXT,
       progress REAL,
+      aliases TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS edges (
@@ -316,6 +317,11 @@ function migrateSchema(sqlite: RawDb): void {
   // Cognitive layer: 0..1 progress for goals (completion) + skills (level).
   if (!cols.some((c) => c.name === "progress")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN progress REAL`);
+  }
+  // Cognitive layer: aliases (JSON array) so vague memories ("my girlfriend") link
+  // to the right Mind entry (person/place/…) without needing the exact name.
+  if (!cols.some((c) => c.name === "aliases")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN aliases TEXT`);
   }
 
   // Multi-tenancy: add space_id to every per-user table on existing volumes.

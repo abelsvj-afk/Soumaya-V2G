@@ -136,6 +136,9 @@ export interface GraphNode {
   kind?: "memory" | "action" | "moc" | "belief" | import("./celestial.js").CognitiveKind;
   /** 0..1 progress — goal completion / skill level (cognitive layer). */
   progress?: number;
+  /** Cognitive layer: other names for this entry ("girlfriend", "my girl") so vague
+   *  memories link to it without the exact label. */
+  aliases?: string[];
   /** For a `moc` hub: how many member memories it consolidates (enriched on read). */
   memberCount?: number;
   /** ISO timestamp when an action item times out (only for kind === "action"). */

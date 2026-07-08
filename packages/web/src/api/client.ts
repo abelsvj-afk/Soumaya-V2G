@@ -736,6 +736,7 @@ export interface CognitiveItem {
   content: string;
   progress: number | null;
   degree: number;
+  aliases: string[];
   createdAt: string;
 }
 export async function getCognitive(kind?: string): Promise<CognitiveItem[]> {
@@ -747,16 +748,45 @@ export async function getCognitive(kind?: string): Promise<CognitiveItem[]> {
     return [];
   }
 }
-export async function createCognitive(kind: string, label: string, content?: string, date?: string): Promise<{ id: number } | null> {
+export async function createCognitive(kind: string, label: string, content?: string, date?: string, aliases?: string[]): Promise<{ id: number } | null> {
   try {
     const res = await afetch(`${API}/cognitive`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ kind, label, content, date }),
+      body: JSON.stringify({ kind, label, content, date, aliases }),
     });
     return res.ok ? await res.json() : null;
   } catch {
     return null;
+  }
+}
+export async function unlinkCognitive(id: number, memoryId: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/unlink`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ memoryId }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+export async function pruneCognitive(id: number): Promise<number> {
+  try {
+    const res = await afetch(`${API}/cognitive/${id}/prune`, { method: "POST" });
+    const d = res.ok ? await res.json().catch(() => ({})) : {};
+    return typeof d.pruned === "number" ? d.pruned : 0;
+  } catch {
+    return 0;
+  }
+}
+export async function confirmInquiry(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/inquiries/${id}/confirm`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 export interface UpcomingEvent { id: number; label: string; date: string; inDays: number }
@@ -825,7 +855,7 @@ export async function promoteIdea(id: number): Promise<boolean> {
     return false;
   }
 }
-export async function updateCognitive(id: number, patch: { label?: string; content?: string }): Promise<boolean> {
+export async function updateCognitive(id: number, patch: { label?: string; content?: string; aliases?: string[] }): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}`, {
       method: "PATCH",

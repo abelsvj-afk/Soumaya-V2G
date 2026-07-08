@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { listInquiries, answerInquiry, dismissInquiry, rejectInquiry } from "../../analysis/inquiry.js";
+import { listInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry } from "../../analysis/inquiry.js";
 import { spaceOf } from "../middleware.js";
 
 const AnswerBody = z.object({ text: z.string().min(1).max(4000) });
@@ -43,6 +43,20 @@ export function inquiryRoutes(ctx: AppContext): Router {
       return;
     }
     if (!dismissInquiry(ctx, spaceOf(res), id)) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    res.json({ ok: true });
+  });
+
+  // POST /api/inquiries/:id/confirm -> "yes, connect them" (one tap, no typing).
+  r.post("/:id/confirm", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
+      res.status(400).json({ error: "Invalid id" });
+      return;
+    }
+    if (!confirmInquiry(ctx, spaceOf(res), id)) {
       res.status(404).json({ error: "Not found" });
       return;
     }

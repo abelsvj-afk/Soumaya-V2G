@@ -4,7 +4,7 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { knn, getEmbedding, upsertEmbedding } from "../db/vec.js";
 import { ftsUpsert } from "../db/fts.js";
-import { isRejected } from "./rejections.js";
+import { isRejected, recordRejection } from "./rejections.js";
 
 /**
  * The cognitive layer (docs/COGNITIVE_LAYER.md). Cognitive objects are `nodes`
@@ -57,6 +57,36 @@ export function labelTokens(label: string): string[] {
   return [...toks];
 }
 
+/** Normalize a raw alias list: trim, dedupe, drop empties, cap. */
+function cleanAliases(aliases?: string[]): string[] | undefined {
+  if (!aliases) return undefined;
+  const out = [...new Set(aliases.map((a) => a.trim()).filter((a) => a.length >= 2))].slice(0, 12);
+  return out.length > 0 ? out : undefined;
+}
+
+/**
+ * Match tokens for an anchor = its label tokens PLUS every alias (each alias kept as
+ * a whole phrase AND its distinctive words). So a person "the person" with aliases
+ * ["girlfriend", "my girl"] matches memories that say "girlfriend", "my girl", OR
+ * "the person" — letting VAGUE memories connect without the exact name.
+ */
+function anchorMatchTokens(label: string, aliasesJson: string | null): string[] {
+  const toks = new Set(labelTokens(label));
+  if (aliasesJson) {
+    try {
+      const arr = JSON.parse(aliasesJson) as string[];
+      for (const a of arr) {
+        const phrase = a.trim().toLowerCase();
+        if (phrase.length >= 2) toks.add(phrase); // whole alias ("my girl")
+        for (const w of phrase.split(/[^a-z0-9]+/)) if (w.length >= 4) toks.add(w);
+      }
+    } catch {
+      /* ignore malformed */
+    }
+  }
+  return [...toks];
+}
+
 /** Whole-word / phrase match (case-insensitive) so "Danny" doesn't hit "Dannyson". */
 export function mentions(haystack: string, token: string): boolean {
   const esc = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -70,7 +100,7 @@ export async function createCognitive(
   kind: CognitiveKind,
   label: string,
   content: string,
-  opts: { date?: string } = {},
+  opts: { date?: string; aliases?: string[] } = {},
 ): Promise<number> {
   const meta = COGNITIVE_META[kind];
   const repo = new NodesRepo(ctx.handle, spaceId);
@@ -87,6 +117,7 @@ export async function createCognitive(
       color: meta.color,
       origin: "user",
       progress: meta.hasProgress ? 0 : undefined,
+      aliases: cleanAliases(opts.aliases),
       remindAt: kind === "future_event" ? opts.date : undefined,
     },
     emb,
@@ -105,7 +136,7 @@ export async function updateCognitive(
   ctx: AppContext,
   spaceId: string,
   id: number,
-  patch: { label?: string; content?: string },
+  patch: { label?: string; content?: string; aliases?: string[] },
 ): Promise<boolean> {
   const s = ctx.handle.sqlite;
   const row = s
@@ -114,6 +145,13 @@ export async function updateCognitive(
   if (!row || !isCognitiveKind(row.kind)) return false; // only cognitive nodes are editable here
   const label = (patch.label ?? row.label).slice(0, 200);
   const content = (patch.content ?? row.content).slice(0, 4000) || label;
+  if (patch.aliases !== undefined) {
+    s.prepare(`UPDATE nodes SET aliases = ? WHERE id = ? AND space_id = ?`).run(
+      cleanAliases(patch.aliases) ? JSON.stringify(cleanAliases(patch.aliases)) : null,
+      id,
+      spaceId,
+    );
+  }
   s.prepare(`UPDATE nodes SET label = ?, content = ? WHERE id = ? AND space_id = ?`).run(label, content, id, spaceId);
   const emb = await ctx.embeddings.embed(`${label}. ${content}`);
   upsertEmbedding(s, id, emb);
@@ -134,6 +172,7 @@ export interface CognitiveItem {
   content: string;
   progress: number | null;
   degree: number;
+  aliases: string[];
   createdAt: string;
 }
 
@@ -147,14 +186,64 @@ export function listCognitive(
   const placeholders = kinds.map(() => "?").join(",");
   const rows = ctx.handle.sqlite
     .prepare(
-      `SELECT n.id, n.kind, n.label, n.content, n.progress, n.created_at AS createdAt,
+      `SELECT n.id, n.kind, n.label, n.content, n.progress, n.aliases, n.created_at AS createdAt,
          (SELECT COUNT(*) FROM edges e WHERE e.space_id = n.space_id AND (e.source = n.id OR e.target = n.id)) AS degree
        FROM nodes n
        WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.kind IN (${placeholders})
        ORDER BY n.id DESC LIMIT 100`,
     )
-    .all(spaceId, ...kinds) as (Omit<CognitiveItem, "kind"> & { kind: string })[];
-  return rows.map((r) => ({ ...r, kind: r.kind as CognitiveKind }));
+    .all(spaceId, ...kinds) as (Omit<CognitiveItem, "kind" | "aliases"> & { kind: string; aliases: string | null })[];
+  return rows.map((r) => {
+    let aliases: string[] = [];
+    try {
+      if (r.aliases) aliases = JSON.parse(r.aliases);
+    } catch {
+      /* ignore */
+    }
+    return { ...r, kind: r.kind as CognitiveKind, aliases };
+  });
+}
+
+/**
+ * Sever one memory's link to a cognitive anchor and remember it as unrelated, so
+ * gravity never re-draws it. (The per-chip "×" in the Mind tab.)
+ */
+export function unlinkMemory(ctx: AppContext, spaceId: string, anchorId: number, memoryId: number): boolean {
+  const s = ctx.handle.sqlite;
+  const changed = s
+    .prepare(
+      `DELETE FROM edges WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?))`,
+    )
+    .run(spaceId, memoryId, anchorId, anchorId, memoryId).changes;
+  recordRejection(ctx, spaceId, memoryId, anchorId);
+  return changed > 0;
+}
+
+/**
+ * Bulk cleanup: sever every supporting memory of an anchor that does NOT actually
+ * name it (or one of its aliases) — i.e. the loose "vibe" links from the old model.
+ * Each pruned pair is remembered as unrelated. Returns how many were pruned.
+ */
+export function pruneAnchorLinks(ctx: AppContext, spaceId: string, anchorId: number): number {
+  const s = ctx.handle.sqlite;
+  const anchor = s
+    .prepare(`SELECT label, aliases FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
+    .get(anchorId, spaceId) as { label: string; aliases: string | null } | undefined;
+  if (!anchor) return 0;
+  const tokens = anchorMatchTokens(anchor.label, anchor.aliases);
+  const backers = s
+    .prepare(
+      `SELECT n.id, n.label, n.content FROM edges e JOIN nodes n ON n.id = e.source
+       WHERE e.space_id = ? AND e.target = ? AND e.relationship = 'supports' AND n.deleted_at IS NULL`,
+    )
+    .all(spaceId, anchorId) as { id: number; label: string; content: string }[];
+  let pruned = 0;
+  for (const b of backers) {
+    const hay = `${b.label}\n${b.content}`;
+    if (tokens.some((t) => mentions(hay, t))) continue; // genuinely names it → keep
+    if (unlinkMemory(ctx, spaceId, anchorId, b.id)) pruned++;
+  }
+  return pruned;
 }
 
 /** Set a cognitive object's 0..1 progress (goal completion / skill level). */
@@ -179,7 +268,7 @@ export function setCognitiveProgress(
  * cognitive anchors, hubs, or actions. Returns how many new edges were formed.
  *
  *  1. NAME / KEYWORD match — the memory literally mentions the anchor (whole-word).
- *     This is what makes adding a person "Shaquavia" connect the memories about her;
+ *     This is what makes adding a person "Mara" connect the memories about her;
  *     a bare name embeds too weakly for vector search alone to catch it.
  *  2. SEMANTIC match — strongly-similar memories that don't name it outright.
  */
@@ -194,9 +283,10 @@ export function linkCognitiveAnchor(
   const edges = new EdgesRepo(ctx.handle, spaceId);
   let formed = 0;
 
-  const anchorKind = (s
-    .prepare(`SELECT kind FROM nodes WHERE id = ? AND space_id = ?`)
-    .get(anchorId, spaceId) as { kind: string | null } | undefined)?.kind;
+  const anchorRow = s
+    .prepare(`SELECT kind, aliases FROM nodes WHERE id = ? AND space_id = ?`)
+    .get(anchorId, spaceId) as { kind: string | null; aliases: string | null } | undefined;
+  const anchorKind = anchorRow?.kind;
 
   const isRealMemory = (id: number) =>
     s
@@ -216,8 +306,9 @@ export function linkCognitiveAnchor(
     return true;
   };
 
-  // 1) Name / keyword match.
-  const tokens = labelTokens(label);
+  // 1) Name / keyword / ALIAS match — so "my girlfriend did X" links to the person
+  //    you've told her that alias belongs to, even without her actual name.
+  const tokens = anchorMatchTokens(label, anchorRow?.aliases ?? null);
   if (tokens.length > 0) {
     const likeClause = tokens.map(() => `lower(content) LIKE ? OR lower(label) LIKE ?`).join(" OR ");
     const params: string[] = [];
