@@ -36,38 +36,48 @@ export interface ResolvedGraphics {
   animationScale: number;
   pixelRatio: number;
   fpsCap: number;
+  /** Render the heavy background scenery (nebulae/galaxies/comets)? Top tier only. */
+  heavyScenery: boolean;
   /** The tier that was detected (for diagnostics + the Settings label). */
   tier: "performance" | "balanced" | "quality";
 }
 
 const KEY = "brain.graphics";
 
+// Bloom (UnrealBloomPass) allocates several full-screen render targets and is the
+// #1 cause of a phone stalling on the first WebGL frame — so it's OFF for everything
+// except the top "quality" tier. Reliability first; the cinematic look is opt-in.
 const PRESETS: Record<"performance" | "balanced" | "quality", Omit<GraphicsSettings, "mode">> = {
   performance: { bloom: false, starDensity: "low", particles: "low", animationQuality: "low", renderQuality: "low", batterySaver: false, fpsCap: 30 },
-  balanced: { bloom: true, starDensity: "medium", particles: "medium", animationQuality: "medium", renderQuality: "auto", batterySaver: false, fpsCap: 45 },
+  balanced: { bloom: false, starDensity: "medium", particles: "medium", animationQuality: "medium", renderQuality: "low", batterySaver: false, fpsCap: 45 },
   quality: { bloom: true, starDensity: "high", particles: "high", animationQuality: "high", renderQuality: "high", batterySaver: false, fpsCap: 60 },
 };
 
-/** Detect a rough capability tier from the device (cheap, synchronous, best-effort). */
+/**
+ * Detect a rough capability tier (cheap, synchronous, best-effort). Deliberately
+ * CONSERVATIVE: "quality" (bloom + heavy scenery) only for clearly high-end devices,
+ * because guessing high on a mid phone freezes it on the first galaxy render. When
+ * unknown, assume "performance" (iOS hides deviceMemory → treat as low, not mid).
+ */
 export function detectTier(): "performance" | "balanced" | "quality" {
   try {
-    const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 4; // GB (undefined on iOS → assume mid)
+    const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 3; // GB; unknown → low-ish
     const cores = navigator.hardwareConcurrency ?? 4;
     const dpr = window.devicePixelRatio || 1;
     const minSide = Math.min(window.screen?.width ?? 1024, window.screen?.height ?? 768);
     let score = 0;
-    if (mem <= 2) score -= 2;
+    if (mem <= 3) score -= 2;
     else if (mem >= 8) score += 2;
     else if (mem >= 6) score += 1;
     if (cores <= 4) score -= 1;
     else if (cores >= 8) score += 1;
     if (minSide <= 480) score -= 1; // small phone screen
     if (dpr >= 3) score -= 1; // very high-DPI is expensive to fill
-    if (score <= -2) return "performance";
-    if (score >= 2) return "quality";
+    if (score <= 0) return "performance"; // bias low: most phones land here (no bloom)
+    if (score >= 3) return "quality"; // bloom only for genuinely powerful devices
     return "balanced";
   } catch {
-    return "balanced";
+    return "performance";
   }
 }
 
@@ -155,6 +165,9 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
     animationScale: ANIM[eff.animationQuality],
     pixelRatio,
     fpsCap,
+    // Nebulae + galaxy sprites + comets are extra draw calls; only render them on the
+    // top tier so a mid/low phone isn't asked to build them on the first frame.
+    heavyScenery: tier === "quality" && !eff.batterySaver,
     tier,
   };
 }

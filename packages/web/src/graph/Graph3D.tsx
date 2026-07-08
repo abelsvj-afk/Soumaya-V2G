@@ -750,12 +750,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         /* renderer not ready yet — the effect below re-applies it */
       }
       scene.background = makeSpaceBackground();
-      loadNebulaSkybox(scene);
       scene.add(makeStarfield(gfx.starCount));
-      scene.add(makeNebulae());
-      scene.add(makeGalaxies());
+      // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
+      // extra draw calls + textures that can stall a mid/low phone on the first frame —
+      // render it only on the top graphics tier. The starfield alone still reads as space.
+      if (gfx.heavyScenery) {
+        loadNebulaSkybox(scene);
+        scene.add(makeNebulae());
+        scene.add(makeGalaxies());
+        scene.add(makeComets());
+      }
       scene.add(makeConstellations());
-      scene.add(makeComets());
       const bursts = makeCollisionBursts();
       burstsRef.current = bursts;
       scene.add(bursts.group);

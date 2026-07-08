@@ -536,12 +536,15 @@ export default function App() {
   }, [loaded]);
 
   // Tell the index.html boot-failsafe we booted OK, so it stands down. "Booted" =
-  // the app is usable: either the login screen (no brain) or the galaxy has loaded.
+  // React mounted and the auth check finished (login screen OR the app is rendering).
+  // NOT gated on the galaxy loading — that's a slower, separate step handled by the
+  // in-app watchdog; gating the failsafe on it caused a spurious auto-reset loop on
+  // slow galaxy loads.
   useEffect(() => {
-    if (authChecked && (!space || loaded)) {
+    if (authChecked) {
       (window as unknown as { __brainBooted?: () => void }).__brainBooted?.();
     }
-  }, [authChecked, space, loaded]);
+  }, [authChecked]);
 
   // FPS monitor: after a warm-up, sample the frame rate; if it stays rough and the
   // pilot isn't already in Performance Mode, OFFER (never force) a downgrade. Auto
@@ -1053,6 +1056,11 @@ export default function App() {
   return (
     <div className="app">
       <Toasts />
+      {/* Mount the 3D galaxy only AFTER boot completes. Its WebGL/scene setup is the
+          heaviest synchronous work in the app; mounting it during the loading phase
+          could stall a phone's main thread so the loading logic + recovery watchdog
+          never got to run. Now the loading screen paints first and always resolves. */}
+      {(loaded || demo) && (
       <Graph3D
         ref={graphRef}
         data={view}
@@ -1088,6 +1096,7 @@ export default function App() {
         equippedFig2={equippedFig2}
         spaceId={space?.id ?? ""}
       />
+      )}
 
       {!loaded && !initError && (
         <div className="loading">
