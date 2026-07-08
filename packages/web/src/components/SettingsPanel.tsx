@@ -33,6 +33,9 @@ export function SettingsPanel({
   const [voice, setVoice] = useState(isVoiceEnabled());
   const [sfx, setSfx] = useState(sfxEnabled());
   const [gfx, setGfx] = useState<GraphicsSettings>(getGraphics());
+  const [liteOn, setLiteOn] = useState(() => {
+    try { return localStorage.getItem("brain.lite") === "1"; } catch { return false; }
+  });
   const voiceSupported = isVoiceSupported();
   const resolved = resolveGraphics(gfx);
 
@@ -153,6 +156,23 @@ export function SettingsPanel({
 
         <section className="settings-section">
           <h3>🎨 Graphics &amp; performance</h3>
+          <label className="settings-toggle">
+            <span>
+              Lite mode <em>Turn OFF the 3D galaxy. The app stays fully usable if your device can't render it.</em>
+            </span>
+            <button
+              className={`switch ${liteOn ? "on" : ""}`}
+              onClick={() => {
+                const next = !liteOn;
+                setLiteOn(next);
+                try { localStorage.setItem("brain.lite", next ? "1" : "0"); } catch { /* ignore */ }
+                setTimeout(() => window.location.reload(), 150); // remount without/with the galaxy
+              }}
+              aria-pressed={liteOn}
+            >
+              <span className="knob" />
+            </button>
+          </label>
           <p className="settings-note" style={{ fontSize: "12px", opacity: 0.75, margin: "0 0 10px" }}>
             One galaxy, tuned to your device. Weaker phones get the full experience, optimized —
             never fewer features. Detected: <b>{resolved.tier}</b>.

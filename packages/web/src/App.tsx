@@ -204,6 +204,23 @@ export default function App() {
   // Startup recovery: set when initialization fails/stalls so we show a recovery
   // screen (Retry / Performance Mode / Diagnostics) instead of freezing on the sun.
   const [initError, setInitError] = useState<null | "timeout" | "error">(null);
+  // LITE MODE: run the whole app WITHOUT the 3D galaxy. An escape hatch for when the
+  // WebGL scene can't render on a device/brain (it must never hold the app hostage).
+  // Reachable instantly via ?lite=1, and remembered. This is opt-in, not a global
+  // downgrade — everyone else still gets the full galaxy.
+  const [lite, setLite] = useState(() => {
+    try {
+      const q = new URLSearchParams(window.location.search);
+      if (q.has("lite")) {
+        const on = q.get("lite") !== "0";
+        localStorage.setItem("brain.lite", on ? "1" : "0");
+        return on;
+      }
+      return localStorage.getItem("brain.lite") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [showDiag, setShowDiag] = useState(false);
   const [perfSuggest, setPerfSuggest] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
@@ -1056,11 +1073,15 @@ export default function App() {
   return (
     <div className="app">
       <Toasts />
-      {/* Mount the 3D galaxy only AFTER boot completes. Its WebGL/scene setup is the
-          heaviest synchronous work in the app; mounting it during the loading phase
-          could stall a phone's main thread so the loading logic + recovery watchdog
-          never got to run. Now the loading screen paints first and always resolves. */}
-      {(loaded || demo) && (
+      {/* Lite mode: a calm static backdrop instead of the WebGL galaxy, so the app is
+          fully usable (Mind, chat, memories, tabs) even when the 3D can't render. */}
+      {lite && <div className="lite-backdrop" aria-hidden />}
+
+      {/* Mount the 3D galaxy only AFTER boot completes AND not in lite mode. Its
+          WebGL/scene setup is the heaviest synchronous work in the app; mounting it
+          during loading could stall a phone's main thread so the loading logic +
+          recovery watchdog never got to run. */}
+      {(loaded || demo) && !lite && (
       <Graph3D
         ref={graphRef}
         data={view}
@@ -1102,6 +1123,12 @@ export default function App() {
         <div className="loading">
           <div className="loader-orb" />
           <p>Mapping your galaxy…</p>
+          <button
+            className="lite-escape"
+            onClick={() => { try { localStorage.setItem("brain.lite", "1"); } catch { /* */ } window.location.href = "/?lite=1"; }}
+          >
+            Taking too long? Open without the 3D galaxy →
+          </button>
         </div>
       )}
 

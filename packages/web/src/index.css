@@ -1968,7 +1968,23 @@ body,
   font-size: 13px;
   letter-spacing: 0.06em;
 }
+/* Lite mode backdrop — a calm static starfield when the 3D galaxy is off. */
+.lite-backdrop {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(1px 1px at 20% 30%, #ffffff88, transparent),
+    radial-gradient(1px 1px at 70% 60%, #cfe3ff77, transparent),
+    radial-gradient(1px 1px at 40% 80%, #ffd9f066, transparent),
+    radial-gradient(1px 1px at 85% 25%, #ffffff66, transparent),
+    radial-gradient(1px 1px at 55% 45%, #cabfff66, transparent),
+    radial-gradient(1200px 800px at 50% 40%, rgba(60, 40, 120, 0.25), transparent 70%),
+    #060411;
+}
 .loading.recovery { z-index: 60; }
+.lite-escape {
+  margin-top: 6px; background: transparent; border: none; color: #9fd4ff;
+  font-size: 12px; text-decoration: underline; cursor: pointer; opacity: 0.85;
+}
 /* FPS "switch to Performance Mode?" suggestion banner (bottom-centre). */
 .perf-suggest {
   position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
