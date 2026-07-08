@@ -1579,6 +1579,19 @@ body,
   color: var(--muted);
   margin: 4px 0 10px;
 }
+.fleet-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  color: var(--muted);
+  margin: 2px 0 10px;
+}
+.fleet-summary-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #46f58c; box-shadow: 0 0 8px #46f58c;
+  animation: fleet-breathe 2.4s ease-in-out infinite;
+}
 .fleet-list {
   list-style: none;
   margin: 0;
@@ -1592,19 +1605,27 @@ body,
   border-radius: 12px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.4s ease, background 0.4s ease;
+}
+.fleet-card.active {
+  border-color: rgba(70, 245, 140, 0.35);
+  background: rgba(70, 245, 140, 0.05);
 }
 .fleet-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 .fleet-icon {
-  font-size: 18px;
+  font-size: 22px;
+  line-height: 1;
 }
+.fleet-icon.pulse { animation: fleet-breathe 2.6s ease-in-out infinite; }
+.fleet-icon.dispatching { animation: fleet-launch 0.9s ease-in-out infinite; }
+.fleet-headtext { display: flex; flex-direction: column; flex: 1; min-width: 0; }
 .fleet-name {
   font-weight: 700;
   font-size: 13px;
-  flex: 1;
 }
 .fleet-dot {
   width: 9px;
@@ -1612,26 +1633,50 @@ body,
   border-radius: 50%;
   background: #555;
   box-shadow: none;
+  flex: 0 0 auto;
 }
 .fleet-dot.on {
-  background: var(--accent);
-  box-shadow: 0 0 8px var(--accent);
+  background: #46f58c;
+  box-shadow: 0 0 8px #46f58c;
+}
+.fleet-dot.dispatch {
+  background: #ffcd46;
+  box-shadow: 0 0 10px #ffcd46;
+  animation: fleet-breathe 0.8s ease-in-out infinite;
 }
 .fleet-role {
   font-size: 11px;
   color: var(--accent);
-  margin-top: 2px;
+  margin-top: 1px;
 }
 .fleet-status {
   font-size: 12px;
   color: var(--text);
-  margin-top: 4px;
+  margin-top: 6px;
 }
+.fleet-status.dispatching { color: #ffcd46; font-weight: 600; }
+.fleet-targets { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.fleet-target-chip {
+  padding: 2px 8px; border-radius: 999px; font-size: 11px; cursor: pointer;
+  background: rgba(70, 245, 140, 0.12); border: 1px solid rgba(70, 245, 140, 0.3); color: #cffbe0;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.fleet-target-chip:hover { background: rgba(70, 245, 140, 0.22); }
+.fleet-lore-toggle {
+  margin-top: 7px; padding: 0; background: transparent; border: none;
+  color: var(--muted); font-size: 11px; cursor: pointer; opacity: 0.75;
+}
+.fleet-lore-toggle:hover { opacity: 1; }
 .fleet-lore {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--muted);
   margin: 6px 0 0;
+}
+@keyframes fleet-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes fleet-launch { 0% { transform: translateY(0); } 50% { transform: translateY(-3px); } 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .fleet-icon.pulse, .fleet-icon.dispatching, .fleet-dot.dispatch, .fleet-summary-dot { animation: none; }
 }
 
 /* Chronicle — an object's evolving, versioned lore */

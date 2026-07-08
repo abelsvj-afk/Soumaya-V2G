@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-07 (Claude): Fleet UX + emoji de-collision + image-asset brief (docs/IMAGE_ASSETS.md)
+- **Fleet emoji collision fixed** (`graph/fleet.ts`): beacon/scout/defender were `🛰️ / 🛰 / 🚀` —
+  beacon & scout were the SAME satellite emoji. Now `📡 (beacon) / 🛰️ (scout) / 🛡️ (defender)` —
+  each distinct + clearer (📡 relay, 🛡️ guardian). Help fleet entries updated to match (ship 🛸,
+  scout/defender split into two).
+- **Dispatch slowed + made watchable** (`graph/satellites.ts`): probe fly-out was `220 u/s` (too fast
+  to follow) → an eased cruise (`78 + dist·0.28`, gentle on approach); fade-in `1.5 → 0.7` so a launch
+  reads as a real deployment, not a pop-in.
+- **Fleet panel redesigned** (`components/FleetPanel.tsx`): each unit now shows what it's doing RIGHT
+  NOW in plain language, a live activity pulse (idle 💤 / active / "🚀 Dispatching N…"), **fly-to chips**
+  for the memories it's working, an active-card glow, a summary line ("N of 5 active"), and lore tucked
+  behind a "What is this?" disclosure (no more wall of text). New `FleetStatus.targets/pending`;
+  `subAgents` now expose `targetId`; `Graph3D.getFleetStatus` populates targets + a "Dispatching…" state.
+- **Image-asset generation brief** — `docs/IMAGE_ASSETS.md`: a prioritized, copy-paste catalog of every
+  emoji placeholder that wants real artwork, in **tiers you complete one at a time** (T1 Fleet → T2
+  Celestial classes → T3 Cognitive bodies → T4 Megastructures → T5 Badges), each row with a ready
+  generation **prompt** (shared art direction baked in), a `Save as` path, and where it's used. Plus a
+  full **emoji collision map appendix** (from an exhaustive inventory) with safe display-only
+  reassignments for the ~20 overloaded glyphs (🛰️/🪐/🌌/📡/🧠/🎯/…). Gate: typecheck clean · 210 tests ·
+  web build clean.
+
 ### 2026-07-07 (Claude): Cognitive Layer — Phase 7 (Future events · Intentions · Motivations) — cognitive model COMPLETE
 - The finale gives the last kinds real dynamics — the temporal + ephemeral cognition. All offline.
 - **FUTURE EVENTS** (`analysis/future.ts`): a `future_event` carries a real date (stored in `remind_at`;

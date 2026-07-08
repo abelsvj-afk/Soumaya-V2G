@@ -24,6 +24,8 @@ export interface SubAgentStatus {
   detail: string;
   /** The memory it's currently attending, if any. */
   targetLabel: string | null;
+  /** The id of that memory (for fly-to), if any. */
+  targetId: number | null;
 }
 
 export interface SubAgentHazard {
@@ -187,6 +189,7 @@ export function makeSubAgents(): SubAgentSystem {
       active: u.craft.visible && u.target != null,
       detail: u.status,
       targetLabel: u.targetLabel,
+      targetId: (u.target as any)?.id ?? null,
     }));
 
   return { group, update, getStatus };

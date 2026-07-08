@@ -330,8 +330,9 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
           }
         }
 
+        // Materialise gently (slower fade) so a launch reads as a real event, not a pop-in.
         const wantVisible = tp != null;
-        s.fade = THREE.MathUtils.clamp(s.fade + (wantVisible ? dt : -dt) * 1.5, 0, 1);
+        s.fade = THREE.MathUtils.clamp(s.fade + (wantVisible ? dt : -dt) * 0.7, 0, 1);
         g.visible = s.fade > 0.02;
 
         if (!g.visible || !tp || !target) {
@@ -351,7 +352,10 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         );
         const dir = want.clone().sub(g.position);
         const d = dir.length();
-        g.position.addScaledVector(dir.normalize(), Math.min(d, 220 * dt));
+        // Cruise out at a watchable pace (was 220 u/s — too fast to follow). Ease as it
+        // nears its standoff point so the arrival reads as a deliberate deployment.
+        const cruise = 78 + Math.min(d, 260) * 0.28; // faster when far, gentle on approach
+        g.position.addScaledVector(dir.normalize(), Math.min(d, cruise * dt));
         g.lookAt(tp);
         g.scale.setScalar(1.5 * (0.4 + 0.6 * s.fade));
 

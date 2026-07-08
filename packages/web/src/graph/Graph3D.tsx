@@ -28,7 +28,10 @@ import { makeSubAgents, type SubAgentSystem, type SubAgentHazard } from "./subAg
 import { BG, colorForType, EMOTION_RGB, emotionKind } from "./theme.js";
 
 /** Live status of each fleet unit, read by the Fleet panel. */
-export type FleetStatus = Record<string, { active: boolean; detail: string }>;
+export type FleetStatus = Record<
+  string,
+  { active: boolean; detail: string; targets?: { id: number; label: string }[]; pending?: number }
+>;
 
 export interface Graph3DHandle {
   focusNode: (id: number) => void;
@@ -1932,6 +1935,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const labelOf = (nid: number) =>
           (dataRef.current.nodes as any[]).find((n) => n.id === nid)?.label ?? `#${nid}`;
         const active = satellitesRef.current?.getActive() ?? [];
+        const pending = satellitesRef.current?.getPendingDispatches() ?? [];
         const sub = subAgentsRef.current?.getStatus() ?? [];
         const status: FleetStatus = {
           ship: { active: true, detail: "On her rounds" },
@@ -1939,12 +1943,22 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           beacon: {
             active: active.length > 0,
             detail:
-              active.length > 0
-                ? `${active.length} deployed → ${active.map((a) => labelOf(a.targetId)).join(", ")}`
-                : "None deployed",
+              pending.length > 0
+                ? `Dispatching ${pending.length}…`
+                : active.length > 0
+                  ? `${active.length} warming ${active.length === 1 ? "a memory" : "memories"}`
+                  : "None deployed",
+            targets: active.map((a) => ({ id: a.targetId, label: labelOf(a.targetId) })),
+            pending: pending.length,
           },
         };
-        for (const s of sub) status[s.id] = { active: s.active, detail: s.detail };
+        for (const s of sub) {
+          status[s.id] = {
+            active: s.active,
+            detail: s.detail,
+            targets: s.targetId != null ? [{ id: s.targetId, label: s.targetLabel ?? labelOf(s.targetId) }] : [],
+          };
+        }
         return status;
       },
     }),
