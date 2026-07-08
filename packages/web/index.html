@@ -47,11 +47,26 @@
         var booted = false;
         window.__brainBooted = function () {
           booted = true;
+          try { sessionStorage.removeItem("brain_autoreset"); } catch (e) {}
           var f = document.getElementById("boot-fallback");
           if (f) f.remove();
           var r = document.getElementById("boot-recovery");
           if (r) r.remove();
         };
+        // Nuke the service worker + every cache, then hard-reload fresh. This is the
+        // real cure for a stale installed PWA serving old JS.
+        function hardReset() {
+          var done = function () { location.replace(location.pathname + "?fresh=" + Date.now()); };
+          var jobs = [];
+          try {
+            if (window.caches && caches.keys)
+              jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+            if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
+              jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+          } catch (e) { /* fall through */ }
+          Promise.all(jobs).then(done, done);
+          setTimeout(done, 2500);
+        }
         function showRecovery(reason) {
           if (booted || document.getElementById("boot-recovery")) return;
           var o = document.createElement("div");
@@ -67,25 +82,33 @@
             '<p style="margin:14px 0 0;opacity:.45;font-size:11px">' + (reason || "") + "</p></div>";
           document.body.appendChild(o);
           document.getElementById("br-reload").onclick = function () { location.reload(); };
-          document.getElementById("br-reset").onclick = function () {
-            var done = function () { location.replace(location.pathname + "?fresh=" + Date.now()); };
-            var jobs = [];
-            try {
-              if (window.caches && caches.keys)
-                jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
-              if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations)
-                jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
-            } catch (e) { /* fall through to reload */ }
-            Promise.all(jobs).then(done, done);
-            setTimeout(done, 2500); // never hang on the reset itself
-          };
+          document.getElementById("br-reset").onclick = hardReset;
         }
-        // Boot watchdog: if the app hasn't signalled a good boot, offer recovery.
-        setTimeout(function () { showRecovery("boot watchdog · timed out"); }, 11000);
-        // A hard bundle error before boot → offer recovery quickly.
+        // Boot watchdog: if the app hasn't booted in ~7s, AUTO-HEAL once (clear the
+        // stale service worker + caches and reload) with no tap needed. If it's still
+        // stuck after that one auto-reset, show the manual recovery panel.
+        setTimeout(function () {
+          if (booted || document.getElementById("boot-recovery")) return;
+          try {
+            if (!sessionStorage.getItem("brain_autoreset")) {
+              sessionStorage.setItem("brain_autoreset", "1");
+              hardReset();
+              return;
+            }
+          } catch (e) { /* sessionStorage blocked — fall through to manual panel */ }
+          showRecovery("boot watchdog · auto-reset didn't help");
+        }, 7000);
+        // A hard bundle error before boot → recover quickly.
         window.addEventListener("error", function (e) {
-          if (!booted && e && e.message && /import|module|chunk|unexpected|SyntaxError/i.test(e.message))
-            setTimeout(function () { showRecovery("load error"); }, 400);
+          if (!booted && e && e.message && /import|module|chunk|unexpected|SyntaxError/i.test(e.message)) {
+            setTimeout(function () {
+              if (booted) return;
+              try {
+                if (!sessionStorage.getItem("brain_autoreset")) { sessionStorage.setItem("brain_autoreset", "1"); hardReset(); return; }
+              } catch (x) {}
+              showRecovery("load error");
+            }, 400);
+          }
         });
       })();
     </script>

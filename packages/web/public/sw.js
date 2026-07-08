@@ -52,18 +52,19 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Static assets: cache-first, fill the cache in the background.
+  // Static assets: NETWORK-FIRST (was cache-first). Cache-first could serve a stale
+  // JS bundle forever on an installed PWA — the infinite-loading-screen bug. Fetch
+  // fresh when online (content-hashed assets stay HTTP-immutable, so this is cheap),
+  // fill the cache for offline, and fall back to cache only when the network fails.
   e.respondWith(
-    caches.match(req).then(
-      (hit) =>
-        hit ||
-        fetch(req).then((res) => {
-          if (res.ok && res.type === "basic") {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
-          }
-          return res;
-        }),
-    ),
+    fetch(req)
+      .then((res) => {
+        if (res.ok && res.type === "basic") {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
+        return res;
+      })
+      .catch(() => caches.match(req)),
   );
 });
