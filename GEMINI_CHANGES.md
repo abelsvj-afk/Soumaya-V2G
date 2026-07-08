@@ -165,6 +165,22 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-08 (Claude): Post-login freeze fix — lighter default graphics + gate 3D behind boot (MEASURED)
+- After clearing cache the login screen loaded (proving the deploy/code is fine), but signing in then
+  froze on loading the real galaxy — a step Incognito never reached. Per the repo's "measure, don't
+  assert" rule, timed every autonomy step on an 800-node brain: gravity 63ms, everything else <15ms,
+  /api/graph bounded to 300 nodes with batched queries. So the server is NOT the freeze — it's the
+  client: Graph3D's WebGL setup blocking the main thread when it mounts a populated galaxy.
+- **Conservative default graphics**: bloom OFF for every tier except "quality" (UnrealBloomPass's
+  render targets are the #1 first-frame staller on phones); detectTier biased low (unknown deviceMemory
+  → low, not mid); new `heavyScenery` flag renders nebulae/galaxy-sprites/comets/skybox only on the top
+  tier. Starfield alone still reads as space.
+- **Gate `<Graph3D>` behind loaded/demo** so its heavy setup can't block the loading screen + boot
+  watchdog from running.
+- **Fixed a spurious auto-reset loop**: signal `__brainBooted` when auth resolves (React is alive), not
+  when the galaxy finishes — so a slow galaxy load can't trip the 7s cache-clear-and-reload.
+- Pushed + fast-forwarded master (af665c9). Gate: typecheck clean · web build clean · 219 server tests.
+
 ### 2026-07-08 (Claude): Self-healing boot — the freeze is now cured at the source
 - Confirmed via the orange failsafe orb (introduced only in c00a10b) that the NEW build IS deploying and
   /api/health is green — so it was never the server or GitHub. The remaining hang was a stale cached JS
