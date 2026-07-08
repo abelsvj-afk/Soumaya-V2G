@@ -531,9 +531,17 @@ export default function App() {
         setInitError((e) => e ?? "timeout");
         setLoaded(true);
       }
-    }, 15_000);
+    }, 9_000);
     return () => window.clearTimeout(t);
   }, [loaded]);
+
+  // Tell the index.html boot-failsafe we booted OK, so it stands down. "Booted" =
+  // the app is usable: either the login screen (no brain) or the galaxy has loaded.
+  useEffect(() => {
+    if (authChecked && (!space || loaded)) {
+      (window as unknown as { __brainBooted?: () => void }).__brainBooted?.();
+    }
+  }, [authChecked, space, loaded]);
 
   // FPS monitor: after a warm-up, sample the frame rate; if it stays rough and the
   // pilot isn't already in Performance Mode, OFFER (never force) a downgrade. Auto
@@ -1119,7 +1127,26 @@ export default function App() {
               >
                 ⚡ Performance Mode
               </button>
-              <button onClick={() => window.location.reload()}>⟳ Reload app</button>
+              <button
+                className="recovery-primary"
+                onClick={async () => {
+                  // The real fix for a stale installed PWA: drop the service worker
+                  // + every cache, then hard-reload fresh code from the server.
+                  try {
+                    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+                    if (navigator.serviceWorker) {
+                      for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+                    }
+                  } catch {
+                    /* fall through to reload regardless */
+                  }
+                  window.location.replace(`${window.location.pathname}?fresh=${Date.now()}`);
+                }}
+                title="Clears the cached app + service worker, then reloads fresh"
+              >
+                ↻ Reset app (clear cache)
+              </button>
+              <button onClick={() => window.location.reload()}>⟳ Just reload</button>
             </div>
             <button className="recovery-diag-toggle" onClick={() => setShowDiag((d) => !d)}>
               {showDiag ? "▾ Hide diagnostics" : "▸ View diagnostics"}

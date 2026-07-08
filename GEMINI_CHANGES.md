@@ -165,6 +165,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-07 (Claude): BULLETPROOF boot failsafe — escape the infinite loading sun even with a stale bundle
+- User still saw the frozen loading screen. Root truth: the earlier client fixes are CORRECT (old
+  `getGraph` swallowed errors so a hung fetch never settled → `loaded` stuck; new code times out), but
+  **they only help once the new bundle is on the device** — a stale installed PWA / un-deployed build
+  keeps running the old frozen code, and there was no escape hatch that survives a stale bundle.
+- **Fix — dependency-free failsafe in `index.html`** (served network-first, so it ALWAYS reaches the
+  device even if the JS bundle is stale/broken): an immediate inline loader (no blank first paint) + a
+  boot watchdog. If the app doesn't call `window.__brainBooted()` within ~11s, it shows a recovery
+  panel whose **"↻ Reset app (clear cache)"** button unregisters the service worker + deletes all
+  caches + hard-reloads fresh — the actual cure for a stale installed PWA. Also trips fast on a bundle
+  load/parse error.
+- App now calls `window.__brainBooted()` once it's usable (login screen OR galaxy loaded); the React
+  watchdog dropped 15s→9s; the React recovery screen gained the same "Reset app (clear cache)" hard
+  reset. Verified the failsafe survives the Vite build (present in `dist/index.html`).
+- **IMPORTANT (process)**: pushing does NOT deploy — the live site keeps serving the last-deployed
+  build. This fix (and every prior one) only reaches the phone after a `fly deploy`. Deploy triggered/
+  requested via `agy`.
+
 ### 2026-07-07 (Claude): Aliases (vague memories connect) + smart-surface + unlink/prune + Mind explainer + music UX
 - **Vague memories connect now — via ALIASES.** You won't always type the exact name; tell a Mind
   entry what else it's called ("girlfriend, my girl") and memories that use those words link precisely,
