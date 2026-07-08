@@ -22,7 +22,7 @@ implementation quality is the whole game.
 
 - **Deploy branch (the ONLY one that ships):** `claude/soumaya-second-brain-v1-m4z4hc`.
   `master` is orphaned and NOT deployed â€” never commit app code there.
-- **Last verified gate:** typecheck clean Â· **214 tests pass** Â· web build clean.
+- **Last verified gate:** typecheck clean Â· **217 tests pass** Â· web build clean.
   *(Note: tests fail on Termux/android-arm64 due to `sqlite-vec` platform constraint â€”
   this is the local dev environment, not a code regression. Gate passes on Linux/Mac.)*
 - **Task board:** `TASKS.md` â€” the canonical backlog. Check it before picking up work.
@@ -164,6 +164,30 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 ---
 
 ## Completed Tasks
+
+### 2026-07-07 (Claude): No false connections + "these don't relate" + no cut-off text (user-reported)
+- **She stops inventing connections** (the girlfriend-linked-to-unrelated-memories bug):
+  - **People + identities now link by NAME only** — the semantic ("vibe") pass is SKIPPED for
+    `person_entity`/`identity` (`cognitive.ts` `NAME_ONLY_KINDS`). A memory that merely *feels* similar
+    is no longer mistaken for a real connection to a person. Goals/skills/etc. still gather thematic
+    memories, but the **semantic floor rose 0.55 → 0.75** (matching the strict bar real memories link
+    at), so even those don't link on a weak resemblance.
+  - **Inquiry engine tightened**: the ANCHOR "is this about X?" question now needs cosine **≥0.78**
+    (was 0.6) and **never fires for people/identities** — no more "is this unrelated note about your
+    girlfriend?".
+- **You can now tell her "these don't relate"** (new): a **link-rejection** system (`rejections.ts`,
+  `link_rejections` table). The 💭 "Soumaya noticed…" card gains a **"These don't relate"** button —
+  it **severs the edges** she drew between the bodies, **records the pair as rejected**, and closes the
+  inquiry. Linking + gravity + both inquiry heuristics all **skip rejected pairs forever**, so a
+  correction sticks (`POST /api/inquiries/:id/reject`). Her intelligence learns instead of repeating.
+- **Nothing is cut off anymore** (project-wide readability rule, `index.css`): every place text was
+  clipped with an ellipsis — memory names, constellation/hub names, the Observatory quick-answer chips
+  ("name · …" that were unreadable + untappable), applied-role chips, and every fleet/mind chip — now
+  **wraps to as many lines as it needs**, left-aligned, long strings broken to fit. You can always read
+  and tap the whole thing.
+- **Tests**: person links by name only (goal still links semantically); rejected pair stays severed
+  through gravity; `rejectInquiry` severs + records + never re-asks. Gate: typecheck clean · **217
+  tests** · web build clean.
 
 ### 2026-07-07 (Claude): Deferred items — idea splitting + sharpened negation/name heuristics
 - **Idea SPLIT** (`analysis/ideas.ts` `splitRipeIdea`, the Phase-3 leftover): when an idea's supporting

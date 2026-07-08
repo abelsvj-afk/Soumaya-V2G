@@ -4,6 +4,7 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { knn, getEmbedding, upsertEmbedding } from "../db/vec.js";
 import { ftsUpsert } from "../db/fts.js";
+import { isRejected } from "./rejections.js";
 
 /**
  * The cognitive layer (docs/COGNITIVE_LAYER.md). Cognitive objects are `nodes`
@@ -21,11 +22,24 @@ import { ftsUpsert } from "../db/fts.js";
  * connections appear at once, and again periodically via `applyCognitiveGravity`.
  */
 
-/** Cosine floor for the SEMANTIC pass to pull a memory toward a cognitive anchor. */
-const GRAVITY_THRESHOLD = 0.55;
+/**
+ * Cosine floor for the SEMANTIC pass. Raised from 0.55 (too loose — it linked a
+ * person to any vaguely-similar note) to 0.75, matching the strict bar real
+ * memories link at. Better to miss a subtle link than to invent a false one.
+ */
+const GRAVITY_THRESHOLD = 0.75;
 /** Max new supports edges per anchor per run, split by match type. */
 const MAX_SEMANTIC = 3;
 const MAX_KEYWORD = 8;
+
+/**
+ * Kinds that must link by NAME only — never by "vibe". A person or an identity is
+ * about a specific entity; a memory that merely *feels* similar is NOT a real
+ * connection (this is what wrongly tied a girlfriend to unrelated memories). Goals,
+ * skills, motivations etc. legitimately gather thematically-related memories, so
+ * they keep the (now stricter) semantic pass.
+ */
+const NAME_ONLY_KINDS = new Set<string>(["person_entity", "identity"]);
 
 /** True if `kind` is one of the cognitive kinds (an anchor, not a plain memory). */
 function isCognitiveKind(kind: string | null | undefined): kind is CognitiveKind {
@@ -180,6 +194,10 @@ export function linkCognitiveAnchor(
   const edges = new EdgesRepo(ctx.handle, spaceId);
   let formed = 0;
 
+  const anchorKind = (s
+    .prepare(`SELECT kind FROM nodes WHERE id = ? AND space_id = ?`)
+    .get(anchorId, spaceId) as { kind: string | null } | undefined)?.kind;
+
   const isRealMemory = (id: number) =>
     s
       .prepare(
@@ -191,6 +209,7 @@ export function linkCognitiveAnchor(
   const link = (memId: number): boolean => {
     if (memId === anchorId) return false;
     if (edges.exists(memId, anchorId) || edges.exists(anchorId, memId)) return false;
+    if (isRejected(ctx, spaceId, memId, anchorId)) return false; // user said "not related"
     if (!isRealMemory(memId)) return false;
     edges.create({ source: memId, target: anchorId, relationship: "supports", weight: 0.7 });
     formed++;
@@ -219,8 +238,9 @@ export function linkCognitiveAnchor(
     }
   }
 
-  // 2) Semantic match.
-  const embedding = emb ?? getEmbedding(s, anchorId);
+  // 2) Semantic match — SKIPPED for people/identities (they link by name only, so a
+  // merely-similar memory can't be mistaken for a real connection to a person).
+  const embedding = anchorKind && NAME_ONLY_KINDS.has(anchorKind) ? undefined : emb ?? getEmbedding(s, anchorId);
   if (embedding) {
     const hits = knn(s, embedding, 12, spaceId).filter(
       (h) => h.nodeId !== anchorId && h.similarity >= GRAVITY_THRESHOLD,

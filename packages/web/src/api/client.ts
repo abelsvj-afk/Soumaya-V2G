@@ -875,6 +875,14 @@ export async function dismissInquiry(id: number): Promise<boolean> {
     return false;
   }
 }
+export async function rejectInquiry(id: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/inquiries/${id}/reject`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 
 // ── Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" ──────
 export interface Thought {

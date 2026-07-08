@@ -15,6 +15,7 @@ import {
   applyCognitiveGravity,
   updateCognitive,
 } from "../analysis/cognitive.js";
+import { recordRejection } from "../analysis/rejections.js";
 import { COGNITIVE_META } from "@brain/shared";
 
 let handle: DbHandle;
@@ -118,6 +119,28 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     expect(ok).toBe(true);
     expect(supportsInto(id)).toBe(1);
     expect(new GraphService(handle, "legacy").getNode(id)?.label).toBe("Kickman");
+  });
+
+  it("a person links ONLY by name, never by vibe (goals still link semantically)", async () => {
+    // A memory that shares content but names neither anchor.
+    await mem("note", "alpha beta gamma delta epsilon zeta");
+    // A goal legitimately gathers the thematically-similar memory (semantic pass).
+    const goalId = await createCognitive(ctx, "legacy", "goal", "Topic", "alpha beta gamma delta epsilon zeta");
+    expect(supportsInto(goalId)).toBeGreaterThanOrEqual(1);
+    // A person does NOT — she isn't named in it, so it's not a real connection.
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Shakabiya", "alpha beta gamma delta epsilon zeta");
+    expect(supportsInto(personId)).toBe(0);
+  });
+
+  it("respects a rejected pair — gravity won't re-link what the user severed", async () => {
+    const m = await mem("m", "coffee with Danny");
+    const personId = await createCognitive(ctx, "legacy", "person_entity", "Danny", "");
+    expect(supportsInto(personId)).toBe(1); // named → linked
+    // User says they don't relate: sever + record the rejection, then re-run gravity.
+    handle.sqlite.prepare(`DELETE FROM edges WHERE space_id='legacy' AND source=? AND target=?`).run(m.id, personId);
+    recordRejection(ctx, "legacy", m.id, personId);
+    applyCognitiveGravity(ctx, "legacy");
+    expect(supportsInto(personId)).toBe(0); // stays severed
   });
 
   it("gravity never links a cognitive anchor to another anchor (only real memories)", async () => {

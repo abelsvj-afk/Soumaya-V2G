@@ -237,6 +237,15 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE INDEX IF NOT EXISTS inquiries_space_idx ON inquiries(space_id, status);
     CREATE UNIQUE INDEX IF NOT EXISTS inquiries_sig_idx ON inquiries(space_id, signature);
+    -- User-rejected connections: when you tell Soumaya two things DON'T relate, the
+    -- pair is recorded here (canonical a<b) so she never re-links or re-asks about it.
+    CREATE TABLE IF NOT EXISTS link_rejections (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      a INTEGER NOT NULL,
+      b INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, a, b)
+    );
   `);
 }
 

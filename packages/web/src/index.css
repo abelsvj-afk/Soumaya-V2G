@@ -3597,3 +3597,30 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
     scroll-behavior: auto !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   READABILITY RULE (project-wide): a name / label / clickable chip must NEVER be
+   cut off. Anywhere text used to clip with an ellipsis, it now WRAPS to as many
+   lines as it needs, so you can always read — and tap — the whole thing. Long
+   unbroken strings break to fit. This deliberately overrides the per-component
+   ellipsis + max-width caps, which were hiding memory names, constellation/hub
+   names, Observatory quick-answers, applied-role chips, and fleet/mind chips.
+   ───────────────────────────────────────────────────────────────────────────── */
+.nl-label, .nl-constel, .nl-tags, .sector-name, .ship-task-item,
+.self-insight-chip, .obs-clamp, .chatdock-applied-chip,
+.noticing-chip, .fleet-target-chip, .mind-ev-chip, .mind-suggest-chip, .mind-mote-text,
+.mind-card-label {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: 100% !important;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+/* Chips that now wrap need their internal layout to breathe (multi-line, left-aligned). */
+.obs-clamp, .chatdock-applied-chip, .noticing-chip, .fleet-target-chip,
+.mind-ev-chip, .mind-suggest-chip {
+  height: auto;
+  line-height: 1.35;
+  text-align: left;
+}

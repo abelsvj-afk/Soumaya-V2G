@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getInquiries, answerInquiry, dismissInquiry, type Inquiry } from "../api/client.js";
+import { getInquiries, answerInquiry, dismissInquiry, rejectInquiry, type Inquiry } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 
@@ -67,6 +67,12 @@ export function NoticingCard({
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
     await dismissInquiry(q.id);
   };
+  const reject = async () => {
+    setInquiries((xs) => xs.filter((x) => x.id !== q.id));
+    await rejectInquiry(q.id);
+    pushToast("Got it — I won't tie those together.", "🧠", 3500);
+    onAnswered?.(); // the galaxy may lose an edge → refresh
+  };
 
   return (
     <div className="noticing-card" role="dialog" aria-label="Soumaya noticed something">
@@ -98,6 +104,9 @@ export function NoticingCard({
       <div className="noticing-actions">
         <button onClick={() => void send()} disabled={busy || !reply.trim()}>
           {busy ? "Weaving…" : "Answer"}
+        </button>
+        <button className="mini ghost" onClick={() => void reject()} title="Sever this connection and don't suggest it again">
+          These don't relate
         </button>
         <button className="mini ghost" onClick={() => void wave()}>Not now</button>
       </div>

@@ -6,6 +6,7 @@ import { EdgesRepo } from "../repositories/edges.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
 import { knn, getEmbedding } from "../db/vec.js";
+import { isRejected, recordRejection } from "./rejections.js";
 
 /**
  * The proactive-intelligence layer. Beyond linking, Soumaya NOTICES structural
@@ -32,8 +33,12 @@ import { knn, getEmbedding } from "../db/vec.js";
 const MAX_OPEN = 3;
 /** Only reason about memories touched recently, so noticing tracks what you add. */
 const RECENT_DAYS = 21;
-/** Semantic floor for the ANCHOR "this sits on that" heuristic. */
-const ANCHOR_SIM = 0.6;
+/**
+ * Semantic floor for the ANCHOR "this sits on that" heuristic. Raised 0.6 → 0.78:
+ * she should only ask about a genuinely strong overlap, not a vague resemblance
+ * (asking "is this about your girlfriend?" for an unrelated note is worse than silence).
+ */
+const ANCHOR_SIM = 0.78;
 /** Common words that never make a meaningful "theme". */
 const STOPWORDS = new Set([
   "the", "and", "for", "with", "that", "this", "have", "from", "your", "you", "was", "are",
@@ -100,6 +105,7 @@ function bridgeCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): C
           )
           .get(spaceId, a.id, b.id, b.id, a.id);
         if (linked) continue;
+        if (isRejected(ctx, spaceId, a.id, b.id)) continue; // user said these don't relate
         const sig = `bridge:${[a.id, b.id].sort((x, y) => x - y).join("-")}`;
         if (seen.has(sig)) continue;
         return {
@@ -117,12 +123,15 @@ function bridgeCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): C
 /** ANCHOR: a recent memory that sits semantically on an anchor it doesn't name. */
 function anchorCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Candidate | null {
   const s = ctx.handle.sqlite;
+  // People + identities link by NAME, not vibe — never ask "is this unrelated note
+  // about your girlfriend?". Only kinds that legitimately gather thematic memories.
+  const askableKinds = Object.keys(COGNITIVE_META).filter((k) => k !== "person_entity" && k !== "identity");
   const anchors = s
     .prepare(
       `SELECT id, label, kind FROM nodes
-       WHERE space_id = ? AND deleted_at IS NULL AND kind IN (${Object.keys(COGNITIVE_META).map(() => "?").join(",")})`,
+       WHERE space_id = ? AND deleted_at IS NULL AND kind IN (${askableKinds.map(() => "?").join(",")})`,
     )
-    .all(spaceId, ...Object.keys(COGNITIVE_META)) as { id: number; label: string; kind: string }[];
+    .all(spaceId, ...askableKinds) as { id: number; label: string; kind: string }[];
   for (const a of anchors) {
     const emb = getEmbedding(s, a.id);
     if (!emb) continue;
@@ -145,6 +154,7 @@ function anchorCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): C
         )
         .get(spaceId, mem.id, a.id, a.id, mem.id);
       if (linked) continue;
+      if (isRejected(ctx, spaceId, mem.id, a.id)) continue; // user said these don't relate
       const sig = `anchor:${a.id}-${mem.id}`;
       if (seen.has(sig)) continue;
       const meta = COGNITIVE_META[a.kind as keyof typeof COGNITIVE_META];
@@ -273,6 +283,37 @@ export function dismissInquiry(ctx: AppContext, spaceId: string, id: number): bo
       .prepare(`UPDATE inquiries SET status = 'dismissed' WHERE id = ? AND space_id = ? AND status = 'open'`)
       .run(id, spaceId).changes > 0
   );
+}
+
+/**
+ * "These don't relate" — the user tells Soumaya a proposed connection is wrong. We
+ * SEVER any edges she drew between the bodies, RECORD each pair as rejected (so she
+ * never re-links or re-asks about them), and close the inquiry. This is how her
+ * intelligence learns from a correction instead of stubbornly repeating it.
+ */
+export function rejectInquiry(ctx: AppContext, spaceId: string, id: number): boolean {
+  const s = ctx.handle.sqlite;
+  const row = s
+    .prepare(`SELECT node_ids AS nodeIds FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
+    .get(id, spaceId) as { nodeIds: string } | undefined;
+  if (!row) return false;
+  let ids: number[] = [];
+  try {
+    ids = JSON.parse(row.nodeIds);
+  } catch {
+    /* ignore */
+  }
+  // Reject + unlink every pair among the bodies she connected.
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = i + 1; j < ids.length; j++) {
+      recordRejection(ctx, spaceId, ids[i]!, ids[j]!);
+      s.prepare(
+        `DELETE FROM edges WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?))`,
+      ).run(spaceId, ids[i], ids[j], ids[j], ids[i]);
+    }
+  }
+  s.prepare(`UPDATE inquiries SET status = 'dismissed' WHERE id = ? AND space_id = ?`).run(id, spaceId);
+  return true;
 }
 
 /**

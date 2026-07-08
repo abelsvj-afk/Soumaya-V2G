@@ -13,7 +13,9 @@ import {
   listInquiries,
   dismissInquiry,
   answerInquiry,
+  rejectInquiry,
 } from "../analysis/inquiry.js";
+import { isRejected } from "../analysis/rejections.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -107,6 +109,25 @@ describe("inquiry engine (proactive intelligence)", () => {
     expect(listInquiries(ctx, "legacy").length).toBe(0);
     // Answering a missing/closed inquiry is a no-op.
     expect(await answerInquiry(ctx, "legacy", id, "again")).toBeNull();
+  });
+
+  it("'these don't relate' severs the edges, records the rejection, and never re-asks", async () => {
+    const a = await createCognitive(ctx, "legacy", "person_entity", "Alena", "");
+    const b = await createCognitive(ctx, "legacy", "person_entity", "Marcus", "");
+    const m = await mem("dinner", "the evening out");
+    const edges = new EdgesRepo(handle, "legacy");
+    edges.create({ source: m.id, target: a, relationship: "relates_to", weight: 0.6 });
+    edges.create({ source: m.id, target: b, relationship: "relates_to", weight: 0.6 });
+    const id = generateInquiry(ctx, "legacy")!;
+
+    expect(rejectInquiry(ctx, "legacy", id)).toBe(true);
+    // The pair is remembered as unrelated...
+    expect(isRejected(ctx, "legacy", a, b)).toBe(true);
+    // ...the edges she drew between them are gone...
+    expect(edges.exists(a, b) || edges.exists(b, a)).toBe(false);
+    // ...the inquiry is closed, and the same situation won't be re-raised.
+    expect(listInquiries(ctx, "legacy").length).toBe(0);
+    expect(generateInquiry(ctx, "legacy")).toBeNull();
   });
 
   it("stays quiet when there's nothing worth asking", async () => {
