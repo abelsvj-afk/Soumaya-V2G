@@ -2093,6 +2093,31 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .rankup-card, .rankup-ring, .rankup-star { animation-duration: 0.01s; }
 }
+/* Streak ember — always-visible daily-streak stake on the left edge. */
+.streak-ember {
+  position: fixed;
+  left: calc(8px + env(safe-area-inset-left));
+  top: calc(50% - 118px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  pointer-events: none;
+  user-select: none;
+}
+.streak-ember .se-flame { font-size: 18px; filter: drop-shadow(0 0 6px rgba(255, 150, 60, 0.6)); }
+.streak-ember .se-count { font-size: 12px; font-weight: 800; color: #ffcf6b; text-shadow: 0 0 6px rgba(255, 170, 60, 0.6); font-variant-numeric: tabular-nums; }
+.streak-ember .se-warn {
+  font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #ff8a5a; font-weight: 700;
+  margin-top: 1px; text-align: center; max-width: 46px; line-height: 1.1;
+}
+.streak-ember.at-risk .se-flame { animation: se-flicker 0.9s ease-in-out infinite; }
+@keyframes se-flicker {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(255, 120, 40, 0.6)); opacity: 0.85; }
+  50% { transform: scale(1.15); filter: drop-shadow(0 0 14px rgba(255, 90, 30, 0.9)); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .streak-ember.at-risk .se-flame { animation: none; } }
 .loading.recovery { z-index: 60; }
 .lite-escape {
   margin-top: 6px; background: transparent; border: none; color: #9fd4ff;

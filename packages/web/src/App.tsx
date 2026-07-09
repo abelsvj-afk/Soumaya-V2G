@@ -61,6 +61,7 @@ import { ChatDock } from "./components/ChatDock.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
 import { FuelGauge } from "./components/FuelGauge.js";
+import { StreakEmber } from "./components/StreakEmber.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -449,6 +450,15 @@ export default function App() {
   // Tweened HUD counters — ease instead of snapping (honors reduced-motion).
   const memCountShown = useCountUp(view.nodes.length);
   const streakShown = useCountUp(streak?.current ?? 0);
+
+  // Streak stakes: is the streak alive but unfed TODAY? (drives the "at risk" ember)
+  const loggedToday = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (data.nodes as GraphNode[]).some(
+      (n) => n.kind !== "action" && (n.createdAt || "").slice(0, 10) === today,
+    );
+  }, [data.nodes]);
+  const streakAtRisk = (streak?.current ?? 0) > 0 && !loggedToday;
 
   // Soumaya's flight speed grows as you use the brain: more memories + a live
   // streak make her a faster, more seasoned pilot (1.0 → ~1.9×). Distance-aware
@@ -1165,6 +1175,7 @@ export default function App() {
     <div className="app">
       <Toasts />
       {!demo && <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />}
+      {!demo && <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />}
       {rankUp && (
         <div className="rankup-moment" role="alert" onClick={() => setRankUp(null)}>
           <div className="rankup-card">
