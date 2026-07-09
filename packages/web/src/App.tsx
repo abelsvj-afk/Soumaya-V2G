@@ -60,6 +60,7 @@ import { Observatory } from "./components/Observatory.js";
 import { ChatDock } from "./components/ChatDock.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
+import { FuelGauge } from "./components/FuelGauge.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -1113,6 +1114,7 @@ export default function App() {
   return (
     <div className="app">
       <Toasts />
+      {!demo && <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />}
       {/* Lite mode: a calm static backdrop instead of the WebGL galaxy, so the app is
           fully usable (Mind, chat, memories, tabs) even when the 3D can't render. */}
       {lite && <div className="lite-backdrop" aria-hidden />}
@@ -1324,22 +1326,8 @@ export default function App() {
               {memCountShown} memories · {llmStatus}
             </span>
           )}
-          {fuel && !demo && (
-            <span
-              className="status fuel-chip"
-              title={`⛽ Fuel ${fuel.fuel}/${fuel.capacity} — Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). EARN it by logging memories, forging links & clearing action items; it also slowly refills on its own. Her core upkeep + the living galaxy never need fuel.`}
-              style={{
-                background: `linear-gradient(90deg, rgba(255, 207, 107, 0.16) ${(fuel.fuel / fuel.capacity) * 100}%, rgba(255, 207, 107, 0.02) ${(fuel.fuel / fuel.capacity) * 100}%)`
-              }}
-            >
-              ⛽ {Math.round(fuel.fuel)}/{fuel.capacity}
-              {fuelPops.map((pop) => (
-                <span key={pop.id} className={`fuel-pop${pop.spend ? " spend" : ""}`}>
-                  {pop.text}
-                </span>
-              ))}
-            </span>
-          )}
+          {/* Fuel now lives in the always-visible <FuelGauge> on the left edge (below),
+              so an installed PWA's notch can never hide it. */}
           {streak && streak.current > 0 && !demo && (
             <span
               className="status streak-chip"

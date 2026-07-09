@@ -2349,6 +2349,82 @@ button {
   text-shadow: 0 0 6px rgba(255, 107, 107, 0.8), 0 0 12px rgba(255, 107, 107, 0.4);
 }
 
+/* ── Always-on-screen fuel gauge — a futuristic engine core on the left edge ── */
+.fuel-gauge {
+  position: fixed;
+  left: calc(8px + env(safe-area-inset-left));
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 42;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+.fuel-gauge .fg-ic { font-size: 15px; filter: drop-shadow(0 0 6px rgba(255, 200, 90, 0.5)); }
+.fuel-gauge .fg-tube {
+  position: relative;
+  width: 15px;
+  height: 128px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(10, 14, 30, 0.85), rgba(6, 8, 20, 0.85));
+  border: 1px solid rgba(255, 200, 90, 0.35);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 190, 80, 0.15);
+  overflow: hidden;
+}
+.fuel-gauge .fg-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(180deg, #ffe39a 0%, #ffb43c 55%, #ff8a1e 100%);
+  box-shadow: 0 0 12px rgba(255, 180, 70, 0.85), 0 -2px 8px rgba(255, 220, 140, 0.6);
+  transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1), background 0.4s ease;
+}
+/* Engine "flow": a bright band drifting up the fill so it reads as burning, not static. */
+.fuel-gauge .fg-flow {
+  position: absolute;
+  left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  animation: fg-flow 2.4s linear infinite;
+}
+@keyframes fg-flow { 0% { bottom: -40%; } 100% { bottom: 100%; } }
+.fuel-gauge .fg-val {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffe0a0;
+  text-shadow: 0 0 6px rgba(255, 190, 80, 0.6);
+  font-variant-numeric: tabular-nums;
+}
+/* Floating ±delta as fuel changes */
+.fuel-gauge .fg-pops { position: absolute; left: 22px; top: 50%; pointer-events: none; }
+.fuel-gauge .fg-pop {
+  position: absolute;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+  color: #9dff8a;
+  text-shadow: 0 0 6px rgba(120, 255, 120, 0.8);
+  animation: fuel-pop-up 1.6s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+.fuel-gauge .fg-pop.spend { color: #ff8a6b; text-shadow: 0 0 6px rgba(255, 120, 90, 0.8); }
+/* Low fuel: the core runs red + pulses to warn. */
+.fuel-gauge.low .fg-fill { background: linear-gradient(180deg, #ffb0a0, #ff5a4a 60%, #ff3020); box-shadow: 0 0 14px rgba(255, 70, 50, 0.9); }
+.fuel-gauge.low .fg-tube { border-color: rgba(255, 90, 70, 0.6); animation: fg-lowpulse 1.4s ease-in-out infinite; }
+@keyframes fg-lowpulse { 0%, 100% { box-shadow: inset 0 0 10px rgba(0,0,0,0.6), 0 0 10px rgba(255,70,50,0.2); } 50% { box-shadow: inset 0 0 10px rgba(0,0,0,0.6), 0 0 20px rgba(255,70,50,0.6); } }
+/* Burning: Soumaya is on a job right now → the core throbs. */
+.fuel-gauge.burning .fg-tube { animation: fg-burn 0.9s ease-in-out infinite; }
+@keyframes fg-burn { 0%, 100% { box-shadow: inset 0 0 10px rgba(0,0,0,0.6), 0 0 12px rgba(255,190,80,0.25); } 50% { box-shadow: inset 0 0 10px rgba(0,0,0,0.6), 0 0 22px rgba(255,190,80,0.7); } }
+/* Flash on change */
+.fuel-gauge.flash-up .fg-tube { border-color: #9dff8a; }
+.fuel-gauge.flash-down .fg-tube { border-color: #ff8a6b; }
+@media (prefers-reduced-motion: reduce) {
+  .fuel-gauge .fg-flow, .fuel-gauge.low .fg-tube, .fuel-gauge.burning .fg-tube { animation: none; }
+}
+
 /* ── Soumaya's eye (chat avatar) ────────────────────────────────────────── */
 .soumaya-eye {
   display: inline-flex;
