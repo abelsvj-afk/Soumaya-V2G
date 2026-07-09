@@ -3717,6 +3717,22 @@ button {
 .settings-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
 
 /* 🎨 Graphics & performance controls */
+.gfx-live { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 8px; }
+.gfx-fps {
+  font-variant-numeric: tabular-nums; font-weight: 700; font-size: 0.9rem; padding: 3px 9px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.14);
+}
+.gfx-fps.good { color: #9dff8a; border-color: rgba(157, 255, 138, 0.4); }
+.gfx-fps.ok { color: #ffd98a; border-color: rgba(255, 217, 138, 0.4); }
+.gfx-fps.bad { color: #ff8a6b; border-color: rgba(255, 138, 107, 0.4); }
+.gfx-tier { font-size: 0.78rem; opacity: 0.8; }
+.gfx-live-hint { font-size: 0.68rem; opacity: 0.5; }
+.gfx-when {
+  font-size: 0.6rem; font-style: normal; padding: 1px 6px; border-radius: 999px; letter-spacing: 0.03em;
+  text-transform: uppercase; vertical-align: middle;
+}
+.gfx-when.instant { color: #9dff8a; background: rgba(157, 255, 138, 0.14); }
+.gfx-when.reload { color: #9fd4ff; background: rgba(159, 212, 255, 0.14); }
 .gfx-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
 .gfx-mode {
   display: flex; flex-direction: column; gap: 1px; text-align: left;
