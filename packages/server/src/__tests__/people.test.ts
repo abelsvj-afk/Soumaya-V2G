@@ -100,6 +100,23 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     expect(names).not.toContain("Carlos"); // already an entity
   });
 
+  it("does NOT suggest places or titles — only words used in a person context", async () => {
+    // Real name in a person context.
+    await mem("m1", "grabbed food with Marcus");
+    await mem("m2", "Marcus texted me later");
+    // A PLACE and a TITLE that are proper nouns but never used like a person.
+    await mem("m3", "worked at Palm Garden of Jacksonville today");
+    await mem("m4", "back at Jacksonville for the shift");
+    await mem("m5", "finished The Divine Odyssey chapter");
+    await mem("m6", "more of the Divine Odyssey tonight");
+    const names = suggestPeople(ctx, "legacy").map((s) => s.name);
+    expect(names).toContain("Marcus");
+    expect(names).not.toContain("Jacksonville");
+    expect(names).not.toContain("Divine");
+    expect(names).not.toContain("Odyssey");
+    expect(names).not.toContain("Palm");
+  });
+
   it("ignores words only ever capitalised at a sentence start (not real names)", async () => {
     // "Blake" always appears mid-sentence → a real name. "Running" only ever starts
     // a sentence → capitalisation-by-position, not a person.

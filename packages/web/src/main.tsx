@@ -9,8 +9,13 @@ import "./index.css";
 // "frozen" with no clue why. Now it surfaces the actual message in a dismissible bar
 // so a stuck user can read (and screenshot) exactly what broke instead of a black hole.
 (function installGlobalErrorBar() {
+  // Known-benign noise from the 3D library / browser that isn't worth alarming over:
+  // stray multitouch pointer events on the WebGL canvas, ResizeObserver's harmless loop
+  // warning, and cross-origin "Script error" with no detail.
+  const BENIGN = /pointerId|pointercapture|ResizeObserver loop|^Script error\.?$|Non-Error promise rejection/i;
   let shown = 0;
   const show = (label: string, detail: string) => {
+    if (BENIGN.test(detail)) return;
     if (shown >= 3) return; // don't paper the screen if something loops
     shown++;
     const bar = document.createElement("div");

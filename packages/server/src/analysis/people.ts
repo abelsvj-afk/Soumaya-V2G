@@ -34,6 +34,20 @@ const NAME_STOP = new Set([
 ]);
 /** A word this frequent across recent memories is a common term, not a person's name. */
 const MAX_SUGGEST_FREQ = 12;
+/** Words that, when they PRECEDE a capitalised word, mark it as a person (met Sara, my Sara). */
+const PERSON_PRE = new Set([
+  "met", "meet", "meeting", "with", "saw", "see", "seeing", "told", "tell", "telling", "asked", "ask",
+  "called", "calling", "texted", "text", "texting", "my", "our", "your", "his", "her", "their", "from",
+  "thank", "thanks", "dear", "love", "loved", "miss", "missed", "hugged", "kissed", "married", "marry",
+  "dating", "dated", "visited", "visit", "invited", "invite", "gave", "helped",
+  "friend", "girlfriend", "boyfriend", "wife", "husband", "mom", "dad", "mother", "father", "sister",
+  "brother", "cousin", "boss", "coworker", "partner", "buddy", "aunt", "uncle", "grandma", "grandpa",
+]);
+/** Words that, when they FOLLOW a capitalised word, mark it as a person (Sara said/called/texted). */
+const PERSON_POST = new Set([
+  "said", "says", "told", "called", "texted", "asked", "replied", "wants", "loves", "hates", "likes",
+  "gave", "sent", "smiled", "laughed", "hugged", "kissed", "helped", "agreed",
+]);
 
 export type Tone = "warm" | "heavy" | "mixed" | "neutral";
 
@@ -184,6 +198,7 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
   const memoriesWith = new Map<string, Set<number>>(); // lowercased name → memory ids
   const display = new Map<string, string>(); // lowercased → canonical display
   const midSentence = new Set<string>(); // saw the name NOT at a sentence start at least once
+  const personCtx = new Set<string>(); // saw it in a clearly PERSON-like context at least once
   // Scan with position so we can tell a real proper noun from a word that's only
   // capitalised because it starts a sentence ("Today…", "Went…").
   const wordRe = /\b[A-Z][a-z]{2,}\b/g;
@@ -199,6 +214,13 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
       const prev = text.slice(0, match.index).replace(/\s+$/, "");
       const sentenceStart = prev === "" || /[.!?]$/.test(prev);
       if (!sentenceStart) midSentence.add(key);
+      // PERSON CONTEXT: only a word used like a person counts — preceded by a relational
+      // / interaction word ("met/with/my/told Sara") or followed by a person action
+      // ("Sara said/called"). This filters places ("of Jacksonville") and titles
+      // ("Divine Odyssey") that are proper nouns but NOT people.
+      const preWord = (prev.match(/([A-Za-z']+)$/)?.[1] ?? "").toLowerCase();
+      const nextWord = (text.slice(match.index + raw.length).match(/^\s+([A-Za-z']+)/)?.[1] ?? "").toLowerCase();
+      if (PERSON_PRE.has(preWord) || PERSON_POST.has(nextWord)) personCtx.add(key);
       if (!seen.has(key)) {
         seen.add(key);
         if (!memoriesWith.has(key)) memoriesWith.set(key, new Set());
@@ -209,9 +231,10 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
   }
 
   return [...memoriesWith.entries()]
-    // A real name: seen mid-sentence (a proper noun, not a sentence-start word), in a
-    // FEW memories (≥2) — but not in so many that it's clearly a common term (≤12).
-    .filter(([key, ids]) => ids.size >= 2 && ids.size <= MAX_SUGGEST_FREQ && midSentence.has(key))
+    // A real name: used in a person context at least once, seen mid-sentence (a proper
+    // noun, not a sentence-start word), in a FEW memories (≥2) but not so many it's a
+    // common term (≤12).
+    .filter(([key, ids]) => ids.size >= 2 && ids.size <= MAX_SUGGEST_FREQ && midSentence.has(key) && personCtx.has(key))
     .map(([key, ids]) => ({ name: display.get(key)!, count: ids.size }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);

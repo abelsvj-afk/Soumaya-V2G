@@ -1175,8 +1175,14 @@ export default function App() {
   return (
     <div className="app">
       <Toasts />
-      {!demo && <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />}
-      {!demo && <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />}
+      {/* Left-edge HUD (fuel + streak) — hidden whenever a panel/chat/Observatory is up
+          so it never overlaps their content. */}
+      {!demo && panel === null && !showChat && !showObs && !showSettings && !showConnections && (
+        <>
+          <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />
+          <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />
+        </>
+      )}
       {rankUp && (
         <div className="rankup-moment" role="alert" onClick={() => setRankUp(null)}>
           <div className="rankup-card">
