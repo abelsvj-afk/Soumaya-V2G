@@ -149,23 +149,34 @@ export const ACHIEVEMENTS: Achievement[] = [
         adj.get(s)!.add(t);
         adj.get(t)!.add(s);
       }
-      
+
+      // We only need to know a SIMPLE PATH of NEED+ connected memories EXISTS — not
+      // the longest one. The old code computed the maximum by exploring EVERY simple
+      // path from EVERY node (finding the longest simple path is NP-hard), which on a
+      // dense brain is astronomically many paths — it pegged the main thread and froze
+      // the whole app. Fix: short-circuit the instant we reach depth NEED, and hard-cap
+      // total DFS steps so a pathological graph can never hang (worst case: the badge
+      // just doesn't unlock — the app never freezes).
+      const NEED = 5;
+      let budget = 20000;
       const visited = new Set<number>();
-      const dfs = (node: number, depth: number): number => {
+      const dfs = (node: number, depth: number): boolean => {
+        if (depth >= NEED) return true;
+        if (--budget <= 0) return false;
         visited.add(node);
-        let longest = depth;
-        const neighbors = adj.get(node) || new Set();
-        for (const n of neighbors) {
-          if (!visited.has(n)) {
-            longest = Math.max(longest, dfs(n, depth + 1));
+        for (const n of adj.get(node) || []) {
+          if (!visited.has(n) && dfs(n, depth + 1)) {
+            visited.delete(node);
+            return true;
           }
         }
         visited.delete(node);
-        return longest;
+        return false;
       };
-      
+
       for (const start of adj.keys()) {
-        if (dfs(start, 1) >= 5) return true;
+        if (budget <= 0) break;
+        if (dfs(start, 1)) return true;
       }
       return false;
     }
