@@ -165,6 +165,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): The Chronicle — a 3D interactive flowing-river life timeline
+- New feature (spec: `docs/TIMELINE_DESIGN.md`). A 🕰️ button opens a full-screen 3D timeline where
+  chapters of your life are strung along a glowing ribbon whose colour **flows** in the emotion
+  palette (gold/indigo/green). Interview-driven decisions: blended change signal · river/ribbon
+  shape · hybrid scope (whole-arc + dominant theme + parallel `threads`) · auto **+** manual add.
+- **Change detection** (`analysis/timeline.ts`, deterministic + offline): `assessChange` blends
+  momentum (new-memory volume) + emotional-tone trend + new milestones (goals/people/skills/
+  identities) into a signed magnitude read as **growth / decline / neutral / mixed**.
+  `maybeGenerateChapter` writes a chapter only on real change, gated by a min gap (8d) + monthly
+  cap (3) → the "1–3×/month" cadence with no RNG. Wired free into the per-space autonomy tick.
+- **Photo bubbles**: driving memories that carry a photo render as **whitish glowing bubbles** with
+  a random palette glow that **cycles when you click** them (`photoIds` exposed on each chapter).
+  Selecting a chapter lazy-loads those photos as thumbnails in a side card (summary, trend, thread
+  chips, memories → tap to find in the galaxy, delete).
+- Server: additive `timeline_chapters` table; `GET/POST/DELETE /api/timeline`. Shared: `TimelineChapter`
+  type. Client: `getTimeline`/`addTimelineChapter`/`deleteTimelineChapter`. New `TimelineView.tsx`
+  (self-contained three.js, no new deps) + overlay CSS + FAB.
+- Gate: typecheck clean · **248 tests** (6 new in `timeline.test.ts`) · web build clean. **Needs a
+  `fly deploy`.**
+
 ### 2026-07-09 (Claude): "Not a person" dismiss · remove demo mode · dismiss the low-fuel banner
 - **"Not a person" dismiss on people suggestions** (user: the Mind tab still floats non-names in
   "People you mention"). New additive `dismissed_names` table (`space_id, name` PK, normalised

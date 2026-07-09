@@ -402,6 +402,36 @@ export interface Attachment {
   createdAt: string;
 }
 
+/** How a life-chapter's period trended vs the one before it (the 3D Chronicle timeline). */
+export type ChapterTrend = "growth" | "decline" | "neutral" | "mixed";
+
+/** One named sub-current within a chapter (hybrid scope: whole-arc + parallel threads). */
+export interface ChapterThread {
+  name: string;
+  trend: ChapterTrend;
+}
+
+/** A chapter of your life on the 3D flowing-river timeline. Written by Soumaya when
+ *  there's real change (~1–3×/month) or added by you. See docs/TIMELINE_DESIGN.md. */
+export interface TimelineChapter {
+  id: number;
+  title: string;
+  summary: string;
+  theme: string;
+  trend: ChapterTrend;
+  /** Blended change magnitude 0..1 (momentum + emotion delta + milestones). */
+  score: number;
+  periodStart: string;
+  periodEnd: string;
+  /** Driving memory ids (photo-bearing preferred) — glow as bubbles on the ribbon. */
+  memoryIds: number[];
+  /** The subset of memoryIds that carry a photo — rendered as whitish glowing bubbles. */
+  photoIds: number[];
+  threads: ChapterThread[];
+  origin: "auto" | "user";
+  createdAt: string;
+}
+
 /** The emotional register of a chat reply — drives the avatar's eye + bubble accent. */
 export const CHAT_MOODS = [
   "happy",

@@ -12,6 +12,7 @@ import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { sweepDuplicates } from "./analysis/dedup.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
+import { maybeGenerateChapter } from "./analysis/timeline.js";
 import { stepIdeas, splitRipeIdea } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
 import { stepIdentities } from "./analysis/identity.js";
@@ -242,6 +243,15 @@ if (process.env.AUTONOMY !== "off") {
           if (generateInquiry(ctx, spaceId) != null) fuel.spend(0.25);
         } catch (e) {
           console.error("[autonomy] inquiry generation failed:", e);
+        }
+        // The Chronicle (free, offline, deterministic): when there's REAL change
+        // (blended momentum + emotion trend + milestones) and the cadence allows it
+        // (min gap + monthly cap → ~1-3/month), write a new life-timeline chapter.
+        try {
+          const chapter = maybeGenerateChapter(ctx, spaceId);
+          if (chapter) console.log(`[autonomy] ${spaceId.slice(0, 8)}: wrote chapter "${chapter.title}" (${chapter.trend})`);
+        } catch (e) {
+          console.error("[autonomy] chapter generation failed:", e);
         }
         // Ideas lifecycle (Cognitive Layer Phase 3, free/offline): grow supported
         // ideas, dim + archive ignored ones, merge duplicates. Promotion to a goal

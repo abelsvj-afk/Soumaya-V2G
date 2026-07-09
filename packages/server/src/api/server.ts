@@ -22,6 +22,7 @@ import { workingRoutes } from "./routes/working.js";
 import { inquiryRoutes } from "./routes/inquiries.js";
 import { candidateRoutes } from "./routes/candidates.js";
 import { peopleRoutes } from "./routes/people.js";
+import { timelineRoutes } from "./routes/timeline.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
@@ -85,6 +86,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/inquiries", guard, inquiryRoutes(ctx));
   app.use("/api/candidates", guard, candidateRoutes(ctx));
   app.use("/api/people", guard, peopleRoutes(ctx));
+  app.use("/api/timeline", guard, timelineRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

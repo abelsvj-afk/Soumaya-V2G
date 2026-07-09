@@ -273,6 +273,27 @@ export function bootstrapSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (space_id, name)
     );
+    -- The Chronicle: chapters of your life on the 3D flowing-river timeline. Soumaya
+    -- writes one when there's REAL change (~1-3x/month); you can add your own. Each
+    -- carries the memories that drove it (photo-bearing preferred) so they can glow as
+    -- bubbles on the ribbon. See docs/TIMELINE_DESIGN.md.
+    CREATE TABLE IF NOT EXISTS timeline_chapters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL DEFAULT '',
+      theme TEXT NOT NULL DEFAULT '',
+      trend TEXT NOT NULL DEFAULT 'neutral',
+      score REAL NOT NULL DEFAULT 0,
+      period_start TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      period_end TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      memory_ids TEXT NOT NULL DEFAULT '[]',
+      photo_ids TEXT NOT NULL DEFAULT '[]',
+      threads TEXT NOT NULL DEFAULT '[]',
+      origin TEXT NOT NULL DEFAULT 'auto',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS timeline_chapters_space_idx ON timeline_chapters(space_id, period_end);
   `);
 }
 

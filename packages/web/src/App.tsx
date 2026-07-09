@@ -60,6 +60,7 @@ import { Observatory } from "./components/Observatory.js";
 import { ChatDock } from "./components/ChatDock.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
+import { TimelineView } from "./components/TimelineView.js";
 import { FuelGauge } from "./components/FuelGauge.js";
 import { StreakEmber } from "./components/StreakEmber.js";
 import { SearchBox } from "./components/SearchBox.js";
@@ -117,6 +118,7 @@ export default function App() {
   const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showConnections, setShowConnections] = useState(false);
+  const [showTimeline, setShowTimeline] = useState(false);
   const [candCount, setCandCount] = useState(0);
   // A full-screen "rank up" celebration moment (not just a quiet toast).
   const [rankUp, setRankUp] = useState<{ title: string; level: number } | null>(null);
@@ -1172,7 +1174,7 @@ export default function App() {
       <Toasts />
       {/* Left-edge HUD (fuel + streak) — hidden whenever a panel/chat/Observatory is up
           so it never overlaps their content. */}
-      {!demo && panel === null && !showChat && !showObs && !showSettings && !showConnections && (
+      {!demo && panel === null && !showChat && !showObs && !showSettings && !showConnections && !showTimeline && (
         <>
           <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />
           <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />
@@ -1527,6 +1529,9 @@ export default function App() {
           <button className="fab fab-legend" onClick={() => setShowLegend(true)} aria-label="Legend / galaxy key" title="What the colours & bodies mean">
             🗺️
           </button>
+          <button className="fab fab-timeline" onClick={() => setShowTimeline(true)} aria-label="The Chronicle timeline" title="Your life as a flowing 3D timeline">
+            🕰️
+          </button>
           <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
             ?
           </button>
@@ -1793,6 +1798,15 @@ export default function App() {
           onClose={() => setShowConnections(false)}
           onChanged={() => void refresh()}
           onFocus={(id) => { setShowConnections(false); focus(id); }}
+        />
+      )}
+
+      {showTimeline && space && !demo && (
+        <TimelineView
+          spaceName={space.name}
+          nodes={data.nodes as GraphNode[]}
+          onClose={() => setShowTimeline(false)}
+          onFocus={(id) => { setShowTimeline(false); focus(id); }}
         />
       )}
 
