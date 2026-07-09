@@ -116,6 +116,8 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showConnections, setShowConnections] = useState(false);
   const [candCount, setCandCount] = useState(0);
+  // A full-screen "rank up" celebration moment (not just a quiet toast).
+  const [rankUp, setRankUp] = useState<{ title: string; level: number } | null>(null);
   const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
@@ -694,7 +696,11 @@ export default function App() {
       /* ignore */
     }
     // First eval on a device with an established brain shouldn't fire retroactively.
-    if (last > 0) pushToast(`Rank up — you're now a ${rank.title} (Lv ${rank.level})`, "⭐", 9000);
+    if (last > 0) {
+      playSfx("achievement");
+      setRankUp({ title: rank.title, level: rank.level });
+      window.setTimeout(() => setRankUp(null), 4600);
+    }
   }, [space, loaded, demo, data.nodes]);
 
   // Gamification (Wave 1): celebrate when a memory GROWS a tier (asteroid→…→star)
@@ -1115,6 +1121,17 @@ export default function App() {
     <div className="app">
       <Toasts />
       {!demo && <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />}
+      {rankUp && (
+        <div className="rankup-moment" role="alert" onClick={() => setRankUp(null)}>
+          <div className="rankup-card">
+            <span className="rankup-ring" aria-hidden />
+            <span className="rankup-kicker">RANK UP</span>
+            <span className="rankup-star">★</span>
+            <span className="rankup-title">{rankUp.title}</span>
+            <span className="rankup-lvl">Level {rankUp.level}</span>
+          </div>
+        </div>
+      )}
       {/* Lite mode: a calm static backdrop instead of the WebGL galaxy, so the app is
           fully usable (Mind, chat, memories, tabs) even when the 3D can't render. */}
       {lite && <div className="lite-backdrop" aria-hidden />}
