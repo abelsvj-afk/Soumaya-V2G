@@ -20,16 +20,20 @@ export function FuelGauge({
 }) {
   const [flash, setFlash] = useState<null | "up" | "down">(null);
   const prev = useRef<number | null>(null);
+  const flashTimer = useRef<number | null>(null);
   useEffect(() => {
     if (!fuel) return;
-    if (prev.current !== null && Math.abs(fuel.fuel - prev.current) > 0.05) {
-      setFlash(fuel.fuel > prev.current ? "up" : "down");
-      const t = window.setTimeout(() => setFlash(null), 900);
-      prev.current = fuel.fuel;
-      return () => window.clearTimeout(t);
-    }
+    const p = prev.current;
     prev.current = fuel.fuel;
+    if (p !== null && Math.abs(fuel.fuel - p) > 0.05) {
+      setFlash(fuel.fuel > p ? "up" : "down");
+      // Timer lives in a ref (not the effect cleanup) so a later small-change render
+      // can't cancel it and leave the flash class stuck on.
+      if (flashTimer.current) window.clearTimeout(flashTimer.current);
+      flashTimer.current = window.setTimeout(() => setFlash(null), 900);
+    }
   }, [fuel?.fuel]);
+  useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
 
   if (!fuel) return null;
   const pct = Math.max(0, Math.min(1, fuel.fuel / fuel.capacity));

@@ -16,6 +16,7 @@ import {
   manualLink,
   pruneWeakLinks,
 } from "../analysis/candidates.js";
+import { createCognitive } from "../analysis/cognitive.js";
 import { isRejected } from "../analysis/rejections.js";
 
 let handle: DbHandle;
@@ -91,6 +92,26 @@ describe("candidate connections (the review queue)", () => {
     expect(manualLink(handle, "legacy", a.id, a.id)).toBeNull(); // self-link refused
     const edges = new EdgesRepo(handle, "legacy");
     expect(edges.all().filter((e) => (e.source === a.id && e.target === b.id) || (e.source === b.id && e.target === a.id)).length).toBe(1);
+  });
+
+  it("declutter never destroys a link the user MADE (weight above the prune floor)", async () => {
+    const a = await mem("m1");
+    const b = await mem("m2");
+    manualLink(handle, "legacy", a.id, b.id); // weight 0.85 > 0.75 floor
+    const { pruned } = pruneWeakLinks(handle, "legacy", { maxWeight: 0.75 });
+    expect(pruned).toBe(0);
+    const edges = new EdgesRepo(handle, "legacy");
+    expect(edges.exists(a.id, b.id) || edges.exists(b.id, a.id)).toBe(true);
+  });
+
+  it("declutter's weak-link prune ignores anchor links (memory↔goal), only memory↔memory", async () => {
+    const m = await mem("m1");
+    const goal = await createCognitive(ctx, "legacy", "goal", "Ship the app", "");
+    const edges = new EdgesRepo(handle, "legacy");
+    edges.create({ source: m.id, target: goal, relationship: "relates_to", weight: 0.3 });
+    const { pruned } = pruneWeakLinks(handle, "legacy", { maxWeight: 0.75 });
+    expect(pruned).toBe(0); // the weak edge touches an anchor → left alone
+    expect(edges.exists(m.id, goal)).toBe(true);
   });
 
   it("pruneWeakLinks moves weak relates_to edges into the queue, keeping structural ones", async () => {

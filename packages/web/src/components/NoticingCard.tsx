@@ -33,6 +33,11 @@ export function NoticingCard({
   const [seenId, setSeenId] = useState<number>(() => {
     try { return parseInt(localStorage.getItem(seenKey) || "0", 10) || 0; } catch { return 0; }
   });
+  // Re-sync the "seen" baseline when the brain changes (undefined→real id at login),
+  // otherwise the button re-glows for noticings already seen in this space.
+  useEffect(() => {
+    try { setSeenId(parseInt(localStorage.getItem(seenKey) || "0", 10) || 0); } catch { setSeenId(0); }
+  }, [seenKey]);
 
   const refresh = () => getInquiries().then(setInquiries).catch(() => {});
   useEffect(() => {

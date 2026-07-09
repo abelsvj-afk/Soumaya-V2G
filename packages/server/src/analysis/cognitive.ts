@@ -259,6 +259,10 @@ export function pruneAnchorLinks(ctx: AppContext, spaceId: string, anchorId: num
     .get(anchorId, spaceId) as { label: string; aliases: string | null; kind: string | null } | undefined;
   if (!anchor) return 0;
   const tokens = anchorMatchTokens(anchor.label, anchor.aliases);
+  // No usable match tokens (e.g. a person whose only name is a common word) → we can't
+  // tell which memories genuinely belong, so DON'T strip them all. Leave it untouched;
+  // the total-degree cap still bounds it, and the user can add a distinctive alias.
+  if (tokens.length === 0) return 0;
   const nameOnly = anchor.kind != null && NAME_ONLY_KINDS.has(anchor.kind);
   // A person/identity may ONLY hold memories that literally name it — so also sweep the
   // loose associative (`relates_to`) links similarity dragged in. Goals/skills legitimately

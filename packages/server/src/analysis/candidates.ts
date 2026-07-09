@@ -48,10 +48,15 @@ export function recordCandidate(
   if (isRejectedPair(h, spaceId, x, y)) return;
   const edges = new EdgesRepo(h, spaceId);
   if (edges.exists(x, y) || edges.exists(y, x)) return;
+  // Upsert (not INSERT OR IGNORE): if this pair was previously resolved (e.g. accepted,
+  // then its edge got pruned), re-open it as pending so it can actually re-enter the
+  // queue instead of silently staying resolved while its edge is gone.
   h.sqlite
     .prepare(
-      `INSERT OR IGNORE INTO candidate_links (space_id, a, b, reason, score, origin, status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
+      `INSERT INTO candidate_links (space_id, a, b, reason, score, origin, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pending')
+       ON CONFLICT(space_id, a, b) DO UPDATE SET
+         status = 'pending', origin = excluded.origin, score = excluded.score, reason = excluded.reason`,
     )
     .run(spaceId, x, y, reason, score, origin);
 }
@@ -109,7 +114,7 @@ export function acceptCandidate(h: DbHandle, spaceId: string, id: number): { a: 
   if (!row || row.status !== "pending") return null;
   const edges = new EdgesRepo(h, spaceId);
   if (!edges.exists(row.a, row.b) && !edges.exists(row.b, row.a)) {
-    edges.create({ source: row.a, target: row.b, relationship: "relates_to", weight: 0.7 });
+    edges.create({ source: row.a, target: row.b, relationship: "relates_to", weight: 0.85 });
   }
   h.sqlite.prepare(`UPDATE candidate_links SET status = 'accepted' WHERE id = ?`).run(id);
   return { a: row.a, b: row.b };
@@ -140,7 +145,7 @@ export function manualLink(h: DbHandle, spaceId: string, a: number, b: number): 
   if (!nodes.getById(a) || !nodes.getById(b)) return null;
   const edges = new EdgesRepo(h, spaceId);
   if (!edges.exists(a, b) && !edges.exists(b, a)) {
-    edges.create({ source: a, target: b, relationship: "relates_to", weight: 0.7 });
+    edges.create({ source: a, target: b, relationship: "relates_to", weight: 0.85 });
   }
   const [x, y] = pair(a, b);
   h.sqlite
@@ -162,11 +167,17 @@ export function pruneWeakLinks(
 ): { pruned: number } {
   const maxWeight = opts.maxWeight ?? 0.55;
   const limit = opts.limit ?? 400;
+  // Memory↔memory only: never prune a link that touches a cognitive anchor / hub /
+  // belief here (those have their own passes; re-accepting one would dodge the anchor cap).
   const rows = h.sqlite
     .prepare(
-      `SELECT id, source, target, weight FROM edges
-       WHERE space_id = ? AND relationship = 'relates_to' AND weight < ?
-       ORDER BY weight ASC LIMIT ?`,
+      `SELECT e.id, e.source, e.target, e.weight FROM edges e
+         JOIN nodes ns ON ns.id = e.source
+         JOIN nodes nt ON nt.id = e.target
+       WHERE e.space_id = ? AND e.relationship = 'relates_to' AND e.weight < ?
+         AND (ns.kind IS NULL OR ns.kind = 'memory')
+         AND (nt.kind IS NULL OR nt.kind = 'memory')
+       ORDER BY e.weight ASC LIMIT ?`,
     )
     .all(spaceId, maxWeight, limit) as { id: number; source: number; target: number; weight: number }[];
   const del = h.sqlite.prepare(`DELETE FROM edges WHERE id = ? AND space_id = ?`);
