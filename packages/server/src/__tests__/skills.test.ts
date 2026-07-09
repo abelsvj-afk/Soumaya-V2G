@@ -34,42 +34,51 @@ async function practice(skillId: number, n: number) {
 const nodeOf = (id: number) => new GraphService(handle, "legacy").getNode(id);
 
 describe("skills leveling (Cognitive Layer Phase 4)", () => {
-  it("raises progress + brightness as practice accrues, and reports level-ups", async () => {
+  it("raises progress + brightness gently as practice accrues", async () => {
     const id = await createCognitive(ctx, "legacy", "skill", "Guitar", "");
     expect(nodeOf(id)?.progress).toBe(0);
-    await practice(id, 6); // 6/10 → progress 0.6 → "Skilled"
+    await practice(id, 12); // 12/30 → 0.4 → "Practiced"
     const ups = stepSkills(ctx, "legacy");
     const node = nodeOf(id);
-    expect(node?.progress).toBeCloseTo(0.6);
-    expect(skillTier(node?.progress ?? 0)).toBe("Skilled");
+    expect(node?.progress).toBeCloseTo(0.4);
+    expect(skillTier(node?.progress ?? 0)).toBe("Practiced");
     // Brighter than a fresh skill.
     expect(node?.importance ?? 0).toBeGreaterThan(COGNITIVE_META.skill.importance);
     // The tier crossing is reported for a nudge.
     expect(ups.map((u) => u.id)).toContain(id);
-    expect(ups.find((u) => u.id === id)?.tier).toBe("Skilled");
   });
 
-  it("caps progress at mastery (Expert)", async () => {
+  it("auto-practice NEVER reaches Expert — it caps at AUTO_CAP (0.5, 'Skilled')", async () => {
     const id = await createCognitive(ctx, "legacy", "skill", "Chess", "");
-    await practice(id, 20); // well past the target of 10
+    await practice(id, 100); // absurd pile-on can't crown you
     stepSkills(ctx, "legacy");
     const node = nodeOf(id);
-    expect(node?.progress).toBe(1);
-    expect(skillTier(node?.progress ?? 0)).toBe("Expert");
+    expect(node?.progress).toBeCloseTo(0.5);
+    expect(skillTier(node?.progress ?? 0)).not.toBe("Expert");
   });
 
-  it("only ratchets up — never lowers a manually-set level", async () => {
+  it("only ratchets up — never lowers a manually-set mastery", async () => {
     const id = await createCognitive(ctx, "legacy", "skill", "Spanish", "");
-    setCognitiveProgress(ctx, "legacy", id, 0.9); // hand-set Advanced
-    await practice(id, 2); // practice-derived would be 0.2 — must NOT lower it
+    setCognitiveProgress(ctx, "legacy", id, 0.9); // hand-set Advanced/Expert
+    await practice(id, 6); // auto-derived 0.2 — must NOT lower deliberate mastery
     stepSkills(ctx, "legacy");
     expect(nodeOf(id)?.progress).toBeCloseTo(0.9);
   });
 
+  it("a manual DOWN-adjust now sticks (auto can't ratchet it back to 100)", async () => {
+    const id = await createCognitive(ctx, "legacy", "skill", "Coding", "");
+    await practice(id, 100); // piled on → auto floor 0.5
+    stepSkills(ctx, "legacy");
+    setCognitiveProgress(ctx, "legacy", id, 0.1); // user says "I've barely started"
+    stepSkills(ctx, "legacy"); // must not shoot back to 100
+    expect(nodeOf(id)?.progress).toBeCloseTo(0.5); // settles at the auto floor, not 1.0
+    expect(skillTier(nodeOf(id)?.progress ?? 0)).not.toBe("Expert");
+  });
+
   it("is a no-op the second run (no phantom level-ups)", async () => {
     const id = await createCognitive(ctx, "legacy", "skill", "Running", "");
-    await practice(id, 3);
-    expect(stepSkills(ctx, "legacy").length).toBe(1); // Novice → Beginner
+    await practice(id, 12);
+    expect(stepSkills(ctx, "legacy").length).toBe(1); // crossed into a new tier once
     expect(stepSkills(ctx, "legacy").length).toBe(0); // nothing new
   });
 });

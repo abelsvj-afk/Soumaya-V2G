@@ -43,16 +43,16 @@ describe("working memory (the ephemeral mind space)", () => {
 
   it("decays over time and drops out of the live list once spent", () => {
     const id = addThought(ctx, "legacy", "a fleeting thought");
-    ageThought(id, 4); // ~0.62 - 0.08*4 = ~0.30 → still alive
+    ageThought(id, 40); // ~0.62 - 0.008*40 = ~0.30 → still alive (slow, days-long decay)
     expect(listThoughts(ctx, "legacy")[0]!.strength).toBeCloseTo(0.3, 1);
-    ageThought(id, 20); // fully decayed → gone from the live list
+    ageThought(id, 90); // ~3.75 days → fully decayed → gone from the live list
     expect(listThoughts(ctx, "legacy").length).toBe(0);
   });
 
   it("sweep evaporates fully-decayed motes", async () => {
     const a = addThought(ctx, "legacy", "keep");
     const b = addThought(ctx, "legacy", "let go");
-    ageThought(b, 40);
+    ageThought(b, 90);
     const { evaporated } = await sweepWorkingMemory(ctx, "legacy");
     expect(evaporated).toBe(1);
     const live = listThoughts(ctx, "legacy");

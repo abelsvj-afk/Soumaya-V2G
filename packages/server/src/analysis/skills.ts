@@ -16,8 +16,14 @@ import type { AppContext } from "../context.js";
  */
 
 const SKILL = COGNITIVE_META.skill;
-/** Distinct supporting memories that constitute mastery (progress → 1). */
-const PRACTICE_TARGET = 10;
+/** Supporting memories for auto-practice to reach its CEILING. High on purpose: auto-
+ *  linked memories are loose evidence, not deliberate practice, so they should nudge a
+ *  skill up slowly, never crown you an Expert for merely mentioning a topic a few times. */
+const PRACTICE_TARGET = 30;
+/** Auto-linking alone can't push a skill past "Practiced" — real mastery (Advanced/
+ *  Expert) must be set deliberately in the Mind tab. This is why a skill no longer
+ *  shoots to 100% just because similar memories piled onto it. */
+const AUTO_CAP = 0.5;
 /** Importance gained from Novice → Expert (0.60 → 0.78), so mastered skills shine. */
 const BRIGHT_STEP = 0.18;
 
@@ -52,9 +58,12 @@ export function stepSkills(ctx: AppContext, spaceId: string): SkillLevelUp[] {
   const levelUps: SkillLevelUp[] = [];
   for (const sk of skills) {
     const count = practiceCount(ctx, spaceId, sk.id);
-    const derived = Math.min(1, count / PRACTICE_TARGET);
+    // Auto-practice is capped at AUTO_CAP so piled-on similar memories can't crown a
+    // skill. Because the auto contribution is now low, a manual DOWN-adjust in the Mind
+    // tab actually sticks (it won't get ratcheted back to 100% next tick like before).
+    const derived = Math.min(AUTO_CAP, count / PRACTICE_TARGET);
     const oldProg = sk.progress ?? 0;
-    const newProg = Math.max(oldProg, derived); // only ratchets up
+    const newProg = Math.max(oldProg, derived); // ratchets toward the (now low) auto level
     const newImp = SKILL.importance + newProg * BRIGHT_STEP;
 
     const progChanged = Math.abs(newProg - oldProg) > 0.001;

@@ -22,6 +22,7 @@ import {
   promoteThought,
   dismissThought,
   editThought,
+  deleteNode,
   type Thought,
 } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
@@ -235,6 +236,13 @@ export function MindPanel({
     await refresh();
     onChanged?.();
   };
+  const removeItem = async (it: CognitiveItem) => {
+    if (!window.confirm(`Delete "${it.label}"? It leaves your galaxy — your memories stay, they just stop orbiting it.`)) return;
+    setItems((xs) => xs.filter((x) => x.id !== it.id));
+    await deleteNode(it.id);
+    pushToast(`Removed "${it.label}"`, "🗑️", 3000);
+    onChanged?.();
+  };
   const addPerson = async (name: string) => {
     const r = await createCognitive("person_entity", name);
     if (r) {
@@ -282,7 +290,8 @@ export function MindPanel({
           </button>
         </div>
         <p className="mind-ws-sub" style={{ textAlign: "left", marginBottom: 2 }}>
-          Fades unless you return to it · thoughts you keep returning to become memories
+          A thought fades over a few days. Tap <b>↑ Keep</b> to reset its timer — keep returning to
+          one (3×) and it becomes a permanent memory in your galaxy. <b>×</b> lets it go now.
         </p>
         <div className="mind-ws-input">
           <input
@@ -328,6 +337,14 @@ export function MindPanel({
                 ) : (
                   <span className="mind-mote-text">{t.text}</span>
                 )}
+                {editThoughtId !== t.id && (
+                  <span className={`mind-mote-fade ${t.strength < 0.2 ? "low" : ""}`}>
+                    {(() => {
+                      const days = t.strength / 0.192; // matches the server decay (0.008/hr)
+                      return days < 1 ? "fades today" : `~${Math.round(days)}d left`;
+                    })()}
+                  </span>
+                )}
                 <span className="mind-mote-actions">
                   <button
                     className="mini ghost"
@@ -339,8 +356,8 @@ export function MindPanel({
                   >
                     ✎
                   </button>
-                  <button className="mini ghost" onClick={() => void reinforce(t)} title="Reinforce (return to it)">↑</button>
-                  <button className="mini ghost" onClick={() => void promote(t)} title="Consolidate into a memory now">★</button>
+                  <button className="mini ghost" onClick={() => void reinforce(t)} title="Keep it — resets the fade timer (3 keeps → becomes a memory)">↑ Keep</button>
+                  <button className="mini ghost" onClick={() => void promote(t)} title="Make it a permanent memory now">★</button>
                   <button className="mini ghost" onClick={() => void dismiss(t)} title="Let it go">×</button>
                 </span>
               </li>
@@ -490,12 +507,13 @@ export function MindPanel({
                       </span>
                     </button>
                     <button className="mini ghost" onClick={() => startEdit(it)} title="Edit">✎</button>
+                    <button className="mini ghost" onClick={() => void removeItem(it)} title="Delete">🗑️</button>
                   </div>
                 )}
                 {editId !== it.id && COGNITIVE_META[k].hasProgress && (
                   <div className="mind-progress">
                     {k === "skill" && (
-                      <span className="mind-tier" title="Level — rises automatically as you log practice">
+                      <span className="mind-tier" title="Level — nudges up gently as related memories accrue; set your real mastery with – / +">
                         {skillTier(it.progress ?? 0)}
                       </span>
                     )}

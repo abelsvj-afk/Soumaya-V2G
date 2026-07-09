@@ -1465,7 +1465,7 @@ export default function App() {
       {/* Ambient Mind Space: live working-memory thoughts drifting over the galaxy
           (toggled from the 🧠 Mind tab; self-contained + pointer-events:none). */}
       <ErrorBoundary label="mindspace" fallback={null}>
-        <MindSpace demo={demo} />
+        <MindSpace demo={demo} hidden={panel !== null || showChat || showObs} />
       </ErrorBoundary>
 
       {/* Proactive intelligence: "Soumaya noticed…" — a grounded question about a

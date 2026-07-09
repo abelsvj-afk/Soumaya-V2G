@@ -13,8 +13,10 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
  * in SQL via julianday() so it's DB-consistent and testable by backdating timestamps.
  */
 
-/** Charge lost per hour since a thought was last reinforced. ~0.6 → 0 in ~7.5h. */
-const DECAY_PER_HOUR = 0.08;
+/** Charge lost per hour since a thought was last reinforced. Slow — a fresh thought
+ *  (~0.62) fades over ~3 days, not hours, matching "hold it for a few days unless you
+ *  return to it". Reinforcing resets the clock (+ REINFORCE_BUMP). */
+const DECAY_PER_HOUR = 0.008;
 /** Reinforcing tops the thought back up by this much (capped at 1). */
 const REINFORCE_BUMP = 0.3;
 /** Reinforced this many times → it clearly matters → auto-consolidate to a memory. */
