@@ -24,6 +24,9 @@ export interface GraphicsSettings {
   renderQuality: RenderQuality;
   batterySaver: boolean;
   fpsCap: FpsCap;
+  /** Force the heavy background scenery on/off, or leave it to the tier ("auto").
+   *  Lets you perf-test the full scenery on any device without switching whole modes. */
+  sceneryOverride?: "auto" | "on" | "off";
 }
 
 /** The concrete numbers Graph3D reads each build/settings-change. */
@@ -166,8 +169,14 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
     pixelRatio,
     fpsCap,
     // Nebulae + galaxy sprites + comets are extra draw calls; only render them on the
-    // top tier so a mid/low phone isn't asked to build them on the first frame.
-    heavyScenery: tier === "quality" && !eff.batterySaver,
+    // top tier so a mid/low phone isn't asked to build them on the first frame — unless
+    // you've explicitly forced scenery on/off (perf-testing lever).
+    heavyScenery:
+      s.sceneryOverride === "on"
+        ? true
+        : s.sceneryOverride === "off"
+          ? false
+          : tier === "quality" && !eff.batterySaver,
     tier,
   };
 }

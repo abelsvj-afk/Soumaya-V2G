@@ -230,6 +230,7 @@ export function SettingsPanel({
           <div className="gfx-row"><span>Animation quality <em className="gfx-when instant">instant</em></span><Seg value={gfx.animationQuality} options={["low", "medium", "high"] as Level[]} onPick={(v) => setField("animationQuality", v)} /></div>
           <div className="gfx-row"><span>Render quality <em className="gfx-when instant">instant</em></span><Seg value={gfx.renderQuality} options={["auto", "low", "medium", "high"]} onPick={(v) => setField("renderQuality", v as GraphicsSettings["renderQuality"])} /></div>
           <div className="gfx-row"><span>FPS cap <em className="gfx-when instant">instant</em></span><Seg value={String(gfx.fpsCap)} options={["30", "45", "60"]} onPick={(v) => setField("fpsCap", Number(v) as GraphicsSettings["fpsCap"])} /></div>
+          <div className="gfx-row"><span>Background scenery <em className="gfx-when reload">reload</em></span><Seg value={gfx.sceneryOverride ?? "auto"} options={["auto", "on", "off"]} onPick={(v) => setField("sceneryOverride", v as NonNullable<GraphicsSettings["sceneryOverride"]>)} /></div>
           <label className="settings-toggle">
             <span>Battery saver <em>Caps FPS, drops bloom + resolution to save power.</em></span>
             <span className="gfx-when instant">instant</span>
