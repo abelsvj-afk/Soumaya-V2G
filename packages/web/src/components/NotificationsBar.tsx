@@ -9,12 +9,14 @@ interface NotificationsBarProps {
   health: Health | null;
   onFocusNode: (id: number) => void;
   onOpenTab: (tab: DockTab) => void;
+  /** Open the "Ways to earn Fuel" cheat-sheet (from the low-fuel alert). */
+  onEarnFuel?: () => void;
   demo: boolean;
 }
 
 const DISMISS_KEY = "brain.dismissedAlerts";
 
-export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, demo }: NotificationsBarProps) {
+export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, onEarnFuel, demo }: NotificationsBarProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem(DISMISS_KEY) || "[]")); } catch { return new Set(); }
   });
@@ -37,9 +39,10 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
       type: "warning",
       icon: "⛽",
       text: `Low fuel (${Math.round(fuel.fuel)}/${fuel.capacity}). Soumaya will pause background maintenance soon.`,
-      actionText: "Earn Fuel",
+      actionText: "Ways to earn",
       onClick: () => {
-        onOpenTab("actions");
+        if (onEarnFuel) onEarnFuel();
+        else onOpenTab("actions");
       }
     });
   }

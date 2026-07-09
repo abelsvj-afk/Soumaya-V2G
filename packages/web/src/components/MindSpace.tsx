@@ -39,7 +39,7 @@ export function setMindSpaceEnabled(on: boolean): void {
 function moteStyle(t: Thought, idx: number): React.CSSProperties {
   const golden = 137.508; // even angular spread
   const angle = ((t.id * golden + idx * 47) % 360) * (Math.PI / 180);
-  const radius = 40 + ((t.id * 7) % 9); // 40%..48% out — on the perimeter, off-centre
+  const radius = 33 + ((t.id * 7) % 9); // 33%..41% out — on a ring, pulled slightly in from the edge
   let cx = 50 + Math.cos(angle) * radius;
   let cy = 50 + Math.sin(angle) * radius * 0.86;
   cx = Math.min(87, Math.max(8, cx)); // keep on-screen

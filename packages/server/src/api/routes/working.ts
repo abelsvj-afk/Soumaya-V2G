@@ -10,6 +10,7 @@ import {
   editThought,
 } from "../../analysis/workingMemory.js";
 import { spaceOf } from "../middleware.js";
+import { EconomyRepo, EARN_THOUGHT } from "../../economy.js";
 
 const AddBody = z.object({
   text: z.string().min(1).max(500),
@@ -33,8 +34,16 @@ export function workingRoutes(ctx: AppContext): Router {
       res.status(400).json({ error: "Body must be { text, source? }", issues: parsed.error.issues });
       return;
     }
-    const id = addThought(ctx, spaceOf(res), parsed.data.text, parsed.data.source ?? "manual");
-    res.json({ id });
+    const source = parsed.data.source ?? "manual";
+    const id = addThought(ctx, spaceOf(res), parsed.data.text, source);
+    // A thought you personally capture earns a little Fuel; system-seeded thoughts
+    // (chat/goal/priority/emotion) don't, so it can't be farmed by the autonomy loop.
+    let fuelEarned = 0;
+    if (source === "manual") {
+      new EconomyRepo(ctx.handle, spaceOf(res)).add(EARN_THOUGHT);
+      fuelEarned = EARN_THOUGHT;
+    }
+    res.json({ id, fuelEarned });
   });
 
   // POST /api/working/:id/reinforce -> top it up; may auto-promote to a memory.

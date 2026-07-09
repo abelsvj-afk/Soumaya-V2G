@@ -165,6 +165,25 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): Fuel — more income, new sources, a tappable "Ways to earn" cheat-sheet
+- **Fuel deep-dive (audit of every source):** logging a memory (`EARN_MEMORY`), each link
+  (`EARN_LINK`), clearing an action (`EARN_ACTION_DONE`), Codex discovery (`EARN_CODEX_DISCOVERY`,
+  one-time), daily-streak bonus, and passive regen (3.5/hr). **Gap found + fixed:** adding to your
+  Mind and capturing a thought earned **nothing**.
+- **More income + new sources** (`economy.ts`): `EARN_MEMORY` 5→**8**, `EARN_LINK` 0.8→**1**; new
+  `EARN_MIND` **4** (a goal/person/skill/identity/idea — awarded in `POST /api/cognitive`) and
+  `EARN_THOUGHT` **1** (a manually captured thought in `POST /api/working`; system-seeded thoughts
+  earn 0 so the autonomy loop can't farm it). Both routes now return `fuelEarned`.
+- **The gauge + banner are now actionable:** the always-on fuel gauge is tappable (its visible parts
+  become click targets, container stays `pointer-events:none` so it never blocks the edge) and the
+  low-fuel banner's button both open a new **"Ways to earn Fuel"** sheet (`FuelEarnSheet`) — every
+  active row is a real button that takes you straight to the thing that earns it (log a memory → dump;
+  add to Mind / capture a thought → Mind tab; clear an action → Agenda), with the passive sources
+  (streak, Codex, auto-refuel) listed too. No more mystery about what gives Fuel.
+- **Mind space motes pulled slightly in** (`MindSpace.tsx`): ring radius 40–48% → **33–41%**.
+- Gate: typecheck clean · **252 tests** (1 new proving Mind/thought earn Fuel) · web build clean.
+  **Needs a `fly deploy`.**
+
 ### 2026-07-09 (Claude): The Chronicle — one-time backfill from existing history
 - Established brains no longer open blank: the first time the timeline loads (`GET /api/timeline`)
   or the next autonomy tick, `backfillInitialChapter` seeds ONE opening chapter summarizing all

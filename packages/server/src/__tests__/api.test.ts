@@ -275,6 +275,25 @@ describe("REST API", () => {
     expect(ghost.status).toBe(400);
   });
 
+  it("earns fuel for building your Mind and capturing a manual thought", async () => {
+    // Drain so the earn is observable under the higher earn rates (shared app near cap).
+    ctx.handle.sqlite.prepare(`UPDATE space_meta SET fuel = 10`).run();
+    const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    const mind = await post("/api/cognitive", { kind: "goal", label: "Launch the studio" });
+    expect(mind.status).toBe(200);
+    expect(mind.body.fuelEarned).toBeGreaterThan(0);
+    const f1 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f1).toBeGreaterThan(f0);
+
+    // A manually captured thought earns a little; a system-seeded one does not.
+    const t = await post("/api/working", { text: "remember to call the landlord", source: "manual" });
+    expect(t.body.fuelEarned).toBeGreaterThan(0);
+    const f2 = (await get("/api/maintenance/fuel")).body.fuel as number;
+    expect(f2).toBeGreaterThan(f1);
+    const sys = await post("/api/working", { text: "auto seeded", source: "emotion" });
+    expect(sys.body.fuelEarned).toBe(0);
+  });
+
   it("chat carries the thread and reads the emotional register (offline too)", async () => {
     // History is accepted alongside the question (she sees the recent turns).
     const r = await post("/api/chat", {
@@ -358,6 +377,9 @@ describe("REST API", () => {
     const c2 = await get("/api/contact");
     expect(c2.body.question.text).toBe(c.body.question.text);
 
+    // This shared app has accrued fuel toward the cap across earlier tests (the higher
+    // earn rates fill the 120 tank fast); drain it so answering's earn is observable.
+    ctx.handle.sqlite.prepare(`UPDATE space_meta SET fuel = 10`).run();
     const f0 = (await get("/api/maintenance/fuel")).body.fuel as number;
     const a = await post("/api/contact/answer", { text: "still true — I signed the studio lease last week" });
     expect(a.status).toBe(200);

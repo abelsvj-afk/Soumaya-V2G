@@ -2470,7 +2470,16 @@ button {
   user-select: none;
   pointer-events: none; /* a readout, never a click target — must not block anything behind it */
 }
-.fuel-gauge .fg-ic { font-size: 15px; filter: drop-shadow(0 0 6px rgba(255, 200, 90, 0.5)); }
+/* Tappable variant: the container stays pointer-events:none (never blocks the empty
+   left edge), but the visible parts become click targets whose event bubbles to the
+   div's onClick — so tapping the gauge opens "Ways to earn Fuel". */
+.fuel-gauge.tappable { cursor: pointer; }
+.fuel-gauge.tappable .fg-ic,
+.fuel-gauge.tappable .fg-tube,
+.fuel-gauge.tappable .fg-val { pointer-events: auto; }
+.fuel-gauge.tappable:hover .fg-tube { box-shadow: 0 0 12px rgba(255, 205, 70, 0.6); }
+.fuel-gauge.tappable:hover .fg-ic { transform: scale(1.12); }
+.fuel-gauge .fg-ic { font-size: 15px; filter: drop-shadow(0 0 6px rgba(255, 200, 90, 0.5)); transition: transform 0.15s ease; }
 .fuel-gauge .fg-tube {
   position: relative;
   width: 15px;
@@ -4103,3 +4112,41 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   border-radius: 8px; padding: 6px 10px; cursor: pointer;
 }
 .tl-del:hover { background: rgba(255, 90, 120, 0.18); }
+
+/* ── "Ways to earn Fuel" sheet (from the fuel gauge / low-fuel banner) ── */
+.fuel-ways-backdrop {
+  position: fixed; inset: 0; z-index: 98; display: flex; align-items: center; justify-content: center;
+  background: rgba(3, 2, 12, 0.6); backdrop-filter: blur(3px); padding: 16px;
+}
+.fuel-ways {
+  position: relative; width: min(420px, 94vw); max-height: 84vh; overflow-y: auto;
+  background: rgba(10, 7, 26, 0.95); border: 1px solid rgba(255, 205, 70, 0.35); border-radius: 18px;
+  padding: 18px 16px 14px; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6);
+}
+.fw-x {
+  position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border-radius: 50%;
+  background: transparent; border: none; color: #aab2cc; font-size: 22px; cursor: pointer;
+}
+.fw-x:hover { color: #fff; }
+.fw-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.fw-glyph { font-size: 1.8rem; filter: drop-shadow(0 0 10px rgba(255, 200, 90, 0.6)); }
+.fw-title { font-size: 1.1rem; font-weight: 600; color: #ffe9a8; }
+.fw-now { font-size: 0.72rem; opacity: 0.65; color: #dfe6f5; margin-top: 2px; }
+.fw-rows { display: flex; flex-direction: column; gap: 6px; }
+.fw-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.fw-row.actionable { border-color: rgba(255, 205, 70, 0.25); }
+.fw-row.passive { opacity: 0.72; }
+.fw-ic { font-size: 1.15rem; width: 22px; text-align: center; }
+.fw-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.fw-label { font-size: 0.86rem; color: #eaf4ff; }
+.fw-hint { font-size: 0.68rem; opacity: 0.6; color: #cfd6e6; }
+.fw-amount { font-size: 0.86rem; font-weight: 700; color: #ffcd46; white-space: nowrap; }
+.fw-go {
+  font-size: 0.74rem; padding: 5px 12px; border-radius: 999px; cursor: pointer;
+  background: rgba(255, 205, 70, 0.16); border: 1px solid rgba(255, 205, 70, 0.5); color: #ffe9a8;
+}
+.fw-go:hover { background: rgba(255, 205, 70, 0.3); }
+.fw-foot { font-size: 0.68rem; opacity: 0.5; color: #cfd6e6; margin-top: 12px; text-align: center; }

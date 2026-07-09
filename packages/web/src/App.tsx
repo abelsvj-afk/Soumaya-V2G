@@ -61,6 +61,7 @@ import { ChatDock } from "./components/ChatDock.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
 import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
 import { TimelineView } from "./components/TimelineView.js";
+import { FuelEarnSheet, type EarnKind } from "./components/FuelEarnSheet.js";
 import { FuelGauge } from "./components/FuelGauge.js";
 import { StreakEmber } from "./components/StreakEmber.js";
 import { SearchBox } from "./components/SearchBox.js";
@@ -119,6 +120,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showConnections, setShowConnections] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
+  const [showFuelWays, setShowFuelWays] = useState(false);
   const [candCount, setCandCount] = useState(0);
   // A full-screen "rank up" celebration moment (not just a quiet toast).
   const [rankUp, setRankUp] = useState<{ title: string; level: number } | null>(null);
@@ -1176,7 +1178,7 @@ export default function App() {
           so it never overlaps their content. */}
       {!demo && panel === null && !showChat && !showObs && !showSettings && !showConnections && !showTimeline && (
         <>
-          <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} />
+          <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} onClick={() => setShowFuelWays(true)} />
           <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />
         </>
       )}
@@ -1455,6 +1457,7 @@ export default function App() {
             setTab(t);
             setPanel("dock");
           }}
+          onEarnFuel={() => setShowFuelWays(true)}
           demo={demo}
         />
       )}
@@ -1807,6 +1810,26 @@ export default function App() {
           nodes={data.nodes as GraphNode[]}
           onClose={() => setShowTimeline(false)}
           onFocus={(id) => { setShowTimeline(false); focus(id); }}
+        />
+      )}
+
+      {showFuelWays && space && !demo && (
+        <FuelEarnSheet
+          fuel={fuel}
+          onClose={() => setShowFuelWays(false)}
+          onAction={(kind: EarnKind) => {
+            setShowFuelWays(false);
+            if (kind === "memory") {
+              setPanel("ingest");
+            } else if (kind === "action") {
+              setTab("actions");
+              setPanel("dock");
+            } else {
+              // "mind" + "thought" both live in the Mind tab (thought capture is at its top).
+              setTab("mind");
+              setPanel("dock");
+            }
+          }}
         />
       )}
 

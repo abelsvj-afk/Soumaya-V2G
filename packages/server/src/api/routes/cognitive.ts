@@ -9,6 +9,7 @@ import { personProfile } from "../../analysis/people.js";
 import { upcomingEvents } from "../../analysis/future.js";
 import { GraphService } from "../../graph/service.js";
 import { spaceOf } from "../middleware.js";
+import { EconomyRepo, EARN_MIND } from "../../economy.js";
 
 const AliasList = z.array(z.string().min(1).max(60)).max(12);
 const CreateBody = z.object({
@@ -61,7 +62,10 @@ export function cognitiveRoutes(ctx: AppContext): Router {
       date: parsed.data.date,
       aliases: parsed.data.aliases,
     });
-    res.json(new GraphService(ctx.handle, spaceId).getNode(id));
+    // Building your Mind is real work — reward it with Fuel (your income, not just memories).
+    const fuel = new EconomyRepo(ctx.handle, spaceId).add(EARN_MIND);
+    const node = new GraphService(ctx.handle, spaceId).getNode(id);
+    res.json({ ...node, fuelEarned: EARN_MIND, fuel });
   });
 
   // PATCH /api/cognitive/:id { label?, content? } -> edit + re-embed + re-link.

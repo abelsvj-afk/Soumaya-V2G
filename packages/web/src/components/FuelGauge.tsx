@@ -12,11 +12,14 @@ export function FuelGauge({
   fuel,
   pops,
   busy,
+  onClick,
 }: {
   fuel: Fuel | null;
   pops: { id: number; text: string; spend?: boolean }[];
   /** Soumaya is actively working (spending) — drives the live "engine burn" pulse. */
   busy?: boolean;
+  /** Tap the gauge to open the "Ways to earn Fuel" cheat-sheet. */
+  onClick?: () => void;
 }) {
   const [flash, setFlash] = useState<null | "up" | "down">(null);
   const prev = useRef<number | null>(null);
@@ -41,12 +44,15 @@ export function FuelGauge({
 
   return (
     <div
-      className={`fuel-gauge${flash ? ` flash-${flash}` : ""}${low ? " low" : ""}${busy ? " burning" : ""}`}
-      role="meter"
-      aria-label={`Fuel ${Math.round(fuel.fuel)} of ${fuel.capacity}`}
+      className={`fuel-gauge${flash ? ` flash-${flash}` : ""}${low ? " low" : ""}${busy ? " burning" : ""}${onClick ? " tappable" : ""}`}
+      role={onClick ? "button" : "meter"}
+      onClick={onClick}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
+      aria-label={`Fuel ${Math.round(fuel.fuel)} of ${fuel.capacity}${onClick ? " — tap for ways to earn Fuel" : ""}`}
       aria-valuenow={Math.round(fuel.fuel)}
       aria-valuemax={fuel.capacity}
-      title={`⛽ Fuel ${Math.round(fuel.fuel)}/${fuel.capacity} — Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). Earn it by logging memories, forging links & clearing action items; it also slowly refills. Her core upkeep + the living galaxy never need fuel.`}
+      title={`⛽ Fuel ${Math.round(fuel.fuel)}/${fuel.capacity} — tap for ways to earn it. Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). Earn it by logging memories, building your Mind & clearing action items; it also slowly refills. Her core upkeep + the living galaxy never need fuel.`}
     >
       <span className="fg-ic">⛽</span>
       <div className="fg-tube">
