@@ -31,6 +31,32 @@ const GRAVITY_THRESHOLD = 0.75;
 /** Max new supports edges per anchor per run, split by match type. */
 const MAX_SEMANTIC = 3;
 const MAX_KEYWORD = 8;
+/** Hard ceiling on how many memories a single anchor may auto-gather in total, so a
+ *  common name can't slowly accrete dozens of links across many autonomy runs. */
+const MAX_ANCHOR_LINKS = 12;
+
+/**
+ * Words too common to be a reliable NAME/keyword match. A person called "Will",
+ * "Mark", "May", "Grace", "Hope" must NOT link to every memory containing that
+ * everyday word — that's what produced 20-30 bogus connections to a person. We drop
+ * these as single-word match tokens (multi-word names like "Will Smith" still match as
+ * a phrase). Better to miss a link on a common-word name than invent dozens.
+ */
+const COMMON_WORDS = new Set<string>([
+  // articles / pronouns / conjunctions / prepositions
+  "the", "and", "for", "with", "that", "this", "there", "here", "they", "them", "their",
+  "your", "yours", "mine", "ours", "from", "into", "onto", "over", "under", "about",
+  "after", "before", "then", "than", "when", "what", "which", "were", "was", "have",
+  "has", "had", "been", "being", "does", "did", "done", "will", "would", "shall",
+  "should", "could", "cant", "wont", "dont", "just", "like", "some", "more", "most",
+  "much", "many", "very", "also", "still", "even", "back", "down", "out", "off",
+  // common verbs / everyday words that double as names
+  "make", "made", "take", "took", "give", "gave", "come", "came", "want", "need",
+  "feel", "felt", "know", "knew", "think", "thought", "good", "great", "best", "well",
+  "time", "day", "days", "week", "year", "today", "tomorrow", "morning", "night",
+  "mark", "grace", "hope", "faith", "joy", "rose", "dawn", "may", "june", "april",
+  "art", "bill", "will", "sunny", "summer", "autumn", "kim", "guy", "chase", "hunter",
+]);
 
 /**
  * Kinds that must link by NAME only — never by "vibe". A person or an identity is
@@ -39,7 +65,7 @@ const MAX_KEYWORD = 8;
  * skills, motivations etc. legitimately gather thematically-related memories, so
  * they keep the (now stricter) semantic pass.
  */
-const NAME_ONLY_KINDS = new Set<string>(["person_entity", "identity"]);
+export const NAME_ONLY_KINDS = new Set<string>(["person_entity", "identity"]);
 
 /** True if `kind` is one of the cognitive kinds (an anchor, not a plain memory). */
 function isCognitiveKind(kind: string | null | undefined): kind is CognitiveKind {
@@ -84,7 +110,9 @@ function anchorMatchTokens(label: string, aliasesJson: string | null): string[] 
       /* ignore malformed */
     }
   }
-  return [...toks];
+  // Drop single everyday words (a name like "Will"/"May" must not match every memory
+  // using that word). Multi-word phrases ("will smith", "my girl") are distinctive → kept.
+  return [...toks].filter((t) => t.includes(" ") || !COMMON_WORDS.has(t));
 }
 
 /** Whole-word / phrase match (case-insensitive) so "Danny" doesn't hit "Dannyson". */
@@ -227,23 +255,70 @@ export function unlinkMemory(ctx: AppContext, spaceId: string, anchorId: number,
 export function pruneAnchorLinks(ctx: AppContext, spaceId: string, anchorId: number): number {
   const s = ctx.handle.sqlite;
   const anchor = s
-    .prepare(`SELECT label, aliases FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
-    .get(anchorId, spaceId) as { label: string; aliases: string | null } | undefined;
+    .prepare(`SELECT label, aliases, kind FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
+    .get(anchorId, spaceId) as { label: string; aliases: string | null; kind: string | null } | undefined;
   if (!anchor) return 0;
   const tokens = anchorMatchTokens(anchor.label, anchor.aliases);
-  const backers = s
+  const nameOnly = anchor.kind != null && NAME_ONLY_KINDS.has(anchor.kind);
+  // A person/identity may ONLY hold memories that literally name it — so also sweep the
+  // loose associative (`relates_to`) links similarity dragged in. Goals/skills legitimately
+  // gather thematically, so for them we only prune the stricter `supports` mis-links.
+  const rels = nameOnly ? "('supports','relates_to')" : "('supports')";
+  const edgeRows = s
     .prepare(
-      `SELECT n.id, n.label, n.content FROM edges e JOIN nodes n ON n.id = e.source
-       WHERE e.space_id = ? AND e.target = ? AND e.relationship = 'supports' AND n.deleted_at IS NULL`,
+      `SELECT id, source, target, relationship FROM edges
+       WHERE space_id = ? AND (source = ? OR target = ?) AND relationship IN ${rels}`,
     )
-    .all(spaceId, anchorId) as { id: number; label: string; content: string }[];
+    .all(spaceId, anchorId, anchorId) as { source: number; target: number }[];
   let pruned = 0;
-  for (const b of backers) {
-    const hay = `${b.label}\n${b.content}`;
-    if (tokens.some((t) => mentions(hay, t))) continue; // genuinely names it → keep
-    if (unlinkMemory(ctx, spaceId, anchorId, b.id)) pruned++;
+  for (const e of edgeRows) {
+    const memId = e.source === anchorId ? e.target : e.source;
+    const mem = s
+      .prepare(
+        `SELECT label, content FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL
+           AND (kind IS NULL OR kind = 'memory')`,
+      )
+      .get(memId, spaceId) as { label: string; content: string } | undefined;
+    if (!mem) continue; // only prune links to real memories (never anchor↔anchor/hubs)
+    const hay = `${mem.label}\n${mem.content}`;
+    if (tokens.length > 0 && tokens.some((t) => mentions(hay, t))) continue; // genuinely names it → keep
+    if (unlinkMemory(ctx, spaceId, anchorId, memId)) pruned++;
   }
   return pruned;
+}
+
+/**
+ * Trim an over-linked anchor down to `cap` by dropping its WEAKEST memory links (keeps
+ * the strongest, most-relevant ones). Unlike pruneAnchorLinks this doesn't reject the
+ * pairs — a legitimately thematic goal/skill can re-gather the best ones later; it just
+ * shouldn't hold 79 at once. Returns how many links were removed.
+ */
+export function trimAnchorLinks(
+  ctx: AppContext,
+  spaceId: string,
+  anchorId: number,
+  cap: number = MAX_ANCHOR_LINKS,
+): number {
+  const s = ctx.handle.sqlite;
+  const rows = s
+    .prepare(
+      `SELECT e.id FROM edges e
+         JOIN nodes n ON n.id = (CASE WHEN e.source = ? THEN e.target ELSE e.source END)
+       WHERE e.space_id = ? AND (e.source = ? OR e.target = ?)
+         AND e.relationship IN ('supports','relates_to')
+         AND n.deleted_at IS NULL AND (n.kind IS NULL OR n.kind = 'memory')
+       ORDER BY e.weight ASC`,
+    )
+    .all(anchorId, spaceId, anchorId, anchorId) as { id: number }[];
+  const excess = rows.length - cap;
+  if (excess <= 0) return 0;
+  const del = s.prepare(`DELETE FROM edges WHERE id = ? AND space_id = ?`);
+  let removed = 0;
+  for (let i = 0; i < excess; i++) {
+    del.run(rows[i]!.id, spaceId);
+    removed++;
+  }
+  return removed;
 }
 
 /** Set a cognitive object's 0..1 progress (goal completion / skill level). */
@@ -288,6 +363,14 @@ export function linkCognitiveAnchor(
     .get(anchorId, spaceId) as { kind: string | null; aliases: string | null } | undefined;
   const anchorKind = anchorRow?.kind;
 
+  // Total-degree guard: if this anchor already holds MAX_ANCHOR_LINKS supporters, stop
+  // auto-gathering. Prevents a slow accretion of dozens of links across autonomy runs.
+  const existing = (
+    s.prepare(`SELECT COUNT(*) AS n FROM edges WHERE space_id = ? AND target = ? AND relationship = 'supports'`).get(spaceId, anchorId) as { n: number }
+  ).n;
+  if (existing >= MAX_ANCHOR_LINKS) return 0;
+  const remaining = MAX_ANCHOR_LINKS - existing; // total this call may add across both passes
+
   const isRealMemory = (id: number) =>
     s
       .prepare(
@@ -322,7 +405,7 @@ export function linkCognitiveAnchor(
       .all(spaceId, ...params) as { id: number; label: string; content: string }[];
     let made = 0;
     for (const r of rows) {
-      if (made >= MAX_KEYWORD) break;
+      if (made >= MAX_KEYWORD || formed >= remaining) break;
       const hay = `${r.label}\n${r.content}`;
       if (!tokens.some((t) => mentions(hay, t))) continue; // enforce whole-word match
       if (link(r.id)) made++;
@@ -338,7 +421,7 @@ export function linkCognitiveAnchor(
     );
     let made = 0;
     for (const h of hits) {
-      if (made >= MAX_SEMANTIC) break;
+      if (made >= MAX_SEMANTIC || formed >= remaining) break;
       if (link(h.nodeId)) made++;
     }
   }

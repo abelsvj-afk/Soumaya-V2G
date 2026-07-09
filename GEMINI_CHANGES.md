@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): Stop the over-linking — false person-names, semantic links to people, runaway hubs
+- User evidence: a distinctively-named person ("Shaqavia") had 20+ links though named in 1-2 memories;
+  a "Vibe Coding" skill had 79 linked; and "People you mention" suggested Sector/Vibe/Research/Deep/Dive
+  as names. Root causes, all fixed:
+  - **`associativeLink` semantically linked memories to people/identities** — the biggest source. Now it
+    skips `NAME_ONLY_KINDS` targets entirely (people connect by NAME only, via cognitive gravity).
+  - **Common-word names matched everything** — `anchorMatchTokens` now drops single everyday words
+    (COMMON_WORDS), so a person "Will"/"May" no longer links every memory using that word (multi-word
+    names like "Will Smith" still match as a phrase).
+  - **Runaway accretion across autonomy runs** — new `MAX_ANCHOR_LINKS = 12` total cap enforced across
+    both the keyword + semantic passes (was only a per-run cap of 8, so it grew every 5 min).
+  - **`suggestPeople` flagged capitalised common nouns** — added a big stop-list + a frequency ceiling
+    (a word in >12 memories is a term, not a person).
+- **Declutter now actually cleans up** (`declutterGraph`, wired to the 🔗 panel button): people/identities
+  → `pruneAnchorLinks` severs every link whose memory doesn't name them (now also sweeps the loose
+  `relates_to` ones); goals/skills → `trimAnchorLinks` thins a runaway hub down to the cap keeping the
+  strongest; plus the weakest memory↔memory associative links go to the review queue. (Old prune used
+  `weight < 0.55`, which matched nothing since associative links are 0.72+ — hence "no weak links".)
+- Gate: typecheck clean · **231 tests** (5 new in `overlinking.test.ts`) · web build clean. **Needs a
+  `fly deploy`.** After deploy: open 🔗 → "Declutter" to clean the existing over-links.
+
 ### 2026-07-09 (Claude): You control the linking — Suggested Connections queue + manual linking + perf LOD
 - After the freeze fix the user asked to (1) reduce render lag on a now-dense galaxy, (2) slow the
   background auto-linking, and (3) prune weak links — but crucially: **don't destroy withheld/pruned

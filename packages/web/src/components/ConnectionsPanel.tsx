@@ -53,13 +53,17 @@ export function ConnectionsPanel({
   const declutter = async () => {
     setPruning(true);
     try {
-      const { pruned } = await pruneWeakLinks();
+      const { pruned, anchorPruned, weakPruned } = await pruneWeakLinks();
       if (pruned > 0) {
-        pushToast(`Moved ${pruned} weak link${pruned === 1 ? "" : "s"} here to review.`, "🧹", 5000);
+        const bits = [
+          anchorPruned > 0 ? `${anchorPruned} wrong link${anchorPruned === 1 ? "" : "s"} removed` : "",
+          weakPruned > 0 ? `${weakPruned} weak one${weakPruned === 1 ? "" : "s"} sent here to review` : "",
+        ].filter(Boolean);
+        pushToast(`Decluttered — ${bits.join(", ")}.`, "🧹", 6000);
         onChanged?.();
         await refresh();
       } else {
-        pushToast("No weak links to clear — your galaxy's already tidy.", "✨", 4000);
+        pushToast("Nothing to clear — your galaxy's already tidy.", "✨", 4000);
       }
     } finally {
       setPruning(false);

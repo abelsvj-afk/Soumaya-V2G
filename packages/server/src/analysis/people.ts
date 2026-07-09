@@ -20,7 +20,20 @@ const NAME_STOP = new Set([
   "september", "october", "november", "december", "today", "tomorrow", "yesterday",
   "the", "this", "that", "there", "then", "when", "went", "made", "just", "really",
   "morning", "night", "week", "weekend", "google", "internet", "http", "https",
+  // Common capitalised NOUNS/verbs that show up in notes & titles but are NOT people —
+  // this is what suggested "Sector/Vibe/Research/Deep/Dive/Background" as names.
+  "sector", "vibe", "vibes", "research", "deep", "dive", "background", "coding", "code",
+  "project", "projects", "work", "working", "home", "career", "nurse", "analysis",
+  "analytical", "expansion", "exploration", "registered", "typescript", "javascript",
+  "python", "react", "app", "brain", "memory", "memories", "goal", "goals", "idea",
+  "ideas", "skill", "skills", "note", "notes", "task", "tasks", "plan", "plans",
+  "focus", "energy", "life", "time", "people", "person", "thing", "things", "stuff",
+  "money", "health", "food", "school", "job", "team", "meeting", "call", "email",
+  "phone", "computer", "system", "data", "test", "tests", "feature", "features",
+  "update", "fix", "bug", "issue", "review", "design", "build", "start", "started",
 ]);
+/** A word this frequent across recent memories is a common term, not a person's name. */
+const MAX_SUGGEST_FREQ = 12;
 
 export type Tone = "warm" | "heavy" | "mixed" | "neutral";
 
@@ -188,7 +201,9 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
   }
 
   return [...memoriesWith.entries()]
-    .filter(([key, ids]) => ids.size >= 2 && midSentence.has(key)) // real name, seen mid-sentence
+    // A real name: seen mid-sentence (a proper noun, not a sentence-start word), in a
+    // FEW memories (≥2) — but not in so many that it's clearly a common term (≤12).
+    .filter(([key, ids]) => ids.size >= 2 && ids.size <= MAX_SUGGEST_FREQ && midSentence.has(key))
     .map(([key, ids]) => ({ name: display.get(key)!, count: ids.size }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);

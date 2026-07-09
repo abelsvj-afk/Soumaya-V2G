@@ -962,14 +962,18 @@ export async function linkMemories(source: number, target: number): Promise<bool
     return false;
   }
 }
-/** Declutter: move the weakest existing links into the review queue (restorable). */
-export async function pruneWeakLinks(): Promise<{ pruned: number }> {
+/** Declutter: sever bogus anchor links + move the weakest associative links to the queue. */
+export async function pruneWeakLinks(): Promise<{ pruned: number; anchorPruned: number; weakPruned: number }> {
   try {
     const res = await afetch(`${API}/candidates/prune`, { method: "POST" }, 60_000);
-    const d = await res.json().catch(() => ({ pruned: 0 }));
-    return { pruned: typeof d.pruned === "number" ? d.pruned : 0 };
+    const d = await res.json().catch(() => ({}));
+    return {
+      pruned: typeof d.pruned === "number" ? d.pruned : 0,
+      anchorPruned: typeof d.anchorPruned === "number" ? d.anchorPruned : 0,
+      weakPruned: typeof d.weakPruned === "number" ? d.weakPruned : 0,
+    };
   } catch {
-    return { pruned: 0 };
+    return { pruned: 0, anchorPruned: 0, weakPruned: 0 };
   }
 }
 

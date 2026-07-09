@@ -1,7 +1,10 @@
 import type { DbHandle } from "../db/client.js";
+import type { AppContext } from "../context.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
+import { pruneAnchorLinks, trimAnchorLinks, NAME_ONLY_KINDS } from "./cognitive.js";
+import { COGNITIVE_KINDS } from "@brain/shared";
 
 /**
  * Candidate connections — the review queue that puts YOU in control of linking.
@@ -174,4 +177,33 @@ export function pruneWeakLinks(
     pruned++;
   }
   return { pruned };
+}
+
+/**
+ * The "Declutter" action. Two cleanups: (1) sever anchor (person/identity/goal/…)
+ * supports-links whose memory doesn't actually name the anchor — with common-word
+ * names no longer matching, this clears the bogus "20-30 connections to a person";
+ * these are wrong, so they're removed + remembered as rejected, not queued. (2) thin
+ * the weakest associative links into the review queue (restorable). Returns both counts.
+ */
+export function declutterGraph(ctx: AppContext, spaceId: string): { anchorPruned: number; weakPruned: number } {
+  const h = ctx.handle;
+  const anchors = h.sqlite
+    .prepare(
+      `SELECT id, kind FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind IN (${COGNITIVE_KINDS.map(() => "?").join(",")})`,
+    )
+    .all(spaceId, ...COGNITIVE_KINDS) as { id: number; kind: string }[];
+  let anchorPruned = 0;
+  for (const a of anchors) {
+    if (NAME_ONLY_KINDS.has(a.kind)) {
+      // People/identities: sever every link whose memory doesn't actually name them.
+      anchorPruned += pruneAnchorLinks(ctx, spaceId, a.id);
+    } else {
+      // Goals/skills/…: keep them thematic but trim a runaway hub down to the cap.
+      anchorPruned += trimAnchorLinks(ctx, spaceId, a.id);
+    }
+  }
+  // Also thin the weakest memory-to-memory associative links into the review queue.
+  const { pruned: weakPruned } = pruneWeakLinks(h, spaceId, { maxWeight: 0.75 });
+  return { anchorPruned, weakPruned };
 }

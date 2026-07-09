@@ -7,12 +7,11 @@ import {
   acceptCandidate,
   dismissCandidate,
   manualLink,
-  pruneWeakLinks,
+  declutterGraph,
 } from "../../analysis/candidates.js";
 import { spaceOf } from "../middleware.js";
 
 const LinkBody = z.object({ source: z.number().int(), target: z.number().int() });
-const PruneBody = z.object({ maxWeight: z.number().min(0).max(1).optional(), limit: z.number().int().min(1).max(2000).optional() });
 
 /**
  * Suggested Connections — the review queue that keeps YOU in control of linking.
@@ -43,15 +42,11 @@ export function candidateRoutes(ctx: AppContext): Router {
     res.json({ ok: true, pair });
   });
 
-  // POST /api/candidates/prune { maxWeight?, limit? } -> declutter: move the weakest
-  // existing links into the review queue (restorable, never destroyed).
-  r.post("/prune", (req, res) => {
-    const parsed = PruneBody.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      res.status(400).json({ error: "Body must be { maxWeight?, limit? }", issues: parsed.error.issues });
-      return;
-    }
-    res.json(pruneWeakLinks(ctx.handle, spaceOf(res), parsed.data));
+  // POST /api/candidates/prune -> declutter: sever bogus anchor (person/…) links AND
+  // move the weakest associative links into the review queue (restorable).
+  r.post("/prune", (_req, res) => {
+    const { anchorPruned, weakPruned } = declutterGraph(ctx, spaceOf(res));
+    res.json({ pruned: anchorPruned + weakPruned, anchorPruned, weakPruned });
   });
 
   // POST /api/candidates/:id/accept -> connect it (creates the edge).
