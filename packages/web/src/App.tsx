@@ -1117,6 +1117,22 @@ export default function App() {
           fully usable (Mind, chat, memories, tabs) even when the 3D can't render. */}
       {lite && <div className="lite-backdrop" aria-hidden />}
 
+      {/* When the galaxy is intentionally off (Lite mode), SAY SO — otherwise a missing
+          galaxy just looks broken. One tap turns it back on. */}
+      {lite && space && !demo && (
+        <div className="galaxy-off-note" role="status">
+          <span>🌌 3D galaxy is off (Lite mode)</span>
+          <button
+            onClick={() => {
+              try { localStorage.setItem("brain.lite", "0"); } catch { /* ignore */ }
+              window.location.href = window.location.pathname; // drop any ?lite= param
+            }}
+          >
+            Turn it on
+          </button>
+        </div>
+      )}
+
       {/* Mount the 3D galaxy only AFTER boot completes AND not in lite mode. Its
           WebGL/scene setup is the heaviest synchronous work in the app; mounting it
           during loading could stall a phone's main thread so the loading logic +
@@ -1125,7 +1141,13 @@ export default function App() {
       <ErrorBoundary
         label="galaxy"
         fallback={
-          <div className="lite-backdrop" aria-hidden />
+          <>
+            <div className="lite-backdrop" aria-hidden />
+            <div className="galaxy-off-note galaxy-err" role="alert">
+              <span>⚠️ The 3D galaxy hit an error</span>
+              <button onClick={() => window.location.reload()}>Reload</button>
+            </div>
+          </>
         }
       >
       <Graph3D
@@ -1401,7 +1423,15 @@ export default function App() {
           connection she spotted. Hidden while a panel is open so it never covers it.
           Isolated: a fault in the noticing surface must never freeze/blank the app. */}
       <ErrorBoundary label="noticing" fallback={null}>
-        <NoticingCard onFocus={focus} onAnswered={() => refresh()} hidden={panel !== null} demo={demo} />
+        {/* Never surface before the cinematic fly-in + Observatory have had their moment:
+            gate on obsSettled (true only once the Observatory was shown+closed, or was
+            skipped) and hide it while the Observatory is open. */}
+        <NoticingCard
+          onFocus={focus}
+          onAnswered={() => refresh()}
+          hidden={panel !== null || showObs || !obsSettled}
+          demo={demo}
+        />
       </ErrorBoundary>
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a

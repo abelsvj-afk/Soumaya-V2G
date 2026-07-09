@@ -2038,6 +2038,19 @@ body,
     radial-gradient(1200px 800px at 50% 40%, rgba(60, 40, 120, 0.25), transparent 70%),
     #060411;
 }
+.galaxy-off-note {
+  position: fixed; left: 50%; top: calc(10px + env(safe-area-inset-top)); transform: translateX(-50%);
+  z-index: 44; display: flex; gap: 10px; align-items: center; max-width: 92vw;
+  padding: 7px 12px; border-radius: 999px; font-size: 12.5px; color: #dfe7ff;
+  background: rgba(16, 20, 40, 0.9); border: 1px solid rgba(122, 200, 255, 0.35);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5); backdrop-filter: blur(8px);
+}
+.galaxy-off-note button {
+  padding: 4px 11px; border-radius: 999px; border: 1px solid #7ac8ff;
+  background: rgba(122, 200, 255, 0.22); color: #eaf4ff; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.galaxy-off-note.galaxy-err { border-color: #ff9d6b; }
+.galaxy-off-note.galaxy-err button { border-color: #ff9d6b; background: rgba(255, 157, 107, 0.2); }
 .loading.recovery { z-index: 60; }
 .lite-escape {
   margin-top: 6px; background: transparent; border: none; color: #9fd4ff;
@@ -3755,3 +3768,8 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   line-height: 1.35;
   text-align: left;
 }
+/* The no-truncation rule above forces overflow:visible, but .obs-clamp still carried
+   display:-webkit-box (a fixed 2-line box) — so long "discovery of the day" text spilled
+   OUT of its card and overlapped "Capture a thought". Make it a normal block that grows,
+   so the card expands to fit and the stack pushes the next card down instead. */
+.obs-clamp { display: block !important; }
