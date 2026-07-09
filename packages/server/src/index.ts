@@ -19,6 +19,7 @@ import { mergeDuplicatePeople } from "./analysis/people.js";
 import { rollPastEvents } from "./analysis/future.js";
 import { stepDrives } from "./analysis/drives.js";
 import { DEFAULT_SPACE } from "./db/schema.js";
+import { EconomyRepo } from "./economy.js";
 
 const PORT = Number(process.env.PORT ?? 3001);
 
@@ -202,8 +203,13 @@ if (process.env.AUTONOMY !== "off") {
         // Cognitive gravity (free, offline): pull memories toward the goals /
         // identity / skills they support, so the galaxy models what you're working
         // toward, not just what you remember.
+        // Her real background work BURNS a little Fuel, so the gauge visibly drains as
+        // she tidies your galaxy (it used to only ever go up unless Research Mode was on).
+        // Bounded, and it self-recovers via regen + what you earn logging memories.
+        const fuel = new EconomyRepo(ctx.handle, spaceId);
         try {
-          applyCognitiveGravity(ctx, spaceId);
+          const gravityEdges = applyCognitiveGravity(ctx, spaceId);
+          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.15);
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
         }
@@ -211,7 +217,10 @@ if (process.env.AUTONOMY !== "off") {
         // galaxy doesn't sprawl with redundant copies. Bounded per tick; nothing lost.
         try {
           const dm = await sweepDuplicates(ctx, spaceId);
-          if (dm > 0) console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dm} duplicate memor(ies)`);
+          if (dm > 0) {
+            fuel.spend(dm * 0.6);
+            console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dm} duplicate memor(ies)`);
+          }
         } catch (e) {
           console.error("[autonomy] dedup sweep failed:", e);
         }
@@ -230,7 +239,7 @@ if (process.env.AUTONOMY !== "off") {
         // (a memory bridging two people/goals, sitting near an anchor, or an emerging
         // theme) and raise ONE grounded question for the user to answer.
         try {
-          generateInquiry(ctx, spaceId);
+          if (generateInquiry(ctx, spaceId) != null) fuel.spend(0.5);
         } catch (e) {
           console.error("[autonomy] inquiry generation failed:", e);
         }
