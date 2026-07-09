@@ -8,7 +8,7 @@ import { UsageTracker } from "../usage.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { createCognitive } from "../analysis/cognitive.js";
-import { personProfile, mergeDuplicatePeople, suggestPeople } from "../analysis/people.js";
+import { personProfile, mergeDuplicatePeople, suggestPeople, dismissPersonSuggestion } from "../analysis/people.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -122,6 +122,14 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     expect(names).not.toContain("Divine");
     expect(names).not.toContain("Odyssey");
     expect(names).not.toContain("Palm");
+  });
+
+  it("never re-suggests a name you dismissed as 'not a person'", async () => {
+    await mem("m1", "met Quill at the shop");
+    await mem("m2", "Quill texted me later");
+    expect(suggestPeople(ctx, "legacy").map((s) => s.name)).toContain("Quill");
+    dismissPersonSuggestion(ctx, "legacy", "Quill");
+    expect(suggestPeople(ctx, "legacy").map((s) => s.name)).not.toContain("Quill");
   });
 
   it("ignores words only ever capitalised at a sentence start (not real names)", async () => {

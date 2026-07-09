@@ -175,6 +175,18 @@ export interface PersonSuggestion {
 }
 
 /**
+ * Record a name you told Soumaya is NOT a person ("not a person" dismiss on a
+ * suggestion) so it never resurfaces. Keyed by the normalised (lowercased) name.
+ */
+export function dismissPersonSuggestion(ctx: AppContext, spaceId: string, name: string): void {
+  const norm = name.trim().toLowerCase();
+  if (!norm) return;
+  ctx.handle.sqlite
+    .prepare(`INSERT OR IGNORE INTO dismissed_names (space_id, name) VALUES (?, ?)`)
+    .run(spaceId, norm);
+}
+
+/**
  * People you MENTION a lot but haven't added as an entity yet — capitalised names
  * recurring across memories. One-tap "add" then makes them a first-class person
  * their interactions orbit. Grounded (≥2 distinct memories); noise filtered.
@@ -218,6 +230,13 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
   const isExisting = (key: string): boolean =>
     existing.has(key) || existingNames.some((n) => n.length >= 4 && (n.includes(key) || key.includes(n)));
 
+  // Names you explicitly dismissed as "not a person" — never suggest these again.
+  const dismissed = new Set(
+    (s
+      .prepare(`SELECT name FROM dismissed_names WHERE space_id = ?`)
+      .all(spaceId) as { name: string }[]).map((d) => d.name),
+  );
+
   const memoriesWith = new Map<string, Set<number>>(); // lowercased name → memory ids
   const display = new Map<string, string>(); // lowercased → canonical display
   const midSentence = new Set<string>(); // saw the name NOT at a sentence start at least once
@@ -232,7 +251,7 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
     while ((match = wordRe.exec(text)) !== null) {
       const raw = match[0];
       const key = raw.toLowerCase();
-      if (NAME_STOP.has(key) || isExisting(key)) continue;
+      if (NAME_STOP.has(key) || isExisting(key) || dismissed.has(key)) continue;
       // Is this occurrence mid-sentence? (not preceded by start / . ! ? / newline)
       const prev = text.slice(0, match.index).replace(/\s+$/, "");
       const sentenceStart = prev === "" || /[.!?]$/.test(prev);

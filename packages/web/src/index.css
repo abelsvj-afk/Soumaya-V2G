@@ -2883,6 +2883,12 @@ button {
   background: rgba(122, 249, 255, 0.15);
   color: #fff;
 }
+.nc-dismiss {
+  background: transparent; border: none; color: #9aa7c7; cursor: pointer; flex: 0 0 auto;
+  font-size: 17px; line-height: 1; padding: 0 2px 0 6px; margin-left: 2px;
+}
+.nc-dismiss:hover { color: #fff; }
+.nc-dismiss:active { transform: scale(0.9); }
 
 /* Daily-tending streak: HUD chip + Awards banner (Wave 2). */
 .streak-chip {
@@ -3315,6 +3321,14 @@ button {
 }
 .mind-suggest-chip:hover { background: rgba(255, 158, 199, 0.26); }
 .mind-suggest-n { opacity: 0.6; font-size: 0.66rem; }
+.mind-suggest-pair { display: inline-flex; align-items: stretch; }
+.mind-suggest-pair .mind-suggest-chip { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.mind-suggest-x {
+  padding: 0 8px; border-radius: 0 999px 999px 0; font-size: 0.9rem; line-height: 1; cursor: pointer;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 158, 199, 0.35); border-left: none;
+  color: #ffb3c8; opacity: 0.7;
+}
+.mind-suggest-x:hover { opacity: 1; background: rgba(255, 90, 120, 0.28); color: #fff; }
 .mind-card-label { font-size: 0.86rem; color: #eaf4ff; }
 .mind-card-sub { font-size: 0.68rem; opacity: 0.6; white-space: nowrap; }
 .mind-progress { display: flex; align-items: center; gap: 6px; margin-top: 6px; }

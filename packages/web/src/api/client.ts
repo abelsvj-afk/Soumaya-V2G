@@ -876,6 +876,19 @@ export async function getPersonSuggestions(): Promise<{ name: string; count: num
     return [];
   }
 }
+/** Tell Soumaya a suggested name is NOT a person, so it never resurfaces. */
+export async function dismissPersonSuggestion(name: string): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/people/suggestions/dismiss`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 export async function promoteIdea(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });

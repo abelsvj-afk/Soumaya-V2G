@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): "Not a person" dismiss · remove demo mode · dismiss the low-fuel banner
+- **"Not a person" dismiss on people suggestions** (user: the Mind tab still floats non-names in
+  "People you mention"). New additive `dismissed_names` table (`space_id, name` PK, normalised
+  lowercased key) + `dismissPersonSuggestion()` + `POST /api/people/suggestions/dismiss`.
+  `suggestPeople` now filters dismissed keys, so a name you × out never resurfaces no matter how
+  often you mention it. MindPanel renders each suggestion as an add-chip + a `×` "not a person"
+  button (`.mind-suggest-pair`/`.mind-suggest-x`). New people test locks the behavior.
+- **Demo mode removed completely** (user: "we were supposed to have gotten rid of the demo mode").
+  The `?demo=1` entry point and the "✨ Demo galaxy / ← Back to mine" toggle are both gone; `demo`
+  is now a permanently-false constant so nothing can re-enter it.
+- **Low-fuel banner is dismissible** — each `NotificationsBar` chip gets a `×` (`.nc-dismiss`) that
+  hides that alert for the session (sessionStorage-backed `brain.dismissedAlerts`).
+- Gate: typecheck clean · **242 tests** (1 new in `people.test.ts`) · web build clean. **Needs a
+  `fly deploy`.**
+
 ### 2026-07-09 (Claude): Stop the over-linking — false person-names, semantic links to people, runaway hubs
 - User evidence: a distinctively-named person ("Shaqavia") had 20+ links though named in 1-2 memories;
   a "Vibe Coding" skill had 79 linked; and "People you mention" suggested Sector/Vibe/Research/Deep/Dive

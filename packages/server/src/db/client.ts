@@ -264,6 +264,15 @@ export function bootstrapSchema(sqlite: RawDb): void {
     );
     CREATE UNIQUE INDEX IF NOT EXISTS candidate_links_pair_idx ON candidate_links(space_id, a, b);
     CREATE INDEX IF NOT EXISTS candidate_links_status_idx ON candidate_links(space_id, status);
+    -- Names you told Soumaya are NOT a person ("not a person" dismiss on a people
+    -- suggestion). Keyed by the normalised (lowercased) name so it never resurfaces
+    -- as a suggestion again, no matter how often you mention it.
+    CREATE TABLE IF NOT EXISTS dismissed_names (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (space_id, name)
+    );
   `);
 }
 

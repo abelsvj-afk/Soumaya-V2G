@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { type GraphNode, type Fuel } from "@brain/shared";
 import { type Health } from "../api/client.js";
 import { type DockTab } from "./RightDock.js";
@@ -11,7 +12,20 @@ interface NotificationsBarProps {
   demo: boolean;
 }
 
+const DISMISS_KEY = "brain.dismissedAlerts";
+
 export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, demo }: NotificationsBarProps) {
+  const [dismissed, setDismissed] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(sessionStorage.getItem(DISMISS_KEY) || "[]")); } catch { return new Set(); }
+  });
+  const dismiss = (id: string) =>
+    setDismissed((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
+      return next;
+    });
+
   if (demo) return null;
 
   const alerts: { id: string; type: "warning" | "info" | "error"; text: string; icon: string; actionText?: string; onClick?: () => void }[] = [];
@@ -105,11 +119,12 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
     });
   }
 
-  if (alerts.length === 0) return null;
+  const visible = alerts.filter((a) => !dismissed.has(a.id));
+  if (visible.length === 0) return null;
 
   return (
     <div className="notifications-bar">
-      {alerts.map((alert) => (
+      {visible.map((alert) => (
         <div key={alert.id} className={`notification-chip ${alert.type}`}>
           <span className="nc-icon">{alert.icon}</span>
           <span className="nc-text">{alert.text}</span>
@@ -118,6 +133,7 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
               {alert.actionText} →
             </button>
           )}
+          <button className="nc-dismiss" onClick={() => dismiss(alert.id)} aria-label="Dismiss">×</button>
         </div>
       ))}
     </div>

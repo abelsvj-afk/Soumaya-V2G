@@ -615,13 +615,8 @@ export default function App() {
       .then((sp) => {
         console.info(`[BOOT] auth finished (${sp ? "brain open" : "no brain"})`);
         setSpace(sp);
-        const params = new URLSearchParams(window.location.search);
-        // Only allow demo mode if logged in as "soumaya" (case-insensitive)
-        if (sp && sp.name.toLowerCase() === "soumaya" && params.get("demo") === "1") {
-          setDemo(true);
-        } else {
-          setDemo(false);
-        }
+        // Demo mode removed — always your real brain.
+        setDemo(false);
       })
       .catch(() => {})
       .finally(() => setAuthChecked(true));
@@ -1392,19 +1387,6 @@ export default function App() {
           {space?.name ?? "Soumaya"} <span className="sep">·</span> Second Brain
         </h1>
         <div className="brand-row">
-          {space && space.name.toLowerCase() === "soumaya" && (
-            <button
-              className="chip-btn"
-              onClick={() => {
-                setSelected(null);
-                setClustered(false);
-                graphRef.current?.exitCluster();
-                setDemo((d) => !d);
-              }}
-            >
-              {demo ? "← Back to mine" : "✨ Demo galaxy"}
-            </button>
-          )}
           {health && (
             <span className="status">
               {memCountShown} memories · {llmStatus}

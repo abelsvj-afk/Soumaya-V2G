@@ -13,6 +13,7 @@ import {
   getCognitiveEvidence,
   getPersonProfile,
   getPersonSuggestions,
+  dismissPersonSuggestion,
   type CognitiveEvidence,
   type PersonProfile,
   type CognitiveItem,
@@ -254,6 +255,11 @@ export function MindPanel({
       onChanged?.();
     }
   };
+  const notAPerson = async (name: string) => {
+    setSuggestions((xs) => xs.filter((s) => s.name !== name));
+    await dismissPersonSuggestion(name);
+    pushToast(`Got it — "${name}" isn't a person. I won't suggest it again.`, "🚫", 3500);
+  };
   const saveThoughtEdit = async () => {
     if (editThoughtId == null || !editThoughtText.trim()) return;
     const id = editThoughtId;
@@ -393,9 +399,19 @@ export function MindPanel({
           <span className="mind-suggest-label">People you mention — add them?</span>
           <div className="mind-suggest-chips">
             {suggestions.map((s) => (
-              <button key={s.name} className="mind-suggest-chip" onClick={() => void addPerson(s.name)} title={`Mentioned in ${s.count} memories`}>
-                ❤️ {s.name} <span className="mind-suggest-n">{s.count}</span>
-              </button>
+              <span key={s.name} className="mind-suggest-pair">
+                <button className="mind-suggest-chip" onClick={() => void addPerson(s.name)} title={`Mentioned in ${s.count} memories`}>
+                  ❤️ {s.name} <span className="mind-suggest-n">{s.count}</span>
+                </button>
+                <button
+                  className="mind-suggest-x"
+                  onClick={() => void notAPerson(s.name)}
+                  title={`"${s.name}" isn't a person — don't suggest it again`}
+                  aria-label={`Dismiss ${s.name}`}
+                >
+                  ×
+                </button>
+              </span>
             ))}
           </div>
         </div>
