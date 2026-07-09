@@ -222,19 +222,6 @@ export default function App() {
       return false;
     }
   });
-  // GALAXY SAFE-MODE (crash-loop breaker). If the 3D galaxy failed to survive its
-  // first frame last time — a synchronous hang or throw during mount that froze the
-  // whole app before it could paint — a flag was left set. On this load we detect it
-  // and boot the FULL app WITHOUT the galaxy, so a bad galaxy can never hold the brain
-  // hostage twice. The flag is armed right before we mount Graph3D and cleared the
-  // instant it reports a live first frame; a banner lets you re-enable the galaxy.
-  const [galaxySafe, setGalaxySafe] = useState(() => {
-    try {
-      return localStorage.getItem("brain.galaxyStuck") === "1";
-    } catch {
-      return false;
-    }
-  });
   const [showDiag, setShowDiag] = useState(false);
   const [perfSuggest, setPerfSuggest] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
@@ -628,19 +615,12 @@ export default function App() {
   }, [space]);
 
   // Whether the 3D galaxy is about to mount this render (mirrors the JSX gate below).
-  const galaxyWillMount = (loaded || demo) && !lite && !galaxySafe;
-  // Arm the crash-loop breaker the instant we commit to mounting the galaxy. Graph3D
-  // clears "brain.galaxyStuck" on its first live frame (onFirstFrame). If the mount
-  // hangs or throws before that — the freeze the user hit — the flag survives and the
-  // NEXT load reads it (galaxySafe = true) and boots the app WITHOUT the galaxy.
-  useEffect(() => {
-    if (!galaxyWillMount) return;
-    try {
-      localStorage.setItem("brain.galaxyStuck", "1");
-    } catch {
-      /* private mode — safe-mode simply won't engage */
-    }
-  }, [galaxyWillMount]);
+  const galaxyWillMount = (loaded || demo) && !lite;
+  // Heal any stale "galaxy stuck" flag left by the earlier crash-loop breaker. That
+  // safeguard existed only to survive the achievement-DFS freeze (now fixed at the
+  // source); with the freeze gone it was misfiring on ordinary lag and hiding a
+  // perfectly good galaxy behind a "try again" banner. Clear it on every load so no
+  // one is stuck without their galaxy.
   const clearGalaxyStuck = useCallback(() => {
     try {
       localStorage.removeItem("brain.galaxyStuck");
@@ -648,6 +628,9 @@ export default function App() {
       /* ignore */
     }
   }, []);
+  useEffect(() => {
+    clearGalaxyStuck();
+  }, [clearGalaxyStuck]);
 
   // Gamification (Wave 1): greet the pilot once per session when their galaxy
   // first loads — by name, with what changed while they were away.
@@ -1111,24 +1094,7 @@ export default function App() {
       <Toasts />
       {/* Lite mode: a calm static backdrop instead of the WebGL galaxy, so the app is
           fully usable (Mind, chat, memories, tabs) even when the 3D can't render. */}
-      {(lite || galaxySafe) && <div className="lite-backdrop" aria-hidden />}
-
-      {/* Galaxy safe-mode notice: the 3D galaxy failed to come up last time, so we
-          booted the full app without it. One tap re-arms + retries it. */}
-      {galaxySafe && !lite && (
-        <div className="galaxy-safe-note" role="status">
-          <span>The 3D galaxy didn't load last time, so it's paused — the rest of your brain works normally.</span>
-          <button
-            onClick={() => {
-              clearGalaxyStuck();
-              setGalaxySafe(false);
-              setTimeout(() => window.location.reload(), 60);
-            }}
-          >
-            Try the galaxy again
-          </button>
-        </div>
-      )}
+      {lite && <div className="lite-backdrop" aria-hidden />}
 
       {/* Mount the 3D galaxy only AFTER boot completes AND not in lite mode. Its
           WebGL/scene setup is the heaviest synchronous work in the app; mounting it

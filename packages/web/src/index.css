@@ -1980,19 +1980,6 @@ body,
     radial-gradient(1200px 800px at 50% 40%, rgba(60, 40, 120, 0.25), transparent 70%),
     #060411;
 }
-.galaxy-safe-note {
-  position: fixed; left: 50%; bottom: calc(14px + env(safe-area-inset-bottom));
-  transform: translateX(-50%); z-index: 59; max-width: min(94vw, 460px);
-  display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;
-  padding: 10px 14px; border-radius: 12px; text-align: center;
-  background: linear-gradient(180deg, rgba(28, 24, 52, 0.96), rgba(16, 14, 34, 0.96));
-  border: 1px solid rgba(150, 134, 255, 0.4); box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
-  color: #dfe3ff; font-size: 12.5px; line-height: 1.4;
-}
-.galaxy-safe-note button {
-  padding: 7px 12px; border-radius: 9px; border: 1px solid #9686ff;
-  background: rgba(150, 134, 255, 0.25); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer;
-}
 .loading.recovery { z-index: 60; }
 .lite-escape {
   margin-top: 6px; background: transparent; border: none; color: #9fd4ff;
@@ -3162,6 +3149,12 @@ button {
 .noticing-chip:hover { background: rgba(150, 134, 255, 0.28); }
 .noticing-card .companion-textarea { width: 100%; margin-bottom: 8px; }
 .noticing-actions { display: flex; gap: 8px; align-items: center; }
+/* Press feedback: every card control visibly reacts to a tap (press-dim + shrink) so
+   you KNOW it registered, even in the moment before the card animates away. */
+.noticing-card button { transition: transform 0.08s ease, filter 0.08s ease, background 0.12s ease; }
+.noticing-card button:active { transform: scale(0.94); filter: brightness(1.25); }
+.noticing-chip:active { transform: scale(0.94); background: rgba(150, 134, 255, 0.4); }
+.noticing-x:active { transform: scale(0.9); color: #fff; }
 @supports (padding: env(safe-area-inset-top)) {
   .noticing-card { top: calc(62px + env(safe-area-inset-top)); }
 }
