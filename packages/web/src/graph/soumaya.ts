@@ -71,6 +71,8 @@ export interface SoumayaHandle {
   taskLabel: THREE.Object3D;
   /** Turn the floating task label on/off (user preference). */
   setTaskVisible: (v: boolean) => void;
+  /** Fuel her fast flight has burned since the last read (Graph3D flushes it to spend). */
+  getAndResetFuelBurn: () => number;
   getTasks: (nodes: any[]) => { id: string; type: string; label: string; status: "doing" | "planned" | "done" }[];
   reorderTasks: (newOrder: { id: string; type: string; status?: "doing" | "planned" | "done" }[]) => void;
   setShipSkin?: (skin: string) => void;
@@ -448,13 +450,25 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   // Progression multiplier: she flies faster the more you've grown the brain.
   // Set from App via setPilotSpeed (memories + streak). Clamped for sanity.
   let pilotSpeed = 1;
+  // FUEL & SPEED: her fast cruising + progression "warp" costs Fuel; her BASE speed is
+  // always free. When Fuel runs low she drops to base speed (no boost, no warp) — she
+  // never stops, she just does one gear. Accumulated burn is flushed by Graph3D.
+  const LOW_FUEL = 15;
+  const BURN_ABOVE_VEL = 30; // only speed above this burns fuel
+  const SPEED_BURN_RATE = 0.0004;
+  let lowFuelSpeed = false; // set each frame from the live fuel
+  let fuelBurnAccum = 0;
   // Distance-aware cruise → a curve-fraction-per-second rate. We bound the TRIP
   // TIME between minT and maxT: a short hop holds a gentle minimum; a normal hop
   // cruises at ~baseVel u/s; a very long haul caps at maxT, so her top speed RISES
   // with distance (she "warps" across open stretches). pilotSpeed shortens every
   // trip (progression). smooth() still eases accel/decel within each hop.
   const cruise = (dist: number, baseVel: number, minT: number, maxT: number): number => {
-    const time = Math.min(maxT, Math.max(minT, (dist || 1) / baseVel)) / pilotSpeed;
+    // Low fuel → base pace only: no progression boost, and no long-haul "warp" (time
+    // scales with distance at baseVel instead of capping at maxT). She keeps moving.
+    const eff = lowFuelSpeed ? 1 : pilotSpeed;
+    const cap = lowFuelSpeed ? Number.POSITIVE_INFINITY : maxT;
+    const time = Math.min(cap, Math.max(minT, (dist || 1) / baseVel)) / eff;
     return 1 / time;
   };
   let target: any = null;
@@ -817,6 +831,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   ) => {
     if (onLinkConnect) onLinkConnectCb = onLinkConnect;
     if (orbit) orbitApi = orbit;
+    lowFuelSpeed = !!(fuel && typeof fuel.fuel === "number" && fuel.fuel < LOW_FUEL); // gate top speed
     currentVel = 0; // reset each frame; modes set it; trail/streaks/clamp read it in `finally`
     try {
       if (stationPos) {
@@ -1301,6 +1316,11 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     } catch {
       /* skip this frame */
     } finally {
+      // Top-speed fuel burn: only velocity ABOVE the free base rate costs Fuel, so
+      // cruising fast / warping across the galaxy drains it while an idle drift is free.
+      if (!lowFuelSpeed && currentVel > BURN_ABOVE_VEL) {
+        fuelBurnAccum += (currentVel - BURN_ABOVE_VEL) * dt * SPEED_BURN_RATE;
+      }
       try {
         // Hard safeguard: give the Sun a WIDE berth on all normal flight (matches the
         // bodies' clearance) so she never grazes or disappears into it. Exempt active
@@ -1631,6 +1651,11 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   return {
     object: group,
     update,
+    getAndResetFuelBurn: () => {
+      const b = fuelBurnAccum;
+      fuelBurnAccum = 0;
+      return b;
+    },
     enqueueLinks,
     enqueuePlacements,
     enqueueBeacons,

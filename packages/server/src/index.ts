@@ -209,7 +209,7 @@ if (process.env.AUTONOMY !== "off") {
         const fuel = new EconomyRepo(ctx.handle, spaceId);
         try {
           const gravityEdges = applyCognitiveGravity(ctx, spaceId);
-          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.15);
+          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.1);
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
         }

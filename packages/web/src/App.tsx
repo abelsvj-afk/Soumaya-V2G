@@ -93,6 +93,7 @@ import {
   onAiActivity,
   tendNode,
   getCandidates,
+  burnFuel,
   type Health,
 } from "./api/client.js";
 
@@ -1228,6 +1229,11 @@ export default function App() {
         ref={graphRef}
         data={view}
         onFirstFrame={clearGalaxyStuck}
+        onFuelBurn={(amount) => {
+          // Optimistic: drop the gauge now (fires the −pop), then confirm with the server.
+          setFuel((f) => (f ? { ...f, fuel: Math.max(0, f.fuel - amount) } : f));
+          void burnFuel(amount).then((nf) => nf && setFuel(nf));
+        }}
         onSelect={(node) => {
           playSfx("select");
           focus(node.id);

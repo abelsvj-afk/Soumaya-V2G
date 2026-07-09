@@ -464,6 +464,22 @@ export async function getFuel(): Promise<Fuel | null> {
   }
 }
 
+/** Spend Fuel her fast flight burned. Returns the new balance (or null on failure). */
+export async function burnFuel(amount: number): Promise<Fuel | null> {
+  try {
+    const res = await afetch(`${API}/maintenance/fuel/burn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ amount }),
+    });
+    if (!res.ok) return null;
+    const d = await res.json().catch(() => null);
+    return d && typeof d.fuel === "number" ? (d as Fuel) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** This brain's daily-tending streak (consecutive days fed a memory). */
 export async function getStreak(): Promise<Streak | null> {
   try {

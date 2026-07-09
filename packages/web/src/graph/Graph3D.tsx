@@ -93,6 +93,8 @@ interface Props {
    *  uses this to clear its "galaxy stuck" safe-mode flag. If the mount or first tick
    *  hangs/throws, this never fires and the next load falls back to the app-without-galaxy. */
   onFirstFrame?: () => void;
+  /** Fuel her fast flight burned since the last flush — the app spends it. */
+  onFuelBurn?: (amount: number) => void;
   onTasksChange?: (tasks: any[]) => void;
   shipViewMode?: "orbit" | "cockpit";
   fuel?: any;
@@ -369,6 +371,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     pilotSpeed,
     loaded,
     onFirstFrame,
+    onFuelBurn,
     onTasksChange,
     shipViewMode,
     fuel,
@@ -656,6 +659,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const onFirstFrameRef = useRef(onFirstFrame);
   onFirstFrameRef.current = onFirstFrame;
   const firstFrameDoneRef = useRef(false);
+  const onFuelBurnRef = useRef(onFuelBurn);
+  onFuelBurnRef.current = onFuelBurn;
   const onTasksChangeRef = useRef(onTasksChange);
   useEffect(() => {
     onTasksChangeRef.current = onTasksChange;
@@ -953,6 +958,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let repairScanT = 18;
     // Ship-task → React sync cadence (see the throttle note in the tick).
     let taskSyncT = 0;
+    let fuelBurnT = 0;
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -1015,6 +1021,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastTasksJsonRef.current = tasksJson;
           onTasksChangeRef.current(currentTasks);
         }
+      }
+
+      // Flush her accumulated fast-flight fuel burn to the app (~every 4s), so the
+      // gauge ticks down as she cruises hard — without a per-frame network call.
+      fuelBurnT -= dt;
+      if (fuelBurnT <= 0) {
+        fuelBurnT = 4;
+        const burned = soumayaHandleRef.current?.getAndResetFuelBurn?.() ?? 0;
+        if (burned > 0.05 && onFuelBurnRef.current) onFuelBurnRef.current(Math.round(burned * 100) / 100);
       }
 
       // Make link curvature/opacity zoom-bias live:

@@ -128,6 +128,21 @@ export function maintenanceRoutes(ctx: AppContext): Router {
   });
 
   /**
+   * POST /api/maintenance/fuel/burn { amount } -> spend Fuel her fast flight used.
+   * Amount is clamped to a small ceiling so a crafted request can't drain the tank.
+   */
+  r.post("/fuel/burn", (req, res) => {
+    const amount = Number((req.body as { amount?: unknown })?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      res.status(400).json({ error: "amount must be a positive number" });
+      return;
+    }
+    const econ = new EconomyRepo(ctx.handle, spaceOf(res));
+    econ.spend(Math.min(amount, 5)); // per-call cap; ignores overspend (never negative)
+    res.json(econ.toFuel());
+  });
+
+  /**
    * POST /api/maintenance/codex-claim { key } -> grant a one-time fuel reward for
    * discovering a Codex entry. Idempotent per (space, key) AND validated against
    * the real Codex catalog — client-invented keys would otherwise mint fuel and
