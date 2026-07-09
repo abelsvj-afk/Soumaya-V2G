@@ -393,9 +393,9 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
 
   // --- Engine plume: a pool of soft additive puffs that form a thick, cylinder-
   // like exhaust which dissipates quickly (still lingers a moment when she stops). ---
-  const PLUME_N = 26;
+  const PLUME_N = 40; // bigger pool so a fast, interpolated streak stays continuous
   const PLUME_LIFE = 0.55; // seconds each puff lives → fast dissipation
-  const PLUME_STEP = 3.2; // world distance between spawned puffs
+  const PLUME_STEP = 3.2; // world distance between spawned puffs (also the streak spacing)
   const plume = new THREE.Group();
   plume.frustumCulled = false;
   const puffs = Array.from({ length: PLUME_N }, () => {
@@ -1353,15 +1353,29 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
    * clears (real exhaust behavior).
    */
   const updatePlume = (dt: number) => {
-    // Spawn a puff at the exhaust when she's moved far enough and is visible/moving.
+    // Spawn puffs at the exhaust when she's visible/moving. Crucially, INTERPOLATE:
+    // at high speed she covers many PLUME_STEPs in one frame, so we drop a puff every
+    // PLUME_STEP along the segment she just travelled — otherwise a single per-frame
+    // puff leaves big gaps and the trail looks like scattered dots. Evenly-spaced +
+    // overlapping puffs read as one continuous streak at any speed.
     if (group.visible && currentVel > 2) {
       const exhaust = group.position.clone().add(new THREE.Vector3(0, 0, -3.5).applyQuaternion(group.quaternion));
-      if (!lastPuffPos || lastPuffPos.distanceTo(exhaust) >= PLUME_STEP) {
+      if (!lastPuffPos) lastPuffPos = exhaust.clone();
+      if (lastPuffPos.distanceTo(exhaust) > PLUME_STEP * 24) {
+        // A teleport / big jump (mode reset, re-frame) — don't streak across the void.
         lastPuffPos = exhaust.clone();
-        const free = puffs.find((p) => p.life <= 0) ?? puffs.reduce((a, b) => (a.life < b.life ? a : b));
-        free.life = PLUME_LIFE;
-        free.sprite.position.copy(exhaust);
-        free.sprite.visible = true;
+      } else {
+        const dir = new THREE.Vector3();
+        let guard = 0;
+        while (lastPuffPos.distanceTo(exhaust) >= PLUME_STEP && guard < PLUME_N) {
+          guard++;
+          dir.copy(exhaust).sub(lastPuffPos).setLength(PLUME_STEP);
+          lastPuffPos.add(dir);
+          const free = puffs.find((p) => p.life <= 0) ?? puffs.reduce((a, b) => (a.life < b.life ? a : b));
+          free.life = PLUME_LIFE;
+          free.sprite.position.copy(lastPuffPos);
+          free.sprite.visible = true;
+        }
       }
     }
     // Age every live puff: expand a bit + fade out as it dissipates.
