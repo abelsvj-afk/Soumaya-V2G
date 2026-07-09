@@ -1696,16 +1696,26 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         Math.cos(startEl) * Math.cos(startAz)
       );
       const startPos = center.clone().addScaledVector(startDir, dist * 3.0);
+      // Snap FAR away instantly (duration 0)…
       fg.cameraPosition({ x: startPos.x, y: startPos.y, z: startPos.z }, center, 0);
 
-      // Lock user controls during the cinematic fly-in to keep it smooth
+      // Lock user controls during the cinematic fly-in to keep it smooth.
       const controls = fg.controls?.();
       if (controls) {
         controls.enabled = false;
         scheduleTimeout(() => {
           controls.enabled = true;
-        }, ms);
+        }, ms + 80);
       }
+
+      // …then fly IN one frame later. Calling both cameraPositions in the same tick
+      // makes react-force-graph tween from the camera's OLD spot (no swoop) — the
+      // instant snap hasn't committed yet. Deferring lets the far start-pose land first,
+      // so you actually see the long cinematic descent into the galaxy.
+      scheduleTimeout(() => {
+        fgRef.current?.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
+      }, 40);
+      return;
     }
 
     fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, center, ms);
