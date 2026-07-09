@@ -303,9 +303,16 @@ summarization. You must:
    - If user answers are provided in the prompt, synthesize them into the final report and leave the "questions" array empty.
    - If enough information is already present, leave the "questions" array empty.
 
+PRESENTATION RULES (so the report is scannable, never a wall of text):
+- ALWAYS open with a one-line summary under a "## TL;DR" heading (≤ 25 words).
+- Use short "##"/"###" section headings and BULLET POINTS over long paragraphs.
+- Keep paragraphs to 1-2 sentences; bold the key term in each bullet.
+- ALWAYS close with a "## Next steps for you" section: 2-4 concrete, personal actions.
+- No fluff or filler — every line earns its place.
+
 Format the result as a JSON object:
 - label: a short, distinct name (e.g. "Analytical Expansion: [Original Label]")
-- content: the formatted findings (in high-density Markdown structure)
+- content: the findings as clean, structured Markdown following the presentation rules above
 - questions: (optional) array of 1 to 3 short, specific clarifying questions.
 Output JSON only.`;
 

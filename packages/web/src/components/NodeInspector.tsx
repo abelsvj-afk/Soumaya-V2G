@@ -4,6 +4,7 @@ import { deleteNode, setImportance, synthesizeNode, answerResearch, requestMaint
 import { pushToast } from "./Toasts.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
+import { MarkdownView } from "./MarkdownView.js";
 import { Chronicle } from "./Chronicle.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
 import { playSfx } from "../graph/sfx.js";
@@ -164,7 +165,12 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           "{node.celestialTitle}"
         </p>
       )}
-      <p className="content">{node.content}</p>
+      {(() => {
+        // Structured content (Soumaya's research reports) gets the report card treatment;
+        // a plain short memory just renders as clean text.
+        const isReport = /(^|\n)#{1,4}\s|(^|\n)\s*[-*]\s|(^|\n)\s*\d+\.\s/.test(node.content || "");
+        return <MarkdownView text={node.content} className={`content md${isReport ? " md-report" : ""}`} />;
+      })()}
 
       {node.researchQuestions && node.researchQuestions.length > 0 && (
         <div className="research-questions-box" style={{
