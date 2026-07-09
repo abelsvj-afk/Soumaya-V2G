@@ -1431,6 +1431,7 @@ export default function App() {
           onAnswered={() => refresh()}
           hidden={panel !== null || showObs || !obsSettled}
           demo={demo}
+          spaceId={space?.id}
         />
       </ErrorBoundary>
 

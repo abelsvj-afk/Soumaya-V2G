@@ -4,29 +4,35 @@ import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 
 /**
- * "Soumaya noticed…" — the proactive-intelligence surface. When she spots a
- * structural connection in your graph (a memory bridging two people/goals, a note
- * sitting on an anchor it didn't name, an emerging theme) she raises ONE grounded
- * question here. Answering ingests + links your reply, so her noticing grows the
- * brain. Self-contained: polls /api/inquiries, shows the freshest open one, and
- * lets you fly to the bodies she's asking about, answer, or wave it off.
+ * "Soumaya noticed…" — the proactive-intelligence surface. She NEVER pops this open on
+ * her own anymore. It's a quiet 💭 button that only appears when she has something, and
+ * GLOWS while that something is new/unseen. Opening it clears the glow — even if you
+ * don't act — because you've now seen it; a fresh noticing lights it up again. Tap to
+ * read her grounded question, fly to the bodies involved, answer, connect, or wave off.
  *
- * Hidden while a panel is open (so it never covers the dock) and in demo brains.
+ * Hidden entirely while a panel/Observatory is up (via `hidden`) and in demo brains.
  */
 export function NoticingCard({
   onFocus,
   onAnswered,
   hidden,
   demo,
+  spaceId,
 }: {
   onFocus: (id: number) => void;
   onAnswered?: () => void;
   hidden?: boolean;
   demo?: boolean;
+  spaceId?: string;
 }) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [open, setOpen] = useState(false);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const seenKey = `brain.noticing.seen.${spaceId ?? "legacy"}`;
+  const [seenId, setSeenId] = useState<number>(() => {
+    try { return parseInt(localStorage.getItem(seenKey) || "0", 10) || 0; } catch { return 0; }
+  });
 
   const refresh = () => getInquiries().then(setInquiries).catch(() => {});
   useEffect(() => {
@@ -44,6 +50,25 @@ export function NoticingCard({
 
   if (demo || hidden || inquiries.length === 0) return null;
   const q = inquiries[0]!;
+  const maxId = inquiries.reduce((m, i) => Math.max(m, i.id), 0);
+  const glow = maxId > seenId; // there's a noticing you haven't opened yet
+
+  // Opening marks everything currently here as "seen" so the glow stops — whether or not
+  // you end up acting on it. (A later, higher-id noticing re-lights the button.)
+  const markSeen = () => {
+    if (maxId > seenId) {
+      setSeenId(maxId);
+      try { localStorage.setItem(seenKey, String(maxId)); } catch { /* ignore */ }
+    }
+  };
+  const toggle = () => {
+    if (open) {
+      setOpen(false);
+    } else {
+      setOpen(true);
+      markSeen();
+    }
+  };
 
   const send = async () => {
     if (!reply.trim()) return;
@@ -63,15 +88,22 @@ export function NoticingCard({
       setBusy(false);
     }
   };
+  const afterAct = async () => {
+    // If that was the last one, close the popover; the button hides itself (length 0).
+    const remaining = inquiries.filter((x) => x.id !== q.id);
+    if (remaining.length === 0) setOpen(false);
+  };
   const wave = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
     await dismissInquiry(q.id);
+    void afterAct();
   };
   const reject = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
     await rejectInquiry(q.id);
     pushToast("Got it — I won't tie those together.", "🧠", 3500);
     onAnswered?.(); // the galaxy may lose an edge → refresh
+    void afterAct();
   };
   const confirm = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
@@ -79,51 +111,66 @@ export function NoticingCard({
     playSfx("achievement");
     pushToast("Connected ✦ — woven into your galaxy.", "🧠", 3500);
     onAnswered?.();
+    void afterAct();
   };
   // A one-tap "yes, connect" makes sense for the connection-style noticings.
   const canConfirm = q.kind === "anchor" || q.kind === "bridge";
 
   return (
-    <div className="noticing-card" role="dialog" aria-label="Soumaya noticed something">
-      <div className="noticing-head">
-        <span className="noticing-eye">💭</span>
-        <span className="noticing-title">Soumaya noticed{inquiries.length > 1 ? ` (1 of ${inquiries.length})` : ""}</span>
-        <button className="noticing-x" onClick={() => void wave()} aria-label="Not now">×</button>
-      </div>
-      <p className="noticing-q">{q.question}</p>
-      {q.nodes.length > 0 && (
-        <div className="noticing-chips">
-          {q.nodes.map((n) => (
-            <button key={n.id} className="noticing-chip" onClick={() => onFocus(n.id)} title="Fly to it">
-              {n.label}
+    <>
+      <button
+        className={`fab noticing-fab ${glow ? "glow" : ""} ${open ? "on" : ""}`}
+        onClick={toggle}
+        aria-label={`Soumaya noticed ${inquiries.length}`}
+        title={glow ? "Soumaya noticed something new" : "Soumaya's noticings"}
+      >
+        💭
+        <span className="fab-badge noticing-count">{inquiries.length > 9 ? "9+" : inquiries.length}</span>
+      </button>
+
+      {open && (
+        <div className="noticing-card" role="dialog" aria-label="Soumaya noticed something">
+          <div className="noticing-head">
+            <span className="noticing-eye">💭</span>
+            <span className="noticing-title">Soumaya noticed{inquiries.length > 1 ? ` (1 of ${inquiries.length})` : ""}</span>
+            <button className="noticing-x" onClick={() => setOpen(false)} aria-label="Close">×</button>
+          </div>
+          <p className="noticing-q">{q.question}</p>
+          {q.nodes.length > 0 && (
+            <div className="noticing-chips">
+              {q.nodes.map((n) => (
+                <button key={n.id} className="noticing-chip" onClick={() => onFocus(n.id)} title="Fly to it">
+                  {n.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <textarea
+            className="companion-textarea"
+            rows={2}
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
+            }}
+            placeholder="Tell her… (this becomes a memory, linked in)"
+          />
+          <div className="noticing-actions">
+            {canConfirm && (
+              <button className="noticing-confirm" onClick={() => void confirm()} title="Connect them">
+                ✦ Yes, connect
+              </button>
+            )}
+            <button onClick={() => void send()} disabled={busy || !reply.trim()}>
+              {busy ? "Weaving…" : "Answer"}
             </button>
-          ))}
+            <button className="mini ghost" onClick={() => void reject()} title="Sever this connection and don't suggest it again">
+              Not related
+            </button>
+            <button className="mini ghost" onClick={() => void wave()}>Not now</button>
+          </div>
         </div>
       )}
-      <textarea
-        className="companion-textarea"
-        rows={2}
-        value={reply}
-        onChange={(e) => setReply(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void send();
-        }}
-        placeholder="Tell her… (this becomes a memory, linked in)"
-      />
-      <div className="noticing-actions">
-        {canConfirm && (
-          <button className="noticing-confirm" onClick={() => void confirm()} title="Connect them">
-            ✦ Yes, connect
-          </button>
-        )}
-        <button onClick={() => void send()} disabled={busy || !reply.trim()}>
-          {busy ? "Weaving…" : "Answer"}
-        </button>
-        <button className="mini ghost" onClick={() => void reject()} title="Sever this connection and don't suggest it again">
-          Not related
-        </button>
-        <button className="mini ghost" onClick={() => void wave()}>Not now</button>
-      </div>
-    </div>
+    </>
   );
 }
