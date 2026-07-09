@@ -189,11 +189,34 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
     )
     .all(spaceId) as { id: number; label: string; content: string }[];
 
-  // Names already tracked as people — never suggest those.
-  const existing = new Set(
-    (s.prepare(`SELECT label FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity'`).all(spaceId) as { label: string }[])
-      .flatMap((r) => labelTokens(r.label)),
-  );
+  // Names already tracked as people — never suggest those (match the full name, its
+  // tokens, AND aliases; plus a substring pass below so "Danny" isn't re-suggested when
+  // "Danny K" / "Daniel" is already added).
+  const existingRows = s
+    .prepare(`SELECT label, aliases FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity'`)
+    .all(spaceId) as { label: string; aliases: string | null }[];
+  const existing = new Set<string>();
+  const existingNames: string[] = []; // full normalised names + aliases (for substring match)
+  for (const p of existingRows) {
+    const add = (raw: string) => {
+      const norm = raw.trim().toLowerCase();
+      if (norm.length >= 2) {
+        existing.add(norm);
+        existingNames.push(norm);
+      }
+      for (const tok of labelTokens(raw)) existing.add(tok);
+    };
+    add(p.label);
+    if (p.aliases) {
+      try {
+        for (const a of JSON.parse(p.aliases) as string[]) add(a);
+      } catch {
+        /* ignore malformed */
+      }
+    }
+  }
+  const isExisting = (key: string): boolean =>
+    existing.has(key) || existingNames.some((n) => n.length >= 4 && (n.includes(key) || key.includes(n)));
 
   const memoriesWith = new Map<string, Set<number>>(); // lowercased name → memory ids
   const display = new Map<string, string>(); // lowercased → canonical display
@@ -209,7 +232,7 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
     while ((match = wordRe.exec(text)) !== null) {
       const raw = match[0];
       const key = raw.toLowerCase();
-      if (NAME_STOP.has(key) || existing.has(key)) continue;
+      if (NAME_STOP.has(key) || isExisting(key)) continue;
       // Is this occurrence mid-sentence? (not preceded by start / . ! ? / newline)
       const prev = text.slice(0, match.index).replace(/\s+$/, "");
       const sentenceStart = prev === "" || /[.!?]$/.test(prev);

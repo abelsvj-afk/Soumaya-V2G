@@ -100,6 +100,13 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     expect(names).not.toContain("Carlos"); // already an entity
   });
 
+  it("never re-suggests someone already added, even under a name variant", async () => {
+    await createCognitive(ctx, "legacy", "person_entity", "Danny K", ""); // added as a variant
+    await mem("m1", "hung out with Danny again");
+    await mem("m2", "Danny texted me about the plan");
+    expect(suggestPeople(ctx, "legacy").map((s) => s.name)).not.toContain("Danny");
+  });
+
   it("does NOT suggest places or titles — only words used in a person context", async () => {
     // Real name in a person context.
     await mem("m1", "grabbed food with Marcus");

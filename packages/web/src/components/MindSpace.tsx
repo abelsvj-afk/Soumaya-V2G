@@ -31,23 +31,28 @@ export function setMindSpaceEnabled(on: boolean): void {
 }
 
 /**
- * Deterministic placement in a READABLE safe band — clear of the top header, the right
- * FAB column, the left HUD (fuel/streak), and the bottom controls — so a drifting
- * thought is never stuck behind a button. Two motes on the same id-hash still spread via
- * the index. The float animation (CSS) then moves each one gently around that anchor.
+ * Deterministic placement out on the PERIMETER of the view (never the centre — that's
+ * where the focused body sits). Motes ring the edge, faded + shimmering so they read as
+ * fleeting real-time thoughts, not fixed labels. Clamped so they stay on-screen and off
+ * the very top (header). Two animations run in parallel: a slow wander + a light shimmer.
  */
 function moteStyle(t: Thought, idx: number): React.CSSProperties {
-  const hx = ((t.id * 47 + idx * 29) % 100) / 100; // 0..1
-  const hy = ((t.id * 31 + idx * 53 + 13) % 100) / 100;
-  const left = 16 + hx * 52; // 16%..68% — inside the left HUD and right FABs
-  const top = 26 + hy * 46; // 26%..72% — below the header, above the bottom FABs
+  const golden = 137.508; // even angular spread
+  const angle = ((t.id * golden + idx * 47) % 360) * (Math.PI / 180);
+  const radius = 40 + ((t.id * 7) % 9); // 40%..48% out — on the perimeter, off-centre
+  let cx = 50 + Math.cos(angle) * radius;
+  let cy = 50 + Math.sin(angle) * radius * 0.86;
+  cx = Math.min(87, Math.max(8, cx)); // keep on-screen
+  cy = Math.min(85, Math.max(15, cy)); // clear the header
   return {
-    left: `${left}%`,
-    top: `${top}%`,
-    opacity: 0.55 + t.strength * 0.4,
-    animationDelay: `${(t.id * 7 + idx * 3) % 20 * -1}s`,
-    animationDuration: `${14 + ((t.id * 5) % 10)}s`,
-    "--mote-glow": `${5 + t.strength * 14}px`,
+    left: `${cx}%`,
+    top: `${cy}%`,
+    // Faded / ephemeral; strength only nudges it a little.
+    opacity: 0.2 + t.strength * 0.32,
+    // Two animations: [wander, shimmer].
+    animationDelay: `${((t.id * 7 + idx * 3) % 20) * -1}s, ${((t.id * 3) % 5) * -0.6}s`,
+    animationDuration: `${16 + ((t.id * 5) % 10)}s, ${2.3 + ((t.id % 7) * 0.3)}s`,
+    "--mote-glow": `${6 + t.strength * 16}px`,
   } as React.CSSProperties;
 }
 
