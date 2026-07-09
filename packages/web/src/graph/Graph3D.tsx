@@ -89,6 +89,10 @@ interface Props {
   pilotSpeed?: number;
   /** True when the initial API fetch of the real galaxy is done. */
   loaded?: boolean;
+  /** Fires ONCE after the galaxy survives its first full animation frame — the app
+   *  uses this to clear its "galaxy stuck" safe-mode flag. If the mount or first tick
+   *  hangs/throws, this never fires and the next load falls back to the app-without-galaxy. */
+  onFirstFrame?: () => void;
   onTasksChange?: (tasks: any[]) => void;
   shipViewMode?: "orbit" | "cockpit";
   fuel?: any;
@@ -357,6 +361,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     showShipTask,
     pilotSpeed,
     loaded,
+    onFirstFrame,
     onTasksChange,
     shipViewMode,
     fuel,
@@ -641,6 +646,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const stationObjRef = useRef<THREE.Object3D | null>(null);
   const sunRef = useRef<THREE.Object3D | null>(null);
 
+  const onFirstFrameRef = useRef(onFirstFrame);
+  onFirstFrameRef.current = onFirstFrame;
+  const firstFrameDoneRef = useRef(false);
   const onTasksChangeRef = useRef(onTasksChange);
   useEffect(() => {
     onTasksChangeRef.current = onTasksChange;
@@ -1494,6 +1502,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Single damped update per frame (required for inertia + zoom-to-cursor).
       controls?.update();
+
+      // Survived a full frame → the galaxy is alive. Tell the app so it clears its
+      // "galaxy stuck" safe-mode flag. A hang/throw during mount or the first tick
+      // never reaches here, so the flag persists and the next load boots the app
+      // without the 3D galaxy (always usable) instead of freezing again.
+      if (!firstFrameDoneRef.current) {
+        firstFrameDoneRef.current = true;
+        try { onFirstFrameRef.current?.(); } catch { /* best-effort */ }
+      }
     };
     tick();
     return () => {
