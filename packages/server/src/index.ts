@@ -9,6 +9,7 @@ import { reconcileConstellations } from "./analysis/constellationReconcile.js";
 import { runDreamCycle } from "./analysis/dreamCycle.js";
 import { stepUndertaking } from "./analysis/undertakings.js";
 import { applyCognitiveGravity } from "./analysis/cognitive.js";
+import { sweepDuplicates } from "./analysis/dedup.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
 import { stepIdeas, splitRipeIdea } from "./analysis/ideas.js";
@@ -205,6 +206,14 @@ if (process.env.AUTONOMY !== "off") {
           applyCognitiveGravity(ctx, spaceId);
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
+        }
+        // De-duplication (free, offline): true-merge near-identical memories so the
+        // galaxy doesn't sprawl with redundant copies. Bounded per tick; nothing lost.
+        try {
+          const dm = await sweepDuplicates(ctx, spaceId);
+          if (dm > 0) console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dm} duplicate memor(ies)`);
+        } catch (e) {
+          console.error("[autonomy] dedup sweep failed:", e);
         }
         // Working Memory (Cognitive Layer Phase 2): decay the mind space — evaporate
         // spent thought-motes and consolidate the ones that kept coming back into

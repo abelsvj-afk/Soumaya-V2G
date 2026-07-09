@@ -11,6 +11,7 @@ import { EconomyRepo, FUEL_JOB_COST } from "../economy.js";
 import { insights, agentLogs, settings, nodes, edges, dailyLogs } from "../db/schema.js";
 import { upsertEmbedding, getEmbedding, knn } from "../db/vec.js";
 import { ftsUpsert } from "../db/fts.js";
+import { mergeMemories, combineContent } from "../analysis/dedup.js";
 
 /**
  * Soumaya's maintenance brain, extracted from the HTTP route so BOTH the
@@ -639,47 +640,16 @@ export async function executeJob(
       const embA = getEmbedding(ctx.handle.sqlite, a.id);
       const embB = getEmbedding(ctx.handle.sqlite, b.id);
       if (!embA || !embB || cosine(embA, embB) < MERGE_SIMILARITY) return null;
+      // LLM writes the merged narrative; then true-merge so photos/edges/insights/age
+      // all follow and nothing is lost. Fall back to a lossless concat if the LLM is off.
       const { text } = await ctx.llm.synthesize(
         { label: a.label, content: a.content },
         { label: b.label, content: b.content },
         1.0,
       );
-      const newImp = Math.min(1.0, Math.max(a.importance ?? 0, b.importance ?? 0) + 0.05);
-      ctx.handle.db
-        .update(nodes)
-        .set({ content: text, importance: newImp })
-        .where(and(eq(nodes.id, a.id), eq(nodes.spaceId, spaceId)))
-        .run();
-      upsertEmbedding(ctx.handle.sqlite, a.id, await ctx.embeddings.embed(text));
-      ftsUpsert(ctx.handle.sqlite, a.id, a.label, text);
-      // Drop the direct a–b edges FIRST (rerouting would turn them into a–a self-loops).
-      ctx.handle.sqlite
-        .prepare(
-          `DELETE FROM edges WHERE space_id = ? AND ((source = ? AND target = ?) OR (source = ? AND target = ?))`,
-        )
-        .run(spaceId, a.id, b.id, b.id, a.id);
-      ctx.handle.db.update(edges).set({ source: a.id }).where(and(eq(edges.source, b.id), eq(edges.spaceId, spaceId))).run();
-      ctx.handle.db.update(edges).set({ target: a.id }).where(and(eq(edges.target, b.id), eq(edges.spaceId, spaceId))).run();
-      // Rerouting can duplicate an edge a already had — keep one per (source,target).
-      ctx.handle.sqlite
-        .prepare(
-          `DELETE FROM edges WHERE space_id = ? AND id NOT IN (
-             SELECT MIN(id) FROM edges WHERE space_id = ? GROUP BY source, target
-           )`,
-        )
-        .run(spaceId, spaceId);
-      // Insights that referenced the fused-away memory follow it to the survivor.
-      ctx.handle.sqlite
-        .prepare(`UPDATE OR IGNORE insights SET node_a = ? WHERE space_id = ? AND node_a = ?`)
-        .run(a.id, spaceId, b.id);
-      ctx.handle.sqlite
-        .prepare(`UPDATE OR IGNORE insights SET node_b = ? WHERE space_id = ? AND node_b = ?`)
-        .run(a.id, spaceId, b.id);
-      ctx.handle.sqlite
-        .prepare(`DELETE FROM insights WHERE space_id = ? AND node_a = node_b`)
-        .run(spaceId);
-      nodesRepo.softDelete(b.id, a.id);
-      description = `Fused redundant memory "${b.label}" into "${a.label}". Connections re-routed.`;
+      const mergedContent = text && text.trim().length > 0 ? text : combineContent(a.content, b.content);
+      await mergeMemories(ctx, spaceId, a.id, b.id, mergedContent);
+      description = `Fused redundant memory "${b.label}" into "${a.label}". Nothing lost — text, links & photos kept.`;
     }
   } else if (type === "sector_vibe" && targets.length === 1) {
     const center = nodesRepo.getById(t0);
