@@ -165,6 +165,31 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): You control the linking — Suggested Connections queue + manual linking + perf LOD
+- After the freeze fix the user asked to (1) reduce render lag on a now-dense galaxy, (2) slow the
+  background auto-linking, and (3) prune weak links — but crucially: **don't destroy withheld/pruned
+  links, route them somewhere reviewable, and let me link memories myself instead of always relying on
+  Soumaya.**
+- **Render LOD** (`graph/Graph3D.tsx`): `linkVisibility` now skips the weakest filaments at macro zoom
+  once a graph passes ~350 links; full detail returns when you zoom in (`LINK_LOD_*`). The main lag lever
+  on a dense brain — thousands of faint lines were being drawn every frame.
+- **Slower auto-linking** (`ingestion/associativeLink.ts`): per-memory cap 5 → 3, and the neighbours she
+  now holds back (over the cap, or that the validate gate wasn't sure about) are **recorded as candidates**
+  instead of silently dropped.
+- **Candidate-connections model** (`db/schema.ts` + `db/client.ts` additive `candidate_links` table;
+  `analysis/candidates.ts`): `withheld`/`pruned` pairs wait in a review queue (canonical a<b, unique per
+  pair, skips already-linked/rejected). Accept → creates the edge; Dismiss → records a rejection
+  (reuses `link_rejections`) so it never returns; `pruneWeakLinks` moves the weakest `relates_to` edges
+  into the queue (structural supports/summarizes untouched); `manualLink` connects any two yourself.
+- **Routes** (`api/routes/candidates.ts`, mounted `/api/candidates`): list, accept, dismiss, prune, link.
+- **UI** (`components/ConnectionsPanel.tsx` + a 🔗 FAB with a pending badge in `App.tsx`): review each
+  suggestion (fly-to either memory, Connect / Dismiss), a "Declutter weak links" button, and a
+  search-and-pick "connect two memories yourself" form. Card buttons also got `:active` press feedback.
+- Retired the galaxy safe-mode band-aid (it was misfiring on ordinary lag now that the real freeze is
+  fixed) and clear its stale flag on load.
+- Gate: typecheck clean · **226 tests** (7 new in `candidates.test.ts`) · web build clean. **Needs a
+  `fly deploy` to go live.**
+
 ### 2026-07-09 (Claude): The REAL freeze — two self-reloading boot mechanisms fighting each other (root cause)
 - User: after the orange orb → "aligning" → galaxy → the "Soumaya noticed" card, the whole app freezes
   (background/sun gone, can't type or click); clearing cache gets past the screen then it "freezes right

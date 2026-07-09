@@ -104,6 +104,13 @@ interface Props {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Link level-of-detail thresholds (perf on dense brains). Below LINK_LOD_MIN links,
+// everything always draws. At/above it, when the camera sits farther than LINK_LOD_ZOOM,
+// only connections whose weight+activity clears LINK_LOD_CUTOFF render — the weak faint
+// filaments (the bulk of a dense graph) are skipped until you zoom in.
+const LINK_LOD_MIN = 350;
+const LINK_LOD_ZOOM = 650;
+const LINK_LOD_CUTOFF = 0.6;
 const linkEnd = (v: any): number => (typeof v === "object" && v !== null ? v.id : v);
 /** Stable key for a connection (undirected) so we can track which are already drawn. */
 const linkKey = (l: any): string => {
@@ -2039,12 +2046,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cooldownTicks={9999999}
       cooldownTime={9999999}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
-      linkVisibility={(l: any) =>
-        // Links are ALWAYS visible (never hidden waiting for Soumaya) — she pulses them
-        // like a firing neuron when she tends, she doesn't draw them into existence.
-        // Only the isolate-system view filters them.
-        !cluster || (cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target)))
-      }
+      linkVisibility={(l: any) => {
+        // Isolate-system view filters to the selected cluster.
+        if (cluster) return cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target));
+        // LEVEL-OF-DETAIL: on a DENSE brain, drawing every faint filament at macro zoom
+        // is what makes a big galaxy lag on a phone. So when there are many links AND the
+        // camera is pulled back, draw only the STRONGER / actively-tended connections;
+        // zoom in past LINK_LOD_ZOOM and every link returns. Small graphs draw everything.
+        const total = dataRef.current.links.length;
+        if (total <= LINK_LOD_MIN) return true;
+        const camera = fgRef.current?.camera();
+        const dist = camera ? camera.position.length() : 1200;
+        if (dist < LINK_LOD_ZOOM) return true; // zoomed in: full detail
+        const strength = (l.weight ?? 0.4) + getLinkActivity(l);
+        return strength >= LINK_LOD_CUTOFF;
+      }}
       nodeThreeObject={(node: any) => {
         const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
         const cached = nodeThreeObjCacheRef.current.get(node.id);

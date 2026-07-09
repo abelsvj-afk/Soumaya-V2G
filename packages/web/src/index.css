@@ -966,6 +966,64 @@ body,
   right: 14px;
   font-weight: 700;
 }
+.fab-connections {
+  top: 180px;
+  right: 14px;
+}
+.fab-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: #9686ff;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+/* Suggested Connections panel (reuses .settings-overlay / .settings-card) */
+.cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cand-item {
+  padding: 9px 10px; border-radius: 10px;
+  background: rgba(150, 134, 255, 0.08); border: 1px solid rgba(150, 134, 255, 0.22);
+}
+.cand-pair { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cand-node {
+  flex: 1 1 40%; min-width: 0; text-align: left; padding: 4px 8px; border-radius: 7px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); color: #eaf0ff;
+  font-size: 0.82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cand-node:hover { background: rgba(150, 134, 255, 0.2); }
+.cand-link { color: #cbbcff; flex: 0 0 auto; }
+.cand-reason { font-size: 0.74rem; opacity: 0.7; margin: 6px 0 7px; }
+.cand-actions { display: flex; gap: 8px; }
+.cand-yes {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid #9686ff;
+  background: rgba(150, 134, 255, 0.3); color: #fff; font-weight: 600; cursor: pointer; font-size: 0.82rem;
+}
+.cand-yes:disabled { opacity: 0.45; cursor: default; }
+.ml-slots { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.ml-slot {
+  flex: 1 1 38%; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 6px 9px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05); border: 1px dashed rgba(255, 255, 255, 0.2); color: #9aa7c7;
+  font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ml-slot.filled { color: #eaf0ff; border-style: solid; border-color: rgba(150, 134, 255, 0.5); background: rgba(150, 134, 255, 0.14); }
+.ml-slot button { background: none; border: none; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; padding: 0; }
+.ml-x { color: #cbbcff; flex: 0 0 auto; }
+.ml-search { width: 100%; padding: 8px 10px; border-radius: 8px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.15); color: #eaf0ff; }
+.ml-hits { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 170px; overflow-y: auto; }
+.ml-hits button {
+  width: 100%; text-align: left; padding: 6px 9px; border-radius: 7px; cursor: pointer;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #eaf0ff; font-size: 0.82rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.ml-hits button:hover { background: rgba(150, 134, 255, 0.22); }
 
 /* Help / guide overlay */
 .help-overlay {

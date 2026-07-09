@@ -305,6 +305,28 @@ export const inquiries = sqliteTable(
 );
 export type InquiryRow = typeof inquiries.$inferSelect;
 
+/**
+ * Candidate connections — links Soumaya WITHHELD (below the auto-link confidence bar)
+ * or PRUNED (weak existing links removed to declutter). They wait here for YOU to
+ * review: connect it yourself or dismiss it. Canonical a<b, one row per pair.
+ */
+export const candidateLinks = sqliteTable(
+  "candidate_links",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    spaceId: text("space_id").notNull().default(DEFAULT_SPACE),
+    a: integer("a").notNull(),
+    b: integer("b").notNull(),
+    reason: text("reason"),
+    score: real("score").notNull().default(0),
+    origin: text("origin").notNull().default("withheld"), // withheld | pruned | suggested
+    status: text("status").notNull().default("pending"), // pending | accepted | dismissed
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (t) => [index("candidate_links_status_idx").on(t.spaceId, t.status)],
+);
+export type CandidateLinkRow = typeof candidateLinks.$inferSelect;
+
 export type NodeRow = typeof nodes.$inferSelect;
 export type EdgeRow = typeof edges.$inferSelect;
 export type InsightRow = typeof insights.$inferSelect;

@@ -59,6 +59,7 @@ import { IngestPanel } from "./components/IngestPanel.js";
 import { Observatory } from "./components/Observatory.js";
 import { ChatDock } from "./components/ChatDock.js";
 import { SettingsPanel } from "./components/SettingsPanel.js";
+import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
@@ -89,6 +90,7 @@ import {
   logoutSpace,
   onAiActivity,
   tendNode,
+  getCandidates,
   type Health,
 } from "./api/client.js";
 
@@ -111,6 +113,8 @@ export default function App() {
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
   const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
+  const [candCount, setCandCount] = useState(0);
   const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
@@ -631,6 +635,23 @@ export default function App() {
   useEffect(() => {
     clearGalaxyStuck();
   }, [clearGalaxyStuck]);
+
+  // Suggested-Connections badge: keep the pending count fresh (on ingest, when the
+  // panel closes, and on a slow poll) so the 🔗 FAB shows how many links await review.
+  useEffect(() => {
+    if (!space || demo) return;
+    let alive = true;
+    const load = () => getCandidates().then((d) => alive && setCandCount(d.count)).catch(() => {});
+    load();
+    const onIngest = () => window.setTimeout(load, 1000);
+    window.addEventListener("brain-memory-added", onIngest);
+    const iv = window.setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      window.removeEventListener("brain-memory-added", onIngest);
+      window.clearInterval(iv);
+    };
+  }, [space, demo, showConnections]);
 
   // Gamification (Wave 1): greet the pilot once per session when their galaxy
   // first loads — by name, with what changed while they were away.
@@ -1414,6 +1435,10 @@ export default function App() {
           <button className="fab fab-flashback" onClick={triggerFlashback} aria-label="Flashback (Serendipity)" title="Surprise me with an old memory">
             ☄️
           </button>
+          <button className="fab fab-connections" onClick={() => setShowConnections(true)} aria-label="Suggested connections" title="Review connections + link memories yourself">
+            🔗
+            {candCount > 0 && <span className="fab-badge">{candCount > 99 ? "99+" : candCount}</span>}
+          </button>
           <button className="fab fab-legend" onClick={() => setShowLegend(true)} aria-label="Legend / galaxy key" title="What the colours & bodies mean">
             🗺️
           </button>
@@ -1675,6 +1700,14 @@ export default function App() {
         <SettingsPanel
           onClose={() => setShowSettings(false)}
           onProfileUpdated={(name) => setSpace((s) => (s ? { ...s, name } : s))}
+        />
+      )}
+
+      {showConnections && space && !demo && (
+        <ConnectionsPanel
+          onClose={() => setShowConnections(false)}
+          onChanged={() => void refresh()}
+          onFocus={(id) => { setShowConnections(false); focus(id); }}
         />
       )}
 

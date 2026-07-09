@@ -20,6 +20,7 @@ import { contactRoutes } from "./routes/contact.js";
 import { cognitiveRoutes } from "./routes/cognitive.js";
 import { workingRoutes } from "./routes/working.js";
 import { inquiryRoutes } from "./routes/inquiries.js";
+import { candidateRoutes } from "./routes/candidates.js";
 import { peopleRoutes } from "./routes/people.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
@@ -82,6 +83,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/cognitive", guard, cognitiveRoutes(ctx));
   app.use("/api/working", guard, workingRoutes(ctx));
   app.use("/api/inquiries", guard, inquiryRoutes(ctx));
+  app.use("/api/candidates", guard, candidateRoutes(ctx));
   app.use("/api/people", guard, peopleRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)

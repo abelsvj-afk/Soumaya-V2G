@@ -914,6 +914,65 @@ export async function rejectInquiry(id: number): Promise<boolean> {
   }
 }
 
+// ── Suggested Connections: the review queue you control ───────────────────────
+export interface Candidate {
+  id: number;
+  a: number;
+  b: number;
+  aLabel: string;
+  bLabel: string;
+  reason: string | null;
+  score: number;
+  origin: string; // withheld | pruned | suggested
+  createdAt: string;
+}
+export async function getCandidates(): Promise<{ candidates: Candidate[]; count: number }> {
+  try {
+    const res = await afetch(`${API}/candidates`);
+    const d = await res.json().catch(() => null);
+    return d && Array.isArray(d.candidates) ? d : { candidates: [], count: 0 };
+  } catch {
+    return { candidates: [], count: 0 };
+  }
+}
+export async function acceptCandidate(id: number): Promise<boolean> {
+  try {
+    return (await afetch(`${API}/candidates/${id}/accept`, { method: "POST" })).ok;
+  } catch {
+    return false;
+  }
+}
+export async function dismissCandidate(id: number): Promise<boolean> {
+  try {
+    return (await afetch(`${API}/candidates/${id}/dismiss`, { method: "POST" })).ok;
+  } catch {
+    return false;
+  }
+}
+/** Connect two memories yourself (no Soumaya). */
+export async function linkMemories(source: number, target: number): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/candidates/link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source, target }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+/** Declutter: move the weakest existing links into the review queue (restorable). */
+export async function pruneWeakLinks(): Promise<{ pruned: number }> {
+  try {
+    const res = await afetch(`${API}/candidates/prune`, { method: "POST" }, 60_000);
+    const d = await res.json().catch(() => ({ pruned: 0 }));
+    return { pruned: typeof d.pruned === "number" ? d.pruned : 0 };
+  } catch {
+    return { pruned: 0 };
+  }
+}
+
 // ── Working Memory (Cognitive Layer Phase 2): the ephemeral "mind space" ──────
 export interface Thought {
   id: number;

@@ -247,6 +247,23 @@ export function bootstrapSchema(sqlite: RawDb): void {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (space_id, a, b)
     );
+    -- Candidate connections: links Soumaya WITHHELD (below the auto-link confidence bar)
+    -- or PRUNED (weak existing links removed to declutter) go here instead of vanishing,
+    -- so YOU review each one and choose to connect it yourself or dismiss it. Canonical
+    -- a<b; unique per pair so a suggestion never duplicates.
+    CREATE TABLE IF NOT EXISTS candidate_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      a INTEGER NOT NULL,
+      b INTEGER NOT NULL,
+      reason TEXT,
+      score REAL NOT NULL DEFAULT 0,
+      origin TEXT NOT NULL DEFAULT 'withheld',
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS candidate_links_pair_idx ON candidate_links(space_id, a, b);
+    CREATE INDEX IF NOT EXISTS candidate_links_status_idx ON candidate_links(space_id, status);
   `);
 }
 
