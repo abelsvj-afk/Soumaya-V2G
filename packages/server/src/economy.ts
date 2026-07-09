@@ -12,9 +12,9 @@ import { DEFAULT_SPACE } from "./db/schema.js";
 export const FUEL_START = 25;
 export const FUEL_CAP = 120;
 export const FUEL_JOB_COST = 2; // per autonomous LLM job
-export const EARN_MEMORY = 3; // logging a real memory
-export const EARN_LINK = 0.5; // each associative link formed
-export const EARN_ACTION_DONE = 1.5; // clearing a day-to-day action item
+export const EARN_MEMORY = 5; // logging a real memory (bumped: earning should feel good)
+export const EARN_LINK = 0.8; // each associative link formed
+export const EARN_ACTION_DONE = 2; // clearing a day-to-day action item
 export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time per entry)
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
@@ -22,7 +22,7 @@ export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time pe
 // At 6/hr regen alone overfilled the 120 tank in under a day and earning stopped
 // meaning anything; 2/hr keeps an idle brain solvent while logged memories /
 // cleared actions stay the real income.
-export const FUEL_REGEN_PER_HOUR = 2;
+export const FUEL_REGEN_PER_HOUR = 3.5;
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 

@@ -1487,7 +1487,7 @@ body,
 /* Exit isolated-system view */
 .exit-cluster {
   position: absolute;
-  top: 12px;
+  top: calc(92px + env(safe-area-inset-top)); /* below the brand header, not over it */
   left: 50%;
   transform: translateX(-50%);
   z-index: 45;
@@ -2693,7 +2693,7 @@ button {
 /* Gamification toasts (Wave 1): transient celebratory notices, top-center. */
 .toast-wrap {
   position: fixed;
-  top: 64px;
+  top: calc(96px + env(safe-area-inset-top)); /* clear the brand header + row */
   left: 50%;
   transform: translateX(-50%);
   display: flex;

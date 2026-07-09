@@ -454,8 +454,8 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   // always free. When Fuel runs low she drops to base speed (no boost, no warp) — she
   // never stops, she just does one gear. Accumulated burn is flushed by Graph3D.
   const LOW_FUEL = 15;
-  const BURN_ABOVE_VEL = 30; // only speed above this burns fuel
-  const SPEED_BURN_RATE = 0.0004;
+  const BURN_ABOVE_VEL = 40; // only speed above this burns fuel (raised → base cruise is free)
+  const SPEED_BURN_RATE = 0.0002; // gentler — earning should outpace flying
   let lowFuelSpeed = false; // set each frame from the live fuel
   let fuelBurnAccum = 0;
   // Distance-aware cruise → a curve-fraction-per-second rate. We bound the TRIP

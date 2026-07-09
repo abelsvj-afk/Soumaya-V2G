@@ -209,7 +209,7 @@ if (process.env.AUTONOMY !== "off") {
         const fuel = new EconomyRepo(ctx.handle, spaceId);
         try {
           const gravityEdges = applyCognitiveGravity(ctx, spaceId);
-          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.1);
+          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.06);
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
         }
@@ -218,7 +218,7 @@ if (process.env.AUTONOMY !== "off") {
         try {
           const dm = await sweepDuplicates(ctx, spaceId);
           if (dm > 0) {
-            fuel.spend(dm * 0.6);
+            fuel.spend(dm * 0.35);
             console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dm} duplicate memor(ies)`);
           }
         } catch (e) {
@@ -239,7 +239,7 @@ if (process.env.AUTONOMY !== "off") {
         // (a memory bridging two people/goals, sitting near an anchor, or an emerging
         // theme) and raise ONE grounded question for the user to answer.
         try {
-          if (generateInquiry(ctx, spaceId) != null) fuel.spend(0.5);
+          if (generateInquiry(ctx, spaceId) != null) fuel.spend(0.25);
         } catch (e) {
           console.error("[autonomy] inquiry generation failed:", e);
         }
