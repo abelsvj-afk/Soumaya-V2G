@@ -149,4 +149,19 @@ describe("inquiry engine (proactive intelligence)", () => {
     await mem("solo", "a single unrelated note about the weather");
     expect(generateInquiry(ctx, "legacy")).toBeNull();
   });
+
+  it("asks a SKILL check-in, and an honest answer nudges the skill slowly", async () => {
+    const skill = await createCognitive(ctx, "legacy", "skill", "Guitar", "");
+    // No memories → bridge/anchor/theme find nothing, so the check-in is what surfaces.
+    const id = generateInquiry(ctx, "legacy");
+    expect(id).not.toBeNull();
+    const q = listInquiries(ctx, "legacy")[0]!;
+    expect(q.kind).toBe("skill_checkin");
+    expect(q.nodes[0]!.id).toBe(skill);
+    const before = new NodesRepo(handle, "legacy").getById(skill)!.progress ?? 0;
+    await answerInquiry(ctx, "legacy", id!, "yeah, practiced a bit this week, getting better");
+    const after = new NodesRepo(handle, "legacy").getById(skill)!.progress ?? 0;
+    expect(after).toBeGreaterThan(before);
+    expect(after - before).toBeLessThan(0.1); // slow — never a big jump
+  });
 });

@@ -1,4 +1,4 @@
-import { COGNITIVE_META } from "@brain/shared";
+import { COGNITIVE_META, skillTier } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -227,6 +227,45 @@ function themeCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Ca
 }
 
 /**
+ * SKILL CHECK-IN: instead of making you hand-crank a skill's level, Soumaya asks how
+ * it's going every so often (a ~7-day bucket per skill via the signature, so it recurs
+ * without nagging) and your honest answer nudges it. Real skills take a long time, so
+ * the nudge is small — this is the deliberate, slow signal, not the auto pile-on.
+ */
+function skillCheckinCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Candidate | null {
+  const s = ctx.handle.sqlite;
+  const skills = s
+    .prepare(
+      `SELECT id, label, progress FROM nodes
+       WHERE space_id = ? AND deleted_at IS NULL AND kind = 'skill'
+       ORDER BY last_tended_at ASC LIMIT 12`,
+    )
+    .all(spaceId) as { id: number; label: string; progress: number | null }[];
+  const weekBucket = Math.floor(Date.now() / (1000 * 60 * 60 * 24 * 7));
+  for (const sk of skills) {
+    const sig = `skill:${sk.id}:${weekBucket}`;
+    if (seen.has(sig)) continue;
+    const tier = skillTier(sk.progress ?? 0);
+    return {
+      question: `How's "${sk.label}" going lately — have you been practicing it? Tell me honestly (even "not much") and I'll adjust where it sits. You're at ${tier} right now.`,
+      kind: "skill_checkin",
+      nodeIds: [sk.id],
+      signature: sig,
+    };
+  }
+  return null;
+}
+
+/** Heuristic: how much an honest check-in answer should move a skill (small; slow growth). */
+function skillNudgeFromText(text: string): number {
+  const t = ` ${text.toLowerCase()} `;
+  if (/\b(no|not really|haven'?t|hardly|barely|stopped|forgot|nothing|none|skipped)\b/.test(t)) return -0.02;
+  if (/\b(a lot|every ?day|daily|constantly|nonstop|tons|obsessed|hours|mastered|leveled up|so much)\b/.test(t)) return 0.08;
+  if (/\b(some|a bit|a little|sometimes|here and there|practic|working on|getting better|improv|learning|studied|trained|progress)\b/.test(t)) return 0.04;
+  return 0.02; // any thoughtful reply is a little forward motion
+}
+
+/**
  * Generate at most ONE new grounded inquiry for a space (free, offline). Runs in
  * the autonomy loop and right after ingest, so noticings appear as you add
  * memories. Returns the new inquiry id, or null if nothing worth asking / at cap.
@@ -242,7 +281,8 @@ export function generateInquiry(ctx: AppContext, spaceId: string): number | null
   const candidate =
     bridgeCandidate(ctx, spaceId, seen) ??
     anchorCandidate(ctx, spaceId, seen) ??
-    themeCandidate(ctx, spaceId, seen);
+    themeCandidate(ctx, spaceId, seen) ??
+    skillCheckinCandidate(ctx, spaceId, seen);
   if (!candidate) return null;
 
   const info = s
@@ -366,8 +406,8 @@ export async function answerInquiry(
 ): Promise<{ nodeIds: number[]; fuelEarned: number } | null> {
   const s = ctx.handle.sqlite;
   const row = s
-    .prepare(`SELECT node_ids AS nodeIds FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
-    .get(id, spaceId) as { nodeIds: string } | undefined;
+    .prepare(`SELECT node_ids AS nodeIds, kind FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
+    .get(id, spaceId) as { nodeIds: string; kind: string } | undefined;
   if (!row) return null;
 
   const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, text, spaceId);
@@ -388,6 +428,21 @@ export async function answerInquiry(
         edges.create({ source: nodeIds[0], target, relationship: "relates_to", weight: 0.6 });
       }
       repo.tend(target);
+    }
+  }
+
+  // Skill check-in: nudge the skill's level from the honest answer (small — mastery is slow).
+  if (row.kind === "skill_checkin" && involved[0] != null) {
+    const nudge = skillNudgeFromText(text);
+    if (nudge !== 0) {
+      const cur =
+        (s.prepare(`SELECT progress FROM nodes WHERE id = ? AND space_id = ? AND kind = 'skill'`).get(involved[0], spaceId) as
+          | { progress: number | null }
+          | undefined)?.progress;
+      if (cur != null) {
+        const next = Math.max(0, Math.min(1, cur + nudge));
+        s.prepare(`UPDATE nodes SET progress = ?, last_tended_at = datetime('now') WHERE id = ? AND space_id = ?`).run(next, involved[0], spaceId);
+      }
     }
   }
 

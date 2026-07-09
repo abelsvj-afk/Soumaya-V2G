@@ -90,15 +90,14 @@ export function mergeDuplicatePeople(ctx: AppContext, spaceId: string): number {
   const s = ctx.handle.sqlite;
   const repo = new NodesRepo(ctx.handle, spaceId);
   const people = s
-    .prepare(`SELECT id, label FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity' ORDER BY id ASC`)
-    .all(spaceId) as { id: number; label: string }[];
+    .prepare(`SELECT id, label, origin FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity' ORDER BY id ASC`)
+    .all(spaceId) as { id: number; label: string; origin: string | null }[];
 
-  // Group by primary name key: the longest distinctive token of the label (or the
-  // whole normalised label). "Danny" and "Danny K" share the token "danny".
-  const keyOf = (label: string): string => {
-    const toks = labelTokens(label).filter((t) => !t.includes(" "));
-    return toks.length > 0 ? toks.sort((a, b) => b.length - a.length)[0]! : label.trim().toLowerCase();
-  };
+  // Group ONLY exact-name duplicates (normalised: lowercased, trimmed, collapsed spaces).
+  // We deliberately do NOT merge "Danny" with "Danny K" or two different Dannys — a
+  // person's name is sacred and must never silently change; a false merge renames someone.
+  const keyOf = (label: string): string => label.trim().toLowerCase().replace(/\s+/g, " ");
+  const byId = new Map(people.map((p) => [p.id, p]));
   const groups = new Map<string, number[]>();
   for (const p of people) {
     const k = keyOf(p.label);
@@ -112,8 +111,17 @@ export function mergeDuplicatePeople(ctx: AppContext, spaceId: string): number {
   let merged = 0;
   for (const ids of groups.values()) {
     if (ids.length < 2) continue;
-    // Survivor = most interactions (ties → lowest id, i.e. oldest).
-    const keep = ids.slice().sort((a, b) => interactionCount(b) - interactionCount(a) || a - b)[0]!;
+    // Survivor keeps YOUR name: prefer the one you created (origin='user'), then the most
+    // interactions, then the oldest. Since every duplicate shares the exact same label,
+    // the visible name never changes regardless of which row survives.
+    const keep = ids
+      .slice()
+      .sort(
+        (a, b) =>
+          Number(byId.get(b)?.origin === "user") - Number(byId.get(a)?.origin === "user") ||
+          interactionCount(b) - interactionCount(a) ||
+          a - b,
+      )[0]!;
     for (const dropId of ids) {
       if (dropId === keep) continue;
       const backers = s

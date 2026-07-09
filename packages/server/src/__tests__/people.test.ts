@@ -72,6 +72,17 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     expect(personProfile(ctx, "legacy", remaining[0]!.id)!.count).toBe(2);
   });
 
+  it("NEVER merges people with different names — a person's name is sacred", async () => {
+    await createCognitive(ctx, "legacy", "person_entity", "Danny", "");
+    await createCognitive(ctx, "legacy", "person_entity", "Danny K", ""); // different person
+    await createCognitive(ctx, "legacy", "person_entity", "Danny R", ""); // another one
+    expect(mergeDuplicatePeople(ctx, "legacy")).toBe(0); // none folded — all distinct names
+    const remaining = handle.sqlite
+      .prepare(`SELECT label FROM nodes WHERE space_id = 'legacy' AND kind = 'person_entity' AND deleted_at IS NULL`)
+      .all() as { label: string }[];
+    expect(remaining.length).toBe(3);
+  });
+
   it("suggests recurring names you mention but haven't added, ignoring noise + existing", async () => {
     await mem("m1", "lunch with Priya downtown");
     await mem("m2", "Priya sent me the notes");
