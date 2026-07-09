@@ -84,29 +84,22 @@
           document.getElementById("br-reload").onclick = function () { location.reload(); };
           document.getElementById("br-reset").onclick = hardReset;
         }
-        // Boot watchdog: if the app hasn't booted in ~7s, AUTO-HEAL once (clear the
-        // stale service worker + caches and reload) with no tap needed. If it's still
-        // stuck after that one auto-reset, show the manual recovery panel.
+        // Boot watchdog: if the app hasn't booted in ~12s, OFFER manual recovery.
+        // It never auto-clears caches or reloads on its own — an automatic reset on a
+        // timer, combined with the service worker claiming a fresh page, produced a
+        // reload/reset loop that read as a permanent freeze. The user taps to reset;
+        // nothing yanks the page out from under them. (12s, not 7s, so a slow-but-fine
+        // galaxy load on a big brain / weak phone is never mistaken for a stuck boot.)
         setTimeout(function () {
           if (booted || document.getElementById("boot-recovery")) return;
-          try {
-            if (!sessionStorage.getItem("brain_autoreset")) {
-              sessionStorage.setItem("brain_autoreset", "1");
-              hardReset();
-              return;
-            }
-          } catch (e) { /* sessionStorage blocked — fall through to manual panel */ }
-          showRecovery("boot watchdog · auto-reset didn't help");
-        }, 7000);
-        // A hard bundle error before boot → recover quickly.
+          showRecovery("still loading — you can reset if it's stuck");
+        }, 12000);
+        // A hard bundle error before boot → offer recovery (manual, never automatic).
         window.addEventListener("error", function (e) {
           if (!booted && e && e.message && /import|module|chunk|unexpected|SyntaxError/i.test(e.message)) {
             setTimeout(function () {
               if (booted) return;
-              try {
-                if (!sessionStorage.getItem("brain_autoreset")) { sessionStorage.setItem("brain_autoreset", "1"); hardReset(); return; }
-              } catch (x) {}
-              showRecovery("load error");
+              showRecovery("load error — a reset usually clears it");
             }, 400);
           }
         });

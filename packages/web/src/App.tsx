@@ -51,6 +51,7 @@ function getFigurineLabel(type: string): string {
   }
 }
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
+import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, TRACKS, type AmbientAudio } from "./graph/audio.js";
 import { setGraphicsMode, resolveGraphics, getGraphics } from "./graph/graphicsConfig.js";
@@ -1082,6 +1083,12 @@ export default function App() {
           during loading could stall a phone's main thread so the loading logic +
           recovery watchdog never got to run. */}
       {(loaded || demo) && !lite && (
+      <ErrorBoundary
+        label="galaxy"
+        fallback={
+          <div className="lite-backdrop" aria-hidden />
+        }
+      >
       <Graph3D
         ref={graphRef}
         data={view}
@@ -1117,6 +1124,7 @@ export default function App() {
         equippedFig2={equippedFig2}
         spaceId={space?.id ?? ""}
       />
+      </ErrorBoundary>
       )}
 
       {!loaded && !initError && (
@@ -1345,11 +1353,16 @@ export default function App() {
 
       {/* Ambient Mind Space: live working-memory thoughts drifting over the galaxy
           (toggled from the 🧠 Mind tab; self-contained + pointer-events:none). */}
-      <MindSpace demo={demo} />
+      <ErrorBoundary label="mindspace" fallback={null}>
+        <MindSpace demo={demo} />
+      </ErrorBoundary>
 
       {/* Proactive intelligence: "Soumaya noticed…" — a grounded question about a
-          connection she spotted. Hidden while a panel is open so it never covers it. */}
-      <NoticingCard onFocus={focus} onAnswered={() => refresh()} hidden={panel !== null} demo={demo} />
+          connection she spotted. Hidden while a panel is open so it never covers it.
+          Isolated: a fault in the noticing surface must never freeze/blank the app. */}
+      <ErrorBoundary label="noticing" fallback={null}>
+        <NoticingCard onFocus={focus} onAnswered={() => refresh()} hidden={panel !== null} demo={demo} />
+      </ErrorBoundary>
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}

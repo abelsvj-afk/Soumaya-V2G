@@ -2,6 +2,15 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
+  /**
+   * Optional contained fallback. When provided, a crash in `children` renders this
+   * instead of the full-screen "fatal" panel — so an isolated subtree (e.g. the 3D
+   * galaxy) can fail without taking the whole app down. `null` = render nothing and
+   * let the rest of the app keep working.
+   */
+  fallback?: ReactNode;
+  /** Label for the console log, so we can tell which boundary caught it. */
+  label?: string;
 }
 interface State {
   error: Error | null;
@@ -10,7 +19,8 @@ interface State {
 /**
  * Last line of defense: a render/runtime error in the 3D scene should show a
  * readable message (and log to the console) instead of an unrecoverable black
- * screen over the dark background.
+ * screen over the dark background. With a `fallback`, it isolates a subtree so one
+ * broken surface never freezes/blanks the entire app.
  */
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null };
@@ -20,11 +30,13 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    console.error("[app] render error:", error, info.componentStack);
+    console.error(`[app] render error${this.props.label ? ` (${this.props.label})` : ""}:`, error, info.componentStack);
   }
 
   render(): ReactNode {
     if (this.state.error) {
+      // Contained failure: render the provided fallback and keep the rest of the app alive.
+      if (this.props.fallback !== undefined) return this.props.fallback;
       return (
         <div className="fatal">
           <h1>Something broke in the galaxy</h1>

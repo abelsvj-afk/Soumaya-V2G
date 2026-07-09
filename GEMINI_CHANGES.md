@@ -165,6 +165,34 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): The REAL freeze — two self-reloading boot mechanisms fighting each other (root cause)
+- User: after the orange orb → "aligning" → galaxy → the "Soumaya noticed" card, the whole app freezes
+  (background/sun gone, can't type or click); clearing cache gets past the screen then it "freezes right
+  back"; works in Incognito. Prior fixes (graphics tiers, lite mode) didn't help because they targeted
+  the wrong layer.
+- **Forensics (this session):** audited EVERY `while` loop (orbits/soumaya/Graph3D/visitors — all
+  queue-draining or `visited`-guarded, none can spin) and every `useEffect` in App.tsx — found NO
+  infinite loop. That ruled out a data-driven JS peg and pointed at the boot/service-worker layer, which
+  is exactly what changed in the batch that reached prod "yesterday."
+- **Root cause = two AUTO-destructive mechanisms yanking the page:** (1) `main.tsx` reloaded the page on
+  every SW `controllerchange` — but that event fires the first time a SW claims an *uncontrolled* page
+  (e.g. the very first load after a cache clear), so it force-reloaded mid-boot; (2) `index.html`'s 7s
+  watchdog AUTO-cleared the SW+caches and reloaded. Together: clear → load → SW claims → forced reload →
+  watchdog races → hardReset → clear → … a reload/reset loop that reads as a permanent freeze. Incognito
+  has no persistent SW, so it never triggers — matching "works in Incognito."
+- **Fix (no performance downgrade):**
+  - `main.tsx`: removed the `controllerchange` → `location.reload()`. A new SW still `skipWaiting()`s +
+    claims and serves fresh assets on the NEXT natural navigation; we never force-reload out from under the user.
+  - `index.html`: the watchdog no longer auto-resets — at 12s (was 7s) it just SHOWS the manual recovery
+    panel (the "Reset app" button still clears SW+caches on tap). The `error` handler likewise offers, never auto-nukes.
+  - `main.tsx`: added a vanilla-DOM global error bar (window `error` + `unhandledrejection`) so any future
+    uncaught fault — even in a three.js tick or async handler, which React error boundaries can't catch —
+    shows its message instead of a silent black freeze. Ground truth if anything still breaks.
+  - Isolated the galaxy, the noticing card, and the mind-space each in their own `ErrorBoundary`
+    (`fallback` prop added) so a crash in one surface can never blank/freeze the whole app.
+- Gate: typecheck clean · **219 tests** · web build clean (`[stamp-sw] soumaya-bmrcridq8`). Pushed +
+  fast-forwarded master. **Needs a `fly deploy` to go live (delegate to `agy`).**
+
 ### 2026-07-08 (Claude): Post-login freeze fix — lighter default graphics + gate 3D behind boot (MEASURED)
 - After clearing cache the login screen loaded (proving the deploy/code is fine), but signing in then
   froze on loading the real galaxy — a step Incognito never reached. Per the repo's "measure, don't
