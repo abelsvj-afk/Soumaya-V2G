@@ -30,19 +30,23 @@ export function setMindSpaceEnabled(on: boolean): void {
   window.dispatchEvent(new Event("mindspace-toggle"));
 }
 
-/** Deterministic edge position for a mote from its id, so it doesn't jump on refresh. */
+/**
+ * Deterministic placement in a READABLE safe band — clear of the top header, the right
+ * FAB column, the left HUD (fuel/streak), and the bottom controls — so a drifting
+ * thought is never stuck behind a button. Two motes on the same id-hash still spread via
+ * the index. The float animation (CSS) then moves each one gently around that anchor.
+ */
 function moteStyle(t: Thought, idx: number): React.CSSProperties {
-  const golden = 137.508; // golden angle → even spread
-  const angle = ((t.id * golden) % 360) * (Math.PI / 180);
-  // Push motes toward the edges (radius 34–46% of the viewport) so the centre stays clear.
-  const radius = 34 + ((t.id * 7) % 12);
-  const cx = 50 + Math.cos(angle) * radius;
-  const cy = 50 + Math.sin(angle) * radius * 0.82; // slightly flattened
+  const hx = ((t.id * 47 + idx * 29) % 100) / 100; // 0..1
+  const hy = ((t.id * 31 + idx * 53 + 13) % 100) / 100;
+  const left = 16 + hx * 52; // 16%..68% — inside the left HUD and right FABs
+  const top = 26 + hy * 46; // 26%..72% — below the header, above the bottom FABs
   return {
-    left: `${cx}%`,
-    top: `${cy}%`,
-    opacity: 0.25 + t.strength * 0.6,
-    animationDelay: `${(t.id % 12) * -0.7}s`,
+    left: `${left}%`,
+    top: `${top}%`,
+    opacity: 0.55 + t.strength * 0.4,
+    animationDelay: `${(t.id * 7 + idx * 3) % 20 * -1}s`,
+    animationDuration: `${14 + ((t.id * 5) % 10)}s`,
     "--mote-glow": `${5 + t.strength * 14}px`,
   } as React.CSSProperties;
 }
