@@ -98,6 +98,7 @@ export function bootstrapSchema(sqlite: RawDb): void {
       last_seen_at TEXT,
       research_enabled TEXT,
       last_dream_date TEXT,
+      timeline_backfilled INTEGER NOT NULL DEFAULT 0,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     -- Telegram: bind a chat to a brain so messages route to the right space and
@@ -439,6 +440,10 @@ function migrateSchema(sqlite: RawDb): void {
     // Last UTC day a dream-cycle belief was consolidated (Level 2).
     if (!metaCols.some((c) => c.name === "last_dream_date")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN last_dream_date TEXT`);
+    }
+    // One-time flag: the Chronicle has seeded its opening chapter from existing history.
+    if (!metaCols.some((c) => c.name === "timeline_backfilled")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN timeline_backfilled INTEGER NOT NULL DEFAULT 0`);
     }
   }
   // (Table creation lives ONLY in bootstrapSchema, which always runs first —

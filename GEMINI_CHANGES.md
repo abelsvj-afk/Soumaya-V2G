@@ -165,6 +165,14 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-09 (Claude): The Chronicle — one-time backfill from existing history
+- Established brains no longer open blank: the first time the timeline loads (`GET /api/timeline`)
+  or the next autonomy tick, `backfillInitialChapter` seeds ONE opening chapter summarizing all
+  history so far ("Where it all begins / — {theme}"). Guarded by an additive `space_meta.
+  timeline_backfilled` flag → runs at most once per space, and only while no chapters exist yet;
+  skips if there's <3 memories (lets it grow organically instead). Free/offline/deterministic.
+- Gate: typecheck clean · **251 tests** (3 new) · web build clean. **Needs a `fly deploy`.**
+
 ### 2026-07-09 (Claude): The Chronicle — a 3D interactive flowing-river life timeline
 - New feature (spec: `docs/TIMELINE_DESIGN.md`). A 🕰️ button opens a full-screen 3D timeline where
   chapters of your life are strung along a glowing ribbon whose colour **flows** in the emotion

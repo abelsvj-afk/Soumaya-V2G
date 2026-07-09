@@ -333,6 +333,45 @@ export function maybeGenerateChapter(
   return insertChapter(ctx, spaceId, a, "auto", nowISO);
 }
 
+const MIN_BACKFILL_MEMS = 3; // enough existing history to be worth an opening chapter
+
+function openingTitle(theme: string): string {
+  if (!theme) return "Where it all begins";
+  return `Where it began — ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
+}
+
+/**
+ * One-time backfill: seed an OPENING chapter from a brain's existing history the
+ * first time the Chronicle is used, so an established brain isn't blank. Runs at
+ * most once per space (guarded by the `timeline_backfilled` flag) and only while
+ * there are no chapters yet. Free + offline + deterministic. Returns the seeded
+ * chapter, or null if it was skipped (already backfilled, or too little history).
+ */
+export function backfillInitialChapter(
+  ctx: AppContext,
+  spaceId: string = DEFAULT_SPACE,
+  nowISO: string = new Date().toISOString(),
+): TimelineChapter | null {
+  const s = ctx.handle.sqlite;
+  s.prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`).run(spaceId);
+  const flag = s.prepare(`SELECT timeline_backfilled AS f FROM space_meta WHERE space_id = ?`).get(spaceId) as { f: number } | undefined;
+  if (flag?.f) return null;
+
+  const already = (s.prepare(`SELECT COUNT(*) AS c FROM timeline_chapters WHERE space_id = ?`).get(spaceId) as { c: number }).c;
+  const markDone = () => s.prepare(`UPDATE space_meta SET timeline_backfilled = 1 WHERE space_id = ?`).run(spaceId);
+  if (already > 0) {
+    markDone(); // chapters already exist → never auto-seed later
+    return null;
+  }
+
+  const a = assessChange(ctx, spaceId, nowISO);
+  if (a.windowMems.length < MIN_BACKFILL_MEMS) return null; // too little history — let it grow organically (retry next open)
+
+  const chapter = insertChapter(ctx, spaceId, a, "auto", nowISO, openingTitle(a.theme));
+  markDone();
+  return chapter;
+}
+
 /** Manual path: you mark a chapter now. Summarizes the current window regardless of
  *  threshold (you asked for it), with an optional custom title. */
 export function createManualChapter(

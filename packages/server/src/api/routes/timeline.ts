@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { listChapters, createManualChapter, deleteChapter } from "../../analysis/timeline.js";
+import { listChapters, createManualChapter, deleteChapter, backfillInitialChapter } from "../../analysis/timeline.js";
 import { spaceOf } from "../middleware.js";
 
 const createSchema = z.object({ title: z.string().max(120).optional() });
@@ -10,9 +10,16 @@ const createSchema = z.object({ title: z.string().max(120).optional() });
 export function timelineRoutes(ctx: AppContext): Router {
   const r = Router();
 
-  // GET /api/timeline -> TimelineChapter[] (oldest → newest).
+  // GET /api/timeline -> TimelineChapter[] (oldest → newest). First open of an
+  // established brain seeds a one-time opening chapter from its existing history.
   r.get("/", (_req, res) => {
-    res.json(listChapters(ctx, spaceOf(res)));
+    const space = spaceOf(res);
+    try {
+      backfillInitialChapter(ctx, space);
+    } catch (e) {
+      console.error("[timeline] backfill failed:", e);
+    }
+    res.json(listChapters(ctx, space));
   });
 
   // POST /api/timeline { title? } -> mark a chapter now (manual).

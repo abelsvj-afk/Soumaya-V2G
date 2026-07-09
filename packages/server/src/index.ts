@@ -12,7 +12,7 @@ import { applyCognitiveGravity } from "./analysis/cognitive.js";
 import { sweepDuplicates } from "./analysis/dedup.js";
 import { sweepWorkingMemory } from "./analysis/workingMemory.js";
 import { generateInquiry } from "./analysis/inquiry.js";
-import { maybeGenerateChapter } from "./analysis/timeline.js";
+import { maybeGenerateChapter, backfillInitialChapter } from "./analysis/timeline.js";
 import { stepIdeas, splitRipeIdea } from "./analysis/ideas.js";
 import { stepSkills } from "./analysis/skills.js";
 import { stepIdentities } from "./analysis/identity.js";
@@ -248,6 +248,10 @@ if (process.env.AUTONOMY !== "off") {
         // (blended momentum + emotion trend + milestones) and the cadence allows it
         // (min gap + monthly cap → ~1-3/month), write a new life-timeline chapter.
         try {
+          // Seed the opening chapter from existing history once (established brains
+          // aren't blank), then write new chapters as real change accrues.
+          const seeded = backfillInitialChapter(ctx, spaceId);
+          if (seeded) console.log(`[autonomy] ${spaceId.slice(0, 8)}: seeded opening chapter "${seeded.title}"`);
           const chapter = maybeGenerateChapter(ctx, spaceId);
           if (chapter) console.log(`[autonomy] ${spaceId.slice(0, 8)}: wrote chapter "${chapter.title}" (${chapter.trend})`);
         } catch (e) {

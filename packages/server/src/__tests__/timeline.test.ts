@@ -5,7 +5,7 @@ import { HeuristicProvider } from "../llm/heuristic.js";
 import { EMBED_DIM } from "../db/vec.js";
 import type { AppContext } from "../context.js";
 import { UsageTracker } from "../usage.js";
-import { maybeGenerateChapter, createManualChapter, listChapters, deleteChapter, assessChange } from "../analysis/timeline.js";
+import { maybeGenerateChapter, createManualChapter, listChapters, deleteChapter, assessChange, backfillInitialChapter } from "../analysis/timeline.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -99,6 +99,36 @@ describe("The Chronicle — 3D life timeline", () => {
     expect(a.photoCount).toBe(1);
     expect(a.memoryIds[0]).toBe(withPhoto);
     expect(a.photoIds).toEqual([withPhoto]);
+  });
+
+  it("backfills ONE opening chapter from existing history, exactly once", () => {
+    const base = Date.UTC(2026, 0, 1);
+    for (let i = 0; i < 5; i++) mem("something that happened before the timeline existed", 0.3, iso(base + i * DAY));
+    const seeded = backfillInitialChapter(ctx, "legacy", iso(base + 6 * DAY));
+    expect(seeded).not.toBeNull();
+    expect(seeded!.origin).toBe("auto");
+    expect(listChapters(ctx, "legacy")).toHaveLength(1);
+    // The one-time flag means it never seeds again, even with more history.
+    for (let i = 0; i < 5; i++) mem("more later", 0.3, iso(base + (7 + i) * DAY));
+    expect(backfillInitialChapter(ctx, "legacy", iso(base + 20 * DAY))).toBeNull();
+    expect(listChapters(ctx, "legacy")).toHaveLength(1);
+  });
+
+  it("skips the backfill when there's too little history (grows organically instead)", () => {
+    const base = Date.UTC(2026, 0, 1);
+    mem("a lone early note", 0.2, iso(base));
+    expect(backfillInitialChapter(ctx, "legacy", iso(base + DAY))).toBeNull();
+    expect(listChapters(ctx, "legacy")).toHaveLength(0);
+  });
+
+  it("does not backfill when chapters already exist", () => {
+    const base = Date.UTC(2026, 0, 1);
+    mem("x", 0.2, iso(base));
+    mem("y", 0.2, iso(base + DAY));
+    mem("z", 0.2, iso(base + 2 * DAY));
+    createManualChapter(ctx, "legacy", { nowISO: iso(base + 3 * DAY) });
+    expect(backfillInitialChapter(ctx, "legacy", iso(base + 4 * DAY))).toBeNull();
+    expect(listChapters(ctx, "legacy")).toHaveLength(1);
   });
 
   it("can delete a chapter", () => {
