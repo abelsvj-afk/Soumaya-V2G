@@ -670,6 +670,19 @@ export async function deleteAttachment(nodeId: number, attId: number): Promise<b
   }
 }
 
+/** Fetch an attachment's bytes as an object URL for INLINE viewing (an <img>/<video>
+ *  can't send our auth header, so we fetch the blob ourselves and hand back a local URL).
+ *  Caller must URL.revokeObjectURL it when done. */
+export async function attachmentObjectUrl(att: Pick<Attachment, "id" | "nodeId">): Promise<string | null> {
+  try {
+    const res = await afetch(`${API}/nodes/${att.nodeId}/attachments/${att.id}/download`);
+    if (!res.ok) return null;
+    return URL.createObjectURL(await res.blob());
+  } catch {
+    return null;
+  }
+}
+
 /** Download an attachment's bytes (sends the auth header, then triggers a save). */
 export async function downloadAttachment(att: Attachment): Promise<void> {
   const res = await afetch(`${API}/nodes/${att.nodeId}/attachments/${att.id}/download`);

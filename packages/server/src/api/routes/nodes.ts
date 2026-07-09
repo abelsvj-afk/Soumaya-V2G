@@ -15,12 +15,14 @@ import { spaceOf } from "../middleware.js";
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
 const PatchBody = z.object({ importance: z.number().min(0).max(1).nullable() });
 
-// Attachment upload: base64 bytes capped so it fits the JSON body limit (~4mb).
-const MAX_ATTACHMENT_BYTES = 2_500_000; // 2.5 MB decoded
+// Attachment upload: base64 bytes capped so it fits the JSON body limit (8mb). Photos
+// are downscaled client-side (lib/image.ts) to ~a few hundred KB, so this cap is really
+// only a backstop for the occasional larger PDF/original.
+const MAX_ATTACHMENT_BYTES = 4_000_000; // 4 MB decoded
 const AttachmentBody = z.object({
   filename: z.string().min(1).max(255),
   mime: z.string().max(255).default("application/octet-stream"),
-  data: z.string().min(1).max(4_000_000), // base64 (~2.9MB decoded ceiling)
+  data: z.string().min(1).max(6_000_000), // base64 (~4.4MB decoded ceiling)
 });
 
 export function nodesRoutes(ctx: AppContext): Router {

@@ -34,7 +34,7 @@ export function createApp(ctx: AppContext): Express {
   app.use(cors());
   // Raised from 1mb to accommodate knowledge-document text uploads (per-route zod
   // `max` bounds each endpoint independently). Env-overridable.
-  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "4mb" }));
+  app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? "8mb" }));
   app.use("/api", rateLimit());
 
   // Health is unauthenticated — provider status only, no data facts (the global

@@ -2118,6 +2118,36 @@ body,
   50% { transform: scale(1.15); filter: drop-shadow(0 0 14px rgba(255, 90, 30, 0.9)); opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) { .streak-ember.at-risk .se-flame { animation: none; } }
+/* Attachment gallery + photo lightbox (viewable, scrollable — not just downloadable) */
+.att-gallery { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.att-thumb {
+  width: 64px; height: 64px; border-radius: 8px; overflow: hidden; padding: 0; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.14); background: rgba(255, 255, 255, 0.05); flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+}
+.att-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.att-thumb-load { font-size: 0.8rem; opacity: 0.5; }
+.att-lightbox {
+  position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center;
+  background: rgba(2, 4, 12, 0.94); padding: 24px 8px;
+}
+.att-lb-img { max-width: 96vw; max-height: 82vh; object-fit: contain; border-radius: 8px; box-shadow: 0 10px 60px rgba(0, 0, 0, 0.7); }
+.att-lb-close {
+  position: absolute; top: calc(10px + env(safe-area-inset-top)); right: 14px; z-index: 2;
+  width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(0,0,0,0.5); color: #fff; font-size: 22px; line-height: 1; cursor: pointer;
+}
+.att-lb-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 44px; height: 60px; border: none; background: rgba(0,0,0,0.4); color: #fff; font-size: 32px; cursor: pointer;
+}
+.att-lb-nav.prev { left: 0; border-radius: 0 10px 10px 0; }
+.att-lb-nav.next { right: 0; border-radius: 10px 0 0 10px; }
+.att-lb-actions {
+  position: absolute; bottom: calc(14px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; color: #eaf0ff; font-size: 12px;
+  background: rgba(0,0,0,0.5); padding: 7px 14px; border-radius: 999px;
+}
 .loading.recovery { z-index: 60; }
 .lite-escape {
   margin-top: 6px; background: transparent; border: none; color: #9fd4ff;

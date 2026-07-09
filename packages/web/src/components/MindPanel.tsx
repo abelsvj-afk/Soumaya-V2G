@@ -28,6 +28,7 @@ import {
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 import { mindSpaceEnabled, setMindSpaceEnabled } from "./MindSpace.js";
+import { MemoryAttachments } from "./MemoryAttachments.js";
 
 /**
  * The Mind tab — the COGNITIVE LAYER. Beyond what you've remembered, this is what
@@ -626,6 +627,8 @@ export function MindPanel({
                         ) : (
                           <p className="empty small">No interactions yet — memories that mention them (or an alias) will appear here.</p>
                         )}
+                        {/* Profile photos for this person — tap a thumbnail to view full-screen. */}
+                        <MemoryAttachments nodeId={it.id} demo={demo} label="📷 Photos" />
                       </div>
                     )}
                   </div>
