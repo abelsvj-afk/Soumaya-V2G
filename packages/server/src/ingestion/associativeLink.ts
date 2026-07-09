@@ -6,7 +6,6 @@ import type { LlmProvider } from "../llm/adapter.js";
 import type { EdgesRepo } from "../repositories/edges.repo.js";
 import type { NodesRepo } from "../repositories/nodes.repo.js";
 import { recordCandidate } from "../analysis/candidates.js";
-import { NAME_ONLY_KINDS } from "../analysis/cognitive.js";
 
 export interface AssociativeLinkOptions {
   /** Cosine similarity floor for a candidate to be considered. */
@@ -55,11 +54,6 @@ export async function associativeLink(
     const target = deps.nodes.getById(hit.nodeId);
     if (!target) continue;
 
-    // NEVER link a memory to a person/identity by mere similarity — those connect by
-    // NAME only (cognitive gravity handles that). Semantic linking here is exactly what
-    // gathered 20+ unrelated memories under one person. Skip them entirely.
-    if (target.kind && NAME_ONLY_KINDS.has(target.kind)) continue;
-
     // Constellation membership: a strong match to an existing MOC hub means this new
     // memory belongs in that constellation — add it directly (a `summarizes` edge), no
     // LLM gate and no cap. This is how a constellation grows with related new memories.
@@ -74,6 +68,12 @@ export async function associativeLink(
       );
       continue;
     }
+
+    // Associative linking is memory↔memory ONLY. Cognitive anchors (goals/skills/people/
+    // identities/…) and consolidated beliefs have their OWN dedicated linking passes
+    // (cognitive gravity, dream cycles) — linking them here too just double-links and
+    // inflates their degree past the anchor cap. Skip any non-memory target.
+    if (target.kind != null && target.kind !== "memory") continue;
 
     if (regularLinks >= cap) {
       // Strong enough to consider, but past the per-memory cap → offer it for review
