@@ -2382,12 +2382,13 @@ button {
   left: calc(8px + env(safe-area-inset-left));
   top: 50%;
   transform: translateY(-50%);
-  z-index: 42;
+  z-index: 30; /* below FABs/panels so it never sits on top of them */
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 5px;
   user-select: none;
+  pointer-events: none; /* a readout, never a click target — must not block anything behind it */
 }
 .fuel-gauge .fg-ic { font-size: 15px; filter: drop-shadow(0 0 6px rgba(255, 200, 90, 0.5)); }
 .fuel-gauge .fg-tube {

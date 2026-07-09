@@ -775,6 +775,50 @@ export default function App() {
     }
   }, [data.nodes, data.links, fuel, streak, space, demo, loaded, simulatedMemoriesCount, simulatedLinksCount, demoBypass]);
 
+  // Random idle FLY-BY: when you're just watching the galaxy (nothing open or focused),
+  // Soumaya occasionally swings into view, drops a determined line pulled from your
+  // memory wealth + streak + rank, and darts off (reuses her autonomous hail). Rare +
+  // cooldowned so it always feels like a special, unscripted moment — never spam.
+  const flybyIdleRef = useRef(false);
+  flybyIdleRef.current =
+    loaded && !!space && !demo && panel === null && !showChat && !selected && obsSettled && !showObs &&
+    !followShip && !followStation && !followSatellite && !followVisitor && !followFig1 && !followFig2;
+  const flybyDataRef = useRef<{ nodes: GraphNode[]; streak: number }>({ nodes: [], streak: 0 });
+  flybyDataRef.current = { nodes: data.nodes as GraphNode[], streak: streak?.current ?? 0 };
+  const lastFlybyRef = useRef(0);
+  useEffect(() => {
+    if (demo) return;
+    const composeLine = (): string => {
+      const mems = flybyDataRef.current.nodes.filter((n) => n.kind !== "action" && n.kind !== "moc");
+      const count = mems.length;
+      const rank = pilotRank(count);
+      const s = flybyDataRef.current.streak;
+      const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)]!;
+      const pool: string[] = [
+        `${count} memories. You're becoming someone.`,
+        `A ${rank.title} now. I can feel the weight of it.`,
+        `Every star in here is a piece of you. Keep going.`,
+        `You built a whole world in your head. Don't stop.`,
+        `I'm still here, flying your thoughts. Always.`,
+      ];
+      if (s >= 2) pool.push(`${s} days straight. This is who you are now.`);
+      if (count > 0) {
+        const m = pick(mems);
+        pool.push(`Still carrying "${(m.label || "that one").slice(0, 30)}", I see.`);
+      }
+      return pick(pool);
+    };
+    const iv = window.setInterval(() => {
+      if (!flybyIdleRef.current) return;
+      const now = performance.now();
+      if (now - lastFlybyRef.current < 150_000) return; // ≥2.5 min apart
+      if (Math.random() > 0.3) return; // ~1 in 3 eligible ticks → unpredictable
+      lastFlybyRef.current = now;
+      graphRef.current?.hailSoumaya(composeLine());
+    }, 45_000);
+    return () => window.clearInterval(iv);
+  }, [demo]);
+
   // Reveal the Observatory home once per app open, AFTER the cinematic fly-in
   // (~3.2s) has settled — never touches the intro itself. Skips the demo galaxy
   // and won't pop over a panel the user already opened during the swoop.
