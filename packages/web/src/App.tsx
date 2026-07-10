@@ -28,6 +28,7 @@ import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
+import { usePolledCount } from "./hooks/usePolledCount.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/achievements.js";
@@ -78,8 +79,6 @@ export default function App() {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showFuelWays, setShowFuelWays] = useState(false);
   const [showReview, setShowReview] = useState(false);
-  const [dueCount, setDueCount] = useState(0);
-  const [candCount, setCandCount] = useState(0);
   // A full-screen "rank up" celebration moment (not just a quiet toast).
   const [rankUp, setRankUp] = useState<{ title: string; level: number } | null>(null);
   const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
@@ -607,32 +606,15 @@ export default function App() {
     clearGalaxyStuck();
   }, [clearGalaxyStuck]);
 
-  // Suggested-Connections badge: keep the pending count fresh (on ingest, when the
-  // panel closes, and on a slow poll) so the 🔗 FAB shows how many links await review.
-  useEffect(() => {
-    if (!space || demo) return;
-    let alive = true;
-    const load = () => getCandidates().then((d) => alive && setCandCount(d.count)).catch(() => {});
-    load();
-    const onIngest = () => window.setTimeout(load, 1000);
-    window.addEventListener("brain-memory-added", onIngest);
-    const iv = window.setInterval(load, 60_000);
-    return () => {
-      alive = false;
-      window.removeEventListener("brain-memory-added", onIngest);
-      window.clearInterval(iv);
-    };
-  }, [space, demo, showConnections]);
-
-  // Recall badge: how many memories have decayed to their spaced-repetition point.
-  useEffect(() => {
-    if (!space || demo) return;
-    let alive = true;
-    const load = () => getDueReviews().then((d) => alive && setDueCount(d.length)).catch(() => {});
-    load();
-    const iv = window.setInterval(load, 120_000);
-    return () => { alive = false; window.clearInterval(iv); };
-  }, [space, demo, showReview]);
+  // Badge polls (via usePolledCount): the 🔗 Suggested-Connections count (refreshed on
+  // ingest + when the panel closes) and the 🧠 due-recall count. Behaviour unchanged.
+  const candCount = usePolledCount(() => getCandidates().then((d) => d.count), !!space && !demo, 60_000, {
+    refreshEvent: "brain-memory-added",
+    refreshKey: showConnections,
+  });
+  const dueCount = usePolledCount(() => getDueReviews().then((d) => d.length), !!space && !demo, 120_000, {
+    refreshKey: showReview,
+  });
 
   // Gamification (Wave 1): greet the pilot once per session when their galaxy
   // first loads — by name, with what changed while they were away.
