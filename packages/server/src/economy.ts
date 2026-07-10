@@ -10,7 +10,7 @@ import { DEFAULT_SPACE } from "./db/schema.js";
  * on free upkeep only. Fully space-scoped (each brain has its own fuel).
  */
 export const FUEL_START = 25;
-export const FUEL_CAP = 120;
+export const FUEL_CAP = 200; // roomier tank so you can bank earnings instead of hitting the ceiling
 export const FUEL_JOB_COST = 2; // per autonomous LLM job
 export const EARN_MEMORY = 8; // logging a real memory (your main income — should feel rewarding)
 export const EARN_LINK = 1; // each associative link formed
