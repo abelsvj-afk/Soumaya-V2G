@@ -110,16 +110,17 @@ export function NoticingCard({
     onAnswered?.(); // the galaxy may lose an edge → refresh
     void afterAct();
   };
+  const isHub = q.kind === "hub_suggestion";
   const confirm = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
     await confirmInquiry(q.id);
     playSfx("achievement");
-    pushToast("Connected ✦ — woven into your galaxy.", "🧠", 3500);
+    pushToast(isHub ? "Constellation named ✨ — a new hub anchors that cluster." : "Connected ✦ — woven into your galaxy.", "🧠", 3500);
     onAnswered?.();
     void afterAct();
   };
-  // A one-tap "yes, connect" makes sense for the connection-style noticings.
-  const canConfirm = q.kind === "anchor" || q.kind === "bridge";
+  // A one-tap "yes" makes sense for the connection-style + hub-suggestion noticings.
+  const canConfirm = q.kind === "anchor" || q.kind === "bridge" || isHub;
 
   return (
     <>

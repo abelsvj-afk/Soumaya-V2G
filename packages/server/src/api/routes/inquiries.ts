@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { listInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry } from "../../analysis/inquiry.js";
+import { promoteConstellation } from "../../analysis/constellations.js";
 import { spaceOf } from "../middleware.js";
 
 const AnswerBody = z.object({ text: z.string().min(1).max(4000) });
@@ -49,17 +50,31 @@ export function inquiryRoutes(ctx: AppContext): Router {
     res.json({ ok: true });
   });
 
-  // POST /api/inquiries/:id/confirm -> "yes, connect them" (one tap, no typing).
-  r.post("/:id/confirm", (req, res) => {
+  // POST /api/inquiries/:id/confirm -> "yes" (one tap, no typing). For a hub_suggestion
+  // this promotes the cluster to a constellation; for anchor/bridge it forges the link.
+  r.post("/:id/confirm", async (req, res) => {
     const id = Number(req.params.id);
-    if (!Number.isInteger(id)) {
-      res.status(400).json({ error: "Invalid id" });
-      return;
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    const spaceId = spaceOf(res);
+    const row = ctx.handle.sqlite
+      .prepare(`SELECT kind, question, node_ids AS nodeIds FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
+      .get(id, spaceId) as { kind: string; question: string; nodeIds: string } | undefined;
+    if (!row) return res.status(404).json({ error: "Not found" });
+
+    if (row.kind === "hub_suggestion") {
+      let ids: number[] = [];
+      try {
+        ids = JSON.parse(row.nodeIds);
+      } catch {
+        /* ignore */
+      }
+      const name = row.question.match(/"([^"]+)"/)?.[1] ?? "New constellation";
+      await promoteConstellation(ctx, spaceId, name, ids);
+      ctx.handle.sqlite.prepare(`UPDATE inquiries SET status = 'answered' WHERE id = ? AND space_id = ?`).run(id, spaceId);
+      return res.json({ ok: true, promoted: true });
     }
-    if (!confirmInquiry(ctx, spaceOf(res), id)) {
-      res.status(404).json({ error: "Not found" });
-      return;
-    }
+
+    if (!confirmInquiry(ctx, spaceId, id)) return res.status(404).json({ error: "Not found" });
     res.json({ ok: true });
   });
 

@@ -7,6 +7,7 @@ import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
 import { knn, getEmbedding } from "../db/vec.js";
 import { isRejected, recordRejection } from "./rejections.js";
+import { suggestHub } from "./constellations.js";
 
 /**
  * The proactive-intelligence layer. Beyond linking, Soumaya NOTICES structural
@@ -256,6 +257,24 @@ function skillCheckinCandidate(ctx: AppContext, spaceId: string, seen: Set<strin
   return null;
 }
 
+/**
+ * A dense, un-hubbed cluster worth naming as a constellation (feature #5c). Confirming
+ * the inquiry promotes it to a `moc` hub. The suggested name rides in the question so
+ * the confirm handler can reuse it.
+ */
+function hubSuggestCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Candidate | null {
+  const hub = suggestHub(ctx, spaceId);
+  if (!hub) return null;
+  const sig = `hub:${[...hub.memberIds].sort((a, b) => a - b).slice(0, 4).join(",")}`;
+  if (seen.has(sig)) return null;
+  return {
+    question: `${hub.memberIds.length} of your memories form a tight cluster — want me to name it the constellation "${hub.name}"?`,
+    kind: "hub_suggestion",
+    nodeIds: hub.memberIds,
+    signature: sig,
+  };
+}
+
 /** Heuristic: how much an honest check-in answer should move a skill (small; slow growth). */
 function skillNudgeFromText(text: string): number {
   const t = ` ${text.toLowerCase()} `;
@@ -282,6 +301,7 @@ export function generateInquiry(ctx: AppContext, spaceId: string): number | null
     bridgeCandidate(ctx, spaceId, seen) ??
     anchorCandidate(ctx, spaceId, seen) ??
     themeCandidate(ctx, spaceId, seen) ??
+    hubSuggestCandidate(ctx, spaceId, seen) ??
     skillCheckinCandidate(ctx, spaceId, seen);
   if (!candidate) return null;
 
