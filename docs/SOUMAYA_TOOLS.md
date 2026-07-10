@@ -1,6 +1,14 @@
 # Soumaya's Tools — an agentic tool-router she can call on her own
 
-Status: **spec locked (v1)** · Owner: Claude · Branch: `claude/soumaya-second-brain-v1-m4z4hc`
+Status: **BUILT (v1 complete)** · Owner: Claude · Branch: `claude/soumaya-second-brain-v1-m4z4hc`
+
+> **Done (2026-07-10).** All six tools + the agentic router are shipped on `master`, gate-green:
+> `fire_reminder` · `create_task` · `surface_orphan` · `review_nudge` · `check_in` · `web_lookup`
+> (Gemini grounding, gated). The router is two-phase — every tool DETECTS deterministic candidates
+> (offline-safe), and when Research Mode is on + a working `llm.route` exists, Soumaya CURATES which
+> candidates to execute (she can only pick from validated candidates, never invent one). Runs on the
+> 60s interval; delivery → Telegram if linked, always logged to `agent_logs`. **Needs a `fly deploy`
+> to go live.**
 
 ## Why
 

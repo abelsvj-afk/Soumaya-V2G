@@ -2116,6 +2116,7 @@ body,
 }
 .streak-ember .se-flame { font-size: 18px; filter: drop-shadow(0 0 6px rgba(255, 150, 60, 0.6)); }
 .streak-ember .se-count { font-size: 12px; font-weight: 800; color: #ffcf6b; text-shadow: 0 0 6px rgba(255, 170, 60, 0.6); font-variant-numeric: tabular-nums; }
+.streak-ember .se-shields { font-size: 10px; letter-spacing: -2px; filter: drop-shadow(0 0 4px rgba(150, 134, 255, 0.6)); }
 .streak-ember .se-warn {
   font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.05em; color: #ff8a5a; font-weight: 700;
   margin-top: 1px; text-align: center; max-width: 46px; line-height: 1.1;

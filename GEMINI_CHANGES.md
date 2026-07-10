@@ -165,6 +165,24 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-10 (Claude): Tool fleet COMPLETE — SRS made visible, web-lookup, agentic router
+Finished the tools/functions build-out (the cutover gate for `AI_ENGINEERING_WORKFLOW_POST_MVP.md`):
+- **Spaced repetition made visible:** `ReviewPanel` (🧠 FAB + due-count badge) — a gentle recall
+  session (recall → reveal → self-grade; SM-2 reschedules via `/api/review`). **Star-dimming:** the
+  graph service enriches each memory with `reviewStrength` (live on read); `nodeObject` folds it into
+  `vitality` so a memory fading toward its review point visibly darkens (floored ~55%).
+- **`web_lookup` tool (Gemini grounding, gated):** `LlmProvider.webLookup?` → grounded search + source
+  URLs (Gemini `googleSearch`; Resilient returns null when unavailable; heuristic none). On an explicit
+  "look it up" memory she searches the live web and attaches a cited note — Research Mode + budget +
+  Fuel required, fully offline-safe (no capability → no-op).
+- **Agentic LLM router:** the router is now two-phase — tools DETECT deterministic candidates, then
+  (Research Mode + `llm.route`) Soumaya CURATES which to run (picks only from validated candidates,
+  never invents). `buildBriefing` is pure DB reads. Offline/failure → runs all candidates (unchanged).
+- **Nebula-shield pip** on the streak ember (🛡️) so the streak-freeze is visible + explained.
+- Gate: typecheck clean · **272 tests** (+8 across review/tools) · web build clean. **Needs `fly deploy`.**
+- **All six tools shipped:** reminder · task · orphan · review-nudge · check-in · web-lookup + router.
+  Remaining polish (optional, not tools): deep-space focus mode, colorblind palette toggle.
+
 ### 2026-07-10 (Claude): Tool fleet + neuro gaps — 5 slices (all gate-green, shipped)
 Built out the tool-router (`agent/tools/`) + the report's ranked gaps (`NEURO_ALIGNMENT.md`):
 - **create_task** — a first-person commitment in a recent memory becomes a linked action, once

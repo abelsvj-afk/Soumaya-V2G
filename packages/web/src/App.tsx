@@ -1193,7 +1193,7 @@ export default function App() {
       {!demo && panel === null && !showChat && !showObs && !showSettings && !showConnections && !showTimeline && (
         <>
           <FuelGauge fuel={fuel} pops={fuelPops} busy={aiBusy > 0} onClick={() => setShowFuelWays(true)} />
-          <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} />
+          <StreakEmber streak={streak?.current ?? 0} atRisk={streakAtRisk} shields={streak?.shields ?? 0} />
         </>
       )}
       {rankUp && (
