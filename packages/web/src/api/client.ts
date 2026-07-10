@@ -267,6 +267,25 @@ export async function deleteNode(id: number): Promise<void> {
   }
 }
 
+/** Archive (rest) a memory — kept, but out of the galaxy + retrieval — or restore it. */
+export async function archiveNode(id: number, archived = true): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/nodes/${id}/${archived ? "archive" : "unarchive"}`, { method: "POST" });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+export async function getArchivedNodes(): Promise<GraphNode[]> {
+  try {
+    const res = await afetch(`${API}/nodes/archived`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+
 /** An object's evolving lore (oldest → newest); genesis is created on first read. */
 export async function getLore(subjectType: LoreSubjectType, subjectId: string): Promise<LoreEntry[]> {
   try {

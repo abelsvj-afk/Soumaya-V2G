@@ -64,7 +64,7 @@ export function keywordSearch(
       .prepare(
         `SELECT f.rowid AS nodeId FROM nodes_fts f
          JOIN nodes n ON n.id = f.rowid
-         WHERE nodes_fts MATCH ? AND n.space_id = ? AND n.deleted_at IS NULL
+         WHERE nodes_fts MATCH ? AND n.space_id = ? AND n.deleted_at IS NULL AND n.status != 'archived'
          ORDER BY bm25(nodes_fts) LIMIT ?`,
       )
       .all(match, spaceId, k) as { nodeId: number }[];

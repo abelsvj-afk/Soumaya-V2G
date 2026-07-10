@@ -133,12 +133,13 @@ export function knn(db: RawDb, queryVec: Float32Array, k: number, spaceId?: stri
 
   if (spaceId) {
     const lookup = db.prepare(
-      `SELECT space_id AS s, deleted_at AS d FROM nodes WHERE id = ?`,
+      `SELECT space_id AS s, deleted_at AS d, status AS st FROM nodes WHERE id = ?`,
     );
     hits = hits
       .filter((h) => {
-        const row = lookup.get(h.nodeId) as { s: string; d: string | null } | undefined;
-        return row !== undefined && row.s === spaceId && row.d === null;
+        const row = lookup.get(h.nodeId) as { s: string; d: string | null; st: string | null } | undefined;
+        // Space-scoped, not deleted, and not archived (archived rests out of retrieval).
+        return row !== undefined && row.s === spaceId && row.d === null && row.st !== "archived";
       })
       .slice(0, k);
   }

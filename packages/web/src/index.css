@@ -2020,8 +2020,20 @@ body,
 }
 
 /* Delete memory */
-.delete-btn {
+.archive-btn {
   margin-top: 14px;
+  width: 100%;
+  background: rgba(150, 134, 255, 0.12);
+  border: 1px solid rgba(150, 134, 255, 0.38);
+  color: #cdc4ff;
+  border-radius: 10px;
+  padding: 9px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.archive-btn:hover { background: rgba(150, 134, 255, 0.24); }
+.delete-btn {
+  margin-top: 10px;
   width: 100%;
   background: rgba(255, 90, 120, 0.14);
   border: 1px solid rgba(255, 120, 150, 0.4);

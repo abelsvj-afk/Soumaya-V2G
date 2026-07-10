@@ -134,6 +134,8 @@ export interface GraphNode {
    *  CognitiveKind ("goal"/"idea"/"skill"/… — the cognitive layer, see
    *  docs/COGNITIVE_LAYER.md); else a normal memory. */
   kind?: "memory" | "action" | "moc" | "belief" | import("./celestial.js").CognitiveKind;
+  /** Lifecycle: "archived" rests out of the galaxy + retrieval (kept, not deleted). */
+  status?: "active" | "archived";
   /** 0..1 progress — goal completion / skill level (cognitive layer). */
   progress?: number;
   /** Cognitive layer: other names for this entry ("girlfriend", "my girl") so vague

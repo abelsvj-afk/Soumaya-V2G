@@ -80,6 +80,9 @@ function migrateSchema(sqlite: RawDb): void {
     ["next_review_at", `ALTER TABLE nodes ADD COLUMN next_review_at TEXT`],
     ["last_reviewed_at", `ALTER TABLE nodes ADD COLUMN last_reviewed_at TEXT`],
     ["review_count", `ALTER TABLE nodes ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0`],
+    // Lifecycle status: an archived memory rests — kept, but out of the galaxy + retrieval
+    // by default (not deleted). Feature runway #5a.
+    ["status", `ALTER TABLE nodes ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`],
   ] as const) {
     if (!cols.some((c) => c.name === col)) sqlite.exec(ddl);
   }

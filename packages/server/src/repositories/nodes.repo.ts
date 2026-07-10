@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lte } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lte, ne } from "drizzle-orm";
 import type { GraphNode, NodeType } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { nodes, DEFAULT_SPACE, type NodeRow } from "../db/schema.js";
@@ -38,6 +38,7 @@ function toGraphNode(row: NodeRow): GraphNode {
     origin: (row.origin as "user" | "agent" | null) ?? undefined,
     agent: row.agent ?? undefined,
     kind: (row.kind as GraphNode["kind"]) ?? undefined,
+    status: (row.status as "active" | "archived" | null) ?? undefined,
     progress: row.progress ?? undefined,
     aliases: parseTags(row.aliases),
     expiresAt: row.expiresAt ?? undefined,
@@ -197,13 +198,32 @@ export class NodesRepo {
       .map(toGraphNode);
   }
 
+  /** Live memories for the galaxy — excludes archived (they rest out of view). */
   all(): GraphNode[] {
     return this.h.db
       .select()
       .from(nodes)
-      .where(and(eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt)))
+      .where(and(eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt), ne(nodes.status, "archived")))
       .all()
       .map(toGraphNode);
+  }
+
+  /** Archived memories (for the Browse "Archived" lens). */
+  archived(): GraphNode[] {
+    return this.h.db
+      .select()
+      .from(nodes)
+      .where(and(eq(nodes.spaceId, this.spaceId), isNull(nodes.deletedAt), eq(nodes.status, "archived")))
+      .all()
+      .map(toGraphNode);
+  }
+
+  /** Archive / restore a memory (kept, not deleted). Returns true if it changed. */
+  setStatus(id: number, status: "active" | "archived"): boolean {
+    const info = this.h.sqlite
+      .prepare(`UPDATE nodes SET status = ? WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
+      .run(status, id, this.spaceId);
+    return info.changes > 0;
   }
 
   byIds(ids: number[]): GraphNode[] {

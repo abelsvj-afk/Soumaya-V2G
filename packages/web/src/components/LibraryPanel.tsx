@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { GraphData, GraphNode, NodeType } from "@brain/shared";
 import { NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
+import { getArchivedNodes, archiveNode } from "../api/client.js";
 
 /**
  * Library — a browsable, foldered view of the whole brain. The galaxy is beautiful
@@ -71,6 +72,18 @@ export function LibraryPanel({
   spaceName?: string;
 }) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Archived (resting) memories — lazily fetched when the section is expanded.
+  const [showArchived, setShowArchived] = useState(false);
+  const [archived, setArchived] = useState<GraphNode[] | null>(null);
+  useEffect(() => {
+    if (showArchived && archived === null) void getArchivedNodes().then(setArchived);
+  }, [showArchived, archived]);
+  const restore = async (id: number) => {
+    if (await archiveNode(id, false)) {
+      setArchived((a) => (a ? a.filter((n) => n.id !== id) : a));
+      window.dispatchEvent(new Event("brain-memory-added")); // nudge the galaxy to refresh
+    }
+  };
 
   // Group non-action memories into folders, newest first within each.
   const folders = useMemo(() => {
@@ -179,6 +192,34 @@ export function LibraryPanel({
             </div>
           );
         })}
+      </div>
+
+      {/* Archived (resting) memories — kept, out of the galaxy, restorable. */}
+      <div style={{ marginTop: "0.9rem", border: "1px solid rgba(150,134,255,0.18)", borderRadius: "8px", overflow: "hidden" }}>
+        <div
+          style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 0.7rem", cursor: "pointer", background: "rgba(150,134,255,0.06)" }}
+          onClick={() => setShowArchived((v) => !v)}
+        >
+          <span style={{ opacity: 0.7, width: "0.9rem" }}>{showArchived ? "▾" : "▸"}</span>
+          <span style={{ fontWeight: 600, fontSize: "0.86rem", flex: 1 }}>📥 Archived</span>
+          {archived && <span style={{ fontSize: "0.74rem", opacity: 0.6 }}>{archived.length}</span>}
+        </div>
+        {showArchived && (
+          <ul style={{ listStyle: "none", margin: 0, padding: "0.3rem 0.5rem 0.5rem" }}>
+            {archived === null && <li style={{ padding: "0.4rem", opacity: 0.6, fontSize: "0.76rem" }}>Loading…</li>}
+            {archived && archived.length === 0 && (
+              <li style={{ padding: "0.4rem", opacity: 0.6, fontSize: "0.76rem" }}>Nothing archived. Rest a memory from its details (📥) to tuck it away here.</li>
+            )}
+            {archived?.map((n) => (
+              <li key={n.id} style={{ padding: "0.35rem 0.3rem", borderTop: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <span style={{ flex: 1, fontSize: "0.82rem" }}>{n.label}</span>
+                <button className="mini" style={{ padding: "0.12rem 0.45rem", fontSize: "0.72rem" }} onClick={() => void restore(n.id)} title="Bring this memory back into the galaxy">
+                  ↩ Restore
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

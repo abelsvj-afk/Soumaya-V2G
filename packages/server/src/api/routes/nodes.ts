@@ -42,6 +42,23 @@ export function nodesRoutes(ctx: AppContext): Router {
     res.json({ ok });
   });
 
+  // --- Lifecycle: archive / restore (memory kept, but rests out of the galaxy) ---
+  // GET /api/nodes/archived -> archived memories for the Browse "Archived" lens.
+  r.get("/archived", (_req, res) => {
+    res.json(new NodesRepo(ctx.handle, spaceOf(res)).archived());
+  });
+  // POST /api/nodes/:id/archive | /unarchive
+  r.post("/:id/archive", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    res.json({ ok: new NodesRepo(ctx.handle, spaceOf(res)).setStatus(id, "archived") });
+  });
+  r.post("/:id/unarchive", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ error: "Invalid id" });
+    res.json({ ok: new NodesRepo(ctx.handle, spaceOf(res)).setStatus(id, "active") });
+  });
+
   // --- Attachments: downloadable documents kept inside a memory note ---
 
   // GET /api/nodes/:id/attachments -> metadata for this memory's files (no bytes).

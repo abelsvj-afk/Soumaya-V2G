@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
-import { deleteNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
+import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
@@ -339,6 +339,20 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </div>
         <div className="tier-current">{node.celestial ? CELESTIAL_LABEL[node.celestial] : ""}</div>
       </div>
+
+      {onDeleted && (node.kind == null || node.kind === "memory") && (
+        <button
+          className="archive-btn"
+          title="Rest this memory — it leaves the galaxy and stops surfacing in chat, but is kept and can be restored anytime from Browse → Archived."
+          onClick={() => {
+            void archiveNode(node.id, true).then((ok) => {
+              if (ok) onDeleted();
+            });
+          }}
+        >
+          📥 Archive (rest it)
+        </button>
+      )}
 
       {onDeleted && (
         <button
