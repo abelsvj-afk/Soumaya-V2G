@@ -4393,3 +4393,16 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .lens-chip.on .lens-chip-count { color: var(--accent); }
 .focus-mode .lens-chips { opacity: 0.08; transition: opacity 0.5s ease; }
 .focus-mode .lens-chips:hover { opacity: 1; }
+
+/* Right-side-up / level-camera button — shown only while following the ship. Sits in
+   the bottom-right nav column, above the ⚙️ settings FAB. */
+.fab-level {
+  bottom: 354px;
+  right: 14px;
+  font-size: 22px;
+}
+@supports (padding: env(safe-area-inset-bottom)) {
+  .fab-level { bottom: calc(354px + env(safe-area-inset-bottom)); }
+}
+.focus-mode .fab-level { opacity: 0.08; transition: opacity 0.5s ease; }
+.focus-mode .fab-level:hover { opacity: 1; }

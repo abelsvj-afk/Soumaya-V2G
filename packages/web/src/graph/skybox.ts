@@ -7,7 +7,7 @@ import { gltfLoader } from "./gltf.js";
  * (and the fallback if the 16K texture fails on a device). Our starfield, comets
  * and constellations live INSIDE this sphere so they stay visible against it.
  */
-export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000): void {
+export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000, onReady?: (sky: THREE.Object3D) => void): void {
   // The 16K texture (18MB) exceeds most mobile GPU limits (renders black) and can
   // OOM the decoder — so only attempt it on larger screens. Phones keep the rich
   // procedural nebula background, which always works.
@@ -33,6 +33,7 @@ export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000): void {
         }
       });
       scene.add(sky);
+      onReady?.(sky); // let the caller scale it out as the galaxy grows
     },
     undefined,
     (err) => console.warn("[skybox] nebula glb failed to load; using gradient", err),

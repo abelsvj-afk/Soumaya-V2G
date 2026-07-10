@@ -1512,6 +1512,19 @@ export default function App() {
         />
       )}
 
+      {/* Right-side-up: re-level the camera when following the ship (banking + free
+          orbit can leave you looking at her sideways or upside down). */}
+      {followShip && panel === null && (
+        <button
+          className="fab fab-level"
+          onClick={() => graphRef.current?.levelShipView()}
+          aria-label="Level camera on the ship"
+          title="Right-side up — wide, level view of the ship"
+        >
+          ⭯
+        </button>
+      )}
+
       {clustered && (
         <button
           className="exit-cluster"

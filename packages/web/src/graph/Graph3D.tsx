@@ -46,6 +46,9 @@ export interface Graph3DHandle {
   zoomBy: (factor: number) => void;
   /** Toggle the camera focusing Soumaya's ship; returns the new state. */
   toggleFollowShip: (forceState?: boolean) => boolean;
+  /** Re-level the camera on the ship: a wide, right-side-up external view (undoes the
+   *  upside-down/sideways drift that banking + free orbit can leave you in). */
+  levelShipView: () => void;
   /** Toggle the camera focusing the space station; returns the new state. */
   toggleFollowStation: () => boolean;
   /** Toggle camera focusing slot 1 figurine; returns the new state. */
@@ -302,7 +305,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // but never zoom far enough to exit the surrounding star field.
     const reff = Math.max(orbitsRef.current.getRadius(), 1000);
     stationOrbitRef.current = reff + 800;
-    maxDistRef.current = Math.min(6200, Math.max(3200, stationOrbitRef.current + 1400));
+    // The zoom-out ceiling scales with the TRUE galaxy radius so recenter can always pull
+    // far enough to frame the whole thing (the old flat 6200 cap couldn't, even for small
+    // galaxies — measured). frameGalaxy may raise this further for narrow/portrait fits;
+    // the scenery is scaled well beyond it so the star-field edge is never revealed.
+    maxDistRef.current = Math.max(3200, reff * 3.4 + 900);
+    scaleSceneryRef.current();
 
     // Detect freshly-formed connections so SOUMAYA flies out and draws them herself
     // (rather than the line just popping in). The first data load is the baseline —
@@ -468,6 +476,33 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const lastVisCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
+  // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
+  // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
+  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D }>({});
+  // Push the scenery out so its radius always exceeds the camera's reach for the current
+  // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
+  const scaleSceneryRef = useRef<() => void>(() => {});
+  scaleSceneryRef.current = () => {
+    const R = orbitsRef.current?.getRadius?.() ?? 1000;
+    const s = sceneryRef.current;
+    const fit = (obj: THREE.Object3D | undefined, base: number, mult: number) => {
+      if (obj) obj.scale.setScalar(Math.max(1, (R * mult) / base));
+    };
+    fit(s.starfield, 7000, 7); // stars surround the camera at any zoom-out
+    fit(s.constellations, 9500, 8);
+    fit(s.skybox, 12000, 10); // the nebula shell sits furthest out
+    // The far clip must exceed the (now-scaled) skybox on the far side of the galaxy, or
+    // everything past 30000 clips. Scale it with the ceiling (kept ≥ the old 30000).
+    const fg = fgRef.current;
+    const cam = fg?.camera?.() as THREE.PerspectiveCamera | undefined;
+    if (cam?.isPerspectiveCamera) {
+      const want = Math.max(30000, maxDistRef.current * 6);
+      if (Math.abs((cam.far ?? 0) - want) > 1) {
+        cam.far = want;
+        cam.updateProjectionMatrix();
+      }
+    }
+  };
   // Accessibility: when reduced-motion is on we crawl the orbits + skip ambient
   // pulses (#3b). Kept in a ref so the render loop reads it without re-subscribing.
   const calmMotionRef = useRef(shouldCalmMotion());
@@ -554,17 +589,24 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         /* renderer not ready yet — the effect below re-applies it */
       }
       scene.background = makeSpaceBackground();
-      scene.add(makeStarfield(gfx.starCount));
+      const starfield = makeStarfield(gfx.starCount);
+      sceneryRef.current.starfield = starfield;
+      scene.add(starfield);
       // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
       // extra draw calls + textures that can stall a mid/low phone on the first frame —
       // render it only on the top graphics tier. The starfield alone still reads as space.
       if (gfx.heavyScenery) {
-        loadNebulaSkybox(scene);
+        loadNebulaSkybox(scene, 12000, (sky) => {
+          sceneryRef.current.skybox = sky;
+          scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
+        });
         scene.add(makeNebulae());
         scene.add(makeGalaxies());
         scene.add(makeComets());
       }
-      scene.add(makeConstellations());
+      const constellations = makeConstellations();
+      sceneryRef.current.constellations = constellations;
+      scene.add(constellations);
       const bursts = makeCollisionBursts();
       burstsRef.current = bursts;
       scene.add(bursts.group);
@@ -1466,14 +1508,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const center = new THREE.Vector3();
     for (const n of pts) center.add(new THREE.Vector3(n.x, n.y, n.z ?? 0));
     center.multiplyScalar(1 / pts.length);
-    const distances = pts.map((n) =>
-      center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0))
-    );
-    distances.sort((a, b) => a - b);
-    const pctIndex = Math.min(distances.length - 1, Math.floor(distances.length * 0.85));
-    let radius = distances[pctIndex] || 1;
-    // Always enclose the (gigantic) sun at the origin too, plus headroom.
-    radius = Math.max(radius, center.length() + SUN_RADIUS_MAX) * 1.12;
+    // Enclose the FURTHEST star (not the 85th percentile — that left the outer ~15% of
+    // a grown galaxy sticking out of frame, which is exactly the "recenter doesn't fit"
+    // bug). Fall back to the orbit system's own measured extent for safety.
+    let radius = 1;
+    for (const n of pts) radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
+    radius = Math.max(radius, orbitsRef.current.getRadius(), center.length() + SUN_RADIUS_MAX) * 1.12;
     const cam = fg.camera() as THREE.PerspectiveCamera;
     const fov = ((cam.fov ?? 60) * Math.PI) / 180;
     // Guard a zero/invalid aspect (canvas not yet sized during the intro framing),
@@ -1482,8 +1522,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Fit by the tighter of vertical/horizontal FOV, with margin for labels/orbits.
     const vFit = radius / Math.sin(fov / 2);
     const hFit = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
-    let dist = Math.max(vFit, hFit) * 1.25;
-    dist = Math.min(dist, maxDistRef.current * 0.95);
+    const dist = Math.max(vFit, hFit) * 1.25;
+    // Guarantee the ceiling admits this framing (a narrow portrait screen needs ~2× the
+    // landscape distance). Raising it here + scaling scenery beyond means recenter ALWAYS
+    // fits the full galaxy, at any aspect or size, instead of being clamped short.
+    if (dist * 1.06 > maxDistRef.current) {
+      maxDistRef.current = dist * 1.06;
+      scaleSceneryRef.current();
+    }
     const az = Math.PI * 0.22; // gentle yaw so it doesn't look dead-on
     const el = Math.PI * 0.2; // lift above the orbital plane for depth
     const dirv = new THREE.Vector3(
@@ -1626,6 +1672,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjAnchored.current = false;
         if (on) followRef.current = null;
         return on;
+      },
+      levelShipView: () => {
+        const fg = fgRef.current;
+        if (!fg || !soumayaObjRef.current) return;
+        const cam = fg.camera() as THREE.PerspectiveCamera;
+        const controls = fg.controls?.();
+        if (!controls) return;
+        // Force a wide UPRIGHT external view, whatever the ship's current bank/roll.
+        shipViewModeRef.current = "orbit";
+        followKindRef.current = "ship";
+        followObjRef.current = soumayaObjRef.current;
+        followRef.current = null;
+        const sp = soumayaObjRef.current.getWorldPosition(new THREE.Vector3());
+        cam.up.set(0, 1, 0);
+        (controls.object as THREE.Object3D).up.set(0, 1, 0);
+        const d = 72; // comfortable wide framing
+        followDistRef.current = d;
+        // Behind + above along WORLD axes → guaranteed right-side up.
+        cam.position.copy(sp).add(new THREE.Vector3(0, d * 0.5, d));
+        controls.target.copy(sp);
+        followObjAnchor.current.copy(sp);
+        followObjAnchored.current = true;
+        followSnapRef.current = false; // keep the pose we just set (don't re-snap off the ship's nose)
+        controls.update?.();
       },
       reorderTasks: (newOrder: { id: string; type: string }[]) => {
         soumayaHandleRef.current?.reorderTasks(newOrder);
