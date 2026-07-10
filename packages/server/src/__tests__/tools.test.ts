@@ -179,3 +179,15 @@ describe("Soumaya's tool-router — proactive check-ins", () => {
     expect(sent.some((t) => t.includes("heavy"))).toBe(false);
   });
 });
+
+describe("Soumaya's tool-router — web lookup (gated)", () => {
+  it("stays dormant offline (no webLookup capability, Research Mode off) — no note, no crash", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    memory("lookup", "look up the current population of Tokyo", iso(now - 3600_000));
+    await runToolRouter(ctx, "legacy", { now }); // heuristic llm has no webLookup → guarded off
+    const notes = handle.sqlite
+      .prepare(`SELECT COUNT(*) AS c FROM nodes WHERE space_id='legacy' AND label LIKE 'Looked up:%'`)
+      .get() as { c: number };
+    expect(notes.c).toBe(0);
+  });
+});

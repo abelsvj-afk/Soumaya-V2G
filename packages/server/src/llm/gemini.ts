@@ -299,6 +299,30 @@ export class GeminiProvider implements LlmProvider {
     );
   }
 
+  /** Live web lookup via Google Search grounding — returns a concise answer + sources. */
+  async webLookup(query: string): Promise<{ text: string; sources: string[] } | null> {
+    try {
+      const res = await this.ai.models.generateContent({
+        model: MODEL,
+        contents: `Answer concisely using current information from the web. Be factual and brief.\n\nQuestion: ${query}`,
+        config: { tools: [{ googleSearch: {} }], temperature: 0.3 },
+      });
+      const meta = res.usageMetadata;
+      if (meta) this.recordUsage?.(MODEL, meta.promptTokenCount ?? 0, meta.candidatesTokenCount ?? 0);
+      const text = (res.text ?? "").trim();
+      if (!text) return null;
+      const cand = res.candidates?.[0] as { groundingMetadata?: { groundingChunks?: { web?: { uri?: string } }[] } } | undefined;
+      const sources: string[] = [];
+      for (const c of cand?.groundingMetadata?.groundingChunks ?? []) {
+        const uri = c?.web?.uri;
+        if (uri) sources.push(uri);
+      }
+      return { text, sources: [...new Set(sources)].slice(0, 8) };
+    } catch {
+      return null;
+    }
+  }
+
   async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
     const raw = await this.json<{ vibe: string }>(
       SECTOR_SYSTEM,

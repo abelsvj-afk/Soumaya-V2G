@@ -119,6 +119,16 @@ export interface LlmProvider {
   consolidate?(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }>;
   /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
   generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
+  /** Optional: look up LIVE information on the web (grounded search) and return a
+   *  concise answer with source URLs. Absent/returns null when unavailable (no key,
+   *  offline, or blocked) — the web-lookup tool then simply does nothing. */
+  webLookup?(query: string): Promise<WebLookupResult | null>;
+}
+
+/** A grounded web-lookup result: a concise answer plus the source URLs it cited. */
+export interface WebLookupResult {
+  text: string;
+  sources: string[];
 }
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";

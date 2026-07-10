@@ -207,4 +207,15 @@ export class ResilientLlmProvider implements LlmProvider {
     if (this.blocked || !this.primary.distill) throw new Error("distill unavailable");
     return await withTimeout(this.primary.distill(transcript), this.timeoutMs, "distill");
   }
+
+  /** Live web lookup — returns null (never throws) when unavailable, so the tool no-ops. */
+  async webLookup(query: string): Promise<{ text: string; sources: string[] } | null> {
+    if (this.blocked || !this.primary.webLookup) return null;
+    try {
+      return await withTimeout(this.primary.webLookup(query), this.timeoutMs, "webLookup");
+    } catch (err) {
+      this.note(err, "webLookup");
+      return null;
+    }
+  }
 }
