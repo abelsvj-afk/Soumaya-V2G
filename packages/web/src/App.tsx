@@ -1153,7 +1153,7 @@ export default function App() {
   }
 
   return (
-    <div className={`app${focusMode ? " focus-mode" : ""}`}>
+    <div className={`app${focusMode ? " focus-mode" : ""}${focusMenuOpen ? " focus-menu-open" : ""}`}>
       <Toasts />
       {/* Left-edge HUD (fuel + streak) — hidden whenever a panel/chat/Observatory is up
           so it never overlaps their content. */}

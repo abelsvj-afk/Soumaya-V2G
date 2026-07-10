@@ -1213,15 +1213,21 @@ body,
   .fab-observatory { bottom: calc(186px + env(safe-area-inset-bottom)); }
   .focus-cluster { bottom: calc(186px + env(safe-area-inset-bottom)); }
 }
-/* Deep-space focus mode toggle — bottom-left stack, above the music FAB. */
+/* Deep-space focus mode toggle — bottom-left, one slot ABOVE the camera-focus cluster
+   (186px). The cluster's target menu only expands upward while it's OPEN, so in the
+   normal (closed) state this slot is clear; we hide the toggle while that menu is open
+   (see App) so the two never fight. */
 .fab-focus-toggle {
-  bottom: 186px;
+  bottom: 242px;
   left: 14px;
   font-size: 20px;
+  transition: opacity 0.2s ease;
 }
 @supports (padding: env(safe-area-inset-bottom)) {
-  .fab-focus-toggle { bottom: calc(186px + env(safe-area-inset-bottom)); }
+  .fab-focus-toggle { bottom: calc(242px + env(safe-area-inset-bottom)); }
 }
+/* While the camera-focus menu is fanned out, get out of its way. */
+.focus-menu-open .fab-focus-toggle { opacity: 0; pointer-events: none; }
 
 /* Deep-space focus mode (#2): a distraction-free reading session. Everything but the
    galaxy + the way-out recedes; hover brings a control back if you reach for it. The
