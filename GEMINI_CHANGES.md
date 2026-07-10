@@ -165,6 +165,27 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-10 (Claude): Tool fleet + neuro gaps — 5 slices (all gate-green, shipped)
+Built out the tool-router (`agent/tools/`) + the report's ranked gaps (`NEURO_ALIGNMENT.md`):
+- **create_task** — a first-person commitment in a recent memory becomes a linked action, once
+  per memory (deduped via a `relates_to` edge). Deterministic, offline.
+- **surface_orphan** (neuro #4) — nudges one long-drifting unlinked memory per day to be integrated.
+- **★ Spaced repetition + review_nudge** (neuro #1, "memory is made by retrieval") — SM-2-ish
+  schedule per memory (additive `review_*` columns), `memoryStrength` decay (the dimming-star cue),
+  `dueForReview`/`gradeReview`/`snoozeReview`, `GET /api/review/due` + `POST /api/review/:id`.
+  She asks you to RECALL in her own voice, one/day.
+- **check_in** — reaches out on a heavy emotional stretch or an unaddressed contradiction, one/day.
+- **Nebula shield** (neuro #3) — a streak survives ONE missed day if a shield is banked (start 2,
+  earn one back each 7-day run); `space_meta.streak_shields`, `Streak.shields`.
+- **prefers-reduced-motion** (neuro #2) — comprehensive HUD/CSS reduced-motion reset (WCAG 2.3.3);
+  WebGL-galaxy calming is a follow-up.
+- Router stamps `agent_logs` with the tick clock so per-day tool guards are consistent.
+- Gate at each slice: typecheck clean · **270 tests** (18 new across `tools`/`review`/`features`) ·
+  web build clean. **Needs a `fly deploy`.**
+- **Still staged:** live web-lookup tool (needs a search-provider decision) · LLM function-calling
+  router · client surfaces (a review UI for due recalls, SRS star-dimming render, streak shield pip,
+  deep-space focus mode, colorblind palette).
+
 ### 2026-07-10 (Claude): Soumaya's tool-router foundation + her first real tool (firing reminders)
 - **Audit finding:** her "autonomy" was a fixed script of internal graph-tidying jobs; she never
   freely chose a tool and had almost no real-world reach (Telegram digest only). User chose to add
