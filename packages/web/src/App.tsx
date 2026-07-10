@@ -39,6 +39,7 @@ import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/a
 import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
+import { NavRail } from "./components/NavRail.js";
 import {
   currentSpace,
   getGraph,
@@ -1475,35 +1476,18 @@ export default function App() {
       {/* Floating controls — hidden while a panel is open so they never cover it */}
       {panel === null && (
         <>
-          <button className="fab fab-search" onClick={() => toggle("search")} aria-label="Search">
-            🔍
-          </button>
-          <button className="fab fab-flashback" onClick={triggerFlashback} aria-label="Flashback (Serendipity)" title="Surprise me with an old memory">
-            ☄️
-          </button>
-          <button className="fab fab-connections" onClick={() => setShowConnections(true)} aria-label="Suggested connections" title="Review connections + link memories yourself">
-            🔗
-            {candCount > 0 && <span className="fab-badge">{candCount > 99 ? "99+" : candCount}</span>}
-          </button>
-          <button className="fab fab-legend" onClick={() => setShowLegend(true)} aria-label="Legend / galaxy key" title="What the colours & bodies mean">
-            🗺️
-          </button>
-          <button className="fab fab-timeline" onClick={() => setShowTimeline(true)} aria-label="The Chronicle timeline" title="Your life as a flowing 3D timeline">
-            🕰️
-          </button>
-          <button className="fab fab-review" onClick={() => setShowReview(true)} aria-label="Recall session" title="Revisit memories that are gently fading (active recall)">
-            🧠
-            {dueCount > 0 && <span className="fab-badge">{dueCount > 99 ? "99+" : dueCount}</span>}
-          </button>
-          <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
-            ?
-          </button>
-          <button className="fab fab-dock" onClick={() => toggle("dock")} aria-label="Panels">
-            ☰
-          </button>
-          <button
-            className="fab fab-recenter"
-            onClick={() => {
+          <NavRail
+            onSearch={() => toggle("search")}
+            onFlashback={triggerFlashback}
+            onConnections={() => setShowConnections(true)}
+            candCount={candCount}
+            onLegend={() => setShowLegend(true)}
+            onTimeline={() => setShowTimeline(true)}
+            onReview={() => setShowReview(true)}
+            dueCount={dueCount}
+            onHelp={() => setHelp(true)}
+            onDock={() => toggle("dock")}
+            onRecenter={() => {
               graphRef.current?.recenter();
               setFollowShip(false);
               setFollowStation(false);
@@ -1514,28 +1498,9 @@ export default function App() {
               setFocusMenuOpen(false);
               setClustered(false);
             }}
-            aria-label="Recenter galaxy"
-            title="Recenter the galaxy"
-          >
-            ⊙
-          </button>
-          {/* On-screen zoom (works when pinch/trackpad zoom fails). */}
-          <button
-            className="fab fab-zoom-in"
-            onClick={() => graphRef.current?.zoomBy(0.8)}
-            aria-label="Zoom in"
-            title="Zoom in"
-          >
-            ＋
-          </button>
-          <button
-            className="fab fab-zoom-out"
-            onClick={() => graphRef.current?.zoomBy(1.25)}
-            aria-label="Zoom out"
-            title="Zoom out"
-          >
-            －
-          </button>
+            onZoomIn={() => graphRef.current?.zoomBy(0.8)}
+            onZoomOut={() => graphRef.current?.zoomBy(1.25)}
+          />
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
           {(() => {
             let focusIdx = 0;
