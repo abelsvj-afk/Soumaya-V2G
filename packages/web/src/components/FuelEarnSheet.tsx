@@ -18,10 +18,10 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { kind: "memory", icon: "＋", label: "Log a memory", amount: "+8", hint: "Your main income — dump a thought and she grows the galaxy." },
-  { kind: "mind", icon: "🧠", label: "Add to your Mind", amount: "+4", hint: "A goal, person, skill, identity or idea — building your mind pays." },
-  { kind: "action", icon: "✅", label: "Clear an action item", amount: "+2", hint: "Tick off a day-to-day to-do in the Agenda." },
-  { kind: "thought", icon: "💭", label: "Capture a thought", amount: "+1", hint: "Drop a fleeting thought into the mind space." },
+  { kind: "memory", icon: "＋", label: "Log a memory", amount: "+15", hint: "Your main income — dump a thought and she grows the galaxy." },
+  { kind: "mind", icon: "🧠", label: "Add to your Mind", amount: "+6", hint: "A goal, person, skill, identity or idea — building your mind pays." },
+  { kind: "action", icon: "✅", label: "Clear an action item", amount: "+3", hint: "Tick off a day-to-day to-do in the Agenda." },
+  { kind: "thought", icon: "💭", label: "Capture a thought", amount: "+2", hint: "Drop a fleeting thought into the mind space." },
   { icon: "🔥", label: "Daily streak", amount: "+2", hint: "Automatic the first time you feed your brain each day." },
   { icon: "🔦", label: "Codex discoveries", amount: "+4", hint: "Soumaya finds lore as she explores — one-time per entry." },
   { icon: "🛰️", label: "Slow auto-refuel", amount: "+3.5/hr", hint: "The tank trickles back up on its own while you're away." },

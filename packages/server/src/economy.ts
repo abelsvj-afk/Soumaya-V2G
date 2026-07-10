@@ -12,11 +12,11 @@ import { DEFAULT_SPACE } from "./db/schema.js";
 export const FUEL_START = 25;
 export const FUEL_CAP = 200; // roomier tank so you can bank earnings instead of hitting the ceiling
 export const FUEL_JOB_COST = 2; // per autonomous LLM job
-export const EARN_MEMORY = 8; // logging a real memory (your main income — should feel rewarding)
-export const EARN_LINK = 1; // each associative link formed
-export const EARN_ACTION_DONE = 2; // clearing a day-to-day action item
-export const EARN_MIND = 4; // adding a durable thing to your Mind (goal/person/skill/identity/idea…)
-export const EARN_THOUGHT = 1; // capturing a fresh thought in the mind space (manual only)
+export const EARN_MEMORY = 15; // logging a real memory (your main income — should feel rewarding)
+export const EARN_LINK = 2; // each associative link formed
+export const EARN_ACTION_DONE = 3; // clearing a day-to-day action item
+export const EARN_MIND = 6; // adding a durable thing to your Mind (goal/person/skill/identity/idea…)
+export const EARN_THOUGHT = 2; // capturing a fresh thought in the mind space (manual only)
 export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time per entry)
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
