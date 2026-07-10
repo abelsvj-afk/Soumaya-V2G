@@ -6,12 +6,12 @@ import {
   CELESTIAL_LABEL,
   CELESTIAL_MEANING,
   SPECIAL_COLORS,
-  EMOTION_COLORS,
   COGNITIVE_KINDS,
   COGNITIVE_META,
   type NodeType,
 } from "@brain/shared";
-import { TYPE_COLORS } from "../graph/theme.js";
+import { useEffect, useState } from "react";
+import { TYPE_COLORS, emotionHex, isColorblind } from "../graph/theme.js";
 import { FLEET } from "../graph/fleet.js";
 
 /**
@@ -46,6 +46,19 @@ const TYPE_MEANING: Record<NodeType, string> = {
 };
 
 export function Legend({ onClose }: { onClose: () => void }) {
+  // Re-render when the colorblind palette is toggled so swatches + names stay honest.
+  const [, bump] = useState(0);
+  useEffect(() => {
+    const on = () => bump((n) => n + 1);
+    window.addEventListener("brain-palette-change", on);
+    return () => window.removeEventListener("brain-palette-change", on);
+  }, []);
+  const cb = isColorblind();
+  const emo = {
+    neutral: { color: emotionHex("neutral"), name: cb ? "Grey" : "Green" },
+    positive: { color: emotionHex("positive"), name: cb ? "Blue" : "Gold" },
+    heavy: { color: emotionHex("heavy"), name: cb ? "Orange" : "Indigo" },
+  };
   return (
     <div className="legend-overlay" role="dialog" aria-label="Galaxy legend" onClick={onClose}>
       <div className="legend-card" onClick={(e) => e.stopPropagation()}>
@@ -128,18 +141,18 @@ export function Legend({ onClose }: { onClose: () => void }) {
             <h3>Connections (the glowing lines)</h3>
             <ul className="legend-list">
               <li>
-                <Swatch color={EMOTION_COLORS.neutral} />
-                <span className="legend-name">Green</span>
+                <Swatch color={emo.neutral.color} />
+                <span className="legend-name">{emo.neutral.name}</span>
                 <span className="legend-meaning">a neutral link — the resting colour</span>
               </li>
               <li>
-                <Swatch color={EMOTION_COLORS.positive} />
-                <span className="legend-name">Gold</span>
+                <Swatch color={emo.positive.color} />
+                <span className="legend-name">{emo.positive.name}</span>
                 <span className="legend-meaning">joins two joyful memories</span>
               </li>
               <li>
-                <Swatch color={EMOTION_COLORS.heavy} />
-                <span className="legend-name">Indigo</span>
+                <Swatch color={emo.heavy.color} />
+                <span className="legend-name">{emo.heavy.name}</span>
                 <span className="legend-meaning">joins two heavy memories</span>
               </li>
               <li>

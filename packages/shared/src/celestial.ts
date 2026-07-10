@@ -78,6 +78,18 @@ export const EMOTION_COLORS = {
 } as const;
 
 /**
+ * Colorblind-safe alternative (Okabe–Ito): maximally distinct for deuteranopia/
+ * protanopia, where the default gold↔green pair collapses. Blue / orange / grey.
+ * Meaning is never colour-alone (the Legend pairs each with a label), but this keeps
+ * the three emotional bands distinguishable. Selected via the Settings toggle (#3a).
+ */
+export const EMOTION_COLORS_CB = {
+  positive: "#0072b2", // blue
+  heavy: "#e69f00", // orange
+  neutral: "#999999", // grey
+} as const;
+
+/**
  * The COGNITIVE LAYER — object classes that model what the mind is THINKING, not
  * just what it has remembered (see docs/COGNITIVE_LAYER.md). Each is a `nodes` row
  * with one of these `kind` values (the same proven pattern as `moc`/`belief`).

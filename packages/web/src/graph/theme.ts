@@ -1,4 +1,11 @@
-import { type CelestialClass, type GraphNode, type NodeType, normalizeNodeType, EMOTION_COLORS } from "@brain/shared";
+import {
+  type CelestialClass,
+  type GraphNode,
+  type NodeType,
+  normalizeNodeType,
+  EMOTION_COLORS,
+  EMOTION_COLORS_CB,
+} from "@brain/shared";
 
 /** Per-kind hue — used for chips, dots and as the tint seed for bodies. */
 export const TYPE_COLORS: Record<NodeType, string> = {
@@ -55,15 +62,51 @@ const hexToRgb = (hex: string): [number, number, number] => {
   const n = parseInt(hex.replace("#", ""), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 };
-export const EMOTION_RGB: Record<"positive" | "heavy" | "neutral", readonly [number, number, number]> = {
-  positive: hexToRgb(EMOTION_COLORS.positive),
-  heavy: hexToRgb(EMOTION_COLORS.heavy),
-  neutral: hexToRgb(EMOTION_COLORS.neutral),
-};
+
+/**
+ * The emotion palette is SWAPPABLE at runtime for colorblind accessibility (#3a).
+ * `brain.colorblind` = "1" selects the Okabe–Ito blue/orange/grey set; otherwise the
+ * default gold/indigo/green. `EMOTION_RGB` is an exported `let` so live ESM bindings in
+ * the galaxy renderer pick up the swap on the next frame; the Legend re-reads it on the
+ * `brain-palette-change` event. Meaning is never colour-alone — labels always accompany.
+ */
+const CB_KEY = "brain.colorblind";
+function activeEmotionPalette(): Record<"positive" | "heavy" | "neutral", string> {
+  return isColorblind() ? EMOTION_COLORS_CB : EMOTION_COLORS;
+}
+function computeEmotionRgb(): Record<"positive" | "heavy" | "neutral", readonly [number, number, number]> {
+  const p = activeEmotionPalette();
+  return { positive: hexToRgb(p.positive), heavy: hexToRgb(p.heavy), neutral: hexToRgb(p.neutral) };
+}
+
+export function isColorblind(): boolean {
+  try {
+    return localStorage.getItem(CB_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setColorblind(on: boolean): void {
+  try {
+    localStorage.setItem(CB_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  EMOTION_RGB = computeEmotionRgb();
+  window.dispatchEvent(new Event("brain-palette-change"));
+}
+
+// eslint-disable-next-line prefer-const
+export let EMOTION_RGB: Record<"positive" | "heavy" | "neutral", readonly [number, number, number]> = computeEmotionRgb();
+
 export function emotionKind(ew: number, threshold = 0.12): keyof typeof EMOTION_RGB {
   return ew > threshold ? "positive" : ew < -threshold ? "heavy" : "neutral";
 }
 export function emotionColorHex(ew: number, threshold = 0.12): string {
   const [r, g, b] = EMOTION_RGB[emotionKind(ew, threshold)];
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+}
+/** Current hex for an emotion band (drives the Legend swatches so they follow the toggle). */
+export function emotionHex(kind: "positive" | "heavy" | "neutral"): string {
+  return activeEmotionPalette()[kind];
 }

@@ -465,6 +465,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const lastVisCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
+  // Accessibility: when reduced-motion is on we crawl the orbits + skip ambient
+  // pulses (#3b). Kept in a ref so the render loop reads it without re-subscribing.
+  const calmMotionRef = useRef(prefersReducedMotion());
+  useEffect(() => {
+    const sync = () => { calmMotionRef.current = prefersReducedMotion(); };
+    window.addEventListener("brain-motion-change", sync);
+    const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    mq?.addEventListener?.("change", sync);
+    return () => {
+      window.removeEventListener("brain-motion-change", sync);
+      mq?.removeEventListener?.("change", sync);
+    };
+  }, []);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -818,10 +831,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
       }
 
-      // Ambient "alive" shimmer on idle threads.
+      // Ambient "alive" shimmer on idle threads — suppressed under reduced-motion,
+      // where the resting galaxy should stay calm rather than constantly flowing (#3b).
       idlePulseT -= dt;
       if (idlePulseT <= 0) {
-        idlePulse();
+        if (!calmMotionRef.current) idlePulse();
         // Intensify idle pulse frequency with node count (down to every 1 second)
         const numNodes = dataRef.current.nodes.length;
         const pulseEvery = Math.max(1, IDLE_PULSE_EVERY_BASE - Math.floor(numNodes / 20));
@@ -857,8 +871,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
 
       // Advance every body along its orbit first, so the camera + Soumaya read
-      // up-to-date positions this frame.
-      orbitsRef.current.update(dt, dataRef.current.nodes as any[]);
+      // up-to-date positions this frame. Under reduced-motion the drift slows to a
+      // gentle crawl (never fully frozen, so the galaxy still feels alive) (#3b).
+      const motionDt = calmMotionRef.current ? dt * 0.12 : dt;
+      orbitsRef.current.update(motionDt, dataRef.current.nodes as any[]);
 
       // First frame with real positions → open zoomed-out (not inside the sun).
       if (!initialFramedRef.current) {

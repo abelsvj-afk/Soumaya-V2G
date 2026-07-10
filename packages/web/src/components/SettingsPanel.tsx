@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { currentSpace, updateProfile } from "../api/client.js";
 import { isVoiceEnabled, setVoiceEnabled, isVoiceSupported } from "../voice.js";
 import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
+import { isColorblind, setColorblind } from "../graph/theme.js";
+import { prefersReducedMotion, setReducedMotionOverride } from "../graph/motion.js";
 import {
   getGraphics,
   setGraphicsMode,
@@ -36,6 +38,8 @@ export function SettingsPanel({
   const [liteOn, setLiteOn] = useState(() => {
     try { return localStorage.getItem("brain.lite") === "1"; } catch { return false; }
   });
+  const [colorblind, setCb] = useState(isColorblind());
+  const [reduceMotion, setRm] = useState(prefersReducedMotion());
   const voiceSupported = isVoiceSupported();
   const resolved = resolveGraphics(gfx);
 
@@ -170,6 +174,44 @@ export function SettingsPanel({
                 setSfxEnabled(next);
               }}
               aria-pressed={sfx}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>♿ Accessibility</h3>
+          <label className="settings-toggle">
+            <span>
+              Colorblind-safe colours
+              <em>Swaps the link/emotion palette to blue · orange · grey (the Legend follows).</em>
+            </span>
+            <button
+              className={`switch ${colorblind ? "on" : ""}`}
+              onClick={() => {
+                const next = !colorblind;
+                setCb(next);
+                setColorblind(next);
+              }}
+              aria-pressed={colorblind}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+          <label className="settings-toggle">
+            <span>
+              Reduce motion
+              <em>Calms the galaxy — slows orbital drift, ribbon flow &amp; glow pulsing; skips link sparks.</em>
+            </span>
+            <button
+              className={`switch ${reduceMotion ? "on" : ""}`}
+              onClick={() => {
+                const next = !reduceMotion;
+                setRm(next);
+                setReducedMotionOverride(next);
+              }}
+              aria-pressed={reduceMotion}
             >
               <span className="knob" />
             </button>
