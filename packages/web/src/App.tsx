@@ -40,6 +40,7 @@ import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
 import { NavRail } from "./components/NavRail.js";
+import { ActionRail } from "./components/ActionRail.js";
 import {
   currentSpace,
   getGraph,
@@ -1681,36 +1682,18 @@ export default function App() {
               <span className="np-skip">⏭</span>
             </button>
           )}
-          <button className="fab fab-ingest" onClick={() => toggle("ingest")} aria-label="Add a memory">
-            📝
-          </button>
-          <button
-            className="fab fab-observatory"
-            onClick={() => setShowObs(true)}
-            aria-label="Open the Observatory home"
-            title="Observatory — your home view"
-          >
-            🔭
-          </button>
-          <button
-            className={`fab fab-chat ${showChat ? "on" : ""} ${chatPulse ? "pulse" : ""}`}
-            onClick={() => {
+          <ActionRail
+            onIngest={() => toggle("ingest")}
+            onObservatory={() => setShowObs(true)}
+            onChat={() => {
               setShowChat((v) => !v);
               setChatPulse(false);
             }}
-            aria-label="Talk to Soumaya"
-            title={`Talk to ${space?.name ?? "Soumaya"}`}
-          >
-            💬
-          </button>
-          <button
-            className="fab fab-settings"
-            onClick={() => setShowSettings(true)}
-            aria-label="Settings"
-            title="Settings"
-          >
-            ⚙️
-          </button>
+            chatActive={showChat}
+            chatPulse={chatPulse}
+            spaceName={space?.name ?? ""}
+            onSettings={() => setShowSettings(true)}
+          />
         </>
       )}
 
