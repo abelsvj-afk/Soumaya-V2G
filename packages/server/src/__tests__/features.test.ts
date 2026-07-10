@@ -231,6 +231,30 @@ describe("daily-tending streak", () => {
     expect(cont.streak.best).toBe(2);
   });
 
+  it("a nebula shield forgives ONE missed day, keeping the streak alive", () => {
+    const s = new StreakRepo(handle, "spaceShield");
+    s.touch(); // create the row
+    // Streak of 4, last active TWO days ago (exactly one missed day), with a shield banked.
+    handle.sqlite
+      .prepare(`UPDATE space_meta SET streak = 4, streak_best = 4, last_active_date = date('now','-2 days'), streak_shields = 2 WHERE space_id = ?`)
+      .run("spaceShield");
+    expect(s.get().current).toBe(4); // protected — shown as alive, not 0
+    const cont = s.touch();
+    expect(cont.shieldUsed).toBe(true);
+    expect(cont.streak.current).toBe(5); // bridged, not restarted
+    expect(cont.streak.shields).toBe(1); // one shield spent
+  });
+
+  it("does NOT forgive when no shield is banked (two-day gap lapses)", () => {
+    const s = new StreakRepo(handle, "spaceNoShield");
+    s.touch();
+    handle.sqlite
+      .prepare(`UPDATE space_meta SET streak = 4, streak_best = 4, last_active_date = date('now','-2 days'), streak_shields = 0 WHERE space_id = ?`)
+      .run("spaceNoShield");
+    expect(s.get().current).toBe(0); // no shield → lapsed
+    expect(s.touch().streak.current).toBe(1); // restarts
+  });
+
   it("resets to 1 after a missed day but keeps the best", () => {
     const s = new StreakRepo(handle, "spaceU");
     s.touch(); // create the row

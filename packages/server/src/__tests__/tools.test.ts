@@ -147,3 +147,35 @@ describe("Soumaya's tool-router — orphan surfacing", () => {
     expect(sent.some((t) => t.includes("drifting"))).toBe(false);
   });
 });
+
+function heavyMem(label: string, weight: number, createdAt: string): void {
+  handle.sqlite
+    .prepare(`INSERT INTO nodes (space_id, label, type, content, emotional_weight, created_at) VALUES ('legacy', ?, 'daily', ?, ?, ?)`)
+    .run(label, label, weight, createdAt);
+}
+
+describe("Soumaya's tool-router — proactive check-ins", () => {
+  it("checks in on a heavy emotional stretch, once per day", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    heavyMem("rough", -0.6, iso(now - 1 * 86_400_000));
+    heavyMem("hard", -0.5, iso(now - 2 * 86_400_000));
+    heavyMem("low", -0.7, iso(now - 3 * 86_400_000));
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.some((t) => t.includes("heavy"))).toBe(true);
+
+    const before = sent.length;
+    await runToolRouter(ctx, "legacy", { now: now + 120_000, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.length).toBe(before);
+  });
+
+  it("does not check in when the mood is fine", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    heavyMem("good", 0.6, iso(now - 1 * 86_400_000));
+    heavyMem("great", 0.5, iso(now - 2 * 86_400_000));
+    heavyMem("nice", 0.4, iso(now - 3 * 86_400_000));
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.some((t) => t.includes("heavy"))).toBe(false);
+  });
+});

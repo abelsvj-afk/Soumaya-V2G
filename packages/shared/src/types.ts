@@ -209,6 +209,8 @@ export interface Streak {
   best: number;
   /** Whether the brain has already been tended today. */
   today: boolean;
+  /** "Nebula shields" left — each forgives one missed day so a streak isn't lost. */
+  shields?: number;
 }
 
 export interface GraphEdge {

@@ -461,6 +461,11 @@ function migrateSchema(sqlite: RawDb): void {
     if (!metaCols.some((c) => c.name === "timeline_backfilled")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN timeline_backfilled INTEGER NOT NULL DEFAULT 0`);
     }
+    // Streak freeze ("nebula shield", NEURO_ALIGNMENT #3): forgive a missed day so a
+    // broken streak is data, not punishment. Start with 2; earn one back each 7-day run.
+    if (!metaCols.some((c) => c.name === "streak_shields")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak_shields INTEGER NOT NULL DEFAULT 2`);
+    }
   }
   // (Table creation lives ONLY in bootstrapSchema, which always runs first —
   // a second CREATE block here once drifted out of sync and shipped wrong shapes.)
