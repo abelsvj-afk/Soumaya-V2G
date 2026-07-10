@@ -4213,3 +4213,13 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .rv-btn.forgot:hover { background: rgba(255, 90, 90, 0.24); }
 .rv-btn.primary { flex: 1; background: rgba(70, 245, 140, 0.14); border-color: rgba(70, 245, 140, 0.45); color: #b6ffcf; }
 .rv-btn.primary:hover { background: rgba(70, 245, 140, 0.26); }
+
+/* ── Accessibility: keyboard focus ring (WCAG 2.4.7, Post-MVP Phase 5) ──
+   Interactive elements had `outline: none` with no replacement, so keyboard/AT users
+   couldn't see what was focused. :focus-visible shows a clear ring ONLY for keyboard
+   navigation (not on mouse click), and wins over the older outline:none rules. */
+:focus-visible {
+  outline: 2px solid #7ad7ff !important;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
