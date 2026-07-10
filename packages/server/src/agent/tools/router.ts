@@ -21,11 +21,13 @@ export interface RouterOptions {
   now?: number;
 }
 
-function logAction(ctx: AppContext, spaceId: string, tool: string, reason: string, summary: string): void {
+function logAction(ctx: AppContext, spaceId: string, tool: string, reason: string, summary: string, now: number): void {
   try {
+    // Stamp with the tick's clock so per-day tool guards (which compare against `now`)
+    // stay consistent with the log — and so tests with an injected clock behave.
     ctx.handle.sqlite
-      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, ?, ?, '[]')`)
-      .run(spaceId, `tool:${tool}`, `${summary} — ${reason}`);
+      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets, created_at) VALUES (?, ?, ?, '[]', ?)`)
+      .run(spaceId, `tool:${tool}`, `${summary} — ${reason}`, new Date(now).toISOString());
   } catch {
     /* best-effort logging */
   }
@@ -56,7 +58,7 @@ export async function runToolRouter(ctx: AppContext, spaceId: string, opts: Rout
     for (const inv of invocations) {
       try {
         const r = await tool.run(tc, inv.args);
-        logAction(ctx, spaceId, tool.name, inv.reason, r.summary);
+        logAction(ctx, spaceId, tool.name, inv.reason, r.summary, now);
         results.push(r);
       } catch (e) {
         console.error(`[tools] ${tool.name} run failed:`, e);

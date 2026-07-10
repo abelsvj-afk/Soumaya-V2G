@@ -85,3 +85,65 @@ describe("Soumaya's tool-router — firing reminders", () => {
     expect(logs.length).toBe(1);
   });
 });
+
+/** A plain memory with content + timestamp (for the task / orphan tools). */
+function memory(label: string, content: string, createdAt: string): number {
+  const info = handle.sqlite
+    .prepare(`INSERT INTO nodes (space_id, label, type, content, importance, created_at) VALUES ('legacy', ?, 'daily', ?, 0.5, ?)`)
+    .run(label, content, createdAt);
+  return Number(info.lastInsertRowid);
+}
+const edgeCount = (id: number) =>
+  (handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM edges WHERE space_id='legacy' AND (source=? OR target=?)`).get(id, id) as { c: number }).c;
+
+describe("Soumaya's tool-router — task creation", () => {
+  it("turns a first-person commitment into a linked action, once", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    const m = memory("landlord", "I need to call the landlord about the lease", iso(now - 3600_000));
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+
+    const actions = handle.sqlite
+      .prepare(`SELECT id, label FROM nodes WHERE space_id='legacy' AND kind='action'`)
+      .all() as { id: number; label: string }[];
+    expect(actions.length).toBe(1);
+    expect(sent.some((t) => t.includes("action"))).toBe(true);
+    // Linked back to the source memory.
+    expect(edgeCount(m)).toBeGreaterThan(0);
+
+    // Second pass: already has a derived action → no duplicate.
+    await runToolRouter(ctx, "legacy", { now: now + 120_000 });
+    expect((handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes WHERE space_id='legacy' AND kind='action'`).get() as { c: number }).c).toBe(1);
+  });
+
+  it("does NOT create a task from a plain memory with no commitment", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    memory("walk", "had a nice quiet walk in the park", iso(now - 3600_000));
+    await runToolRouter(ctx, "legacy", { now });
+    expect((handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes WHERE space_id='legacy' AND kind='action'`).get() as { c: number }).c).toBe(0);
+  });
+});
+
+describe("Soumaya's tool-router — orphan surfacing", () => {
+  it("surfaces one long-drifting unlinked memory per day", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    memory("orphan", "a thought I never connected to anything", iso(now - 5 * 86_400_000));
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.some((t) => t.includes("drifting"))).toBe(true);
+
+    // Same day → no second orphan nudge.
+    const before = sent.length;
+    memory("orphan2", "another disconnected note", iso(now - 6 * 86_400_000));
+    await runToolRouter(ctx, "legacy", { now: now + 120_000, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.length).toBe(before);
+  });
+
+  it("does not surface a memory that's too new (still had time to link)", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    memory("fresh", "just wrote this", iso(now - 3600_000));
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    expect(sent.some((t) => t.includes("drifting"))).toBe(false);
+  });
+});
