@@ -1,8 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
+import { timingSafeEqual } from "node:crypto";
 import type { AppContext } from "../../context.js";
 
 const BudgetBody = z.object({ budget: z.number().min(0).max(100000) });
+
+/** Constant-time token compare — never leak the admin token's length/prefix via timing. */
+function tokenMatches(provided: string | undefined, expected: string): boolean {
+  if (!provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 /** API usage + budget meter (estimated cost from token counts). */
 export function usageRoutes(ctx: AppContext): Router {
@@ -13,7 +22,7 @@ export function usageRoutes(ctx: AppContext): Router {
   // deployment's only spend cap for everyone.
   const requireAdmin = (req: import("express").Request, res: import("express").Response): boolean => {
     const token = process.env.ADMIN_TOKEN;
-    if (!token || req.get("x-admin-token") !== token) {
+    if (!token || !tokenMatches(req.get("x-admin-token"), token)) {
       res.status(403).json({ error: "Budget changes require the admin token (set ADMIN_TOKEN)." });
       return false;
     }
