@@ -249,7 +249,11 @@ function titleFor(trend: ChapterTrend, theme: string): string {
 
 /** Deterministic, offline narrative for a chapter (meaningful with no API key). */
 function narrate(a: Assessment): string {
-  const days = Math.max(1, Math.round((toMs(a.windowMems[a.windowMems.length - 1]?.created_at) - toMs(a.since)) / 86_400_000)) || 1;
+  // Span the window from the FIRST memory in it — not `a.since`, which is the epoch for
+  // the first/backfill chapter (that made the opening chapter read "Across ~20000 days").
+  const startMs = toMs(a.since) > 0 ? toMs(a.since) : toMs(a.windowMems[0]?.created_at);
+  const endMs = toMs(a.windowMems[a.windowMems.length - 1]?.created_at);
+  const days = Math.max(1, Math.round((endMs - startMs) / 86_400_000)) || 1;
   const m = a.windowMems.length;
   const parts: string[] = [];
   parts.push(`Across about ${days} day${days === 1 ? "" : "s"}, you added ${m} memor${m === 1 ? "y" : "ies"}.`);

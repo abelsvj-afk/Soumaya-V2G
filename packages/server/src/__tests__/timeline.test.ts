@@ -79,6 +79,14 @@ describe("The Chronicle — 3D life timeline", () => {
     expect(listChapters(ctx, "legacy")).toHaveLength(2);
   });
 
+  it("narrates a sane day-span for the first/backfill chapter (not the epoch)", () => {
+    const base = Date.UTC(2026, 0, 1);
+    for (let i = 0; i < 5; i++) mem("early history", 0.3, iso(base + i * DAY));
+    const ch = createManualChapter(ctx, "legacy", { nowISO: iso(base + 6 * DAY) });
+    // Before the fix this read "Across about 20454 days" (span measured from epoch 0).
+    expect(ch.summary).not.toMatch(/\d{4,}\s*days/);
+  });
+
   it("lets you add a manual chapter regardless of the change threshold", () => {
     const base = Date.UTC(2026, 0, 1);
     mem("just one small thing", 0.0, iso(base));

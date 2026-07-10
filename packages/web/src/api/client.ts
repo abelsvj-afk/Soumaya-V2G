@@ -1,8 +1,12 @@
-import type { Attachment, AwayDigest, ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak, TimelineChapter } from "@brain/shared";
-export type { TimelineChapter } from "@brain/shared";
+import type { Attachment, AwayDigest, ChatResponse, Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Fuel, GraphData, GraphNode, Insight, LifeAreaCount, LoreEntry, LoreSubjectType, SelfReviewItem, Streak } from "@brain/shared";
 import { useState, useEffect } from "react";
-
-const API = "/api";
+// Transport primitives live in http.ts (Post-MVP D4 split); re-export the public ones
+// so existing `import { getSpaceId, BOOT_TIMEOUT_MS } from "../api/client"` keep working.
+import { API, afetch, getSpaceId, getSpaceName, storeSpace, BOOT_TIMEOUT_MS } from "./http.js";
+export { getSpaceId, getSpaceName, BOOT_TIMEOUT_MS } from "./http.js";
+// The newest cohesive domains (spaced-repetition review + the Chronicle timeline) live
+// in features.ts; re-export so their call sites are unchanged.
+export * from "./features.js";
 
 // --- Node processing state tracking ("Writing..." latency feedback) ---
 const processingNodes = new Set<number>();
@@ -38,65 +42,6 @@ function setNodeProcessing(ids: number[], active: boolean): void {
       console.error(e);
     }
   }
-}
-
-// The space id is the secret key to a private brain. We keep it in localStorage
-// so it persists on this device, and send it on every API call.
-const SPACE_KEY = "brain.spaceId";
-const SPACE_NAME_KEY = "brain.spaceName";
-
-export function getSpaceId(): string | null {
-  try {
-    return localStorage.getItem(SPACE_KEY);
-  } catch {
-    return null;
-  }
-}
-export function getSpaceName(): string | null {
-  try {
-    return localStorage.getItem(SPACE_NAME_KEY);
-  } catch {
-    return null;
-  }
-}
-function storeSpace(id: string | null, name?: string): void {
-  try {
-    if (id) {
-      localStorage.setItem(SPACE_KEY, id);
-      if (name) localStorage.setItem(SPACE_NAME_KEY, name);
-    } else {
-      localStorage.removeItem(SPACE_KEY);
-      localStorage.removeItem(SPACE_NAME_KEY);
-    }
-  } catch {
-    /* storage may be unavailable (private mode) — auth still works in-session */
-  }
-}
-
-/**
- * Default request timeout. LLM-backed calls (chat/research/ingest) can be slow, so
- * this is generous — but NOTHING is allowed to hang forever (that froze the app on
- * boot: a stalled /api/graph never settled, so the loading overlay + the "thinking"
- * counter stuck permanently). Boot-critical reads pass a much shorter timeout.
- */
-const DEFAULT_TIMEOUT_MS = 60_000;
-/** Boot reads must fail fast so the app can recover instead of freezing on the sun. */
-export const BOOT_TIMEOUT_MS = 12_000;
-
-/**
- * fetch wrapper that attaches the current brain's id AND enforces a timeout, so a
- * stalled network/server can never hang a request forever. Aborts on timeout unless
- * the caller supplies its own AbortSignal.
- */
-function afetch(path: string, init: RequestInit = {}, timeoutMs: number = DEFAULT_TIMEOUT_MS): Promise<Response> {
-  const headers = new Headers(init.headers);
-  const id = getSpaceId();
-  if (id) headers.set("x-space-id", id);
-  // If the caller passed its own signal, respect it; otherwise time out ourselves.
-  if (init.signal) return fetch(path, { ...init, headers });
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(path, { ...init, headers, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 export interface AuthResult {
@@ -891,68 +836,6 @@ export async function dismissPersonSuggestion(name: string): Promise<boolean> {
   }
 }
 
-// --- The Chronicle: the 3D flowing-river life timeline ---
-export async function getTimeline(): Promise<TimelineChapter[]> {
-  try {
-    const res = await afetch(`${API}/timeline`);
-    const d = await res.json().catch(() => []);
-    return Array.isArray(d) ? d : [];
-  } catch {
-    return [];
-  }
-}
-/** Mark a chapter now (manual add). Returns the new chapter or null. */
-export async function addTimelineChapter(title?: string): Promise<TimelineChapter | null> {
-  try {
-    const res = await afetch(`${API}/timeline`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(title ? { title } : {}),
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as TimelineChapter;
-  } catch {
-    return null;
-  }
-}
-export async function deleteTimelineChapter(id: number): Promise<boolean> {
-  try {
-    const res = await afetch(`${API}/timeline/${id}`, { method: "DELETE" });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-// --- Spaced repetition (active recall) ---
-export interface DueReview {
-  id: number;
-  label: string;
-  strength: number;
-  reviewCount: number;
-}
-export async function getDueReviews(): Promise<DueReview[]> {
-  try {
-    const res = await afetch(`${API}/review/due`);
-    const d = await res.json().catch(() => []);
-    return Array.isArray(d) ? d : [];
-  } catch {
-    return [];
-  }
-}
-/** Grade a recall attempt; SM-2 reschedules server-side. */
-export async function gradeReview(id: number, remembered: boolean): Promise<boolean> {
-  try {
-    const res = await afetch(`${API}/review/${id}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ remembered }),
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
 export async function promoteIdea(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });
