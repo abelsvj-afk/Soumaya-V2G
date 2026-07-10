@@ -14,6 +14,12 @@ observability → AI validation (memory, prompts, retrieval, hallucination, cost
 (UX, a11y, docs sync, beta, deployment, rollback, monitoring). Until the cutover, keep shipping under
 the lighter loop above; do not prematurely freeze features.
 
+**STATUS (2026-07-10): first post-MVP hardening cycle COMPLETE; freeze LIFTED.** All the phases above
+ran once and shipped (see `docs/POST_MVP_AUDIT.md`, `POST_MVP_PHASE4/5/9/12*.md`). We are back in
+**feature-growth mode** under the lighter loop, steered by the north-star docs below. Re-freeze and
+re-run the post-MVP phases before the *next* major expansion — not per feature. Part 6 (Continuous
+Ops: repo-health/KPIs/governance) is the standing rhythm going forward.
+
 **MANDATORY — product north star.** We are building Soumaya toward the patterns in
 [`docs/SECOND_BRAIN_BRIEFING.md`](./docs/SECOND_BRAIN_BRIEFING.md) (Obsidian "second brain"
 adaptation; the research calls us "Sarmiah" — same product). The live gap analysis + staged growth

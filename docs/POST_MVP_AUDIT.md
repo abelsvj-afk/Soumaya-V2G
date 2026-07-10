@@ -11,12 +11,20 @@
 
 ## Phase 1 — MVP Freeze
 
-### Scope Lock (effective 2026-07-10)
+> **🔓 FREEZE LIFTED — 2026-07-10.** The full post-MVP hardening cycle is complete (audits, bug bash,
+> D4 refactor, AI validation, security, performance, observability, product readiness — all
+> shipped) and the accumulated `master` is being deployed. Feature growth **resumes** under the
+> lighter day-to-day loop ([`WORKFLOW.md`](../WORKFLOW.md) / [`AI_ENGINEERING_WORKFLOW.md`](./AI_ENGINEERING_WORKFLOW.md),
+> spec-first), steered by the north-star docs (`SECOND_BRAIN_ALIGNMENT.md`, `NEURO_ALIGNMENT.md`).
+> Part 6 (Continuous Ops) is the standing rhythm; re-freeze + re-run these phases before the *next*
+> major expansion, not per feature. The record below is preserved as the completed-cycle baseline.
 
-The MVP is **feature-complete and locked.** From here, work is **refinement, hardening, and bug-fix**
-under the priority order *Stability → Maintainability → Security → Performance → Scalability → UX →
-New Features*. **No new features without explicit approval.** Small tuning/copy/UX refinements and
-bug-fixes are allowed under the freeze (e.g. the fuel-rate tune + help-menu sync shipped today).
+### Scope Lock (was effective 2026-07-10 — now lifted, above)
+
+The MVP was **feature-complete and locked** for the hardening cycle. Work was **refinement,
+hardening, and bug-fix** under the priority order *Stability → Maintainability → Security →
+Performance → Scalability → UX → New Features*; small tuning/copy/UX refinements shipped under it
+(the fuel-rate tune + help-menu sync).
 
 ### Shipped feature inventory (the locked MVP)
 
