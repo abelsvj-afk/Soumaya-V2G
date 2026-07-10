@@ -41,9 +41,21 @@ export function createApp(ctx: AppContext): Express {
 
   // Health is unauthenticated — provider status only, no data facts (the global
   // node count spanned every tenant's brain).
+  // Health check (open) — a real dependency probe an external uptime monitor can use:
+  // it verifies the SQLite handle is alive and returns 503 when it isn't, so an outage
+  // is detectable (not a blind 200). LLM "degraded" is reported but is a normal
+  // functional state (offline heuristic), so it never fails the check.
   app.get("/api/health", (_req, res) => {
-    res.json({
-      ok: true,
+    let dbOk = true;
+    try {
+      ctx.handle.sqlite.prepare("SELECT 1").get();
+    } catch {
+      dbOk = false;
+    }
+    res.status(dbOk ? 200 : 503).json({
+      ok: dbOk,
+      uptimeSec: Math.round(process.uptime()),
+      db: { ok: dbOk },
       embeddings: { model: ctx.embeddings.model, dim: ctx.embeddings.dim },
       llm: {
         model: ctx.llm.model,

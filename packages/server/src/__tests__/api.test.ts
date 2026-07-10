@@ -53,10 +53,12 @@ async function get(path: string): Promise<{ status: number; body: any }> {
 }
 
 describe("REST API", () => {
-  it("reports health with provider info", async () => {
+  it("reports health with a real DB probe + uptime + provider info", async () => {
     const { status, body } = await get("/api/health");
     expect(status).toBe(200);
     expect(body.ok).toBe(true);
+    expect(body.db.ok).toBe(true); // the SQLite handle was probed live
+    expect(typeof body.uptimeSec).toBe("number");
     expect(body.embeddings.dim).toBe(EMBED_DIM);
     expect(body.llm.available).toBe(false); // heuristic fallback
   });
