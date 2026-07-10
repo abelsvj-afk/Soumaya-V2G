@@ -111,16 +111,23 @@ export function NoticingCard({
     void afterAct();
   };
   const isHub = q.kind === "hub_suggestion";
+  const isLens = q.kind === "lens_suggestion";
+  const confirmToast = isHub
+    ? "Constellation named ✨ — a new hub anchors that cluster."
+    : isLens
+      ? "Lens saved ⧉ — pinned to your galaxy."
+      : "Connected ✦ — woven into your galaxy.";
   const confirm = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
     await confirmInquiry(q.id);
     playSfx("achievement");
-    pushToast(isHub ? "Constellation named ✨ — a new hub anchors that cluster." : "Connected ✦ — woven into your galaxy.", "🧠", 3500);
+    pushToast(confirmToast, "🧠", 3500);
+    if (isLens) window.dispatchEvent(new Event("brain-lenses-changed")); // refresh the chips
     onAnswered?.();
     void afterAct();
   };
-  // A one-tap "yes" makes sense for the connection-style + hub-suggestion noticings.
-  const canConfirm = q.kind === "anchor" || q.kind === "bridge" || isHub;
+  // A one-tap "yes" makes sense for the connection-style + hub + lens noticings.
+  const canConfirm = q.kind === "anchor" || q.kind === "bridge" || isHub || isLens;
 
   return (
     <>

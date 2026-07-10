@@ -9,6 +9,7 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { LensesRepo } from "../repositories/lenses.repo.js";
 import { evalLens } from "../analysis/lenses.js";
+import { generateInquiry, listInquiries, confirmLensSuggestion, dismissInquiry } from "../analysis/inquiry.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -93,5 +94,41 @@ describe("LensesRepo CRUD", () => {
 
     expect(repo.remove(l.id)).toBe(true);
     expect(repo.get(l.id)).toBeNull();
+  });
+});
+
+describe("Soumaya proposes a lens (lens_suggestion)", () => {
+  it("offers an orphan lens when loose threads pile up, and confirming creates it (pinned)", async () => {
+    // 9 unconnected memories → an orphan backlog over the threshold.
+    for (let i = 0; i < 9; i++) await mem("legacy", `orphan ${i}`);
+
+    // Drain lighter noticings until the lens suggestion surfaces.
+    let q = listInquiries(ctx, "legacy").find((x) => x.kind === "lens_suggestion");
+    for (let i = 0; i < 8 && !q; i++) {
+      const id = generateInquiry(ctx, "legacy");
+      if (id === null) break;
+      const open = listInquiries(ctx, "legacy");
+      q = open.find((x) => x.kind === "lens_suggestion");
+      if (!q) for (const o of open) dismissInquiry(ctx, "legacy", o.id);
+    }
+    expect(q).toBeTruthy();
+    expect(q!.question).toMatch(/Loose threads/);
+
+    const lens = confirmLensSuggestion(ctx, "legacy", q!.id);
+    expect(lens).not.toBeNull();
+    expect(lens!.pinned).toBe(true);
+    expect(lens!.query.state).toBe("orphan");
+    // It's persisted, and evaluating it returns the orphan memories.
+    expect(new LensesRepo(handle, "legacy").list().some((l) => l.id === lens!.id)).toBe(true);
+    expect(evalLens(ctx, "legacy", lens!.query).length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("does not re-offer a lens whose view already exists", async () => {
+    for (let i = 0; i < 9; i++) await mem("legacy", `loose ${i}`);
+    new LensesRepo(handle, "legacy").create("Already have it", { state: "orphan" }, true);
+    // Generate several times; no orphan lens suggestion should appear.
+    for (let i = 0; i < 6; i++) generateInquiry(ctx, "legacy");
+    const sug = listInquiries(ctx, "legacy").filter((x) => x.kind === "lens_suggestion");
+    expect(sug.every((s) => !/Loose threads/.test(s.question))).toBe(true);
   });
 });

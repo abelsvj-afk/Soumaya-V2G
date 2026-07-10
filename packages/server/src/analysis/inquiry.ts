@@ -1,13 +1,15 @@
-import { COGNITIVE_META, skillTier } from "@brain/shared";
+import { COGNITIVE_META, skillTier, type Lens, type LensQuery } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
+import { LensesRepo } from "../repositories/lenses.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../streak.js";
 import { knn, getEmbedding } from "../db/vec.js";
 import { isRejected, recordRejection } from "./rejections.js";
 import { suggestHub } from "./constellations.js";
+import { dueForReview } from "./review.js";
 
 /**
  * The proactive-intelligence layer. Beyond linking, Soumaya NOTICES structural
@@ -359,6 +361,72 @@ function hubSuggestCandidate(ctx: AppContext, spaceId: string, seen: Set<string>
   };
 }
 
+/**
+ * Standing lenses Soumaya can offer when an actionable backlog builds up. Each maps a
+ * signature to a saved-view spec + the count query that triggers it. Confirming the
+ * inquiry creates the (pinned) lens so the user gets a one-tap way to work the backlog.
+ */
+const LENS_SPECS: Record<
+  string,
+  { name: string; query: LensQuery; min: number; count: (ctx: AppContext, spaceId: string, now: number) => number; ask: (n: number) => string }
+> = {
+  orphan: {
+    name: "Loose threads",
+    query: { state: "orphan" },
+    min: 8,
+    count: (ctx, spaceId) =>
+      (ctx.handle.sqlite
+        .prepare(
+          `SELECT COUNT(*) AS c FROM nodes n WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.status != 'archived'
+             AND (n.kind IS NULL OR n.kind = 'memory')
+             AND NOT EXISTS (SELECT 1 FROM edges e WHERE e.space_id = n.space_id AND (e.source = n.id OR e.target = n.id))`,
+        )
+        .get(spaceId) as { c: number }).c,
+    ask: (n) => `${n} of your memories are drifting with no connections. Want a standing "Loose threads" lens to weave them in over time?`,
+  },
+  due: {
+    name: "Due for recall",
+    query: { state: "due" },
+    min: 8,
+    count: (ctx, spaceId, now) => dueForReview(ctx, spaceId, now, 500).length,
+    ask: (n) => `${n} memories are gently fading and ready for a recall. Want a "Due for recall" lens to revisit them?`,
+  },
+};
+
+/**
+ * LENS SUGGESTION (#lens fast-follow): when an actionable backlog crosses a threshold,
+ * offer a standing Smart Lens for it — but only if no lens for that view exists yet.
+ * Confirming creates the pinned lens (see confirmLensSuggestion).
+ */
+function lensSuggestCandidate(ctx: AppContext, spaceId: string, seen: Set<string>, now: number): Candidate | null {
+  const existing = new LensesRepo(ctx.handle, spaceId).list();
+  // Pick the larger qualifying backlog whose lens doesn't already exist / wasn't asked.
+  const options = Object.entries(LENS_SPECS)
+    .map(([key, spec]) => ({ key, spec, n: spec.count(ctx, spaceId, now) }))
+    .filter((o) => o.n >= o.spec.min)
+    .filter((o) => !seen.has(`lens:${o.key}`))
+    .filter((o) => !existing.some((l) => l.query.state === o.spec.query.state))
+    .sort((a, b) => b.n - a.n);
+  const best = options[0];
+  if (!best) return null;
+  return { question: best.spec.ask(best.n), kind: "lens_suggestion", nodeIds: [], signature: `lens:${best.key}` };
+}
+
+/** Confirm a lens_suggestion → create the pinned lens it proposed. Returns it, or null. */
+export function confirmLensSuggestion(ctx: AppContext, spaceId: string, id: number): Lens | null {
+  const s = ctx.handle.sqlite;
+  const row = s
+    .prepare(`SELECT signature FROM inquiries WHERE id = ? AND space_id = ? AND status = 'open'`)
+    .get(id, spaceId) as { signature: string } | undefined;
+  if (!row) return null;
+  const key = row.signature.startsWith("lens:") ? row.signature.slice(5) : "";
+  const spec = LENS_SPECS[key];
+  if (!spec) return null;
+  const lens = new LensesRepo(ctx.handle, spaceId).create(spec.name, spec.query, true);
+  s.prepare(`UPDATE inquiries SET status = 'answered' WHERE id = ? AND space_id = ?`).run(id, spaceId);
+  return lens;
+}
+
 /** Heuristic: how much an honest check-in answer should move a skill (small; slow growth). */
 function skillNudgeFromText(text: string): number {
   const t = ` ${text.toLowerCase()} `;
@@ -386,6 +454,7 @@ export function generateInquiry(ctx: AppContext, spaceId: string): number | null
     anchorCandidate(ctx, spaceId, seen) ??
     themeCandidate(ctx, spaceId, seen) ??
     hubSuggestCandidate(ctx, spaceId, seen) ??
+    lensSuggestCandidate(ctx, spaceId, seen, Date.now()) ??
     distantLinkCandidate(ctx, spaceId, seen) ??
     skillCheckinCandidate(ctx, spaceId, seen);
   if (!candidate) return null;

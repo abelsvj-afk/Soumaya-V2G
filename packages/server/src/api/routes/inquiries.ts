@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { listInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry } from "../../analysis/inquiry.js";
+import { listInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry, confirmLensSuggestion } from "../../analysis/inquiry.js";
 import { promoteConstellation } from "../../analysis/constellations.js";
 import { spaceOf } from "../middleware.js";
 
@@ -72,6 +72,12 @@ export function inquiryRoutes(ctx: AppContext): Router {
       await promoteConstellation(ctx, spaceId, name, ids);
       ctx.handle.sqlite.prepare(`UPDATE inquiries SET status = 'answered' WHERE id = ? AND space_id = ?`).run(id, spaceId);
       return res.json({ ok: true, promoted: true });
+    }
+
+    if (row.kind === "lens_suggestion") {
+      const lens = confirmLensSuggestion(ctx, spaceId, id);
+      if (!lens) return res.status(404).json({ error: "Not found" });
+      return res.json({ ok: true, lens });
     }
 
     if (!confirmInquiry(ctx, spaceId, id)) return res.status(404).json({ error: "Not found" });
