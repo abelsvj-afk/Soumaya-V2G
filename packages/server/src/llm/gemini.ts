@@ -323,6 +323,26 @@ export class GeminiProvider implements LlmProvider {
     }
   }
 
+  /** Agentic router: pick which deterministic candidate actions are worth doing now. */
+  async route(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]> {
+    const list = candidates.map((c, i) => `${i}. [${c.tool}] ${c.reason}`).join("\n");
+    const schema = {
+      type: Type.OBJECT,
+      properties: { choose: { type: Type.ARRAY, items: { type: Type.NUMBER } } },
+      required: ["choose"],
+    };
+    const system =
+      "You are Soumaya's action router. Given the user's current state and a list of candidate actions " +
+      "she could take right now, choose ONLY the indices worth doing this moment — favour genuine value, " +
+      "avoid noise, and never overwhelm. You may choose none. Return {\"choose\": [indices]}.";
+    try {
+      const raw = await this.json<{ choose: number[] }>(system, `STATE:\n${briefing}\n\nCANDIDATES:\n${list}`, schema, 0.2);
+      return Array.isArray(raw.choose) ? raw.choose.filter((n) => Number.isInteger(n)) : [];
+    } catch {
+      return candidates.map((_, i) => i); // on failure, don't suppress anything
+    }
+  }
+
   async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
     const raw = await this.json<{ vibe: string }>(
       SECTOR_SYSTEM,

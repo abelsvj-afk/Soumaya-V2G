@@ -123,6 +123,11 @@ export interface LlmProvider {
    *  concise answer with source URLs. Absent/returns null when unavailable (no key,
    *  offline, or blocked) — the web-lookup tool then simply does nothing. */
   webLookup?(query: string): Promise<WebLookupResult | null>;
+  /** Optional: the agentic tool-router's brain. Given a state briefing and the
+   *  DETERMINISTIC candidate tool-invocations this tick, choose which indices to
+   *  actually execute (curate for value + avoid noise). Returns the chosen indices.
+   *  Absent → the router runs every candidate (the always-available deterministic path). */
+  route?(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]>;
 }
 
 /** A grounded web-lookup result: a concise answer plus the source URLs it cited. */

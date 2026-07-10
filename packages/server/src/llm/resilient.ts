@@ -218,4 +218,10 @@ export class ResilientLlmProvider implements LlmProvider {
       return null;
     }
   }
+
+  /** Agentic router selection — throws when unavailable so the caller keeps every candidate. */
+  async route(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]> {
+    if (this.blocked || !this.primary.route) throw new Error("route unavailable");
+    return await withTimeout(this.primary.route(briefing, candidates), this.timeoutMs, "route");
+  }
 }

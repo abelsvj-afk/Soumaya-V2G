@@ -1,6 +1,7 @@
 import type { AppContext } from "../../context.js";
-import type { ToolContext, ToolResult } from "./types.js";
+import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
 import { TOOLS } from "./registry.js";
+import { researchEnabled } from "../../maintenance/agent.js";
 
 /**
  * The tool-router (docs/SOUMAYA_TOOLS.md). Each run, it lets every allowed tool
@@ -33,6 +34,16 @@ function logAction(ctx: AppContext, spaceId: string, tool: string, reason: strin
   }
 }
 
+/** A short, factual state briefing for the LLM router (no LLM call — pure DB reads). */
+function buildBriefing(ctx: AppContext, spaceId: string): string {
+  const s = ctx.handle.sqlite;
+  const mem = (s.prepare(`SELECT COUNT(*) AS c FROM nodes WHERE space_id=? AND deleted_at IS NULL AND (kind IS NULL OR kind='memory')`).get(spaceId) as { c: number }).c;
+  const recent = s
+    .prepare(`SELECT label FROM nodes WHERE space_id=? AND deleted_at IS NULL AND (kind IS NULL OR kind='memory') ORDER BY created_at DESC LIMIT 5`)
+    .all(spaceId) as { label: string }[];
+  return `Memories: ${mem}. Recent: ${recent.map((r) => `"${r.label}"`).join(", ") || "none"}.`;
+}
+
 /** Run the router for one space. Returns the results of every tool action taken. */
 export async function runToolRouter(ctx: AppContext, spaceId: string, opts: RouterOptions = {}): Promise<ToolResult[]> {
   const now = opts.now ?? Date.now();
@@ -45,24 +56,42 @@ export async function runToolRouter(ctx: AppContext, spaceId: string, opts: Rout
     },
   };
 
-  const results: ToolResult[] = [];
+  // Phase 1 — gather DETERMINISTIC candidates from every allowed tool (offline-safe).
+  const candidates: { tool: Tool; inv: ToolInvocation }[] = [];
   for (const tool of TOOLS) {
     if (tool.guard && !tool.guard(tc)) continue;
-    let invocations;
     try {
-      invocations = tool.detect(tc).slice(0, PER_TOOL_CAP);
+      for (const inv of tool.detect(tc).slice(0, PER_TOOL_CAP)) candidates.push({ tool, inv });
     } catch (e) {
       console.error(`[tools] ${tool.name} detect failed:`, e);
-      continue;
     }
-    for (const inv of invocations) {
-      try {
-        const r = await tool.run(tc, inv.args);
-        logAction(ctx, spaceId, tool.name, inv.reason, r.summary, now);
-        results.push(r);
-      } catch (e) {
-        console.error(`[tools] ${tool.name} run failed:`, e);
-      }
+  }
+  if (candidates.length === 0) return [];
+
+  // Phase 2 — optional agentic curation. When Research Mode is on + a working LLM
+  // router exists, Soumaya CHOOSES which candidates are worth doing now (curbs noise).
+  // She can only pick from the validated deterministic candidates — never invent one —
+  // so this adds judgement without adding risk. Any failure keeps every candidate.
+  let chosen = candidates;
+  if (typeof ctx.llm.route === "function" && candidates.length > 1 && researchEnabled(ctx, spaceId) && !ctx.usage.overBudget?.()) {
+    try {
+      const idxs = await ctx.llm.route(buildBriefing(ctx, spaceId), candidates.map((c) => ({ tool: c.inv.tool, reason: c.inv.reason })));
+      const picked = new Set(idxs.filter((i) => Number.isInteger(i) && i >= 0 && i < candidates.length));
+      if (picked.size > 0) chosen = candidates.filter((_, i) => picked.has(i));
+    } catch (e) {
+      console.error("[tools] llm route failed; running all candidates:", e);
+    }
+  }
+
+  // Phase 3 — execute the chosen actions, logging each.
+  const results: ToolResult[] = [];
+  for (const { tool, inv } of chosen) {
+    try {
+      const r = await tool.run(tc, inv.args);
+      logAction(ctx, spaceId, tool.name, inv.reason, r.summary, now);
+      results.push(r);
+    } catch (e) {
+      console.error(`[tools] ${tool.name} run failed:`, e);
     }
   }
   return results;

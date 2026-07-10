@@ -180,6 +180,23 @@ describe("Soumaya's tool-router — proactive check-ins", () => {
   });
 });
 
+describe("Soumaya's tool-router — agentic LLM curation", () => {
+  it("with Research Mode + a route() brain, executes ONLY the chosen candidates", async () => {
+    const now = Date.UTC(2026, 2, 10, 12, 0, 0);
+    reminder("call A", iso(now - 60_000));
+    reminder("call B", iso(now - 60_000));
+    // Enable Research Mode and give the llm a router that keeps only the first candidate.
+    handle.sqlite.prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES ('legacy')`).run();
+    handle.sqlite.prepare(`UPDATE space_meta SET research_enabled='true' WHERE space_id='legacy'`).run();
+    (ctx.llm as unknown as { route: (b: string, c: unknown[]) => Promise<number[]> }).route = async () => [0];
+
+    const sent: string[] = [];
+    await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    // Only one reminder should have fired (the router suppressed the other).
+    expect(sent.filter((t) => t.includes("Reminder")).length).toBe(1);
+  });
+});
+
 describe("Soumaya's tool-router — web lookup (gated)", () => {
   it("stays dormant offline (no webLookup capability, Research Mode off) — no note, no crash", async () => {
     const now = Date.UTC(2026, 2, 10, 12, 0, 0);
