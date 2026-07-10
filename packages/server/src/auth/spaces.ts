@@ -33,6 +33,7 @@ const TABLES_WITH_SPACE = [
   "visitor_stats",
   "codex_claims",
   "space_meta",
+  "lenses",
 ] as const;
 
 function hash(passcode: string, salt: string): Buffer {

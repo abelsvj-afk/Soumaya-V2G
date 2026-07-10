@@ -1,8 +1,12 @@
 # Spec — Smart Lenses (self-updating constellation views)
 
-> **Design document. No code until this spec is accepted (Rule #1).**
-> Frontier feature chosen post-runway (2026-07-10). Imports the briefing's "self-updating
-> view" pattern natively into the galaxy. Offline-safe, space-scoped, additive-migration.
+> **STATUS: SHIPPED (2026-07-10).** Built per this spec with my recommended defaults
+> (dedicated Lenses panel + pinned chips; "save as lens" captures the focused node as a
+> `linkedTo` lens). Server: `lenses` table + `LensesRepo` + `evalLens` + CRUD routes
+> (7 tests). Web: `LensesPanel` + `Graph3D.isolateSet` + live-count refresh + nav ⧉ entry
+> + active-lens banner (2 tests). Gate green. LLM-proposed lenses remain the fast-follow.
+> Frontier feature chosen post-runway. Imports the briefing's "self-updating view" pattern
+> natively into the galaxy. Offline-safe, space-scoped, additive-migration.
 
 ## The idea
 

@@ -9,7 +9,7 @@ function props(over: Partial<NavRailProps> = {}): NavRailProps {
     onSearch: vi.fn(), onFlashback: vi.fn(), onConnections: vi.fn(), candCount: 0,
     onLegend: vi.fn(), onTimeline: vi.fn(), onReview: vi.fn(), dueCount: 0,
     onHelp: vi.fn(), onDock: vi.fn(), onRecenter: vi.fn(), onZoomIn: vi.fn(), onZoomOut: vi.fn(),
-    onFocusMode: vi.fn(), focusMode: false,
+    onFocusMode: vi.fn(), focusMode: false, onLenses: vi.fn(),
     ...over,
   };
 }

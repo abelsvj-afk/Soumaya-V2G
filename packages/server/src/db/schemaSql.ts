@@ -277,4 +277,14 @@ export const BOOTSTRAP_SQL = `
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS timeline_chapters_space_idx ON timeline_chapters(space_id, period_end);
+
+    CREATE TABLE IF NOT EXISTS lenses (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      query TEXT NOT NULL DEFAULT '{}',
+      pinned INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS lenses_space_idx ON lenses(space_id, pinned DESC, id DESC);
 `;

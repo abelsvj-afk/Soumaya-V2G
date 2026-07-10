@@ -20,6 +20,7 @@ export interface NavRailProps {
   onZoomOut: () => void;
   onFocusMode: () => void;
   focusMode: boolean;
+  onLenses: () => void;
 }
 
 const badge = (n: number) => (n > 0 ? <span className="fab-badge">{n > 99 ? "99+" : n}</span> : null);
@@ -46,6 +47,9 @@ export function NavRail(p: NavRailProps) {
       <button className="fab fab-review" onClick={p.onReview} aria-label="Recall session" title="Revisit memories that are gently fading (active recall)">
         🧠
         {badge(p.dueCount)}
+      </button>
+      <button className="fab fab-lenses" onClick={p.onLenses} aria-label="Smart Lenses" title="Saved views of your galaxy (self-updating)">
+        ⧉
       </button>
       <button className="fab fab-help" onClick={p.onHelp} aria-label="Help / guide">
         ?

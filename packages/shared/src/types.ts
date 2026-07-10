@@ -517,3 +517,37 @@ export interface DailyDigest {
   /** Closing reflection in her voice. */
   closing: string;
 }
+
+/**
+ * Smart Lenses — a saved query that renders as a live, self-updating constellation
+ * (the briefing's "self-updating view"). The query is a flat AND-set of optional
+ * predicates evaluated deterministically server-side (no LLM). Every field is
+ * optional; an empty query matches all active memories.
+ */
+export interface LensQuery {
+  /** Node kinds/types to include (any-of). */
+  kinds?: string[];
+  /** Tags to match (any-of). */
+  tags?: string[];
+  /** Emotional band. */
+  emotion?: "positive" | "heavy" | "neutral";
+  /** Minimum importance 0..1. */
+  minImportance?: number;
+  /** Created/occurred within the last N days. */
+  withinDays?: number;
+  /** Only memories linked to this node id. */
+  linkedTo?: number;
+  /** Lifecycle lens. */
+  state?: "active" | "archived" | "due" | "orphan";
+  /** Full-text keyword (FTS). */
+  text?: string;
+}
+
+/** A persisted lens (with a live match count when listed). */
+export interface Lens {
+  id: number;
+  name: string;
+  query: LensQuery;
+  pinned: boolean;
+  count?: number;
+}

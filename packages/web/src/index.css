@@ -4276,3 +4276,90 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   outline-offset: 2px;
   border-radius: 4px;
 }
+
+/* ---- Smart Lenses (self-updating constellation views) ---- */
+.fab-lenses { top: 404px; right: 14px; }
+.lenses-overlay {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(4, 6, 18, 0.6); backdrop-filter: blur(6px);
+  padding: 1.2rem; animation: obs-fade 0.4s ease both;
+}
+.lenses-card {
+  width: min(460px, 100%); max-height: min(86dvh, 720px);
+  display: flex; flex-direction: column;
+  background: linear-gradient(160deg, rgba(18, 22, 44, 0.97), rgba(10, 12, 28, 0.97));
+  border: 1px solid rgba(122, 200, 255, 0.25); border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); color: #e8ecff; overflow: hidden;
+}
+.lenses-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border-bottom: 1px solid rgba(122, 200, 255, 0.18); flex: 0 0 auto;
+}
+.lenses-head h2 { margin: 0; font-size: 1rem; }
+.lenses-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid rgba(122, 200, 255, 0.3);
+  background: rgba(8, 11, 26, 0.7); color: #aebbd6; font-size: 18px; cursor: pointer;
+}
+.lenses-close:hover { color: #fff; }
+.lenses-hint { margin: 10px 16px 4px; font-size: 12px; opacity: 0.72; }
+.lenses-list { list-style: none; margin: 0; padding: 6px 12px; overflow-y: auto; }
+.lenses-empty { padding: 12px; opacity: 0.6; font-size: 13px; text-align: center; }
+.lens-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 4px; border-bottom: 1px solid rgba(122, 200, 255, 0.08);
+}
+.lens-open {
+  flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  background: transparent; border: none; color: inherit; cursor: pointer; text-align: left; padding: 4px 6px;
+  border-radius: 8px;
+}
+.lens-open:hover { background: rgba(122, 200, 255, 0.08); }
+.lens-name { font-weight: 600; font-size: 14px; }
+.lens-desc { font-size: 11px; opacity: 0.62; }
+.lens-count {
+  min-width: 26px; text-align: center; font-variant-numeric: tabular-nums;
+  font-size: 12px; font-weight: 700; color: #7af9ff;
+  background: rgba(122, 249, 255, 0.12); border-radius: 999px; padding: 2px 6px;
+}
+.lens-mini {
+  background: transparent; border: none; color: #aebbd6; cursor: pointer; font-size: 14px; padding: 4px;
+}
+.lens-mini:hover { color: #fff; }
+.lens-mini.ghost { opacity: 0.7; font-size: 13px; }
+.lenses-newbtn {
+  margin: 8px 16px; padding: 8px 12px; border-radius: 10px;
+  border: 1px dashed rgba(122, 200, 255, 0.35); background: transparent; color: #cfe0ff;
+  cursor: pointer; font-size: 13px; text-align: left;
+}
+.lenses-newbtn:hover { background: rgba(122, 200, 255, 0.08); }
+.lens-builder { margin: 4px 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+.lens-input {
+  width: 100%; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid rgba(122, 200, 255, 0.25); background: rgba(8, 11, 26, 0.7); color: #e8ecff; font-size: 13px;
+}
+.lens-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lens-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 11px; opacity: 0.8; }
+.lens-fields select {
+  padding: 6px 8px; border-radius: 8px;
+  border: 1px solid rgba(122, 200, 255, 0.25); background: rgba(8, 11, 26, 0.7); color: #e8ecff; font-size: 13px;
+}
+.lens-note { font-size: 11px; opacity: 0.7; margin: 2px 0 0; }
+.lens-builder-actions { display: flex; align-items: center; gap: 10px; }
+.lens-save {
+  padding: 8px 14px; border-radius: 999px; border: 1px solid var(--accent);
+  background: rgba(122, 249, 255, 0.18); color: var(--accent); font-weight: 600; cursor: pointer; font-size: 13px;
+}
+.lens-save:disabled { opacity: 0.5; cursor: default; }
+
+/* Active-lens banner — same language as "Exit system view". */
+.lens-banner {
+  position: absolute;
+  top: calc(92px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  z-index: 45; background: var(--glass); border: 1px solid var(--accent);
+  backdrop-filter: blur(14px); border-radius: 999px; padding: 8px 16px;
+  font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer;
+}
+.focus-mode .lens-banner { opacity: 0.08; transition: opacity 0.5s ease; }
+.focus-mode .lens-banner:hover { opacity: 1; }

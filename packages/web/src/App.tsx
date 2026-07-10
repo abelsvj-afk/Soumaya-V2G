@@ -28,6 +28,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { Legend } from "./components/Legend.js";
+import { LensesPanel } from "./components/LensesPanel.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -267,6 +268,10 @@ export default function App() {
   // The visual legend (🗺️) — auto-shows ONCE per brain so new users learn the
   // galaxy's language, then it's a tap away whenever they forget.
   const [showLegend, setShowLegend] = useState(false);
+  const [showLenses, setShowLenses] = useState(false);
+  // The active Smart Lens (its name), shown as a dismissable banner while the galaxy is
+  // isolated to it. Clearing it exits the isolated view.
+  const [activeLens, setActiveLens] = useState<string | null>(null);
   // Ambient Level-2 read on you (foresight or newest belief) shown as a HUD pill.
   const [selfInsight, setSelfInsight] = useState<{ kind: "foresight" | "belief"; text: string } | null>(null);
   const [clustered, setClustered] = useState(false);
@@ -1438,6 +1443,29 @@ export default function App() {
 
       {showLegend && <Legend onClose={() => setShowLegend(false)} />}
 
+      {showLenses && space && !demo && (
+        <LensesPanel
+          onClose={() => setShowLenses(false)}
+          presetLinkedTo={selected ? { id: selected.id, label: selected.label } : null}
+          onOpen={(ids, name) => {
+            graphRef.current?.isolateSet(ids);
+            setActiveLens(name);
+            setSelected(null);
+          }}
+        />
+      )}
+
+      {/* Active-lens banner — mirrors "Exit system view"; ✕ restores the full galaxy. */}
+      {activeLens && panel === null && (
+        <button
+          className="lens-banner"
+          onClick={() => { graphRef.current?.exitCluster(); setActiveLens(null); }}
+          title="Exit this lens"
+        >
+          ⧉ Lens: {activeLens} &nbsp;✕
+        </button>
+      )}
+
       {/* Ambient Mind Space: live working-memory thoughts drifting over the galaxy
           (toggled from the 🧠 Mind tab; self-contained + pointer-events:none). */}
       <ErrorBoundary label="mindspace" fallback={null}>
@@ -1511,6 +1539,7 @@ export default function App() {
             onZoomOut={() => graphRef.current?.zoomBy(1.25)}
             onFocusMode={() => setFocusMode((v) => !v)}
             focusMode={focusMode}
+            onLenses={() => setShowLenses(true)}
           />
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
           {(() => {

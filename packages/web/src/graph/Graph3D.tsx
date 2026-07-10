@@ -60,6 +60,8 @@ export interface Graph3DHandle {
   isolateSystem: (id: number) => void;
   /** Exit the isolated system view (show the whole galaxy again). */
   exitCluster: () => void;
+  /** Isolate an arbitrary SET of memories (a Smart Lens) and frame them. */
+  isolateSet: (ids: number[]) => void;
   /** Trigger a visual burst at a node (e.g., for user action rewards). */
   spawnBurst: (nodeId: number, type?: string) => void;
   /** Fire visual recall signals along synapses for cited node IDs. */
@@ -1706,6 +1708,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         setCluster(null);
         followRef.current = null;
         frameGalaxy(800);
+      },
+      isolateSet: (ids: number[]) => {
+        // A Smart Lens: show only the matching bodies (dim/hide the rest) and frame
+        // them. Reuses the isolate-system cluster machinery with an arbitrary set.
+        const set = new Set(ids);
+        setCluster(set);
+        followRef.current = null;
+        followObjRef.current = null;
+        followKindRef.current = null;
+        if (set.size > 0) scheduleTimeout(() => frameGalaxy(900, (n: any) => set.has(n.id)), 80);
       },
       spawnBurst: (id: number, type = "user") => {
         const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
