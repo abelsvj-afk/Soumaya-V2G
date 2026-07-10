@@ -171,18 +171,20 @@ correctness bug this pass. Deliverables: this Resolved-Issue Log + Regression te
 
 ## D4 — Oversized-file refactor (progress, 2026-07-10)
 
-Behaviour-preserving splits, each verified by full typecheck + build + 273 tests:
+Behaviour-preserving splits, each verified by full typecheck + build + server/web tests. A web
+test harness (vitest + happy-dom + @testing-library/react; 15 tests) now backs component refactors.
 
-| File | Before | After | Extracted → |
+| File | Before | Now | Extracted → |
 |---|---|---|---|
-| `api/client.ts` | 1598 | **1154** | `api/http.ts` (transport), `api/features.ts` (timeline+review), `api/mind.ts` (cognitive layer) |
-| `graph/Graph3D.tsx` | 2189 | **1942** | `graph/graph3dHelpers.ts` (LOD, figurine build, GPU disposal) |
+| `api/client.ts` | 1598 | **910** | `http.ts` (transport) · `features.ts` (timeline+review) · `mind.ts` (cognitive) · `attachments.ts` · `companion.ts` · `activity.ts` ("AI is working" signal) · `processing.ts` (mid-ingest state) |
+| `graph/Graph3D.tsx` | 2189 | **1942** | `graph3dHelpers.ts` (LOD, figurine build, GPU disposal) |
+| `graph/soumaya.ts` | 1696 | **1602** | `soumayaHelpers.ts` (vecOf, smoothstep, task-label sprite, body radius) |
 | `App.tsx` | 1935 | **1889** | `App.helpers.ts` (presentational style/label helpers) |
 
-The remaining bulk of `App.tsx`/`Graph3D.tsx` is **stateful component logic** (hooks, effects, the
-render loop). Deep extraction there is deferred until the web side has smoke/integration tests —
-refactoring untested stateful code is the exact risk the workflow's "run tests after every change"
-rule guards against. The safe pure-code extractions above are done.
+`client.ts` is down **43%**. The remaining bulk of `App.tsx`/`Graph3D.tsx`/`soumaya.ts` is
+**stateful logic** (hooks, effects, the render/flight loop). With the harness now in place, that deep
+extraction can proceed incrementally — each extracted piece gets a focused test — rather than being
+typecheck-only. Pure-code and self-contained-unit extractions are done across all four files.
 
 ### Recommended next step
 
