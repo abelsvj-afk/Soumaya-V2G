@@ -6,6 +6,14 @@
 is the lighter day-to-day loop derived from it.) This is standing policy; it does not need to be
 re-stated each session.
 
+**MANDATORY — post-MVP workflow.** [`docs/AI_ENGINEERING_WORKFLOW_POST_MVP.md`](./docs/AI_ENGINEERING_WORKFLOW_POST_MVP.md)
+governs all work **once the current tools/functions build-out is complete** (Soumaya's tool-router
+fleet + the neuro-aligned features). At that cutover it becomes the operating workflow: MVP Freeze →
+repository/bug/quality/debt/dependency audits → architecture/refactor/security/testing/performance/
+observability → AI validation (memory, prompts, retrieval, hallucination, cost) → product readiness
+(UX, a11y, docs sync, beta, deployment, rollback, monitoring). Until the cutover, keep shipping under
+the lighter loop above; do not prematurely freeze features.
+
 **MANDATORY — product north star.** We are building Soumaya toward the patterns in
 [`docs/SECOND_BRAIN_BRIEFING.md`](./docs/SECOND_BRAIN_BRIEFING.md) (Obsidian "second brain"
 adaptation; the research calls us "Sarmiah" — same product). The live gap analysis + staged growth
