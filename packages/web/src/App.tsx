@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties } from "react";
 import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
 // Pure presentational helpers live in App.helpers.ts (Post-MVP D4 split).
 import { focusItemStyle, songDotStyle, getFigurineIcon, getFigurineLabel } from "./App.helpers.js";
 
-import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
+import { type Graph3DHandle } from "./graph/Graph3D.js";
+// Lazy-load the 3D galaxy so three.js (~600 kB) isn't in the initial bundle — the
+// login/shell + lite mode render without it (Post-MVP Phase 11 code-split). It only
+// downloads once the galaxy actually mounts (gated by `galaxyWillMount`).
+const Graph3D = lazy(() => import("./graph/Graph3D.js").then((m) => ({ default: m.Graph3D })));
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
 import { makeAmbientAudio, TRACKS, type AmbientAudio } from "./graph/audio.js";
@@ -1180,6 +1184,7 @@ export default function App() {
           </>
         }
       >
+      <Suspense fallback={null}>
       <Graph3D
         ref={graphRef}
         data={view}
@@ -1221,6 +1226,7 @@ export default function App() {
         equippedFig2={equippedFig2}
         spaceId={space?.id ?? ""}
       />
+      </Suspense>
       </ErrorBoundary>
       )}
 
