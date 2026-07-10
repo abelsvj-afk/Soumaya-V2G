@@ -4,11 +4,16 @@ import { useState, useEffect } from "react";
 // so existing `import { getSpaceId, BOOT_TIMEOUT_MS } from "../api/client"` keep working.
 import { API, afetch, getSpaceId, getSpaceName, storeSpace, BOOT_TIMEOUT_MS } from "./http.js";
 export { getSpaceId, getSpaceName, BOOT_TIMEOUT_MS } from "./http.js";
+// The "AI is working" activity signal lives in activity.ts (D4 split); re-export the hook.
+import { tracked } from "./activity.js";
+export { onAiActivity } from "./activity.js";
 // The newest cohesive domains (spaced-repetition review + the Chronicle timeline) live
 // in features.ts; the Mind / cognitive layer lives in mind.ts. Re-export both so their
 // call sites are unchanged.
 export * from "./features.js";
 export * from "./mind.js";
+export * from "./attachments.js";
+export * from "./companion.js";
 
 // --- Node processing state tracking ("Writing..." latency feedback) ---
 const processingNodes = new Set<number>();
@@ -96,29 +101,6 @@ export async function updateProfile(opts: { gamerTag?: string; name?: string }):
   if (!res.ok || !body.id) throw new Error(body.error ?? `Couldn't update profile (${res.status})`);
   storeSpace(body.id, body.name); // keep the cached name in sync
   return { id: body.id, name: body.name ?? "", gamerTag: body.gamerTag ?? "" };
-}
-
-// --- Global "AI is working" signal (ingest / chat / synthesis) ---
-type ActivityListener = (active: number) => void;
-let activeCount = 0;
-const activityListeners = new Set<ActivityListener>();
-function setActive(delta: number): void {
-  activeCount = Math.max(0, activeCount + delta);
-  for (const l of activityListeners) l(activeCount);
-}
-/** Subscribe to in-flight LLM-backed request count (for the activity badge). */
-export function onAiActivity(cb: ActivityListener): () => void {
-  activityListeners.add(cb);
-  cb(activeCount);
-  return () => activityListeners.delete(cb);
-}
-async function tracked<T>(p: Promise<T>): Promise<T> {
-  setActive(1);
-  try {
-    return await p;
-  } finally {
-    setActive(-1);
-  }
 }
 
 export interface IngestResult {
@@ -597,70 +579,6 @@ export async function getEvolutionLinks(): Promise<EvolutionLink[]> {
   }
 }
 
-/** Files attached to a memory note (metadata only). */
-export async function listAttachments(nodeId: number): Promise<Attachment[]> {
-  try {
-    const res = await afetch(`${API}/nodes/${nodeId}/attachments`);
-    const d = await res.json().catch(() => []);
-    return Array.isArray(d) ? d : [];
-  } catch {
-    return [];
-  }
-}
-
-/** Attach a file (read as base64) to a memory note. Returns the metadata or throws. */
-export async function addAttachment(
-  nodeId: number,
-  file: { filename: string; mime: string; data: string },
-): Promise<Attachment> {
-  const res = await afetch(`${API}/nodes/${nodeId}/attachments`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(file),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Upload failed (${res.status})`);
-  }
-  return res.json() as Promise<Attachment>;
-}
-
-export async function deleteAttachment(nodeId: number, attId: number): Promise<boolean> {
-  try {
-    const res = await afetch(`${API}/nodes/${nodeId}/attachments/${attId}`, { method: "DELETE" });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-/** Fetch an attachment's bytes as an object URL for INLINE viewing (an <img>/<video>
- *  can't send our auth header, so we fetch the blob ourselves and hand back a local URL).
- *  Caller must URL.revokeObjectURL it when done. */
-export async function attachmentObjectUrl(att: Pick<Attachment, "id" | "nodeId">): Promise<string | null> {
-  try {
-    const res = await afetch(`${API}/nodes/${att.nodeId}/attachments/${att.id}/download`);
-    if (!res.ok) return null;
-    return URL.createObjectURL(await res.blob());
-  } catch {
-    return null;
-  }
-}
-
-/** Download an attachment's bytes (sends the auth header, then triggers a save). */
-export async function downloadAttachment(att: Attachment): Promise<void> {
-  const res = await afetch(`${API}/nodes/${att.nodeId}/attachments/${att.id}/download`);
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = att.filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
 
 /** Dormant skills/goals/projects worth reviving (free, offline-safe). */
 export async function getDormant(): Promise<DormantItem[]> {
@@ -971,135 +889,6 @@ export async function updateSetting(key: string, value: string): Promise<{ ok: b
   return res.json() as Promise<{ ok: boolean }>;
 }
 
-// --- AI Companion: persona ("About Me"), instruction profiles, knowledge docs ---
-
-// "About Me" is auto-derived by Soumaya (not user-editable). GET returns the
-// current (re-derived if stale); refresh forces a regeneration.
-export async function getPersona(): Promise<string> {
-  try {
-    const res = await afetch(`${API}/persona`);
-    const d = (await res.json().catch(() => ({}))) as { body?: string };
-    return d.body ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export async function refreshPersona(): Promise<string> {
-  try {
-    const res = await afetch(`${API}/persona/refresh`, { method: "POST" });
-    const d = (await res.json().catch(() => ({}))) as { body?: string };
-    return d.body ?? "";
-  } catch {
-    return "";
-  }
-}
-
-export interface InstructionProfile {
-  id: number;
-  name: string;
-  body: string;
-  enabled: boolean;
-  mode: "always" | "auto";
-  priority: number;
-  createdAt: string;
-}
-
-export async function getInstructions(): Promise<InstructionProfile[]> {
-  try {
-    const res = await afetch(`${API}/instructions`);
-    const d = await res.json().catch(() => []);
-    return Array.isArray(d) ? (d as InstructionProfile[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function createInstruction(input: {
-  name: string;
-  body: string;
-  mode?: "always" | "auto";
-  priority?: number;
-}): Promise<InstructionProfile> {
-  const res = await afetch(`${API}/instructions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-  if (!res.ok) {
-    const b = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(b.error ?? `Create failed (${res.status})`);
-  }
-  return res.json() as Promise<InstructionProfile>;
-}
-
-export async function updateInstruction(
-  id: number,
-  patch: Partial<Pick<InstructionProfile, "name" | "body" | "enabled" | "mode" | "priority">>,
-): Promise<InstructionProfile> {
-  const res = await afetch(`${API}/instructions/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(patch),
-  });
-  if (!res.ok) {
-    const b = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(b.error ?? `Update failed (${res.status})`);
-  }
-  return res.json() as Promise<InstructionProfile>;
-}
-
-export async function deleteInstruction(id: number): Promise<void> {
-  await afetch(`${API}/instructions/${id}`, { method: "DELETE" });
-}
-
-export interface KnowledgeDoc {
-  id: number;
-  name: string;
-  mime: string;
-  charCount: number;
-  chunks?: number;
-  createdAt: string;
-}
-
-export async function getDocuments(): Promise<KnowledgeDoc[]> {
-  try {
-    const res = await afetch(`${API}/documents`);
-    const d = await res.json().catch(() => []);
-    return Array.isArray(d) ? (d as KnowledgeDoc[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export async function uploadDocument(name: string, text: string, mime?: string): Promise<KnowledgeDoc> {
-  return tracked(
-    (async () => {
-      const res = await afetch(`${API}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, text, mime }),
-      });
-      if (!res.ok) {
-        const b = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(b.error ?? `Upload failed (${res.status})`);
-      }
-      return res.json() as Promise<KnowledgeDoc>;
-    })(),
-  );
-}
-
-export async function renameDocument(id: number, name: string): Promise<void> {
-  await afetch(`${API}/documents/${id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-}
-
-export async function deleteDocument(id: number): Promise<void> {
-  await afetch(`${API}/documents/${id}`, { method: "DELETE" });
-}
 
 // --- Visitor activity ---
 

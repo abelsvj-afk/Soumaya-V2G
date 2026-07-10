@@ -1,0 +1,138 @@
+import { API, afetch } from "./http.js";
+import { tracked } from "./activity.js";
+
+/**
+ * AI Companion client calls — persona ("About Me"), instruction profiles (roles), and
+ * knowledge documents. Split out of client.ts in the Post-MVP D4 refactor (behaviour
+ * unchanged); re-exported from client.ts so call sites are untouched.
+ */
+
+// --- AI Companion: persona ("About Me"), instruction profiles, knowledge docs ---
+
+// "About Me" is auto-derived by Soumaya (not user-editable). GET returns the
+// current (re-derived if stale); refresh forces a regeneration.
+export async function getPersona(): Promise<string> {
+  try {
+    const res = await afetch(`${API}/persona`);
+    const d = (await res.json().catch(() => ({}))) as { body?: string };
+    return d.body ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export async function refreshPersona(): Promise<string> {
+  try {
+    const res = await afetch(`${API}/persona/refresh`, { method: "POST" });
+    const d = (await res.json().catch(() => ({}))) as { body?: string };
+    return d.body ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export interface InstructionProfile {
+  id: number;
+  name: string;
+  body: string;
+  enabled: boolean;
+  mode: "always" | "auto";
+  priority: number;
+  createdAt: string;
+}
+
+export async function getInstructions(): Promise<InstructionProfile[]> {
+  try {
+    const res = await afetch(`${API}/instructions`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as InstructionProfile[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function createInstruction(input: {
+  name: string;
+  body: string;
+  mode?: "always" | "auto";
+  priority?: number;
+}): Promise<InstructionProfile> {
+  const res = await afetch(`${API}/instructions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `Create failed (${res.status})`);
+  }
+  return res.json() as Promise<InstructionProfile>;
+}
+
+export async function updateInstruction(
+  id: number,
+  patch: Partial<Pick<InstructionProfile, "name" | "body" | "enabled" | "mode" | "priority">>,
+): Promise<InstructionProfile> {
+  const res = await afetch(`${API}/instructions/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) {
+    const b = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(b.error ?? `Update failed (${res.status})`);
+  }
+  return res.json() as Promise<InstructionProfile>;
+}
+
+export async function deleteInstruction(id: number): Promise<void> {
+  await afetch(`${API}/instructions/${id}`, { method: "DELETE" });
+}
+
+export interface KnowledgeDoc {
+  id: number;
+  name: string;
+  mime: string;
+  charCount: number;
+  chunks?: number;
+  createdAt: string;
+}
+
+export async function getDocuments(): Promise<KnowledgeDoc[]> {
+  try {
+    const res = await afetch(`${API}/documents`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? (d as KnowledgeDoc[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function uploadDocument(name: string, text: string, mime?: string): Promise<KnowledgeDoc> {
+  return tracked(
+    (async () => {
+      const res = await afetch(`${API}/documents`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, text, mime }),
+      });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error ?? `Upload failed (${res.status})`);
+      }
+      return res.json() as Promise<KnowledgeDoc>;
+    })(),
+  );
+}
+
+export async function renameDocument(id: number, name: string): Promise<void> {
+  await afetch(`${API}/documents/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function deleteDocument(id: number): Promise<void> {
+  await afetch(`${API}/documents/${id}`, { method: "DELETE" });
+}
