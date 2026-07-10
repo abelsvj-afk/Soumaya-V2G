@@ -141,6 +141,49 @@ This document = **MVP Scope Lock + Known Issues/Bug Inventory + Feature Backlog*
 **Repository Audit Report + Technical Debt Register + Dependency Report + Architecture Observations**
 (Phase 2).
 
+---
+
+## Phase 3 — Bug Bash (results, 2026-07-10)
+
+**Recent code (the tools/SRS/timeline/streak/router cycle):**
+- **B1 (fixed):** timeline chapter narrative measured its day-span from `a.since` — the *epoch*
+  for the first/backfill chapter — so an opening chapter read *"Across about 20454 days."* Now
+  anchored on the first memory in the window. Regression test added.
+
+**Older/core code sweep (targeted by highest-risk class):**
+- **Multi-tenancy scoping — 🟢 clean.** Swept every query over `nodes/edges/insights/agent_logs/
+  attachments/working_memory/inquiries/candidate_links/timeline_chapters`. All either filter
+  `space_id`, or key on globally-unique node ids (an edge only ever joins same-space nodes), or
+  scope via a `JOIN nodes … space_id = ?`. No cross-brain leak found. The `harmonization` AVG
+  subquery and the `enrich` review query are both id-scoped and safe.
+- **`JSON.parse` on stored rows — 🟢 defensive.** Every server parse of a DB column is wrapped in
+  try/catch (via `parseJson`/`parseTags` helpers or inline) so one malformed row can't 500 a
+  request. The `gemini`/`openai` parses throw *by design* so `ResilientLlmProvider` degrades to the
+  heuristic.
+- **Economy/regen — 🟢 sound.** Verified the accrue-at-cap early-return can't cause a regen burst,
+  because `spend()`/`add()` always refresh `updated_at`.
+- **Reminder tool ⇄ NotificationsBar — 🟢 correct by design.** The tool marks `reminder_fired_at`
+  (won't re-push Telegram) but deliberately leaves `remind_at` so the in-app bar remains the
+  reliable surface until the user acks — clearing it would drop the reminder for un-linked users.
+
+**Verdict:** the older code is defensively written and multi-tenant-safe; B1 was the only real
+correctness bug this pass. Deliverables: this Resolved-Issue Log + Regression test.
+
+## D4 — Oversized-file refactor (progress, 2026-07-10)
+
+Behaviour-preserving splits, each verified by full typecheck + build + 273 tests:
+
+| File | Before | After | Extracted → |
+|---|---|---|---|
+| `api/client.ts` | 1598 | **1154** | `api/http.ts` (transport), `api/features.ts` (timeline+review), `api/mind.ts` (cognitive layer) |
+| `graph/Graph3D.tsx` | 2189 | **1942** | `graph/graph3dHelpers.ts` (LOD, figurine build, GPU disposal) |
+| `App.tsx` | 1935 | **1889** | `App.helpers.ts` (presentational style/label helpers) |
+
+The remaining bulk of `App.tsx`/`Graph3D.tsx` is **stateful component logic** (hooks, effects, the
+render loop). Deep extraction there is deferred until the web side has smoke/integration tests —
+refactoring untested stateful code is the exact risk the workflow's "run tests after every change"
+rule guards against. The safe pure-code extractions above are done.
+
 ### Recommended next step
 
 Per the workflow, Phase 2 → Phase 3 (Bug Bash) should **not** begin until the audit is accepted.
