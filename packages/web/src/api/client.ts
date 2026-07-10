@@ -7,6 +7,9 @@ export { getSpaceId, getSpaceName, BOOT_TIMEOUT_MS } from "./http.js";
 // The "AI is working" activity signal lives in activity.ts (D4 split); re-export the hook.
 import { tracked } from "./activity.js";
 export { onAiActivity } from "./activity.js";
+// Node "processing" (mid-ingest) state lives in processing.ts (D4 split).
+import { setNodeProcessing } from "./processing.js";
+export { isNodeProcessing, onNodeProcessingChange, useProcessingNodes } from "./processing.js";
 // The newest cohesive domains (spaced-repetition review + the Chronicle timeline) live
 // in features.ts; the Mind / cognitive layer lives in mind.ts. Re-export both so their
 // call sites are unchanged.
@@ -14,42 +17,6 @@ export * from "./features.js";
 export * from "./mind.js";
 export * from "./attachments.js";
 export * from "./companion.js";
-
-// --- Node processing state tracking ("Writing..." latency feedback) ---
-const processingNodes = new Set<number>();
-const nodeProcessingListeners = new Set<(nodes: Set<number>) => void>();
-
-export function isNodeProcessing(id: number): boolean {
-  return processingNodes.has(id);
-}
-
-export function onNodeProcessingChange(cb: (nodes: Set<number>) => void): () => void {
-  nodeProcessingListeners.add(cb);
-  cb(new Set(processingNodes));
-  return () => nodeProcessingListeners.delete(cb);
-}
-
-export function useProcessingNodes(): Set<number> {
-  const [processing, setProcessing] = useState<Set<number>>(new Set(processingNodes));
-  useEffect(() => {
-    return onNodeProcessingChange(setProcessing);
-  }, []);
-  return processing;
-}
-
-function setNodeProcessing(ids: number[], active: boolean): void {
-  for (const id of ids) {
-    if (active) processingNodes.add(id);
-    else processingNodes.delete(id);
-  }
-  for (const l of nodeProcessingListeners) {
-    try {
-      l(new Set(processingNodes));
-    } catch (e) {
-      console.error(e);
-    }
-  }
-}
 
 export interface AuthResult {
   id: string;
