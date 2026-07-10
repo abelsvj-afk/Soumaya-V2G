@@ -334,17 +334,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           knownLinksRef.current.add(k);
           if (fresh.length < PULSE_VISIT_CAP) {
             fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
-          }
-          // A comet sweeps along the new connection as it forms (#1b) — skipped under
-          // reduced-motion, where the line simply appears with no animation.
-          if (!calm) {
-            const a = nodeByIdRef.current.get(linkEnd(l.source));
-            const b = nodeByIdRef.current.get(linkEnd(l.target));
-            if (a?.x != null && b?.x != null) {
-              linkFormingRef.current?.fire(
-                new THREE.Vector3(a.x, a.y, a.z ?? 0),
-                new THREE.Vector3(b.x, b.y, b.z ?? 0),
-              );
+            // A comet sweeps along the new connection as it forms (#1b) — skipped under
+            // reduced-motion, and bounded by the same cap so a bulk sync can't fire
+            // hundreds of sparks (the pool only shows a few anyway).
+            if (!calm) {
+              const a = nodeByIdRef.current.get(linkEnd(l.source));
+              const b = nodeByIdRef.current.get(linkEnd(l.target));
+              if (a?.x != null && b?.x != null) {
+                linkFormingRef.current?.fire(
+                  new THREE.Vector3(a.x, a.y, a.z ?? 0),
+                  new THREE.Vector3(b.x, b.y, b.z ?? 0),
+                );
+              }
             }
           }
         }

@@ -85,8 +85,14 @@ export const weeklyReviewTool: Tool = {
     // fallback on any error, so this never blocks or breaks the offline path.
     if (tc.ctx.llm.available) {
       try {
+        // Cap the prompt to the week's most significant moments so a heavy week can't
+        // balloon the token cost (the digest reads best from the highlights anyway).
+        const forVoice = [...mems]
+          .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
+          .slice(0, 12)
+          .map((m) => ({ label: m.label, content: m.content }));
         const voiced = await tc.ctx.llm.generateDailyLog(
-          mems.map((m) => ({ label: m.label, content: m.content })),
+          forVoice,
           ["weekly reflection over the past 7 days"],
         );
         if (voiced && voiced.trim().length > 0) digest = `🗓️ ${voiced.trim()}`;
