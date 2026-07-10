@@ -10,7 +10,11 @@ re-stated each session.
 [`docs/SECOND_BRAIN_BRIEFING.md`](./docs/SECOND_BRAIN_BRIEFING.md) (Obsidian "second brain"
 adaptation; the research calls us "Sarmiah" — same product). The live gap analysis + staged growth
 plan is [`docs/SECOND_BRAIN_ALIGNMENT.md`](./docs/SECOND_BRAIN_ALIGNMENT.md) — consult it when
-planning new feature growth.
+planning new feature growth. The neuroscience cross-reference (what to build vs. skip, evidence-
+graded) is [`docs/NEURO_ALIGNMENT.md`](./docs/NEURO_ALIGNMENT.md). **Core principle from it:
+memory is made by *retrieval*, not storage** — the galaxy is the memory palace, but a spaced-
+repetition + gentle active-recall layer (dimming stars = review cue; Soumaya nudges recall in her
+own voice, never Anki decks) is the highest-leverage growth direction and a first-class staged feature.
 
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
@@ -205,3 +209,5 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 - Don't add dependencies casually — prefer small, dependency-free solutions.
 - Don't break the offline fallback path.
 - Don't put model identifiers or secrets in committed files.
+- Accessibility (non-negotiable, pure code): honor `prefers-reduced-motion` — new galaxy/UI motion
+  must calm or pause under it — and never encode meaning in colour alone (pair it with shape/size/label).
