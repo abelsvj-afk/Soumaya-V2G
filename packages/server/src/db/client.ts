@@ -345,6 +345,17 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "reminder_fired_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN reminder_fired_at TEXT`);
   }
+  // Spaced-repetition / active-recall (NEURO_ALIGNMENT #1): SM-2-ish memory-strength
+  // scheduling per memory. All NULL = never scheduled (seeded lazily on first review sweep).
+  for (const [col, ddl] of [
+    ["review_ease", `ALTER TABLE nodes ADD COLUMN review_ease REAL`],
+    ["review_interval_days", `ALTER TABLE nodes ADD COLUMN review_interval_days REAL`],
+    ["next_review_at", `ALTER TABLE nodes ADD COLUMN next_review_at TEXT`],
+    ["last_reviewed_at", `ALTER TABLE nodes ADD COLUMN last_reviewed_at TEXT`],
+    ["review_count", `ALTER TABLE nodes ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0`],
+  ] as const) {
+    if (!cols.some((c) => c.name === col)) sqlite.exec(ddl);
+  }
   // Insights gain a `kind` ("synthesis" | "contradiction") on existing volumes (additive).
   const insightCols = sqlite.prepare(`PRAGMA table_info(insights)`).all() as { name: string }[];
   if (insightCols.length > 0 && !insightCols.some((c) => c.name === "kind")) {
