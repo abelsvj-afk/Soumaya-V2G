@@ -4363,3 +4363,27 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 }
 .focus-mode .lens-banner { opacity: 0.08; transition: opacity 0.5s ease; }
 .focus-mode .lens-banner:hover { opacity: 1; }
+
+/* Pinned-lens quick chips — one-tap switching, bottom-center over the galaxy. */
+.lens-chips {
+  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%); z-index: 44;
+  display: flex; gap: 6px; max-width: min(80vw, 520px);
+  overflow-x: auto; padding: 4px; scrollbar-width: none;
+}
+.lens-chips::-webkit-scrollbar { display: none; }
+.lens-chip {
+  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+  padding: 6px 10px; border-radius: 999px; cursor: pointer;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  backdrop-filter: blur(14px); color: var(--text); font-size: 12px; font-weight: 600;
+  max-width: 180px;
+}
+.lens-chip .lens-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lens-chip .lens-chip-count {
+  font-variant-numeric: tabular-nums; font-size: 11px; color: #7af9ff; opacity: 0.9;
+}
+.lens-chip.on { border-color: var(--accent); background: rgba(122, 249, 255, 0.2); color: var(--accent); }
+.lens-chip.on .lens-chip-count { color: var(--accent); }
+.focus-mode .lens-chips { opacity: 0.08; transition: opacity 0.5s ease; }
+.focus-mode .lens-chips:hover { opacity: 1; }

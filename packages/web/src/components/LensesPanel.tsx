@@ -33,6 +33,8 @@ export function LensesPanel({
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(() => getLenses().then(setLenses).catch(() => {}), []);
+  // Let the on-galaxy pinned-lens chips re-sync when lenses change here.
+  const broadcast = () => window.dispatchEvent(new Event("brain-lenses-changed"));
   useEffect(() => {
     refresh();
     // A lens's count is live — re-fetch when a memory is added.
@@ -65,6 +67,7 @@ export function LensesPanel({
     setBuilding(false);
     setName(""); setText(""); setEmotion(""); setState(""); setImportance(""); setWithin("");
     refresh();
+    broadcast();
   };
 
   const open = async (l: Lens) => {
@@ -80,11 +83,13 @@ export function LensesPanel({
   const remove = async (l: Lens) => {
     setLenses((xs) => xs.filter((x) => x.id !== l.id));
     await deleteLens(l.id);
+    broadcast();
   };
 
   const togglePin = async (l: Lens) => {
     await updateLens(l.id, { pinned: !l.pinned });
     refresh();
+    broadcast();
   };
 
   const desc = (q: LensQuery): string => {

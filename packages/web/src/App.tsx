@@ -29,6 +29,7 @@ import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { Legend } from "./components/Legend.js";
 import { LensesPanel } from "./components/LensesPanel.js";
+import { LensChips } from "./components/LensChips.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -1030,6 +1031,17 @@ export default function App() {
 
   const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);
 
+  // Smart Lens open/exit — shared by the Lenses panel and the on-galaxy pinned chips.
+  const openLens = useCallback((ids: number[], name: string) => {
+    graphRef.current?.isolateSet(ids);
+    setActiveLens(name);
+    setSelected(null);
+  }, []);
+  const exitLens = useCallback(() => {
+    graphRef.current?.exitCluster();
+    setActiveLens(null);
+  }, []);
+
   const triggerFlashback = useCallback(() => {
     // Find an old, high-mass memory (Serendipity hook)
     const candidates = view.nodes.filter(n => {
@@ -1447,21 +1459,23 @@ export default function App() {
         <LensesPanel
           onClose={() => setShowLenses(false)}
           presetLinkedTo={selected ? { id: selected.id, label: selected.label } : null}
-          onOpen={(ids, name) => {
-            graphRef.current?.isolateSet(ids);
-            setActiveLens(name);
-            setSelected(null);
-          }}
+          onOpen={openLens}
+        />
+      )}
+
+      {/* One-tap pinned-lens switching, right on the galaxy. */}
+      {space && !demo && (
+        <LensChips
+          activeLens={activeLens}
+          onOpen={openLens}
+          onExit={exitLens}
+          hidden={panel !== null || showChat || showObs || !!selected}
         />
       )}
 
       {/* Active-lens banner — mirrors "Exit system view"; ✕ restores the full galaxy. */}
       {activeLens && panel === null && (
-        <button
-          className="lens-banner"
-          onClick={() => { graphRef.current?.exitCluster(); setActiveLens(null); }}
-          title="Exit this lens"
-        >
+        <button className="lens-banner" onClick={exitLens} title="Exit this lens">
           ⧉ Lens: {activeLens} &nbsp;✕
         </button>
       )}
