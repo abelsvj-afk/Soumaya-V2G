@@ -85,6 +85,16 @@ the LLM/web are gated by Research Mode + USD budget (+ Fuel for expansion), same
   `detect`: a `research` opportunity where the memory poses an external question. `run`: fetch, attach a
   cited note to the node, `notify`. Spends Fuel like other expansion jobs.
 
+## Tool 7 — Weekly review (shipped; deterministic, free, offline)
+
+- `detect`: rate-limited to one per rolling 7-day window (checks `agent_logs` for the last
+  `tool:weekly_review`); requires ≥ 3 memories in the past week so there's something to reflect on.
+- `run`: composes a short reflection — count, a gentle mood read (mean + spread of emotional weight),
+  and the standout memory (highest importance). Heuristic by default; when a cloud LLM is present,
+  `generateDailyLog` phrases it in Soumaya's voice (any failure → heuristic). Delivers via `notify`
+  (Telegram) and, because the full digest rides in the result summary, the router's `agent_logs`
+  row surfaces it in-app (Night Replay).
+
 ## Verification
 
 - Gate `typecheck && test && build` green at each slice.

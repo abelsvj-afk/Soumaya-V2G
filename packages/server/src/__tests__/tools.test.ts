@@ -208,3 +208,37 @@ describe("Soumaya's tool-router — web lookup (gated)", () => {
     expect(notes.c).toBe(0);
   });
 });
+
+describe("Soumaya's tool-router — weekly review", () => {
+  it("composes a once-a-week reflection when the week has enough moments", async () => {
+    const now = Date.UTC(2026, 3, 15, 9, 0, 0);
+    for (let i = 0; i < 4; i++) memory(`moment ${i}`, `something that happened ${i}`, iso(now - (i + 1) * 86_400_000));
+    const sent: string[] = [];
+    const r = await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+
+    expect(r.some((x) => x.summary.includes("Looking back on your week"))).toBe(true);
+    expect(sent.some((t) => t.includes("Looking back on your week"))).toBe(true);
+    // Logged in-app for Night Replay.
+    const logs = handle.sqlite
+      .prepare(`SELECT 1 FROM agent_logs WHERE space_id='legacy' AND action='tool:weekly_review'`)
+      .all();
+    expect(logs.length).toBe(1);
+  });
+
+  it("stays quiet a second time within the same week (rate-limited)", async () => {
+    const now = Date.UTC(2026, 3, 15, 9, 0, 0);
+    for (let i = 0; i < 4; i++) memory(`moment ${i}`, `content ${i}`, iso(now - (i + 1) * 86_400_000));
+    await runToolRouter(ctx, "legacy", { now });
+    const sent: string[] = [];
+    const r = await runToolRouter(ctx, "legacy", { now: now + 2 * 86_400_000, notify: async (_s, t) => void sent.push(t) });
+    expect(r.some((x) => x.summary.includes("Looking back on your week"))).toBe(false);
+    expect(sent.some((t) => t.includes("Looking back on your week"))).toBe(false);
+  });
+
+  it("does nothing on a near-empty week", async () => {
+    const now = Date.UTC(2026, 3, 15, 9, 0, 0);
+    memory("only one", "a single note", iso(now - 86_400_000));
+    const r = await runToolRouter(ctx, "legacy", { now });
+    expect(r.some((x) => x.summary.includes("Looking back on your week"))).toBe(false);
+  });
+});
