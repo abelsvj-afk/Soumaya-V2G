@@ -165,6 +165,28 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-10 (Claude): Soumaya's tool-router foundation + her first real tool (firing reminders)
+- **Audit finding:** her "autonomy" was a fixed script of internal graph-tidying jobs; she never
+  freely chose a tool and had almost no real-world reach (Telegram digest only). User chose to add
+  four tools (firing reminders · autonomous task creation · proactive check-ins · live web lookup)
+  behind a **real tool-router**. Spec: `docs/SOUMAYA_TOOLS.md`.
+- **This slice — the router spine + tool #1:** `packages/server/src/agent/tools/` (`types.ts` Tool
+  seam, `registry.ts`, `router.ts`, `reminder.ts`). `runToolRouter` lets each tool DETECT
+  opportunities deterministically (offline-safe) and act, logging every action to `agent_logs`;
+  an LLM function-calling layer slots in later without touching tools. Runs on a 60s interval in
+  `index.ts`; delivery goes to Telegram if the brain is linked, else just logged.
+- **Firing reminders** (deterministic, free, offline): additive `nodes.reminder_fired_at` column;
+  a due `remind_at` now DELIVERS ("⏰ Reminder: …") exactly once (idempotent — marked fired before
+  send so an error can't re-fire), badly-overdue ones (>3d) are retired silently, deleted memories
+  never fire. Previously `remind_at` only showed passively — this closes the biggest looks-done-
+  but-isn't gap.
+- Gate: typecheck clean · **257 tests** (5 new in `tools.test.ts`) · web build clean. **Needs a
+  `fly deploy`.** Remaining tools (task creation · check-ins · web lookup) + the LLM router are
+  staged behind this foundation.
+
+### 2026-07-09 (Claude): Fuel cap 120 → 200
+- The higher earn rates filled the 120 tank too fast; a 200 cap lets earnings bank for her work.
+
 ### 2026-07-09 (Claude): Fuel — more income, new sources, a tappable "Ways to earn" cheat-sheet
 - **Fuel deep-dive (audit of every source):** logging a memory (`EARN_MEMORY`), each link
   (`EARN_LINK`), clearing an action (`EARN_ACTION_DONE`), Codex discovery (`EARN_CODEX_DISCOVERY`,

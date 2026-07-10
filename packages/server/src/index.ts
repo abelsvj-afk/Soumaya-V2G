@@ -2,6 +2,8 @@ import { buildContext } from "./context.js";
 import { createApp } from "./api/server.js";
 import { NodesRepo } from "./repositories/nodes.repo.js";
 import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js";
+import { TelegramLinksRepo } from "./telegram/links.js";
+import { runToolRouter } from "./agent/tools/router.js";
 import { selectJob, executeJob, researchEnabled } from "./maintenance/agent.js";
 import { evolveLore } from "./lore/engine.js";
 import { refreshPersona } from "./persona/derive.js";
@@ -134,6 +136,31 @@ setInterval(() => {
   } catch (err) {
     console.error("[soumaya] action sweep error:", err);
   }
+}, 60_000);
+
+// Soumaya's tool-router (docs/SOUMAYA_TOOLS.md): every 60s each brain lets her tools
+// act on their own — starting with firing due reminders. Free + offline; delivery
+// goes to Telegram if the brain is linked, and every action is logged either way.
+setInterval(() => {
+  void (async () => {
+    try {
+      const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces`).all() as { id: string }[];
+      const spaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
+      const notify = tgToken
+        ? async (spaceId: string, text: string) => {
+            const links = new TelegramLinksRepo(ctx.handle).all().filter((l) => l.spaceId === spaceId);
+            for (const l of links) await tgSend(tgToken, l.chatId, text);
+          }
+        : undefined;
+      for (const spaceId of spaceIds) {
+        const results = await runToolRouter(ctx, spaceId, { notify });
+        const acted = results.filter((r) => r.ok).length;
+        if (acted > 0) console.log(`[tools] ${spaceId.slice(0, 8)}: ${acted} tool action(s)`);
+      }
+    } catch (err) {
+      console.error("[tools] router sweep error:", err);
+    }
+  })();
 }, 60_000);
 
 // 24/7 autonomy (Phase C): the thinking agent, server-side. Opt-in via AUTONOMY=on.

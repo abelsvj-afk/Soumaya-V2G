@@ -340,6 +340,11 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "last_tended_at")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN last_tended_at TEXT`);
   }
+  // Soumaya's reminder tool: when a due reminder was actually FIRED (delivered), so it
+  // never re-fires. NULL = pending / never had a remind_at.
+  if (!cols.some((c) => c.name === "reminder_fired_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN reminder_fired_at TEXT`);
+  }
   // Insights gain a `kind` ("synthesis" | "contradiction") on existing volumes (additive).
   const insightCols = sqlite.prepare(`PRAGMA table_info(insights)`).all() as { name: string }[];
   if (insightCols.length > 0 && !insightCols.some((c) => c.name === "kind")) {
