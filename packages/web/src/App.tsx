@@ -1,55 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
+// Pure presentational helpers live in App.helpers.ts (Post-MVP D4 split).
+import { focusItemStyle, songDotStyle, getFigurineIcon, getFigurineLabel } from "./App.helpers.js";
 
-/** Pop-up offset for an item in the focus cluster (stacks upward when open). */
-function focusItemStyle(index: number, open: boolean): CSSProperties {
-  return open
-    ? { transform: `translateY(${-(index + 1) * 54}px)`, opacity: 1, pointerEvents: "auto" }
-    : { transform: "translateY(0) scale(0.4)", opacity: 0, pointerEvents: "none" };
-}
-
-/** Position a song dot on an arc fanning up-and-right from the music FAB (bottom-left). */
-function songDotStyle(i: number, total: number): CSSProperties {
-  const start = 16, end = 100; // degrees
-  const t = total <= 1 ? 0.5 : i / (total - 1);
-  const rad = ((start + (end - start) * t) * Math.PI) / 180;
-  const R = 78;
-  return {
-    position: "fixed",
-    left: `${36 + Math.cos(rad) * R}px`,
-    bottom: `${152 + Math.sin(rad) * R}px`,
-    transform: "translate(-50%, 50%)",
-  };
-}
-
-function getFigurineIcon(type: string): string {
-  switch (type) {
-    case "station": return "🌐";
-    case "satellite": return "🛰️";
-    case "star_center": return "🌟";
-    case "dyson_sphere": return "🪐";
-    case "quantum_core": return "🌌";
-    case "hyper_array": return "📡";
-    case "shield_spire": return "🛡️";
-    case "blackhole": return "🕳️";
-    default: return "🗿";
-  }
-}
-
-function getFigurineLabel(type: string): string {
-  switch (type) {
-    case "station": return "Waystation Figurine";
-    case "satellite": return "Aura Beacon Figurine";
-    case "star_center": return "Solar Monument";
-    case "dyson_sphere": return "Dyson Megastructure";
-    case "quantum_core": return "Quantum Singularity Core";
-    case "hyper_array": return "Synapse Hyper-Array";
-    case "shield_spire": return "Aegis Shield Spire";
-    case "blackhole": return "The Singularity";
-    default: return type;
-  }
-}
 import { Graph3D, type Graph3DHandle } from "./graph/Graph3D.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { makeDemoGalaxy } from "./graph/demoGalaxy.js";
