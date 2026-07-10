@@ -1213,6 +1213,47 @@ body,
   .fab-observatory { bottom: calc(186px + env(safe-area-inset-bottom)); }
   .focus-cluster { bottom: calc(186px + env(safe-area-inset-bottom)); }
 }
+/* Deep-space focus mode toggle — bottom-left stack, above the music FAB. */
+.fab-focus-toggle {
+  bottom: 186px;
+  left: 14px;
+  font-size: 20px;
+}
+@supports (padding: env(safe-area-inset-bottom)) {
+  .fab-focus-toggle { bottom: calc(186px + env(safe-area-inset-bottom)); }
+}
+
+/* Deep-space focus mode (#2): a distraction-free reading session. Everything but the
+   galaxy + the way-out recedes; hover brings a control back if you reach for it. The
+   galaxy itself calms via the reduced-motion path (setFocusCalm) and toasts quiet. */
+.focus-mode .fab:not(.fab-focus-toggle),
+.focus-mode .fuel-gauge,
+.focus-mode .streak-ember,
+.focus-mode .focus-cluster,
+.focus-mode .now-playing {
+  opacity: 0.08;
+  transition: opacity 0.5s ease;
+}
+.focus-mode .fab:not(.fab-focus-toggle):hover,
+.focus-mode .fuel-gauge:hover,
+.focus-mode .streak-ember:hover,
+.focus-mode .focus-cluster:hover {
+  opacity: 1;
+}
+.focus-mode .fab-badge { display: none; }
+.fab-focus-toggle.on {
+  background: rgba(122, 249, 255, 0.22);
+  border-color: var(--accent);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 16px 2px rgba(122, 249, 255, 0.4);
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-mode .fab:not(.fab-focus-toggle),
+  .focus-mode .fuel-gauge,
+  .focus-mode .streak-ember,
+  .focus-mode .focus-cluster,
+  .focus-mode .now-playing { transition: none; }
+}
+
 /* Game-style focus cluster: a single button that pops its targets upward. */
 .focus-cluster {
   position: fixed;

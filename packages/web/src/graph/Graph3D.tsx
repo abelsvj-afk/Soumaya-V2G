@@ -19,7 +19,7 @@ import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./sky
 import { addBloom } from "./bloom.js";
 import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
 import { makeCollisionBursts, makeLinkForming } from "./effects.js";
-import { prefersReducedMotion } from "./motion.js";
+import { shouldCalmMotion } from "./motion.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeEngineAudio } from "./engineAudio.js";
 import { makeSpaceStation } from "./spaceStation.js";
@@ -327,7 +327,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // to Soumaya so she flies over and PULSES them (a bright neuron-firing flash that
       // fades) — but the line itself is already there the whole time.
       const fresh: LinkTask[] = [];
-      const calm = prefersReducedMotion();
+      const calm = shouldCalmMotion();
       for (const l of data.links as any[]) {
         const k = linkKey(l);
         if (!knownLinksRef.current.has(k)) {
@@ -467,9 +467,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Accessibility: when reduced-motion is on we crawl the orbits + skip ambient
   // pulses (#3b). Kept in a ref so the render loop reads it without re-subscribing.
-  const calmMotionRef = useRef(prefersReducedMotion());
+  const calmMotionRef = useRef(shouldCalmMotion());
   useEffect(() => {
-    const sync = () => { calmMotionRef.current = prefersReducedMotion(); };
+    const sync = () => { calmMotionRef.current = shouldCalmMotion(); };
     window.addEventListener("brain-motion-change", sync);
     const mq = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     mq?.addEventListener?.("change", sync);

@@ -34,7 +34,8 @@ import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { usePolledCount } from "./hooks/usePolledCount.js";
 import { LoginScreen } from "./components/LoginScreen.js";
-import { Toasts, pushToast, cleanupNotifications, setToastsPaused } from "./components/Toasts.js";
+import { Toasts, pushToast, cleanupNotifications, setToastsPaused, setToastsQuiet } from "./components/Toasts.js";
+import { setFocusCalm } from "./graph/motion.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/achievements.js";
 import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
@@ -90,6 +91,13 @@ export default function App() {
   const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
+  // Deep-space focus mode (#2): a distraction-free reading session — dims the chrome,
+  // calms ambient motion, and quiets non-essential toasts. Ephemeral (not persisted).
+  const [focusMode, setFocusMode] = useState(false);
+  useEffect(() => {
+    setFocusCalm(focusMode);
+    setToastsQuiet(focusMode);
+  }, [focusMode]);
   const obsShownRef = useRef(false);
   // True once we're past the Observatory gate (it was shown+closed, or won't show).
   // Until then, toasts are buffered so a celebration never hides behind the cards.
@@ -1128,7 +1136,7 @@ export default function App() {
   }
 
   return (
-    <div className="app">
+    <div className={`app${focusMode ? " focus-mode" : ""}`}>
       <Toasts />
       {/* Left-edge HUD (fuel + streak) — hidden whenever a panel/chat/Observatory is up
           so it never overlaps their content. */}
@@ -1501,6 +1509,8 @@ export default function App() {
             }}
             onZoomIn={() => graphRef.current?.zoomBy(0.8)}
             onZoomOut={() => graphRef.current?.zoomBy(1.25)}
+            onFocusMode={() => setFocusMode((v) => !v)}
+            focusMode={focusMode}
           />
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
           {(() => {

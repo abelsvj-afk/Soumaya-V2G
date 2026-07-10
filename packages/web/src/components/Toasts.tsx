@@ -32,14 +32,24 @@ let nextId = 1;
 // galaxy), toasts are buffered instead of shown — they still get logged to the
 // inbox — then flushed once unpaused, so a celebration never hides behind the cards.
 let paused = false;
+// Focus mode (#2) QUIETS non-essential toasts: low/normal are buffered for a calm
+// reading session; only high-priority (she's hailing, rank-up) still breaks through.
+let quiet = false;
 const buffer: Toast[] = [];
+function maybeFlush(): void {
+  if (paused || buffer.length === 0) return;
+  const flush = buffer.splice(0, buffer.length);
+  for (const t of flush) for (const l of listeners) l(t);
+}
 export function setToastsPaused(p: boolean): void {
   if (p === paused) return;
   paused = p;
-  if (!paused && buffer.length) {
-    const flush = buffer.splice(0, buffer.length);
-    for (const t of flush) for (const l of listeners) l(t);
-  }
+  if (!paused) maybeFlush();
+}
+export function setToastsQuiet(q: boolean): void {
+  if (q === quiet) return;
+  quiet = q;
+  if (!quiet) maybeFlush();
 }
 
 /** Prune notifications: seen items > 5 minutes, normal unseen items > 24 hours. Important ones are kept. */
@@ -77,7 +87,8 @@ export function pushToast(
   priority: "low" | "normal" | "high" = "normal"
 ): void {
   const t: Toast = { id: nextId++, text, icon, ttl, priority };
-  if (paused) buffer.push(t); // hold the on-screen toast until unpaused (still logged below)
+  // Buffer when paused, or when quieted (focus mode) unless it's high-priority.
+  if (paused || (quiet && priority !== "high")) buffer.push(t); // still logged to inbox below
   else {
     for (const l of listeners) l(t);
     playSfx(priority === "high" ? "achievement" : "notify"); // audible cue when shown

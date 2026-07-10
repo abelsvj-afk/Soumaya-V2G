@@ -18,6 +18,8 @@ export interface NavRailProps {
   onRecenter: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onFocusMode: () => void;
+  focusMode: boolean;
 }
 
 const badge = (n: number) => (n > 0 ? <span className="fab-badge">{n > 99 ? "99+" : n}</span> : null);
@@ -60,6 +62,17 @@ export function NavRail(p: NavRailProps) {
       </button>
       <button className="fab fab-zoom-out" onClick={p.onZoomOut} aria-label="Zoom out" title="Zoom out">
         －
+      </button>
+      {/* Deep-space focus mode: a calm, distraction-free reading session. Stays fully
+          lit in focus mode (via .fab-focus-toggle) so it's always the way back out. */}
+      <button
+        className={`fab fab-focus-toggle ${p.focusMode ? "on" : ""}`}
+        onClick={p.onFocusMode}
+        aria-label={p.focusMode ? "Exit focus mode" : "Deep-space focus mode"}
+        aria-pressed={p.focusMode}
+        title={p.focusMode ? "Exit focus mode" : "Focus mode — dim everything but your galaxy"}
+      >
+        {p.focusMode ? "🌐" : "🌌"}
       </button>
     </>
   );

@@ -45,3 +45,18 @@ export function setReducedMotionOverride(v: boolean | null): void {
   }
   window.dispatchEvent(new Event("brain-motion-change"));
 }
+
+/**
+ * Deep-space focus mode (#2) calms motion for the duration of a reading session WITHOUT
+ * touching the persisted accessibility setting — it's ephemeral and in-memory only.
+ * `shouldCalmMotion()` is what the galaxy actually reads: the a11y setting OR focus mode.
+ */
+let focusCalm = false;
+export function setFocusCalm(on: boolean): void {
+  if (focusCalm === on) return;
+  focusCalm = on;
+  window.dispatchEvent(new Event("brain-motion-change"));
+}
+export function shouldCalmMotion(): boolean {
+  return focusCalm || prefersReducedMotion();
+}

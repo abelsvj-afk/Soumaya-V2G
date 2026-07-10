@@ -9,6 +9,7 @@ function props(over: Partial<NavRailProps> = {}): NavRailProps {
     onSearch: vi.fn(), onFlashback: vi.fn(), onConnections: vi.fn(), candCount: 0,
     onLegend: vi.fn(), onTimeline: vi.fn(), onReview: vi.fn(), dueCount: 0,
     onHelp: vi.fn(), onDock: vi.fn(), onRecenter: vi.fn(), onZoomIn: vi.fn(), onZoomOut: vi.fn(),
+    onFocusMode: vi.fn(), focusMode: false,
     ...over,
   };
 }
@@ -22,11 +23,18 @@ describe("NavRail (extracted FAB rail)", () => {
     fireEvent.click(screen.getByLabelText("Recall session"));
     fireEvent.click(screen.getByLabelText("Recenter galaxy"));
     fireEvent.click(screen.getByLabelText("Zoom in"));
+    fireEvent.click(screen.getByLabelText("Deep-space focus mode"));
     expect(p.onSearch).toHaveBeenCalled();
     expect(p.onConnections).toHaveBeenCalled();
     expect(p.onReview).toHaveBeenCalled();
     expect(p.onRecenter).toHaveBeenCalled();
     expect(p.onZoomIn).toHaveBeenCalled();
+    expect(p.onFocusMode).toHaveBeenCalled();
+  });
+
+  it("labels the focus toggle as an exit when active", () => {
+    render(<NavRail {...props({ focusMode: true })} />);
+    expect(screen.getByLabelText("Exit focus mode")).toBeTruthy();
   });
 
   it("shows the connection + recall badges only when non-zero (capped at 99+)", () => {
