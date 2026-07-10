@@ -1,0 +1,47 @@
+/**
+ * Single source of truth for "should the galaxy calm its motion?" (accessibility).
+ *
+ * Two inputs, OR'd together:
+ *  • the OS `prefers-reduced-motion: reduce` setting, and
+ *  • an in-app override the user can flip in Settings (localStorage `brain.reducedMotion`
+ *    = "1" to force calm, "0" to force full motion, unset = follow the OS).
+ *
+ * Consumers (link-forming flourish #1b, ambient orbital drift / ribbon flow / bloom
+ * pulsing #3b) read `prefersReducedMotion()` and slow or skip non-essential motion.
+ * Changing the override dispatches `brain-motion-change` so live listeners re-read it.
+ */
+const KEY = "brain.reducedMotion";
+
+export function prefersReducedMotion(): boolean {
+  try {
+    const override = localStorage.getItem(KEY);
+    if (override === "1") return true;
+    if (override === "0") return false;
+  } catch {
+    /* ignore */
+  }
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+/** The user's explicit choice, or null when following the OS. */
+export function reducedMotionOverride(): boolean | null {
+  try {
+    const v = localStorage.getItem(KEY);
+    if (v === "1") return true;
+    if (v === "0") return false;
+  } catch {
+    /* ignore */
+  }
+  return null;
+}
+
+/** Set (or clear, with null) the override and notify listeners. */
+export function setReducedMotionOverride(v: boolean | null): void {
+  try {
+    if (v === null) localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, v ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  window.dispatchEvent(new Event("brain-motion-change"));
+}

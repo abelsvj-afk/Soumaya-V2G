@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { SpacesRepo } from "../../auth/spaces.js";
+import { seedWelcomeStar } from "../../analysis/welcome.js";
 
 const AuthBody = z.object({
   gamerTag: z.string().trim().min(2).max(40),
@@ -21,7 +22,7 @@ export function spaceRoutes(ctx: AppContext): Router {
   // POST /api/space/auth { gamerTag, passcode, name? } -> log in to or create a brain.
   // Returns the space's secret id, which the client stores and sends as
   // `x-space-id` on every later request.
-  r.post("/auth", (req, res) => {
+  r.post("/auth", async (req, res) => {
     const parsed = AuthBody.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "Body must be { gamerTag (2-40 chars), passcode (4+ chars), name (optional, 2-40 chars) }" });
@@ -33,6 +34,15 @@ export function spaceRoutes(ctx: AppContext): Router {
       if (!result) {
         res.status(401).json({ error: "Incorrect passcode for this gamer tag." });
         return;
+      }
+      // Endowed progress: a genuinely new, empty brain opens with its first star already
+      // lit (seedWelcomeStar no-ops if the space has any memory, e.g. the legacy claim).
+      if (result.created) {
+        try {
+          await seedWelcomeStar(ctx, result.space.id, result.space.name);
+        } catch {
+          /* a failed welcome seed must never block sign-in */
+        }
       }
       res.json({ id: result.space.id, name: result.space.name, gamerTag: result.space.gamerTag, created: result.created });
     } catch (err) {

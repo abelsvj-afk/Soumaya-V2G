@@ -76,10 +76,12 @@ describe("REST API", () => {
     });
     const otherId = ((await other.json()) as { id: string }).id;
     expect(otherId).not.toBe(spaceId);
-    // The other brain starts empty even though `tester` has memories.
+    // A brand-new brain opens with exactly its own seeded welcome star (#1c endowed
+    // progress) and none of `tester`'s memories — proving isolation, not emptiness.
     const g = await fetch(`${base}/api/graph`, { headers: { "x-space-id": otherId } });
     const graph = (await g.json()) as GraphData;
-    expect(graph.nodes).toHaveLength(0);
+    expect(graph.nodes).toHaveLength(1);
+    expect(graph.nodes[0]!.label).toBe("The first light");
   });
 
   it("ingests thoughts and returns them as graph data", async () => {

@@ -18,7 +18,8 @@ import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfiel
 import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
-import { makeCollisionBursts } from "./effects.js";
+import { makeCollisionBursts, makeLinkForming } from "./effects.js";
+import { prefersReducedMotion } from "./motion.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeEngineAudio } from "./engineAudio.js";
 import { makeSpaceStation } from "./spaceStation.js";
@@ -326,12 +327,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // to Soumaya so she flies over and PULSES them (a bright neuron-firing flash that
       // fades) — but the line itself is already there the whole time.
       const fresh: LinkTask[] = [];
+      const calm = prefersReducedMotion();
       for (const l of data.links as any[]) {
         const k = linkKey(l);
         if (!knownLinksRef.current.has(k)) {
           knownLinksRef.current.add(k);
           if (fresh.length < PULSE_VISIT_CAP) {
             fresh.push({ id: `link-${k}`, source: linkEnd(l.source), target: linkEnd(l.target), key: k });
+          }
+          // A comet sweeps along the new connection as it forms (#1b) — skipped under
+          // reduced-motion, where the line simply appears with no animation.
+          if (!calm) {
+            const a = nodeByIdRef.current.get(linkEnd(l.source));
+            const b = nodeByIdRef.current.get(linkEnd(l.target));
+            if (a?.x != null && b?.x != null) {
+              linkFormingRef.current?.fire(
+                new THREE.Vector3(a.x, a.y, a.z ?? 0),
+                new THREE.Vector3(b.x, b.y, b.z ?? 0),
+              );
+            }
           }
         }
       }
@@ -450,6 +464,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const lastSatCountRef = useRef(-1);
   const lastVisCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
+  const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
 
   // Undirected adjacency for neighbor highlighting.
   const adjacency = useMemo(() => {
@@ -537,6 +552,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const bursts = makeCollisionBursts();
       burstsRef.current = bursts;
       scene.add(bursts.group);
+      // Constellation-forming flourish (#1b): a comet sweeps along each new link.
+      const linkForming = makeLinkForming();
+      linkForming.group.userData.update = () => linkForming.update();
+      linkFormingRef.current = linkForming;
+      scene.add(linkForming.group);
 
       // Create background figurine groups and register them
       const fig1Group = new THREE.Group();

@@ -120,3 +120,100 @@ export function makeCollisionBursts(count = 20): CollisionBursts {
     },
   };
 }
+
+/** A short comet of light that streaks from one star to another as a link forms. */
+function makeStream(count: number): { group: THREE.Group; fire: (a: THREE.Vector3, b: THREE.Vector3, color: string) => void; update: () => void } {
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const g2 = c.getContext("2d")!;
+  const grad = g2.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grad.addColorStop(0, "rgba(255,255,255,0.95)");
+  grad.addColorStop(0.5, "rgba(255,255,255,0.5)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g2.fillStyle = grad;
+  g2.fillRect(0, 0, 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+
+  const group = new THREE.Group();
+  const dots: THREE.Sprite[] = [];
+  for (let i = 0; i < count; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
+    const s = new THREE.Sprite(mat);
+    s.visible = false;
+    dots.push(s);
+    group.add(s);
+  }
+
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  let life = 0;
+  const max = 34; // ~0.55s at 60fps — a quick spark, never a distraction
+  const col = new THREE.Color();
+
+  const update = () => {
+    if (life <= 0) return;
+    life--;
+    const head = 1 - life / max; // 0 -> 1: the comet's leading edge sweeps A -> B
+    for (let i = 0; i < dots.length; i++) {
+      const s = dots[i]!;
+      const t = head - i * 0.06; // trailing tail behind the head
+      if (t < 0 || t > 1) {
+        s.visible = false;
+        continue;
+      }
+      s.visible = true;
+      s.position.lerpVectors(a, b, t);
+      const fade = Math.sin(Math.min(1, life / max) * Math.PI); // in then out over the whole life
+      const mat = s.material as THREE.SpriteMaterial;
+      mat.opacity = fade * (1 - i / dots.length) * 0.9;
+      mat.color.copy(col);
+      const sz = 10 + (1 - i / dots.length) * 12;
+      s.scale.set(sz, sz, 1);
+    }
+    if (life === 0) for (const s of dots) s.visible = false;
+  };
+
+  return {
+    group,
+    fire: (from, to, color) => {
+      a.copy(from);
+      b.copy(to);
+      col.set(color);
+      life = max;
+    },
+    update,
+  };
+}
+
+export interface LinkForming {
+  group: THREE.Group;
+  /** Streak a spark from A to B in the given CSS colour (a new connection forming). */
+  fire: (a: THREE.Vector3, b: THREE.Vector3, color?: string) => void;
+  update: () => void;
+}
+
+/**
+ * Constellation-forming flourish (#1b): when a link appears, a brief comet of light
+ * sweeps from one star to the other, so the connection reads as *drawn*, not popped in.
+ * A small pool of reusable streams handles overlapping links. Purely cosmetic and
+ * self-contained — the caller is expected to skip firing under reduced-motion.
+ */
+export function makeLinkForming(streams = 6): LinkForming {
+  const group = new THREE.Group();
+  const pool = Array.from({ length: streams }, () => {
+    const st = makeStream(7);
+    group.add(st.group);
+    return st;
+  });
+  let next = 0;
+  return {
+    group,
+    fire: (a, b, color = "rgba(180,200,255,1)") => {
+      pool[next % pool.length]!.fire(a, b, color);
+      next++;
+    },
+    update: () => {
+      for (const st of pool) st.update();
+    },
+  };
+}

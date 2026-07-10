@@ -227,6 +227,90 @@ function themeCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Ca
   };
 }
 
+/** Direct neighbours of a node (either edge direction). */
+function neighboursOf(s: AppContext["handle"]["sqlite"], spaceId: string, id: number): Set<number> {
+  const rows = s
+    .prepare(
+      `SELECT CASE WHEN source = ? THEN target ELSE source END AS n FROM edges
+       WHERE space_id = ? AND (source = ? OR target = ?)`,
+    )
+    .all(id, spaceId, id, id) as { n: number }[];
+  return new Set(rows.map((r) => r.n));
+}
+
+function dot(a: Float32Array, b: Float32Array): number {
+  let s = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) s += a[i]! * b[i]!;
+  return s;
+}
+
+/** How far apart two stars may be and still be worth inviting a bridge for (cosine ceiling). */
+const DISTANT_SIM_MAX = 0.2;
+
+/**
+ * DISTANT LINK ("connect two distant stars"): pick two meaningful memories that sit FAR
+ * apart in embedding space with no edge and no shared neighbour, and invite the user to
+ * articulate a connection. Confirming isn't offered — the whole point is the *generation
+ * effect*: you make the link yourself by naming it, and the answer becomes a memory tied
+ * to both. Rare by design (≤ one open per week) so it feels like a spark, not a chore.
+ */
+function distantLinkCandidate(ctx: AppContext, spaceId: string, seen: Set<string>): Candidate | null {
+  const s = ctx.handle.sqlite;
+  // Rate-limit: at most one distant-star prompt per week (any status).
+  const recent = s
+    .prepare(
+      `SELECT 1 FROM inquiries WHERE space_id = ? AND kind = 'distant_link'
+         AND julianday('now') - julianday(created_at) < 7 LIMIT 1`,
+    )
+    .get(spaceId);
+  if (recent) return null;
+
+  // The most meaningful memories (importance-first), bounded, with their vectors.
+  const mems = s
+    .prepare(
+      `SELECT id, label FROM nodes
+       WHERE space_id = ? AND deleted_at IS NULL AND (kind IS NULL OR kind = 'memory')
+       ORDER BY importance DESC, id DESC LIMIT 40`,
+    )
+    .all(spaceId) as { id: number; label: string }[];
+  const stars = mems
+    .map((m) => ({ ...m, vec: getEmbedding(s, m.id) }))
+    .filter((m): m is { id: number; label: string; vec: Float32Array } => m.vec != null);
+  if (stars.length < 6) return null;
+
+  // Rank all pairs by *ascending* similarity; the farthest apart come first.
+  const pairs: { a: (typeof stars)[number]; b: (typeof stars)[number]; sim: number }[] = [];
+  for (let i = 0; i < stars.length; i++) {
+    for (let j = i + 1; j < stars.length; j++) {
+      const sim = dot(stars[i]!.vec, stars[j]!.vec);
+      if (sim <= DISTANT_SIM_MAX) pairs.push({ a: stars[i]!, b: stars[j]!, sim });
+    }
+  }
+  pairs.sort((x, y) => x.sim - y.sim);
+
+  // Take the farthest pair that has no direct edge, no shared neighbour, isn't rejected
+  // and hasn't been asked. Only gate the handful of farthest candidates (cheap).
+  for (const { a, b } of pairs.slice(0, 12)) {
+    const sig = `distant:${[a.id, b.id].sort((x, y) => x - y).join("-")}`;
+    if (seen.has(sig)) continue;
+    if (isRejected(ctx, spaceId, a.id, b.id)) continue;
+    const na = neighboursOf(s, spaceId, a.id);
+    if (na.has(b.id)) continue; // already directly linked
+    const nb = neighboursOf(s, spaceId, b.id);
+    let shared = false;
+    for (const x of na) if (nb.has(x)) { shared = true; break; } // a 2-hop path exists
+    if (shared) continue;
+    return {
+      question: `"${a.label}" and "${b.label}" sit far apart in your galaxy — I don't see a thread between them. If you *had* to connect them, what would it be?`,
+      kind: "distant_link",
+      nodeIds: [a.id, b.id],
+      signature: sig,
+    };
+  }
+  return null;
+}
+
 /**
  * SKILL CHECK-IN: instead of making you hand-crank a skill's level, Soumaya asks how
  * it's going every so often (a ~7-day bucket per skill via the signature, so it recurs
@@ -302,6 +386,7 @@ export function generateInquiry(ctx: AppContext, spaceId: string): number | null
     anchorCandidate(ctx, spaceId, seen) ??
     themeCandidate(ctx, spaceId, seen) ??
     hubSuggestCandidate(ctx, spaceId, seen) ??
+    distantLinkCandidate(ctx, spaceId, seen) ??
     skillCheckinCandidate(ctx, spaceId, seen);
   if (!candidate) return null;
 
