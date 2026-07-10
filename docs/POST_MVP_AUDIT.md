@@ -176,15 +176,19 @@ test harness (vitest + happy-dom + @testing-library/react; 15 tests) now backs c
 
 | File | Before | Now | Extracted → |
 |---|---|---|---|
-| `api/client.ts` | 1598 | **910** | `http.ts` (transport) · `features.ts` (timeline+review) · `mind.ts` (cognitive) · `attachments.ts` · `companion.ts` · `activity.ts` ("AI is working" signal) · `processing.ts` (mid-ingest state) |
-| `graph/Graph3D.tsx` | 2189 | **1942** | `graph3dHelpers.ts` (LOD, figurine build, GPU disposal) |
-| `graph/soumaya.ts` | 1696 | **1602** | `soumayaHelpers.ts` (vecOf, smoothstep, task-label sprite, body radius) |
-| `App.tsx` | 1935 | **1889** | `App.helpers.ts` (presentational style/label helpers) |
+| `api/client.ts` | 1598 | **757** | http · features · mind · attachments · companion · activity · processing · ops (8 domain modules) |
+| `db/client.ts` | 491 | **218** | `schemaSql.ts` (bootstrap SQL) |
+| `maintenance/agent.ts` | 711 | **656** | `jobRationale.ts` (pure rationale copy) |
+| `analysis/cognitive.ts` | 451 | **378** | `cognitiveTokens.ts` (pure name-matching) |
+| `components/CompanionPanel.tsx` | 447 | **25** | `CompanionSections.tsx` (the 3 self-contained sections) |
+| `graph/Graph3D.tsx` | 2189 | **1942** | `graph3dHelpers.ts` |
+| `graph/soumaya.ts` | 1696 | **1602** | `soumayaHelpers.ts` |
+| `App.tsx` | 1935 | **1825** | `App.helpers.ts` · `usePolledCount` hook · `NavRail` · `ActionRail` |
 
-`client.ts` is down **43%**. The remaining bulk of `App.tsx`/`Graph3D.tsx`/`soumaya.ts` is
-**stateful logic** (hooks, effects, the render/flight loop). With the harness now in place, that deep
-extraction can proceed incrementally — each extracted piece gets a focused test — rather than being
-typecheck-only. Pure-code and self-contained-unit extractions are done across all four files.
+`client.ts` down **53%**; five files brought under (or near) control. A **web test harness**
+(23 tests) now backs component/hook work, so stateful extractions (usePolledCount, NavRail, ActionRail)
+ship with focused tests, not typecheck-only. The remaining bulk of `App.tsx`/`Graph3D.tsx`/`soumaya.ts`
+is genuinely-cohesive stateful core (render/flight loops) — extracted incrementally, section by section.
 
 ### Recommended next step
 
