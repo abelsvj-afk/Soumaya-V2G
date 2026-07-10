@@ -1,8 +1,9 @@
-import { AboutMe, Instructions, Knowledge } from "./CompanionSections.js";
+import { AboutMe, Soul, Instructions, Knowledge } from "./CompanionSections.js";
 
 /**
  * The 🧠 Companion tab: configure WHO Soumaya is to you.
  *  - About Me: auto-derived, who you are (she's aware, never becomes you).
+ *  - Soul: her deeper character, editable per-brain (refines, never overrides safety).
  *  - Custom Instructions: stackable roles she adopts (collapsible; editable).
  *  - Knowledge: reference docs she retrieves from (txt/md/pdf/docx).
  * (There's no chat here on purpose — talk to her via the 💬 chat button, which
@@ -15,6 +16,7 @@ export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean
   return (
     <div className="dock-body">
       <AboutMe />
+      <Soul />
       <Instructions />
       <Knowledge />
       <p className="companion-hint companion-tryhint">

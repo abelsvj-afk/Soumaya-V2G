@@ -196,6 +196,11 @@ function migrateSchema(sqlite: RawDb): void {
     if (!metaCols.some((c) => c.name === "streak_shields")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN streak_shields INTEGER NOT NULL DEFAULT 2`);
     }
+    // Per-space editable soul (feature #5b): overrides the global soul.md for THIS brain
+    // when set. NULL/empty → the global soul.md is used.
+    if (!metaCols.some((c) => c.name === "soul")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN soul TEXT`);
+    }
   }
   // (Table creation lives ONLY in bootstrapSchema, which always runs first —
   // a second CREATE block here once drifted out of sync and shipped wrong shapes.)

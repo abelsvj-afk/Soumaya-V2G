@@ -10,7 +10,7 @@ import { KnowledgeRepo } from "../repositories/knowledge.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
 import { refreshPersona } from "../persona/derive.js";
 import { deriveBehavior } from "../persona/behavior.js";
-import { soulText } from "../identity.js";
+import { soulTextFor } from "../identity.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -217,7 +217,7 @@ Use this telemetry to guide the user! For example:
   const justAsked = !!lastSoumaya && lastSoumaya.text.trim().endsWith("?");
 
   const raw = await deps.llm.answer(question, context, {
-    soul: soulText() || undefined,
+    soul: soulTextFor(h.sqlite, spaceId) || undefined,
     systemExtra,
     persona,
     knowledge,

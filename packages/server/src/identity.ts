@@ -43,3 +43,39 @@ export function soulText(): string {
   if (cachedSoul === null) cachedSoul = loadRootDoc("soul.md");
   return cachedSoul;
 }
+
+/** A minimal sqlite handle — just the prepare/get/run we need (avoids a hard dep). */
+interface SoulDb {
+  prepare(sql: string): { get(...a: unknown[]): unknown; run(...a: unknown[]): unknown };
+}
+
+/**
+ * This brain's soul (feature #5b): a per-space override in `space_meta.soul` when set,
+ * otherwise the shared `soul.md`. So each brain can tune Soumaya's deeper character.
+ */
+export function soulTextFor(sqlite: SoulDb, spaceId: string): string {
+  try {
+    const row = sqlite.prepare(`SELECT soul FROM space_meta WHERE space_id = ?`).get(spaceId) as { soul: string | null } | undefined;
+    if (row?.soul && row.soul.trim()) return row.soul;
+  } catch {
+    /* old volume before the migration ran → fall back to the global soul */
+  }
+  return soulText();
+}
+
+/** Read the per-space soul override ("" if none). */
+export function getSpaceSoul(sqlite: SoulDb, spaceId: string): string {
+  try {
+    const row = sqlite.prepare(`SELECT soul FROM space_meta WHERE space_id = ?`).get(spaceId) as { soul: string | null } | undefined;
+    return row?.soul ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Set (or clear, with "") this brain's soul override. */
+export function setSpaceSoul(sqlite: SoulDb, spaceId: string, body: string): void {
+  const trimmed = body.trim();
+  sqlite.prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`).run(spaceId);
+  sqlite.prepare(`UPDATE space_meta SET soul = ? WHERE space_id = ?`).run(trimmed || null, spaceId);
+}

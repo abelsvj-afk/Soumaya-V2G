@@ -136,3 +136,26 @@ export async function renameDocument(id: number, name: string): Promise<void> {
 export async function deleteDocument(id: number): Promise<void> {
   await afetch(`${API}/documents/${id}`, { method: "DELETE" });
 }
+
+// --- Soumaya's soul (per-brain deeper character; empty = use the shared default) ---
+export async function getSoul(): Promise<string> {
+  try {
+    const res = await afetch(`${API}/persona/soul`);
+    const d = (await res.json().catch(() => ({}))) as { body?: string };
+    return d.body ?? "";
+  } catch {
+    return "";
+  }
+}
+export async function setSoul(body: string): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/persona/soul`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ body }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

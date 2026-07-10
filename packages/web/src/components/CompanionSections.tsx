@@ -11,6 +11,8 @@ import {
   uploadDocument,
   renameDocument,
   deleteDocument,
+  getSoul,
+  setSoul,
   type InstructionProfile,
   type KnowledgeDoc,
 } from "../api/client.js";
@@ -97,6 +99,49 @@ export function AboutMe() {
         <button onClick={refresh} disabled={busy} title="Re-derive from your latest memories">
           {busy ? "Updating…" : "↻ Update now"}
         </button>
+      </div>
+    </section>
+  );
+}
+
+export function Soul() {
+  const [body, setBody] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    void getSoul().then((b) => {
+      setBody(b);
+      setLoaded(true);
+    });
+  }, []);
+  const save = async () => {
+    setBusy(true);
+    setMsg("");
+    const ok = await setSoul(body);
+    setBusy(false);
+    setMsg(ok ? "Saved — her soul is updated." : "Couldn't save.");
+  };
+  return (
+    <section className="companion-section">
+      <h4>✨ Soumaya's soul</h4>
+      <p className="companion-hint">
+        Her deeper character — voice, values, the way she carries herself. This refines who she is to
+        YOU (it never overrides her safety rules). Leave it empty to use her default soul.
+      </p>
+      <textarea
+        className="companion-textarea"
+        rows={6}
+        value={body}
+        disabled={!loaded}
+        onChange={(e) => setBody(e.target.value)}
+        placeholder="e.g. Warm but never saccharine. Speaks plainly, notices the unsaid thing, and holds hope without denying the hard parts…"
+      />
+      <div className="row">
+        <button onClick={() => void save()} disabled={busy || !loaded}>
+          {busy ? "Saving…" : "Save soul"}
+        </button>
+        {msg && <span className="companion-hint" style={{ margin: 0 }}>{msg}</span>}
       </div>
     </section>
   );
