@@ -141,6 +141,9 @@ export interface GraphNode {
   aliases?: string[];
   /** For a `moc` hub: how many member memories it consolidates (enriched on read). */
   memberCount?: number;
+  /** 0..1 spaced-repetition memory strength (enriched on read). Low = faded, the
+   *  "come review me" cue; drives the star's brightness. See NEURO_ALIGNMENT #1. */
+  reviewStrength?: number;
   /** ISO timestamp when an action item times out (only for kind === "action"). */
   expiresAt?: string;
   /** ISO timestamp this memory was last "tended" (created/visited/edited/linked). */

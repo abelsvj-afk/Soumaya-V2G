@@ -62,6 +62,8 @@ import { SettingsPanel } from "./components/SettingsPanel.js";
 import { ConnectionsPanel } from "./components/ConnectionsPanel.js";
 import { TimelineView } from "./components/TimelineView.js";
 import { FuelEarnSheet, type EarnKind } from "./components/FuelEarnSheet.js";
+import { ReviewPanel } from "./components/ReviewPanel.js";
+import { getDueReviews } from "./api/client.js";
 import { FuelGauge } from "./components/FuelGauge.js";
 import { StreakEmber } from "./components/StreakEmber.js";
 import { SearchBox } from "./components/SearchBox.js";
@@ -121,6 +123,8 @@ export default function App() {
   const [showConnections, setShowConnections] = useState(false);
   const [showTimeline, setShowTimeline] = useState(false);
   const [showFuelWays, setShowFuelWays] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [dueCount, setDueCount] = useState(0);
   const [candCount, setCandCount] = useState(0);
   // A full-screen "rank up" celebration moment (not just a quiet toast).
   const [rankUp, setRankUp] = useState<{ title: string; level: number } | null>(null);
@@ -665,6 +669,16 @@ export default function App() {
       window.clearInterval(iv);
     };
   }, [space, demo, showConnections]);
+
+  // Recall badge: how many memories have decayed to their spaced-repetition point.
+  useEffect(() => {
+    if (!space || demo) return;
+    let alive = true;
+    const load = () => getDueReviews().then((d) => alive && setDueCount(d.length)).catch(() => {});
+    load();
+    const iv = window.setInterval(load, 120_000);
+    return () => { alive = false; window.clearInterval(iv); };
+  }, [space, demo, showReview]);
 
   // Gamification (Wave 1): greet the pilot once per session when their galaxy
   // first loads — by name, with what changed while they were away.
@@ -1535,6 +1549,10 @@ export default function App() {
           <button className="fab fab-timeline" onClick={() => setShowTimeline(true)} aria-label="The Chronicle timeline" title="Your life as a flowing 3D timeline">
             🕰️
           </button>
+          <button className="fab fab-review" onClick={() => setShowReview(true)} aria-label="Recall session" title="Revisit memories that are gently fading (active recall)">
+            🧠
+            {dueCount > 0 && <span className="fab-badge">{dueCount > 99 ? "99+" : dueCount}</span>}
+          </button>
           <button className="fab fab-help" onClick={() => setHelp(true)} aria-label="Help / guide">
             ?
           </button>
@@ -1810,6 +1828,13 @@ export default function App() {
           nodes={data.nodes as GraphNode[]}
           onClose={() => setShowTimeline(false)}
           onFocus={(id) => { setShowTimeline(false); focus(id); }}
+        />
+      )}
+
+      {showReview && space && !demo && (
+        <ReviewPanel
+          onClose={() => setShowReview(false)}
+          onFocus={(id) => { setShowReview(false); focus(id); }}
         />
       )}
 

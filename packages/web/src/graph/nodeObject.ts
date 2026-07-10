@@ -298,7 +298,11 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // A neglected memory cools — it dims here and shifts cold below. Tending it
   // resets entropy server-side, so it warms back up on the next graph refresh.
   const entropy = Math.max(0, Math.min(1, node.entropy ?? 0));
-  const vitality = (1 + 0.5 * fresh) * (1 - fade) * (1 - 0.55 * entropy);
+  // Spaced-repetition memory strength (NEURO_ALIGNMENT #1): a memory decayed toward its
+  // review point dims — the "come review me" cue. Full strength (or unscheduled) = no
+  // change; low strength gently darkens (never below ~55%, so it stays legible).
+  const reviewDim = node.reviewStrength != null ? 0.55 + 0.45 * Math.max(0, Math.min(1, node.reviewStrength)) : 1;
+  const vitality = (1 + 0.5 * fresh) * (1 - fade) * (1 - 0.55 * entropy) * reviewDim;
 
   // Age-based Evolution Logic (Green Lane Gamification)
   const isHot = ageH < 24; // Created in the last 24h

@@ -1,4 +1,5 @@
 import { type GraphData, type GraphNode, deriveMass, classify, entropyFrom, DURABLE_COGNITIVE_KINDS } from "@brain/shared";
+import { memoryStrength } from "../analysis/review.js";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { heuristicImportance } from "../llm/heuristic.js";
@@ -66,6 +67,14 @@ export class GraphService {
       .all(this.spaceId, this.spaceId, ...ids) as { node_id: number; cnt: number }[];
     const insightById = new Map(insightRows.map((r) => [r.node_id, r.cnt]));
 
+    // Spaced-repetition strength: needs each memory's last-reviewed + interval so the
+    // star can dim toward its review point (NEURO_ALIGNMENT #1). Fetched here so it's
+    // always live on read, never denormalized into the table.
+    const reviewRows = this.h.sqlite
+      .prepare(`SELECT id, created_at, last_reviewed_at, review_interval_days FROM nodes WHERE id IN (${placeholders})`)
+      .all(...ids) as { id: number; created_at: string; last_reviewed_at: string | null; review_interval_days: number | null }[];
+    const reviewById = new Map(reviewRows.map((r) => [r.id, r]));
+
     const now = Date.now();
     const daysSince = (ts?: string): number => {
       const ms = Date.parse(ts?.includes("T") ? ts : `${(ts ?? "").replace(" ", "T")}Z`);
@@ -94,7 +103,11 @@ export class GraphService {
           : entropyFrom(days, degree);
       // A constellation hub's degree IS its member count (every edge is a member).
       const memberCount = n.kind === "moc" ? degree : undefined;
-      return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy, memberCount };
+      // Only real memories carry a review-decay dimming; cognitive nodes / hubs / actions don't.
+      const isMemory = n.kind == null || n.kind === "memory";
+      const rv = reviewById.get(n.id);
+      const reviewStrength = isMemory && rv ? memoryStrength(rv, now) : undefined;
+      return { ...n, degree, mass, val: mass, celestial: classify(mass), entropy, memberCount, reviewStrength };
     });
   }
 

@@ -923,6 +923,36 @@ export async function deleteTimelineChapter(id: number): Promise<boolean> {
     return false;
   }
 }
+
+// --- Spaced repetition (active recall) ---
+export interface DueReview {
+  id: number;
+  label: string;
+  strength: number;
+  reviewCount: number;
+}
+export async function getDueReviews(): Promise<DueReview[]> {
+  try {
+    const res = await afetch(`${API}/review/due`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+/** Grade a recall attempt; SM-2 reschedules server-side. */
+export async function gradeReview(id: number, remembered: boolean): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/review/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ remembered }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
 export async function promoteIdea(id: number): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}/promote`, { method: "POST" });
