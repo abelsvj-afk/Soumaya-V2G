@@ -4150,3 +4150,19 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 }
 .fw-go:hover { background: rgba(255, 205, 70, 0.3); }
 .fw-foot { font-size: 0.68rem; opacity: 0.5; color: #cfd6e6; margin-top: 12px; text-align: center; }
+
+/* ── Accessibility: honor prefers-reduced-motion (NEURO_ALIGNMENT #2, WCAG 2.3.3) ──
+   A comprehensive reset — decorative CSS animations snap to their end state and
+   infinite loops stop after one pass, so nothing pulses/drifts for users who ask for
+   less motion. Only touches DOM/CSS (the WebGL galaxy is calmed separately in JS).
+   Individual components may still add their own finer-grained reduced-motion rules. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Ambient perimeter motes shouldn't wander or shimmer under reduced motion. */
+  .mindspace-mote { animation: none !important; }
+}
