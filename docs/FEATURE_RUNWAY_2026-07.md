@@ -1,9 +1,19 @@
 # Feature Runway — post-freeze batch (2026-07-10)
 
-Status: **spec locked** · Owner: Claude · Branch: `claude/soumaya-second-brain-v1-m4z4hc`
+Status: **ALL FIVE SHIPPED** (2026-07-10) · Owner: Claude · Branch: `claude/soumaya-second-brain-v1-m4z4hc`
 
-Five areas, built in gate-green slices. Order: **#5 first** (product depth), then #1, #3, #2, #4.
-Each stays offline-safe, space-scoped, additive-migration-only.
+Five areas, built in gate-green slices in order **#5 → #1 → #3 → #2 → #4**. Each stayed
+offline-safe, space-scoped, additive-migration-only, with new server + web tests per slice.
+
+- **#5 Product depth** — 5a node status (archive/restore), 5b editable per-space soul, 5c
+  auto-proposed constellation hubs. ✅
+- **#1 Associative depth** — 1a "connect two distant stars" inquiry, 1b constellation-forming
+  link flourish (reduced-motion-safe), 1c endowed welcome star on a new brain. ✅
+- **#3 Accessibility** — 3a colorblind-safe palette toggle (Legend follows), 3b WebGL
+  reduced-motion (calm orbits + no ambient pulses), shared `graph/motion.ts` signal. ✅
+- **#2 Deep-space focus mode** — dims chrome, calms motion, quiets non-essential toasts. ✅
+- **#4 weekly_review tool** — once-a-week reflective digest (heuristic + LLM voice), Telegram
+  + in-app, rate-limited. Help menu + SOUMAYA_TOOLS.md refreshed. ✅
 
 ## #5 — Product depth (build first)
 
