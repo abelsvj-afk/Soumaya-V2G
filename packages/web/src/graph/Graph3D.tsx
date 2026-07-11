@@ -67,6 +67,8 @@ export interface Graph3DHandle {
   isolateSet: (ids: number[]) => void;
   /** Trigger a visual burst at a node (e.g., for user action rewards). */
   spawnBurst: (nodeId: number, type?: string) => void;
+  /** A celebratory burst salvo around the Sun (rank-ups, milestones). */
+  celebrate: () => void;
   /** Fire visual recall signals along synapses for cited node IDs. */
   fireRecall: (citationIds: number[]) => void;
   /** Soumaya flies into view and shows a short message (autonomous hail). */
@@ -1556,6 +1558,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     }
   };
 
+  // Ripple a set of stars alight: staggered bursts across a sample, so a lens/system
+  // visibly "comes on" as it's isolated. Reduced-motion-safe; bounded to keep it cheap.
+  const lightUpSweep = (ids: number[], type = "synthesis") => {
+    if (shouldCalmMotion() || ids.length === 0) return;
+    const byId = nodeByIdRef.current;
+    const sample = ids.slice(0, 6);
+    sample.forEach((id, i) => {
+      scheduleTimeout(() => {
+        const n = byId.get(id);
+        if (n?.x != null) burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
+      }, 120 + i * 110);
+    });
+  };
+
   // Isolate a node's whole system + frame it (used by tap-to-isolate AND the
   // constellation-formed flourish). `celebrate` fires a gold burst at the hub.
   const doIsolateSystem = (id: number, celebrate = false) => {
@@ -1570,6 +1586,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     scheduleTimeout(() => {
       followRef.current = id;
     }, 1050);
+    // The system's members ripple alight as it isolates.
+    lightUpSweep([...sys].filter((x) => x !== id), celebrate ? "harmonization" : "calibration");
     if (celebrate && !shouldCalmMotion()) {
       const hub = nodeByIdRef.current.get(id);
       if (hub?.x != null) {
@@ -1888,12 +1906,31 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followRef.current = null;
         followObjRef.current = null;
         followKindRef.current = null;
-        if (set.size > 0) scheduleTimeout(() => frameGalaxy(900, (n: any) => set.has(n.id)), 80);
+        if (set.size > 0) {
+          scheduleTimeout(() => frameGalaxy(900, (n: any) => set.has(n.id)), 80);
+          lightUpSweep(ids, "calibration"); // the lens' stars ripple alight as it opens
+        }
       },
       spawnBurst: (id: number, type = "user") => {
         const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);
         if (n && n.x != null) {
           burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, type);
+        }
+      },
+      celebrate: () => {
+        if (shouldCalmMotion()) return;
+        const c = sunRef.current?.position ?? new THREE.Vector3();
+        // A ring of alternating gold/amber bursts fanning out around the Sun.
+        for (let i = 0; i < 8; i++) {
+          const a = (i / 8) * Math.PI * 2;
+          scheduleTimeout(() => {
+            burstsRef.current?.spawn(
+              c.x + Math.cos(a) * 340,
+              c.y + Math.sin(a * 2) * 140,
+              c.z + Math.sin(a) * 340,
+              i % 2 ? "fuel" : "harmonization",
+            );
+          }, i * 110);
         }
       },
       hailSoumaya: (message: string) => {

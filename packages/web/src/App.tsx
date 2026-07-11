@@ -679,6 +679,7 @@ export default function App() {
     if (last > 0) {
       playSfx("achievement");
       setRankUp({ title: rank.title, level: rank.level });
+      graphRef.current?.celebrate(); // burst salvo around the Sun
       window.setTimeout(() => setRankUp(null), 4600);
     }
   }, [space, loaded, demo, data.nodes]);
