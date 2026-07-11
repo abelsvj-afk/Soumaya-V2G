@@ -185,6 +185,22 @@ export function Legend({ onClose }: { onClose: () => void }) {
               </li>
             </ul>
           </section>
+
+          <section>
+            <h3>Credits</h3>
+            <ul className="legend-list">
+              <li>
+                <span className="legend-glyph">🌌</span>
+                <span className="legend-name">Milky Way panorama</span>
+                <span className="legend-meaning">
+                  ESO/S. Brunier —{" "}
+                  <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">
+                    CC BY 4.0
+                  </a>
+                </span>
+              </li>
+            </ul>
+          </section>
         </div>
       </div>
     </div>

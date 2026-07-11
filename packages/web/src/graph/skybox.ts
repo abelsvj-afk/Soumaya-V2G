@@ -42,6 +42,41 @@ export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000, onReady?: (
 
 
 /**
+ * OPTIONAL photographic Milky Way backdrop — an equirectangular (2:1) panorama wrapped on a
+ * giant inward-facing sphere. Purely ADDITIVE: if the image is absent (or fails to decode on a
+ * device) the loader no-ops silently and the procedural starfield / Milky Way band / nebula
+ * layers carry the sky exactly as before — nothing is replaced or broken.
+ *
+ * Ships INERT until an asset is dropped at `url` (default `/milkyway-eso.jpg`). The intended
+ * asset is the ESO/S. Brunier "Milky Way panorama" — **CC BY 4.0** (commercial-safe, requires a
+ * credit line; see the Legend). Big equirect textures exceed many mobile GPU limits (render
+ * black) so, like the nebula GLB, this is desktop-only; phones keep the procedural sky.
+ */
+export function loadEquirectSkybox(
+  scene: THREE.Scene,
+  url = "/milkyway-eso.jpg",
+  radius = 11500,
+  onReady?: (sky: THREE.Object3D) => void,
+): void {
+  if (typeof window !== "undefined" && window.innerWidth < 1100) return; // desktop only
+  new THREE.TextureLoader().load(
+    url,
+    (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const geom = new THREE.SphereGeometry(radius, 60, 40);
+      const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, depthWrite: false, toneMapped: false, fog: false });
+      const sky = new THREE.Mesh(geom, mat);
+      sky.renderOrder = -11; // furthest back — behind even the nebula GLB shell
+      sky.frustumCulled = false;
+      scene.add(sky);
+      onReady?.(sky); // let the caller scale it out as the galaxy grows
+    },
+    undefined,
+    () => { /* no asset yet / decode failed → keep the procedural sky, never throw */ },
+  );
+}
+
+/**
  * Procedural deep-space backdrop generated at runtime (no shipped image): a dark
  * vertical scattering gradient (indigo → near-black → faint violet) with a dusting
  * of faint baked stars. Returned as a texture for `scene.background`, so it always
