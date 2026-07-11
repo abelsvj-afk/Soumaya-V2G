@@ -504,7 +504,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
   // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
-  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D }>({});
+  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D }>({});
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -517,6 +517,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     fit(s.starfield, 7000, 7); // stars surround the camera at any zoom-out
     fit(s.milkyway, 8600, 7.4); // the galactic band arcs just beyond the starfield
     fit(s.constellations, 9500, 8);
+    fit(s.galaxies, 12750, 11); // distant spiral galaxies stay beyond the memory galaxy
     fit(s.deepspace, DEEP_SPACE_BASE, 8.5); // nebula clouds / dust / galaxies / belt sit far out
     fit(s.skybox, 12000, 10); // the nebula shell sits furthest out
     // The far clip must exceed the (now-scaled) skybox on the far side of the galaxy, or
@@ -638,9 +639,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
         });
         scene.add(makeNebulae());
-        scene.add(makeGalaxies());
         scene.add(makeComets());
       }
+      // Distant spiral galaxies — just a few thousand Points total, so they belong on EVERY
+      // tier, not only heavy scenery (they were silently vanishing on mid/low mobile). Count
+      // scales with the tier; tracked in sceneryRef so they push outward as the galaxy grows.
+      const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
+      sceneryRef.current.galaxies = galaxies;
+      scene.add(galaxies);
       const constellations = makeConstellations();
       sceneryRef.current.constellations = constellations;
       scene.add(constellations);
