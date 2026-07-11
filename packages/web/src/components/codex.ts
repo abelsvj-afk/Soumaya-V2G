@@ -9,7 +9,7 @@ import { statsSpaceId } from "./achievements.js";
  * mirroring the achievements pattern — no server round-trip to render it.
  */
 
-export type CodexCategory = "sectors" | "bodies" | "constellations" | "mind" | "fleet" | "phenomena";
+export type CodexCategory = "sectors" | "bodies" | "constellations" | "mind" | "fleet" | "phenomena" | "fieldnotes";
 
 export const CODEX_CATEGORIES: { id: CodexCategory; title: string; icon: string; blurb: string }[] = [
   { id: "sectors", title: "Sectors", icon: "🗺️", blurb: "The named regions of your inner cosmos — one per kind of memory." },
@@ -18,7 +18,26 @@ export const CODEX_CATEGORIES: { id: CodexCategory; title: string; icon: string;
   { id: "bodies", title: "Celestial Bodies", icon: "✸", blurb: "The classes of body a memory can grow into, from asteroid to supergiant." },
   { id: "fleet", title: "The Fleet", icon: "🛸", blurb: "Soumaya and the machines that tend your galaxy." },
   { id: "phenomena", title: "Phenomena", icon: "✦", blurb: "Rare events and milestones discovered as your galaxy comes alive." },
+  { id: "fieldnotes", title: "Soumaya's Field Notes", icon: "✒️", blurb: "Discoveries Soumaya charted on her own, as your galaxy revealed them." },
 ];
+
+/** A server-charted discovery (Soumaya's field notes) → a discovered Codex entry. */
+export interface AgentDiscovery { key: string; title: string; lore: string; icon: string; focusId: number | null; createdAt: string }
+export function fieldNoteEntries(discoveries: AgentDiscovery[]): CodexEntry[] {
+  return discoveries.map((d) => ({
+    id: `fieldnote-${d.key}`,
+    category: "fieldnotes" as const,
+    icon: d.icon || "✒️",
+    title: d.title,
+    lockedHint: "",
+    lore: d.lore,
+    discovered: true,
+    level: 1,
+    maxLevel: 1,
+    levelLabel: "Charted by Soumaya",
+    focusId: d.focusId ?? undefined,
+  }));
+}
 
 export interface CodexEntry {
   id: string;

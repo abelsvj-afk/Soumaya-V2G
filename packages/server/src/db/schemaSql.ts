@@ -287,4 +287,16 @@ export const BOOTSTRAP_SQL = `
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS lenses_space_idx ON lenses(space_id, pinned DESC, id DESC);
+
+    CREATE TABLE IF NOT EXISTS codex_discoveries (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      lore TEXT NOT NULL DEFAULT '',
+      icon TEXT NOT NULL DEFAULT '✦',
+      focus_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS codex_disc_key ON codex_discoveries(space_id, key);
 `;

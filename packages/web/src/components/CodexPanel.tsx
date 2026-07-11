@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
-import { buildCodex, codexProgress, CODEX_CATEGORIES, type CodexEntry, type CodexCategory } from "./codex.js";
-import { claimCodexReward } from "../api/client.js";
+import { buildCodex, codexProgress, CODEX_CATEGORIES, fieldNoteEntries, type CodexEntry, type CodexCategory } from "./codex.js";
+import { claimCodexReward, getCodexDiscoveries, type AgentDiscovery } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 
@@ -23,14 +23,24 @@ export function CodexPanel({
   demo?: boolean;
   onReward?: () => void;
 }) {
+  // Soumaya's autonomously-charted field notes (server), merged into the atlas.
+  const [discoveries, setDiscoveries] = useState<AgentDiscovery[]>([]);
+  useEffect(() => {
+    if (demo) return;
+    getCodexDiscoveries().then(setDiscoveries).catch(() => {});
+  }, [demo, spaceId]);
+
   const entries = useMemo(() => {
     const nodes = graph.nodes as GraphNode[];
-    return buildCodex({
-      memories: nodes.filter((n) => n.kind !== "action" && n.kind !== "moc"),
-      constellations: nodes.filter((n) => n.kind === "moc"),
-      links: graph.links.length,
-    });
-  }, [graph]);
+    return [
+      ...buildCodex({
+        memories: nodes.filter((n) => n.kind !== "action" && n.kind !== "moc"),
+        constellations: nodes.filter((n) => n.kind === "moc"),
+        links: graph.links.length,
+      }),
+      ...fieldNoteEntries(discoveries),
+    ];
+  }, [graph, discoveries]);
   const progress = useMemo(() => codexProgress(entries), [entries]);
   const [tab, setTab] = useState<CodexCategory>("sectors");
   const seenRef = useRef<Set<string>>(new Set());

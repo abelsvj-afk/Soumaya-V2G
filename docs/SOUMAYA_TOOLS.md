@@ -95,6 +95,15 @@ the LLM/web are gated by Research Mode + USD budget (+ Fuel for expansion), same
   (Telegram) and, because the full digest rides in the result summary, the router's `agent_logs`
   row surfaces it in-app (Night Replay).
 
+## Tool 8 — Chart discovery (shipped; deterministic, free, offline)
+
+- `detect`: rate-limited to one new note per day. Scans for a genuinely notable, not-yet-
+  charted structure — a dense constellation (≥ 8 members), the brightest nexus (a memory at
+  degree ≥ 10), or a sector that's crossed 25/50/100 bodies — each keyed so it's recorded once.
+- `run`: writes a `codex_discoveries` row (Soumaya-voiced lore, an icon, an optional focus id)
+  and `notify`s. Surfaced client-side under the Codex's **"Soumaya's Field Notes"** category
+  (`GET /api/codex/discoveries`), so she grows the atlas herself as the galaxy reveals itself.
+
 ## Verification
 
 - Gate `typecheck && test && build` green at each slice.

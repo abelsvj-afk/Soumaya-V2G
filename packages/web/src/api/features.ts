@@ -72,3 +72,15 @@ export async function gradeReview(id: number, remembered: boolean): Promise<bool
     return false;
   }
 }
+
+/** Soumaya's autonomously-charted Codex field notes. */
+export interface AgentDiscovery { key: string; title: string; lore: string; icon: string; focusId: number | null; createdAt: string }
+export async function getCodexDiscoveries(): Promise<AgentDiscovery[]> {
+  try {
+    const res = await afetch(`${API}/codex/discoveries`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
