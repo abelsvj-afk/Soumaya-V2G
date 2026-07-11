@@ -70,6 +70,12 @@ export function setSfxVolume(v: number): void {
   if (master) master.gain.value = sfxVolume();
 }
 
+/** The shared SFX AudioContext (resumed on demand) — reused by the ship engine for a
+ *  gapless Web-Audio loop. Returns null where Web Audio is unavailable. */
+export function audioContext(): AudioContext | null {
+  return ensure();
+}
+
 function ensure(): AudioContext | null {
   if (ctx) {
     if (ctx.state === "suspended") void ctx.resume();

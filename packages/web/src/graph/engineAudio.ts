@@ -1,46 +1,90 @@
-import { sfxEnabled, sfxVolume } from "./sfx.js";
+import { sfxEnabled, sfxVolume, audioContext } from "./sfx.js";
 
 /**
- * Soumaya's ship engine — real recordings, not synthesis. A jet startup
- * (`/ship-engine-start.mp3`) ignites and fades into a sustained engine loop
- * (`/ship-engine-loop.wav`). Only AUDIBLE when the camera is focused on her: the
- * caller feeds a 0..1 `level` (focus × motion) each frame, and the engine eases its
- * volume toward it — so you hear her thrusters when you're watching her fly, and
- * near-silence otherwise. Best-effort + gated by the interface-sounds setting.
+ * Soumaya's ship engine — real recordings. A short IGNITION (`/ship-engine-start.mp3`)
+ * spools up when you focus on her, then a sustained THRUSTER LOOP (`/ship-engine-loop.wav`)
+ * that is only audible WHILE SHE'S MOVING and fades to silence when she stops.
+ *
+ * Two fixes over the old version:
+ *  - the ignition is capped to a couple of seconds (the file is long); it fades out and the
+ *    loop takes over;
+ *  - the loop plays through the shared Web-Audio context as a looping AudioBufferSourceNode,
+ *    which is GAPLESS — an HTMLAudio `loop` re-buffers at the seam and you heard the restart.
+ *
+ * The caller feeds `focus` (0..1, is the camera on her) and `motion` (0..1, how fast she's
+ * flying) each frame. Best-effort + gated by the interface-sounds setting.
  */
 export interface EngineAudio {
-  setLevel: (v: number) => void;
+  setLevel: (focus: number, motion: number) => void;
   dispose: () => void;
 }
 
-const MASTER = 0.9; // the engine can be prominent when you're right on her
+const MASTER = 0.9;
+const STARTUP_MS = 2200; // cut the long ignition down to a quick spool-up
+const FADE_MS = 450; // how long the ignition fades out before the loop carries on
 
 export function makeEngineAudio(): EngineAudio {
-  let startEl: HTMLAudioElement | null = null;
-  let loopEl: HTMLAudioElement | null = null;
-  let current = 0; // eased volume
-  let target = 0;
-  let ignited = false; // has the startup fired for this run
-  let raf: number | null = null;
+  let focusTarget = 0;
+  let motionTarget = 0;
+  let loopCur = 0; // eased loop level (focus × motion)
   let disposed = false;
+  let raf: number | null = null;
 
-  const ensure = () => {
-    if (loopEl) return;
+  // Ignition (one-shot HTMLAudio).
+  let startEl: HTMLAudioElement | null = null;
+  let ignitedAt = 0;
+
+  // Thruster loop (gapless Web Audio).
+  let buffer: AudioBuffer | null = null;
+  let loading = false;
+  let src: AudioBufferSourceNode | null = null;
+  let gainNode: GainNode | null = null;
+
+  const ensureStart = () => {
+    if (startEl) return;
     try {
       startEl = new Audio("/ship-engine-start.mp3");
       startEl.preload = "auto";
       startEl.volume = 0;
-      loopEl = new Audio("/ship-engine-loop.wav");
-      loopEl.loop = true;
-      loopEl.preload = "auto";
-      loopEl.volume = 0;
     } catch {
       /* Audio unavailable */
     }
   };
 
-  // The user's settings are read a few times a second (not per frame — sfxEnabled
-  // falls back to a matchMedia query, which is real work at 60fps).
+  const ensureBuffer = () => {
+    if (buffer || loading) return;
+    const ac = audioContext();
+    if (!ac) return;
+    loading = true;
+    fetch("/ship-engine-loop.wav")
+      .then((r) => r.arrayBuffer())
+      .then((b) => ac.decodeAudioData(b))
+      .then((buf) => { buffer = buf; })
+      .catch(() => { /* engine loop is non-critical */ })
+      .finally(() => { loading = false; });
+  };
+
+  const startLoop = (ac: AudioContext) => {
+    if (src || !buffer) return;
+    if (!gainNode) {
+      gainNode = ac.createGain();
+      gainNode.gain.value = 0;
+      gainNode.connect(ac.destination);
+    }
+    src = ac.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true; // gapless — the whole point
+    src.connect(gainNode);
+    try { src.start(); } catch { /* already started / bad state */ }
+  };
+
+  const stopLoop = () => {
+    if (!src) return;
+    try { src.stop(); } catch { /* ignore */ }
+    try { src.disconnect(); } catch { /* ignore */ }
+    src = null;
+  };
+
   let enabled = false;
   let userVol = 1;
   let settingsAt = 0;
@@ -55,55 +99,63 @@ export function makeEngineAudio(): EngineAudio {
       enabled = sfxEnabled();
       userVol = sfxVolume();
     }
-    // Ease current → target, dt-based so the fade speed doesn't depend on the
-    // display's refresh rate (fast attack on ignition, gentle release).
-    const rate = target > current ? 7 : 3; // per-second easing constants
-    current += (target - current) * Math.min(1, rate * dt);
-    const gain = MASTER * userVol; // honor the user's interface-sounds slider
-    const on = enabled && current > 0.02;
-    if (on) {
-      ensure();
-      if (!ignited && startEl) {
-        ignited = true;
-        try {
-          startEl.currentTime = 0;
-          void startEl.play().catch(() => {});
-        } catch {
-          /* blocked until a gesture */
+    // Ease the loop level toward focus×motion — fast attack, gentle release.
+    const wanted = focusTarget * motionTarget;
+    const rate = wanted > loopCur ? 7 : 3;
+    loopCur += (wanted - loopCur) * Math.min(1, rate * dt);
+    const g = MASTER * userVol;
+
+    // --- IGNITION: fires when you START focusing on her; short + capped. ---
+    const focusOn = enabled && focusTarget > 0.05;
+    if (focusOn) {
+      ensureStart();
+      if (!ignitedAt && startEl) {
+        ignitedAt = t;
+        try { startEl.currentTime = 0; void startEl.play().catch(() => {}); } catch { /* blocked until gesture */ }
+      }
+      if (startEl && ignitedAt) {
+        const age = t - ignitedAt;
+        if (age >= STARTUP_MS) {
+          if (!startEl.paused) startEl.pause();
+        } else {
+          const fade = age > STARTUP_MS - FADE_MS ? Math.max(0, (STARTUP_MS - age) / FADE_MS) : 1;
+          startEl.volume = Math.min(1, focusTarget * g * 0.8 * fade);
         }
       }
-      if (loopEl) {
-        if (loopEl.paused) void loopEl.play().catch(() => {});
-        loopEl.volume = Math.min(1, current * gain);
-      }
-      if (startEl) startEl.volume = Math.min(1, current * gain * 0.9);
     } else {
-      ignited = false;
-      if (loopEl && !loopEl.paused) {
-        loopEl.volume = 0;
-        loopEl.pause();
-      }
+      ignitedAt = 0;
       if (startEl && !startEl.paused) startEl.pause();
     }
+
+    // --- THRUSTER LOOP: audible only while she's actually moving. ---
+    const loopOn = enabled && loopCur > 0.02;
+    if (loopOn) {
+      const ac = audioContext();
+      ensureBuffer();
+      if (ac && buffer) {
+        startLoop(ac);
+        if (gainNode) gainNode.gain.value = Math.min(1, loopCur * g);
+      }
+    } else if (src) {
+      stopLoop();
+    }
+
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
 
   return {
-    setLevel: (v: number) => {
-      target = Math.max(0, Math.min(1, v));
+    setLevel: (focus: number, motion: number) => {
+      focusTarget = Math.max(0, Math.min(1, focus));
+      motionTarget = Math.max(0, Math.min(1, motion));
     },
     dispose: () => {
       disposed = true;
       if (raf) cancelAnimationFrame(raf);
-      try {
-        loopEl?.pause();
-        startEl?.pause();
-      } catch {
-        /* ignore */
-      }
-      loopEl = null;
+      stopLoop();
+      try { startEl?.pause(); } catch { /* ignore */ }
       startEl = null;
+      buffer = null;
     },
   };
 }

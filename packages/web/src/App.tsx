@@ -1531,16 +1531,16 @@ export default function App() {
         />
       )}
 
-      {/* Right-side-up: re-level the camera when following the ship (banking + free
-          orbit can leave you looking at her sideways or upside down). */}
+      {/* Right-side-up: a clearly-visible pill (not a buried FAB) whenever you're following
+          the ship, since banking + free orbit can leave you looking at her sideways. */}
       {followShip && panel === null && (
         <button
-          className="fab fab-level"
+          className="level-pill"
           onClick={() => graphRef.current?.levelShipView()}
           aria-label="Level camera on the ship"
           title="Right-side up — wide, level view of the ship"
         >
-          ⭯
+          ⭯ Level view
         </button>
       )}
 

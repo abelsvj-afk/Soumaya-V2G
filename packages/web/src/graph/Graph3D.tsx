@@ -1272,7 +1272,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             const d = cam.position.distanceTo(shipPos);
             focus = Math.max(0, Math.min(0.85, 1 - (d - 350) / 1400)); // louder the closer you are
           }
-          engine?.setLevel(focus * (0.15 + 0.85 * motion));
+          // focus drives the ignition; motion drives the thruster loop (silent when parked).
+          engine?.setLevel(focus, motion);
         } catch {
           /* engine audio is non-critical */
         }

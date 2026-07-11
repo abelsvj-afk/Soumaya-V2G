@@ -4488,3 +4488,19 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .commission-btn:hover:not(:disabled) { background: rgba(122, 249, 255, 0.24); filter: brightness(1.05); }
 .commission-btn:active:not(:disabled) { transform: scale(0.98); }
 .commission-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* "Level view" — a clearly-visible pill (not a hidden FAB) shown while following the ship. */
+.level-pill {
+  position: absolute;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  left: 50%; transform: translateX(-50%);
+  z-index: 46;
+  background: var(--glass); border: 1px solid var(--accent);
+  backdrop-filter: blur(14px); border-radius: 999px; padding: 9px 18px;
+  font-size: 13px; font-weight: 600; color: var(--accent); cursor: pointer;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  transition: filter 0.15s ease, transform 0.1s ease;
+}
+.level-pill:hover { filter: brightness(1.12); }
+.level-pill:active { transform: translateX(-50%) scale(0.96); }
+.focus-mode .level-pill { opacity: 0.1; }
