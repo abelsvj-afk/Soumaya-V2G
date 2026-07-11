@@ -92,6 +92,98 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
   return stars;
 }
 
+/**
+ * The Milky Way — the luminous galactic band that arcs across a real night sky and is
+ * the signature element of NASA's Deep Star Maps. Built 100% procedurally (no shipped
+ * image, no licence, works offline), so it's safe to ship in a paid product. Two additive
+ * point layers on a randomly-oriented great circle: a soft HAZE (few big, very faint points
+ * → the milky glow) and dense STAR DUST (many tiny points → the grainy stellar sea). Both
+ * concentrate near the galactic plane with a Gaussian off-plane falloff, and are brightened
+ * along bright knots + darkened by dust-lane rifts so it never reads as a uniform smear.
+ *
+ * `level` scales the point counts so it runs on mid-range mobile, not just the top tier.
+ */
+export function makeMilkyWay(radius = 8600, level: "low" | "medium" | "high" = "medium"): THREE.Group {
+  const group = new THREE.Group();
+
+  // Random galactic plane: an in-plane basis (u, v) + the pole (n).
+  const n = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
+  const u = new THREE.Vector3()
+    .crossVectors(n, Math.abs(n.y) > 0.9 ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 1, 0))
+    .normalize();
+  const v = new THREE.Vector3().crossVectors(n, u).normalize();
+
+  // Two random seeds so the bright-knot / dust-lane pattern differs every session.
+  const seedA = Math.random() * Math.PI * 2;
+  const seedB = Math.random() * Math.PI * 2;
+
+  const warm = new THREE.Color("#fff1d8"); // core glow
+  const pale = new THREE.Color("#cfd8ff"); // cool star dust
+  const rust = new THREE.Color("#caa27a"); // dust-lane tint
+
+  // Brightness along the band: broad lobes (knots) × finer rifts, clamped ≥ 0 for dark lanes.
+  const patch = (ang: number) =>
+    Math.max(0, (0.55 + 0.45 * Math.sin(ang * 2.1 + seedA)) * (0.62 + 0.42 * Math.sin(ang * 6.3 + seedB)));
+
+  // One point layer concentrated on the band.
+  const layer = (count: number, thickness: number, size: number, opacity: number, warmMix: number): THREE.Points => {
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    const dir = new THREE.Vector3();
+    const base = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      // Box–Muller Gaussian → dense on the plane, thinning out with |latitude|.
+      const g = Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+      dir
+        .copy(u)
+        .multiplyScalar(Math.cos(ang))
+        .addScaledVector(v, Math.sin(ang))
+        .addScaledVector(n, g * thickness)
+        .normalize()
+        .multiplyScalar(radius * (0.95 + Math.random() * 0.1));
+      pos[i * 3] = dir.x;
+      pos[i * 3 + 1] = dir.y;
+      pos[i * 3 + 2] = dir.z;
+      // Colour: warm core lerped toward cool star dust, tinted rust where a dust lane bites.
+      const bright = patch(ang) * Math.exp(-Math.abs(g) * 0.4);
+      base.copy(warm).lerp(pale, Math.random() * warmMix);
+      if (bright < 0.28) base.lerp(rust, 0.35); // rifts glow faint rusty, not black
+      base.multiplyScalar(0.35 + 0.65 * bright);
+      col[i * 3] = base.r;
+      col[i * 3 + 1] = base.g;
+      col[i * 3 + 2] = base.b;
+    }
+    const geom = new THREE.BufferGeometry();
+    geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    geom.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const points = new THREE.Points(
+      geom,
+      new THREE.PointsMaterial({
+        size,
+        sizeAttenuation: true,
+        vertexColors: true,
+        transparent: true,
+        opacity,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    points.frustumCulled = false;
+    return points;
+  };
+
+  const haze = level === "low" ? 340 : level === "medium" ? 620 : 1000;
+  const dust = level === "low" ? 2600 : level === "medium" ? 5200 : 9000;
+  group.add(layer(haze, 0.16, 210, 0.05, 0.25)); // soft milky glow
+  group.add(layer(dust, 0.1, 7, 0.5, 0.85)); // grainy stellar sea
+  // Barely-there drift so the band feels alive without visibly wandering.
+  group.userData.update = (t: number) => {
+    group.rotation.z = t * 0.0006;
+  };
+  return group;
+}
+
 /** A drifting, slowly-rotating nebula cloud sprite (additive, far out). */
 function makeNebula(spread: number): THREE.Sprite {
   const c = document.createElement("canvas");

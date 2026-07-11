@@ -165,6 +165,26 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-11 (Claude): Richer deep space — procedural nebula/dust/galaxies/belt + a Milky Way band
+The user wanted "other space stuff" (nebulae, dust, a milky-way band, distant galaxies, asteroid
+belts) and asked whether we could pull free/commercial-safe assets (NASA, Poly Haven). **Findings on
+licensing (all commercial-safe):** NASA Deep Star Maps 2020 = U.S.-gov **public domain** (acknowledge
+NASA as a courtesy, no legal attribution); Poly Haven HDRIs = **CC0** (no attribution); Solar System
+Scope starmap = **CC BY 4.0** (attribution *required*). **We could not download the binaries from the
+sandbox** — the egress policy hard-blocks `svs.gsfc.nasa.gov`, `commons.wikimedia.org`, `polyhaven.com`
+(403 CONNECT denials, not routed around). So both deliverables are **100% procedural** — no shipped
+asset, no licence, works offline, cheap enough for mid-range mobile:
+- **`graph/deepSpace.ts` (new):** drifting nebula clouds (canvas sprites), an interstellar dust haze
+  (one Points cloud), distant galaxy billboards, and one asteroid belt (InstancedMesh). Counts scale
+  with the graphics tier. Wired into `Graph3D` as `sceneryRef.deepspace`, scaled out with the galaxy.
+- **`graph/starfield.ts` → `makeMilkyWay()` (new):** the signature galactic band — the element the NASA
+  maps are famous for. Two additive Points layers (soft haze + grainy star dust) on a random great
+  circle, Gaussian off-plane falloff, brightened along knots + darkened by dust-lane rifts (rusty, not
+  black). Tier-scaled counts. Wired into `Graph3D` as `sceneryRef.milkyway`, scaled with the galaxy.
+- If the user later wants a *photographic* backdrop, `skybox.ts::loadNebulaSkybox` is the seam: drop a
+  self-hosted (never hot-linked) NASA 8K starmap `.webp` into `packages/web/public/` — the procedural
+  layers stay as the always-on fallback below it.
+
 ### 2026-07-10 (Claude): Tool fleet COMPLETE — SRS made visible, web-lookup, agentic router
 Finished the tools/functions build-out (the cutover gate for `AI_ENGINEERING_WORKFLOW_POST_MVP.md`):
 - **Spaced repetition made visible:** `ReviewPanel` (🧠 FAB + due-count badge) — a gentle recall

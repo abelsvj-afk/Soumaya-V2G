@@ -14,7 +14,7 @@ import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateF
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
-import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfield.js";
+import { makeStarfield, makeNebulae, makeComets, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { makeDeepSpace, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { addBloom } from "./bloom.js";
@@ -504,7 +504,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
   // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
-  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; deepspace?: THREE.Object3D }>({});
+  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D }>({});
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -515,6 +515,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (obj) obj.scale.setScalar(Math.max(1, (R * mult) / base));
     };
     fit(s.starfield, 7000, 7); // stars surround the camera at any zoom-out
+    fit(s.milkyway, 8600, 7.4); // the galactic band arcs just beyond the starfield
     fit(s.constellations, 9500, 8);
     fit(s.deepspace, DEEP_SPACE_BASE, 8.5); // nebula clouds / dust / galaxies / belt sit far out
     fit(s.skybox, 12000, 10); // the nebula shell sits furthest out
@@ -623,6 +624,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const starfield = makeStarfield(gfx.starCount);
       sceneryRef.current.starfield = starfield;
       scene.add(starfield);
+      // The Milky Way band — procedural (no asset/licence), cheap enough for every tier, so
+      // even mid-range mobile gets the signature galactic arc, not just a flat star scatter.
+      const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+      sceneryRef.current.milkyway = milkyway;
+      scene.add(milkyway);
       // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
       // extra draw calls + textures that can stall a mid/low phone on the first frame —
       // render it only on the top graphics tier. The starfield alone still reads as space.
