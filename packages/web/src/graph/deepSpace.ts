@@ -1,0 +1,188 @@
+import * as THREE from "three";
+import type { Level } from "./graphicsConfig.js";
+
+/**
+ * Deep-space ambience — the "other makeup of space" beyond stars + planets: drifting
+ * colourful NEBULA CLOUDS, a faint interstellar DUST haze, a few distant GALAXIES, and a
+ * slow ASTEROID BELT ringing your galaxy. 100% PROCEDURAL (zero external assets, so it's
+ * safe to ship in a paid product) and deliberately CHEAP — sprites, ONE points cloud, and
+ * ONE instanced mesh — so it runs on mid-range mobile, not just the top graphics tier.
+ *
+ * Counts scale with the device `level`. Everything animates via `userData.update` (the
+ * Graph3D tick traverses the scene and calls it). Built at a neutral base extent; Graph3D
+ * scales the whole group outward as the galaxy grows so it always sits "far out".
+ */
+
+const BASE = 9000; // the group's base radius; Graph3D scales it with the galaxy
+
+/** count per quality level */
+const byLevel = <T>(level: Level, low: T, med: T, high: T): T =>
+  level === "low" ? low : level === "medium" ? med : high;
+
+// ---- Drifting nebula clouds (big, colourful, slowly translate + morph) ----
+function nebulaTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const tints = ["#7a3cff", "#1f8fff", "#ff3c9d", "#22d3a0", "#b388ff", "#ff7a4d"];
+  for (let i = 0; i < 22; i++) {
+    const x = 128 + (Math.random() - 0.5) * 150;
+    const y = 128 + (Math.random() - 0.5) * 150;
+    const r = 30 + Math.random() * 90;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    const col = new THREE.Color(tints[Math.floor(Math.random() * tints.length)]!);
+    const rgb = `${Math.round(col.r * 255)},${Math.round(col.g * 255)},${Math.round(col.b * 255)}`;
+    g.addColorStop(0, `rgba(${rgb},0.22)`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 256, 256);
+  }
+  // Circular vignette so it never reads as a square.
+  ctx.globalCompositeOperation = "destination-in";
+  const mask = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
+  mask.addColorStop(0, "rgba(0,0,0,1)");
+  mask.addColorStop(0.55, "rgba(0,0,0,1)");
+  mask.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = mask;
+  ctx.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeNebulaCloud(): THREE.Sprite {
+  const mat = new THREE.SpriteMaterial({
+    map: nebulaTexture(),
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.14 + Math.random() * 0.1,
+  });
+  const s = new THREE.Sprite(mat);
+  const size = 2200 + Math.random() * 3200;
+  s.scale.set(size, size, 1);
+  const p = new THREE.Vector3(
+    (Math.random() - 0.5) * BASE * 1.6,
+    (Math.random() - 0.5) * BASE,
+    (Math.random() - 0.5) * BASE * 1.6,
+  );
+  s.position.copy(p);
+  const drift = new THREE.Vector3((Math.random() - 0.5), (Math.random() - 0.5) * 0.3, (Math.random() - 0.5)).multiplyScalar(0.6);
+  s.userData.update = (now: number) => {
+    mat.rotation += 0.00025; // slow morph
+    // Gentle bob around the spawn point so clouds feel alive without wandering off.
+    s.position.x = p.x + Math.sin(now * 0.03) * drift.x * 40;
+    s.position.y = p.y + Math.sin(now * 0.021) * drift.y * 40;
+    s.position.z = p.z + Math.cos(now * 0.026) * drift.z * 40;
+  };
+  return s;
+}
+
+// ---- Interstellar dust haze (one faint Points cloud filling the volume) ----
+function makeDust(count: number): THREE.Points {
+  const pos = new Float32Array(count * 3);
+  const col = new Float32Array(count * 3);
+  const tints = [new THREE.Color("#6a86c8"), new THREE.Color("#8a5cff"), new THREE.Color("#c77fae"), new THREE.Color("#5fb8d8")];
+  for (let i = 0; i < count; i++) {
+    // Fill a rough sphere shell (skip the very centre where the galaxy lives).
+    const r = BASE * (0.35 + Math.random() * 0.65);
+    const th = Math.random() * Math.PI * 2;
+    const ph = Math.acos(2 * Math.random() - 1);
+    pos[i * 3] = r * Math.sin(ph) * Math.cos(th);
+    pos[i * 3 + 1] = r * Math.cos(ph) * 0.6;
+    pos[i * 3 + 2] = r * Math.sin(ph) * Math.sin(th);
+    const c = tints[Math.floor(Math.random() * tints.length)]!;
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geom.setAttribute("color", new THREE.BufferAttribute(col, 3));
+  const points = new THREE.Points(
+    geom,
+    new THREE.PointsMaterial({ size: 26, sizeAttenuation: true, vertexColors: true, transparent: true, opacity: 0.13, depthWrite: false, blending: THREE.AdditiveBlending }),
+  );
+  points.userData.update = () => { points.rotation.y += 0.00004; }; // barely-there drift
+  return points;
+}
+
+// ---- Distant galaxy billboards (fuzzy spiral discs, very slow rotation) ----
+function galaxyTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const ctx = c.getContext("2d")!;
+  const edge = ["#7ab8ff", "#b388ff", "#ffc4f0", "#7af9ff"][Math.floor(Math.random() * 4)]!;
+  // A bright core + swept arms drawn as fading dots.
+  const core = ctx.createRadialGradient(128, 128, 0, 128, 128, 40);
+  core.addColorStop(0, "rgba(255,240,210,0.9)");
+  core.addColorStop(1, "rgba(255,240,210,0)");
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, 256, 256);
+  const ec = new THREE.Color(edge);
+  const ergb = `${Math.round(ec.r * 255)},${Math.round(ec.g * 255)},${Math.round(ec.b * 255)}`;
+  const arms = 2 + Math.floor(Math.random() * 2);
+  for (let i = 0; i < 900; i++) {
+    const t = Math.pow(Math.random(), 0.6);
+    const arm = Math.floor(Math.random() * arms);
+    const theta = t * 6 + (arm / arms) * Math.PI * 2;
+    const rr = t * 118;
+    const x = 128 + Math.cos(theta) * rr + (Math.random() - 0.5) * (1 - t) * 30;
+    const y = 128 + Math.sin(theta) * rr * 0.55 + (Math.random() - 0.5) * (1 - t) * 30;
+    ctx.fillStyle = `rgba(${ergb},${0.5 * (1 - t)})`;
+    ctx.fillRect(x, y, 1.6, 1.6);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeDistantGalaxy(): THREE.Sprite {
+  const mat = new THREE.SpriteMaterial({ map: galaxyTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.5 });
+  const s = new THREE.Sprite(mat);
+  const size = 1400 + Math.random() * 1800;
+  s.scale.set(size, size, 1);
+  s.position.set((Math.random() - 0.5) * BASE * 1.7, (Math.random() - 0.5) * BASE * 1.2, (Math.random() - 0.5) * BASE * 1.7);
+  s.userData.update = () => { mat.rotation += 0.00012; };
+  return s;
+}
+
+// ---- Asteroid belt (ONE instanced mesh ringing the galaxy, slow orbit) ----
+function makeAsteroidBelt(count: number): THREE.Object3D {
+  const geo = new THREE.IcosahedronGeometry(1, 0); // low-poly rock
+  const mat = new THREE.MeshStandardMaterial({ color: "#6b6357", roughness: 0.95, metalness: 0.05, flatShading: true });
+  const mesh = new THREE.InstancedMesh(geo, mat, count);
+  const belt = BASE * 0.32;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const s = new THREE.Vector3();
+  const spins: number[] = [];
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2 + Math.random() * 0.4;
+    const r = belt * (0.9 + Math.random() * 0.2);
+    const y = (Math.random() - 0.5) * belt * 0.12;
+    const size = 26 + Math.random() * 70;
+    q.setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
+    s.setScalar(size);
+    m.compose(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), q, s);
+    mesh.setMatrixAt(i, m);
+    spins.push(Math.random() * 6);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  const group = new THREE.Group();
+  group.add(mesh);
+  group.userData.update = () => { group.rotation.y += 0.0006; }; // the whole belt orbits slowly
+  void spins;
+  return group;
+}
+
+export function makeDeepSpace(level: Level): THREE.Group {
+  const group = new THREE.Group();
+  const clouds = byLevel(level, 3, 5, 8);
+  const dust = byLevel(level, 350, 800, 1500);
+  const galaxies = byLevel(level, 2, 3, 5);
+  const asteroids = byLevel(level, 40, 90, 150);
+
+  for (let i = 0; i < clouds; i++) group.add(makeNebulaCloud());
+  group.add(makeDust(dust));
+  for (let i = 0; i < galaxies; i++) group.add(makeDistantGalaxy());
+  group.add(makeAsteroidBelt(asteroids));
+  return group;
+}
+
+/** The base radius the group is authored at (Graph3D scales relative to this). */
+export const DEEP_SPACE_BASE = BASE;
