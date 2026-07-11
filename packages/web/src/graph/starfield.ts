@@ -33,7 +33,7 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
     phase[i] = Math.random() * Math.PI * 2;
-    tw[i] = 0.6 + Math.random() * 2.4; // each twinkles at its own rate
+    tw[i] = 0.42 + Math.random() * 1.7; // each twinkles at its own rate (eased ~30% slower)
     baseSize[i] = 2.0 + Math.random() * Math.random() * 6.0; // mostly small, a few big
   }
 

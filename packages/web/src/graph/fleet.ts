@@ -3,7 +3,7 @@
  * (icon / name / role / lore) shown in the Fleet panel + Help, merged at runtime
  * with each unit's live status from the 3D scene (Graph3D.getFleetStatus).
  */
-export type FleetUnitId = "ship" | "station" | "beacon" | "scout" | "defender";
+export type FleetUnitId = "ship" | "station" | "beacon" | "scout" | "defender" | "tender";
 
 export interface FleetUnit {
   id: FleetUnitId;
@@ -48,5 +48,12 @@ export const FLEET: FleetUnit[] = [
     name: "Defender",
     role: "Guardian",
     lore: "Holds station over your heaviest hub and breaks off to intercept hostile drifters that stray too close. The fleet's shield.",
+  },
+  {
+    id: "tender",
+    icon: "🚁",
+    name: "Tender Squadron",
+    role: "Warmth wing (grows with your galaxy)",
+    lore: "A wing of small drones that hover over your COOLING memories and warm them. The squadron grows as your galaxy does — one more drone for roughly every 30 memories — so a bigger mind gets more hands. They lend a visible helping hand; Soumaya's own upkeep and the living galaxy always run free.",
   },
 ];

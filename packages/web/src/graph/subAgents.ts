@@ -10,12 +10,17 @@ import * as THREE from "three";
  *    memories and surveys them, feeding Soumaya's curiosity (Research Mode).
  *  - DEFENDER (amber-red): GUARDS the brain's heaviest hub, and breaks off to
  *    intercept hostile drifters (the aliens) that stray too close.
+ *  - TENDER squadron (warm amber): a growing wing of small drones that hover over the
+ *    COOLING memories and warm them — the fleet grows as the galaxy grows (1 drone per
+ *    ~30 memories, capped). Purely a visual helping hand: they never change entropy,
+ *    speed Soumaya up, or spend fuel — her real maintenance loop is untouched.
  *
  * Each exposes a live status the Fleet panel reads. Beacons (Aura relays) are a
  * separate system (satellites.ts) but are presented together in the Fleet roster.
  */
 
-export type SubAgentId = "scout" | "defender";
+export type SubAgentId = "scout" | "defender" | "tender";
+const MAX_TENDERS = 5; // the squadron never grows beyond this (perf + calm)
 
 export interface SubAgentStatus {
   id: SubAgentId;
@@ -97,6 +102,8 @@ const ageMs = (iso?: string): number => {
   return Number.isNaN(t) ? Infinity : Date.now() - t;
 };
 
+const entropyOf = (n: any): number => n.entropy ?? 0;
+
 export function makeSubAgents(): SubAgentSystem {
   const group = new THREE.Group();
   const scout = makeCraft("#d6ffe9", "rgba(122,255,200,0.95)");
@@ -108,7 +115,20 @@ export function makeSubAgents(): SubAgentSystem {
     { id: "defender", craft: defender, target: null, retarget: 0, status: "Standing by", targetLabel: null },
   ];
 
-  const angle = { scout: Math.random() * 6.28, defender: Math.random() * 6.28 };
+  // The Tender squadron — a pool created up front, activated to a count that scales with
+  // the galaxy. Each warms a distinct cooling memory. Visual only.
+  const tenders = Array.from({ length: MAX_TENDERS }, () => {
+    const c = makeCraft("#ffe4b0", "rgba(255,190,110,0.95)");
+    c.scale.setScalar(0.8); // a touch smaller than the named craft
+    c.visible = false;
+    group.add(c);
+    return c;
+  });
+  const tenderAngle = tenders.map(() => Math.random() * 6.28);
+  let tendersActive = 0;
+  let coldestLabel: string | null = null;
+
+  const angle = { scout: Math.random() * 6.28, defender: Math.random() * 6.28, tender: 0 };
 
   const chooseTarget = (id: SubAgentId, memories: any[]): any | null => {
     if (memories.length === 0) return null;
@@ -178,19 +198,56 @@ export function makeSubAgents(): SubAgentSystem {
         u.craft.position.addScaledVector(dir.normalize(), Math.min(dist, 260 * dt));
         if (dist > 0.01) u.craft.lookAt(aim);
       }
+
+      // Tender squadron: the fleet grows with the galaxy (1 per ~30 memories, capped),
+      // each warming a DISTINCT cooling memory. The coldest first.
+      tendersActive = Math.min(MAX_TENDERS, Math.floor(memories.length / 30));
+      const cooling = [...memories].sort((a, b) => entropyOf(b) - entropyOf(a));
+      coldestLabel = tendersActive > 0 ? cooling[0]?.label ?? null : null;
+      for (let i = 0; i < tenders.length; i++) {
+        const craft = tenders[i]!;
+        const tgt = i < tendersActive ? cooling[i] : null;
+        if (!tgt) {
+          craft.visible = false;
+          continue;
+        }
+        craft.visible = true;
+        tenderAngle[i]! += dt * 0.7;
+        const r = 20 + (tgt.mass ?? 0.3) * 8;
+        const tp = vecOf(tgt);
+        const aim = new THREE.Vector3(
+          tp.x + Math.cos(tenderAngle[i]!) * r,
+          tp.y + Math.sin(tenderAngle[i]! * 1.3) * r * 0.5,
+          tp.z + Math.sin(tenderAngle[i]!) * r,
+        );
+        const dir = aim.clone().sub(craft.position);
+        const dist = dir.length();
+        craft.position.addScaledVector(dir.normalize(), Math.min(dist, 240 * dt));
+        if (dist > 0.01) craft.lookAt(aim);
+      }
     } catch {
       /* never break the frame */
     }
   };
 
-  const getStatus = (): SubAgentStatus[] =>
-    units.map((u) => ({
+  const getStatus = (): SubAgentStatus[] => {
+    const base = units.map((u) => ({
       id: u.id,
       active: u.craft.visible && u.target != null,
       detail: u.status,
       targetLabel: u.targetLabel,
       targetId: (u.target as any)?.id ?? null,
     }));
+    // One aggregate line for the whole Tender squadron (grows with the galaxy).
+    base.push({
+      id: "tender",
+      active: tendersActive > 0,
+      detail: tendersActive > 0 ? `${tendersActive} tender${tendersActive === 1 ? "" : "s"} warming cooling memories` : "Squadron docked",
+      targetLabel: coldestLabel,
+      targetId: null,
+    });
+    return base;
+  };
 
   return { group, update, getStatus };
 }
