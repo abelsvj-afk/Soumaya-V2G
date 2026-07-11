@@ -1589,14 +1589,27 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // The system's members ripple alight as it isolates.
     lightUpSweep([...sys].filter((x) => x !== id), celebrate ? "harmonization" : "calibration");
     if (celebrate && !shouldCalmMotion()) {
-      const hub = nodeByIdRef.current.get(id);
+      const byId = nodeByIdRef.current;
+      const hub = byId.get(id);
       if (hub?.x != null) {
-        // A burst when the constellation names itself, then a second as we settle on it.
-        burstsRef.current?.spawn(hub.x, hub.y, hub.z ?? 0, "harmonization");
+        const hubPos = new THREE.Vector3(hub.x, hub.y, hub.z ?? 0);
+        // Gathering: streams flow from the members INWARD to the new hub, as if the
+        // constellation is pulling itself together, then the hub flares as it names itself.
+        const members = [...sys].filter((x) => x !== id).slice(0, 8);
+        members.forEach((mid, i) => {
+          scheduleTimeout(() => {
+            const m = byId.get(mid);
+            if (m?.x != null) {
+              linkFormingRef.current?.fire(new THREE.Vector3(m.x, m.y, m.z ?? 0), hubPos, "rgba(255,220,150,1)");
+            }
+          }, i * 70);
+        });
+        // The hub flares as the streams arrive, then a soft settle burst.
+        scheduleTimeout(() => burstsRef.current?.spawn(hubPos.x, hubPos.y, hubPos.z, "harmonization"), 520);
         scheduleTimeout(() => {
-          const h = nodeByIdRef.current.get(id);
+          const h = byId.get(id);
           if (h?.x != null) burstsRef.current?.spawn(h.x, h.y, h.z ?? 0, "synthesis");
-        }, 1000);
+        }, 1200);
       }
     }
   };
