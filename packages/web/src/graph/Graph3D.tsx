@@ -15,7 +15,7 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeNebulae, makeComets, makeGalaxies } from "./starfield.js";
-import { makeSpaceBackground, makeConstellations, loadNebulaSkybox } from "./skybox.js";
+import { makeConstellations, loadNebulaSkybox } from "./skybox.js";
 import { addBloom } from "./bloom.js";
 import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
 import { makeCollisionBursts, makeLinkForming } from "./effects.js";
@@ -588,7 +588,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       } catch {
         /* renderer not ready yet — the effect below re-applies it */
       }
-      scene.background = makeSpaceBackground();
+      // Deep-space base COLOUR only — not a baked star texture. A Texture set as
+      // scene.background is drawn screen-locked (it never parallaxes with the camera),
+      // which read as a "stale film of stars over the lens" on top of the real, moving
+      // 3D starfield. The parallaxing stars/nebulae/skybox below do all the depth work.
+      scene.background = new THREE.Color(BG);
       const starfield = makeStarfield(gfx.starCount);
       sceneryRef.current.starfield = starfield;
       scene.add(starfield);

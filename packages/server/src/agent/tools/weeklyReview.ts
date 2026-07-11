@@ -1,4 +1,5 @@
 import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
+import { getGroundedInsight } from "../../identity.js";
 
 /**
  * Weekly review (SOUMAYA_TOOLS.md tool #7). Once a week Soumaya looks back over the
@@ -91,10 +92,15 @@ export const weeklyReviewTool: Tool = {
           .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0))
           .slice(0, 12)
           .map((m) => ({ label: m.label, content: m.content }));
-        const voiced = await tc.ctx.llm.generateDailyLog(
-          forVoice,
-          ["weekly reflection over the past 7 days"],
-        );
+        // Honor the chat's grounded-insight toggle here too: when ON, keep the voiced
+        // reflection tied to these real moments + open to correction (no vague flattery).
+        const actions = ["weekly reflection over the past 7 days"];
+        if (getGroundedInsight(tc.ctx.handle.sqlite, tc.spaceId)) {
+          actions.push(
+            "Keep it specific and grounded in these actual moments; invite me to correct anything that's off; no vague, could-apply-to-anyone flattery.",
+          );
+        }
+        const voiced = await tc.ctx.llm.generateDailyLog(forVoice, actions);
         if (voiced && voiced.trim().length > 0) digest = `🗓️ ${voiced.trim()}`;
       } catch {
         /* keep the heuristic digest */
