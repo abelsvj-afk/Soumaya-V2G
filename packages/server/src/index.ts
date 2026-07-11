@@ -235,22 +235,44 @@ if (process.env.AUTONOMY !== "off") {
         // she tidies your galaxy (it used to only ever go up unless Research Mode was on).
         // Bounded, and it self-recovers via regen + what you earn logging memories.
         const fuel = new EconomyRepo(ctx.handle, spaceId);
+        let upkeepSpent = 0;
+        let gravityDone = 0;
+        let dupsDone = 0;
         try {
-          const gravityEdges = applyCognitiveGravity(ctx, spaceId);
-          if (gravityEdges > 0) fuel.spend(Math.min(gravityEdges, 8) * 0.06);
+          gravityDone = applyCognitiveGravity(ctx, spaceId);
+          if (gravityDone > 0) {
+            const cost = Math.min(gravityDone, 8) * 0.06;
+            fuel.spend(cost);
+            upkeepSpent += cost;
+          }
         } catch (e) {
           console.error("[autonomy] cognitive gravity failed:", e);
         }
         // De-duplication (free, offline): true-merge near-identical memories so the
         // galaxy doesn't sprawl with redundant copies. Bounded per tick; nothing lost.
         try {
-          const dm = await sweepDuplicates(ctx, spaceId);
-          if (dm > 0) {
-            fuel.spend(dm * 0.35);
-            console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dm} duplicate memor(ies)`);
+          dupsDone = await sweepDuplicates(ctx, spaceId);
+          if (dupsDone > 0) {
+            const cost = dupsDone * 0.35;
+            fuel.spend(cost);
+            upkeepSpent += cost;
+            console.log(`[autonomy] ${spaceId.slice(0, 8)}: merged ${dupsDone} duplicate memor(ies)`);
           }
         } catch (e) {
           console.error("[autonomy] dedup sweep failed:", e);
+        }
+        // Give the Fuel drain a VISIBLE cause: log meaningful upkeep to her activity feed
+        // (Night Replay / the logs view) so the gauge never ticks down mysteriously.
+        if (upkeepSpent >= 0.3) {
+          try {
+            const bits = [
+              gravityDone > 0 ? `drew ${gravityDone} gravity link${gravityDone === 1 ? "" : "s"}` : "",
+              dupsDone > 0 ? `merged ${dupsDone} duplicate${dupsDone === 1 ? "" : "s"}` : "",
+            ].filter(Boolean);
+            ctx.handle.sqlite
+              .prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, 'upkeep', ?, '[]')`)
+              .run(spaceId, `Tidied your galaxy — ${bits.join(", ")} (−${upkeepSpent.toFixed(1)}⛽ upkeep).`);
+          } catch { /* best-effort */ }
         }
         // Working Memory (Cognitive Layer Phase 2): decay the mind space — evaporate
         // spent thought-motes and consolidate the ones that kept coming back into
