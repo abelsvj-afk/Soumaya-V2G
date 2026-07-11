@@ -1679,10 +1679,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           // (move the camera AND its look-pivot together) instead of stopping dead
           // at a wall. This is what makes free roaming feel continuous.
           const fwd = offset.clone().multiplyScalar(-1).normalize(); // camera → pivot
-          const step = dist * (1 - factor);
-          const newCam = cam.position.clone().addScaledVector(fwd, step);
-          if (newCam.length() <= ceiling) {
-            cam.position.copy(newCam);
+          let step = dist * (1 - factor);
+          // Never dead-stop: instead of refusing the move when it would cross the
+          // star-field shell, advance as FAR as the shell allows (ray↔sphere). Flying
+          // inward/through is always full step; only travelling straight OUT at the very
+          // edge yields ~0 (there's genuinely nothing beyond). Keeps roaming continuous.
+          const p = cam.position;
+          const b = p.dot(fwd);
+          const c = p.lengthSq() - ceiling * ceiling;
+          const disc = b * b - c; // ≥ 0 while inside the shell
+          const tMax = disc > 0 ? -b + Math.sqrt(disc) : 0; // distance along fwd to the shell
+          step = Math.max(0, Math.min(step, tMax));
+          if (step > 0.01) {
+            cam.position.addScaledVector(fwd, step);
             target.addScaledVector(fwd, step); // keep the pivot ahead of us
           }
         } else {
@@ -2007,6 +2016,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }}
       onNodeClick={(n: any) => {
         onSelect(n);
+        // Instant tap feedback: a soft ripple right on the body you clicked, so the
+        // selection registers visually the moment you tap (before the fly-to lands).
+        if (!shouldCalmMotion() && n?.x != null) burstsRef.current?.spawn(n.x, n.y, n.z ?? 0, "user");
         flyTo(n);
       }}
       onNodeHover={(n: any) => setHoverId(n ? n.id : null)}
