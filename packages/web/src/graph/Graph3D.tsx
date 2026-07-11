@@ -423,6 +423,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
   const followObjAnchor = useRef(new THREE.Vector3());
   const followObjAnchored = useRef(false);
+  // While > now, a focus fly-to tween is in flight — the loop lets it own the camera.
+  const followFlyUntilRef = useRef(0);
   // Camera zoom-out ceiling, kept just beyond the galaxy so you can never zoom so
   // far that the bodies leave the star field / you see its edge.
   const maxDistRef = useRef(5200);
@@ -468,6 +470,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // How many newly-appeared links Soumaya flies over to PULSE per refresh (they're
   // already visible; this just gives the freshest ones her neuron-firing flourish).
   const PULSE_VISIT_CAP = 4;
+  const FOLLOW_FLY_MS = 850; // cinematic fly-to duration when engaging a focus lock
   const satellitesRef = useRef<SatelliteSystem | null>(null);
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const visitorsRef = useRef<VisitorSystem | null>(null);
@@ -1309,32 +1312,50 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
           controls.target.copy(target);
         } else {
-          // Standard Orbit Follow: snap once, then ride along.
+          // Standard Orbit Follow: FLY in once (you see the approach), then ride along.
           if (followSnapRef.current) {
             const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(fo.quaternion).normalize();
             const d = followDistRef.current;
-            camera.position.copy(sp).addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
-            followObjAnchor.current.copy(sp);
-            followObjAnchored.current = true;
-            followSnapRef.current = false;
-          } else if (followObjAnchored.current) {
-            // Ride along with the moving body: translate the camera by the body's
-            // delta so the view stays locked instead of swinging to chase it.
-            camera.position.add(sp.clone().sub(followObjAnchor.current));
-            followObjAnchor.current.copy(sp);
-          }
-          const target = sp.clone();
-          // Offset the target when panel is open
-          if (insetRef.current) {
-            if (window.innerWidth <= 720) {
-              const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
-              target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+            const dest = sp.clone().addScaledVector(fwd, d).add(new THREE.Vector3(0, d * 0.35, 0));
+            const fgc = fgRef.current;
+            if (fgc && !calmMotionRef.current && camera.position.distanceTo(dest) > d * 0.6) {
+              // Cinematic fly-to: cameraPosition tweens position AND look-target, so we
+              // watch the body the whole way in before locking on.
+              fgc.cameraPosition({ x: dest.x, y: dest.y, z: dest.z }, sp, FOLLOW_FLY_MS);
+              followFlyUntilRef.current = performance.now() + FOLLOW_FLY_MS + 30;
             } else {
-              const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-              target.addScaledVector(right, camera.position.distanceTo(sp) * 0.095);
+              camera.position.copy(dest); // already close, or reduced-motion → no swoop
+              followObjAnchor.current.copy(sp);
+              followObjAnchored.current = true;
             }
+            followSnapRef.current = false;
           }
-          controls.target.copy(target);
+          if (performance.now() < followFlyUntilRef.current) {
+            // Flying in — let the tween own the camera + target this frame.
+          } else {
+            if (!followObjAnchored.current) {
+              // Fly finished: engage ride-along from wherever we landed.
+              followObjAnchor.current.copy(sp);
+              followObjAnchored.current = true;
+            } else {
+              // Ride along with the moving body: translate the camera by the body's
+              // delta so the view stays locked instead of swinging to chase it.
+              camera.position.add(sp.clone().sub(followObjAnchor.current));
+              followObjAnchor.current.copy(sp);
+            }
+            const target = sp.clone();
+            // Offset the target when panel is open
+            if (insetRef.current) {
+              if (window.innerWidth <= 720) {
+                const down = new THREE.Vector3(0, -1, 0).applyQuaternion(camera.quaternion);
+                target.addScaledVector(down, camera.position.distanceTo(sp) * 0.18);
+              } else {
+                const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+                target.addScaledVector(right, camera.position.distanceTo(sp) * 0.095);
+              }
+            }
+            controls.target.copy(target);
+          }
         }
       } else if (controls) {
         // Ensure damping is enabled when not following any object
@@ -1703,6 +1724,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followObjAnchor.current.copy(sp);
         followObjAnchored.current = true;
         followSnapRef.current = false; // keep the pose we just set (don't re-snap off the ship's nose)
+        followFlyUntilRef.current = 0; // track immediately (no lingering fly-in from a prior focus)
         controls.update?.();
       },
       reorderTasks: (newOrder: { id: string; type: string }[]) => {

@@ -3490,6 +3490,15 @@ button {
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5), 0 0 24px rgba(150, 134, 255, 0.15);
   backdrop-filter: blur(8px);
   animation: noticing-in 0.4s ease;
+  /* Cap the height and scroll the body so a big cluster's chips can never push the
+     answer buttons off-screen (the actions stay pinned + reachable below). */
+  max-height: min(80vh, 640px);
+  max-height: min(80dvh, 640px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.noticing-chip-more {
+  background: transparent; border: 1px dashed rgba(150, 134, 255, 0.4); color: #b7acff; cursor: default;
 }
 @keyframes noticing-in { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .noticing-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
@@ -3507,7 +3516,15 @@ button {
 }
 .noticing-chip:hover { background: rgba(150, 134, 255, 0.28); }
 .noticing-card .companion-textarea { width: 100%; margin-bottom: 8px; }
-.noticing-actions { display: flex; gap: 8px; align-items: center; }
+.noticing-actions {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  /* Pinned to the bottom of the scrolling card so the answer controls are always
+     reachable, even when the chip list is long. Opaque backing covers scrolled content. */
+  position: sticky; bottom: 0;
+  margin: 0 -14px -12px; padding: 10px 14px 12px;
+  background: rgba(12, 18, 36, 0.98);
+  border-top: 1px solid rgba(150, 134, 255, 0.18);
+}
 /* Press feedback: every card control visibly reacts to a tap (press-dim + shrink) so
    you KNOW it registered, even in the moment before the card animates away. */
 .noticing-card button { transition: transform 0.08s ease, filter 0.08s ease, background 0.12s ease; }

@@ -151,11 +151,16 @@ export function NoticingCard({
           <p className="noticing-q">{q.question}</p>
           {q.nodes.length > 0 && (
             <div className="noticing-chips">
-              {q.nodes.map((n) => (
+              {q.nodes.slice(0, 8).map((n) => (
                 <button key={n.id} className="noticing-chip" onClick={() => onFocus(n.id)} title="Fly to it">
                   {n.label}
                 </button>
               ))}
+              {q.nodes.length > 8 && (
+                <span className="noticing-chip noticing-chip-more" aria-label={`${q.nodes.length - 8} more`}>
+                  +{q.nodes.length - 8} more
+                </span>
+              )}
             </div>
           )}
           <textarea
