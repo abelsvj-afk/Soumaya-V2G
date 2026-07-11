@@ -119,10 +119,15 @@ export function NoticingCard({
       : "Connected ✦ — woven into your galaxy.";
   const confirm = async () => {
     setInquiries((xs) => xs.filter((x) => x.id !== q.id));
-    await confirmInquiry(q.id);
+    const r = await confirmInquiry(q.id);
     playSfx("achievement");
     pushToast(confirmToast, "🧠", 3500);
     if (isLens) window.dispatchEvent(new Event("brain-lenses-changed")); // refresh the chips
+    // A constellation just formed → let the galaxy fly-to-isolate the new hub with a burst
+    // (once the refresh lands it in the data). onAnswered triggers that refresh.
+    if (isHub && r.hubId != null) {
+      window.dispatchEvent(new CustomEvent("brain-constellation-formed", { detail: { id: r.hubId } }));
+    }
     onAnswered?.();
     void afterAct();
   };

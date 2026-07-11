@@ -379,7 +379,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             freshNodes.push(n.id);
           }
         }
-        if (freshNodes.length > 0) soumayaHandleRef.current?.enqueuePlacements(freshNodes);
+        if (freshNodes.length > 0) {
+          soumayaHandleRef.current?.enqueuePlacements(freshNodes);
+          // Arrival flourish: a soft materialize burst at the dock as each new star docks
+          // (before Soumaya ferries it out to its orbit), so a new memory visibly "lands".
+          if (!shouldCalmMotion()) {
+            for (let i = 0; i < Math.min(freshNodes.length, 3); i++) {
+              scheduleTimeout(() => burstsRef.current?.spawn(dock.x, dock.y, dock.z, "user"), i * 160);
+            }
+          }
+        }
       } else {
         // No station yet — just track them as known so they place normally.
         for (const n of data.nodes as any[]) knownNodesRef.current.add(n.id);
@@ -406,6 +415,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         }
       }
       if (removals.length > 0) soumayaHandleRef.current?.enqueueRemovals(removals);
+    }
+
+    // A just-formed constellation has now landed in the data → fly-to-isolate it with a
+    // celebratory burst, once (its members are already placed, so the system frames).
+    if (pendingHubRef.current != null) {
+      const hubId = pendingHubRef.current;
+      const present = (data.nodes as any[]).some((n) => n.id === hubId);
+      if (present) {
+        pendingHubRef.current = null;
+        scheduleTimeout(() => doIsolateSystem(hubId, true), 200);
+      }
     }
   }, [data, demo, loaded]);
 
@@ -1116,6 +1136,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             // Strong size pulse during processing/LLM activity
             const scalePulse = 1.0 + 0.28 * (Math.sin(now * 8.0) * 0.5 + 0.5);
             o.scale.setScalar(scalePulse);
+          } else if (isSelected) {
+            // Gentle "this is the one you're on" breathing pulse on the focused body —
+            // a steady slight enlarge under reduced-motion so it's still marked.
+            o.scale.setScalar(calmMotionRef.current ? 1.08 : 1.0 + 0.09 * (Math.sin(now * 3.2) * 0.5 + 0.5));
           } else {
             o.scale.setScalar(1.0);
           }
@@ -1511,11 +1535,65 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     followRef.current = null;
     followObjRef.current = null; // jumping to a node releases object-follow
     followKindRef.current = null;
-    fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 1000);
-    scheduleTimeout(() => {
-      followRef.current = n.id;
-    }, 1050);
+    if (shouldCalmMotion()) {
+      fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 0); // no swoop
+      scheduleTimeout(() => { followRef.current = n.id; }, 60);
+    } else {
+      // Cinematic ARC: bend the path through a lifted waypoint (pushed outward from the
+      // Sun + up) so the camera swoops in rather than sliding along a dead-straight line.
+      // Two chained cameraPosition tweens approximate the curve, reusing the proven tween
+      // (no custom rAF that could fight the render loop). Look at the node the whole way.
+      const span = cam.position.distanceTo(camPos);
+      const way = cam.position.clone().lerp(camPos, 0.5);
+      const lift = span * 0.3;
+      way.addScaledVector(way.clone().normalize(), lift); // arc away from the galaxy core
+      way.y += lift * 0.45; // and a little up, for a swoop
+      fg.cameraPosition({ x: way.x, y: way.y, z: way.z }, node, 440);
+      scheduleTimeout(() => {
+        fgRef.current?.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 640);
+      }, 400);
+      scheduleTimeout(() => { followRef.current = n.id; }, 1080);
+    }
   };
+
+  // Isolate a node's whole system + frame it (used by tap-to-isolate AND the
+  // constellation-formed flourish). `celebrate` fires a gold burst at the hub.
+  const doIsolateSystem = (id: number, celebrate = false) => {
+    const sys = orbitsRef.current.getDescendants(id);
+    setCluster(sys);
+    followRef.current = null;
+    followObjRef.current = null;
+    followKindRef.current = null;
+    scheduleTimeout(() => {
+      frameGalaxy(900, (n: any) => sys.has(n.id));
+    }, 80);
+    scheduleTimeout(() => {
+      followRef.current = id;
+    }, 1050);
+    if (celebrate && !shouldCalmMotion()) {
+      const hub = nodeByIdRef.current.get(id);
+      if (hub?.x != null) {
+        // A burst when the constellation names itself, then a second as we settle on it.
+        burstsRef.current?.spawn(hub.x, hub.y, hub.z ?? 0, "harmonization");
+        scheduleTimeout(() => {
+          const h = nodeByIdRef.current.get(id);
+          if (h?.x != null) burstsRef.current?.spawn(h.x, h.y, h.z ?? 0, "synthesis");
+        }, 1000);
+      }
+    }
+  };
+  // When a constellation forms (user promotes a hub), fly-to-isolate it once it lands in
+  // the galaxy data. The id is stashed here by the brain-constellation-formed event and
+  // consumed by the data-update effect below (the node doesn't exist until the refresh).
+  const pendingHubRef = useRef<number | null>(null);
+  useEffect(() => {
+    const onFormed = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id;
+      if (typeof id === "number") pendingHubRef.current = id;
+    };
+    window.addEventListener("brain-constellation-formed", onFormed);
+    return () => window.removeEventListener("brain-constellation-formed", onFormed);
+  }, []);
 
   // Snap to a flattering "best view" of the whole galaxy: a consistent cinematic
   // 3/4 angle (slightly above + to the side) framed to the galaxy's bounding
@@ -1796,23 +1874,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followRef.current = null;
         return true;
       },
-      isolateSystem: (id: number) => {
-        // Show only this memory + everything orbiting it, then frame the WHOLE
-        // system in view (not a close-up of the central star).
-        const sys = orbitsRef.current.getDescendants(id);
-        setCluster(sys);
-        followRef.current = null;
-        followObjRef.current = null;
-        followKindRef.current = null;
-        // Let the visibility filter apply, then fit the camera to the system, and
-        // once framed, gently track its centre so it doesn't drift out of view.
-        scheduleTimeout(() => {
-          frameGalaxy(900, (n: any) => sys.has(n.id));
-        }, 80);
-        scheduleTimeout(() => {
-          followRef.current = id;
-        }, 1050);
-      },
+      isolateSystem: (id: number) => doIsolateSystem(id),
       exitCluster: () => {
         setCluster(null);
         followRef.current = null;

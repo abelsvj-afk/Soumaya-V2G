@@ -69,9 +69,9 @@ export function inquiryRoutes(ctx: AppContext): Router {
         /* ignore */
       }
       const name = row.question.match(/"([^"]+)"/)?.[1] ?? "New constellation";
-      await promoteConstellation(ctx, spaceId, name, ids);
+      const hub = await promoteConstellation(ctx, spaceId, name, ids);
       ctx.handle.sqlite.prepare(`UPDATE inquiries SET status = 'answered' WHERE id = ? AND space_id = ?`).run(id, spaceId);
-      return res.json({ ok: true, promoted: true });
+      return res.json({ ok: true, promoted: true, hubId: hub?.id ?? null });
     }
 
     if (row.kind === "lens_suggestion") {

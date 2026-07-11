@@ -69,6 +69,8 @@ export function DigestPanel({
         pushToast(`Constellation "${name}" charted ✦`, "🌌", 5500);
         setPromotingId(null);
         setDraftName("");
+        // Fly-to-isolate the new constellation with a burst once it lands in the galaxy.
+        if (hub.id != null) window.dispatchEvent(new CustomEvent("brain-constellation-formed", { detail: { id: hub.id } }));
         onPromoted?.();
       } else {
         pushToast("Couldn't chart that constellation — try again.", "⚠️", 4500);

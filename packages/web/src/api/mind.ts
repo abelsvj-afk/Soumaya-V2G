@@ -60,12 +60,14 @@ export async function pruneCognitive(id: number): Promise<number> {
     return 0;
   }
 }
-export async function confirmInquiry(id: number): Promise<boolean> {
+export async function confirmInquiry(id: number): Promise<{ ok: boolean; hubId?: number | null }> {
   try {
     const res = await afetch(`${API}/inquiries/${id}/confirm`, { method: "POST" });
-    return res.ok;
+    if (!res.ok) return { ok: false };
+    const d = (await res.json().catch(() => ({}))) as { hubId?: number | null };
+    return { ok: true, hubId: d.hubId ?? null };
   } catch {
-    return false;
+    return { ok: false };
   }
 }
 export interface UpcomingEvent { id: number; label: string; date: string; inDays: number }
