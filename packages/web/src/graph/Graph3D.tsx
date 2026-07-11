@@ -1515,6 +1515,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     for (const n of pts) radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
     radius = Math.max(radius, orbitsRef.current.getRadius(), center.length() + SUN_RADIUS_MAX) * 1.12;
     const cam = fg.camera() as THREE.PerspectiveCamera;
+    // Land UPRIGHT: clear any camera roll (e.g. left over from following the banking ship
+    // or free-orbit gymnastics) so recenter is always right-side up.
+    cam.up.set(0, 1, 0);
+    { const c = fg.controls?.(); if (c) (c.object as THREE.Object3D).up.set(0, 1, 0); }
     const fov = ((cam.fov ?? 60) * Math.PI) / 180;
     // Guard a zero/invalid aspect (canvas not yet sized during the intro framing),
     // which would make hFit divide by sin(0) = Infinity.
