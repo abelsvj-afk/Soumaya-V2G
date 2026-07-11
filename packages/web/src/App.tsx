@@ -741,6 +741,15 @@ export default function App() {
       memories = (data.nodes as GraphNode[]).filter((n) => n.kind !== "action");
       linksCount = data.links.length;
       linkObjects = data.links;
+      // Seed "types seen" from the types actually IN your galaxy, so Galaxy Reader is
+      // earnable by logging across kinds (normal use), not only by manually clicking each.
+      try {
+        const tk = `stat.types_seen.${space.id}`;
+        const seenT = new Set<string>(JSON.parse(localStorage.getItem(tk) || "[]"));
+        let changed = false;
+        for (const m of memories) if (m.type && !seenT.has(m.type)) { seenT.add(m.type); changed = true; }
+        if (changed) localStorage.setItem(tk, JSON.stringify([...seenT]));
+      } catch { /* storage unavailable */ }
     }
 
     const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects, streak });

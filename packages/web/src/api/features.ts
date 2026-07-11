@@ -84,3 +84,19 @@ export async function getCodexDiscoveries(): Promise<AgentDiscovery[]> {
     return [];
   }
 }
+
+/** Player-controlled Fuel sink: commission Soumaya to warm your coldest memories now. */
+export interface CommissionResult { ok: boolean; warmed?: number; labels?: string[]; cost?: number; error?: string }
+export async function commissionWarm(): Promise<CommissionResult> {
+  try {
+    const res = await afetch(`${API}/maintenance/commission`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ kind: "warm" }),
+    });
+    const d = (await res.json().catch(() => ({}))) as CommissionResult;
+    return res.ok ? { ...d, ok: true } : { ok: false, error: d.error ?? "Couldn't commission" };
+  } catch {
+    return { ok: false, error: "Network error" };
+  }
+}

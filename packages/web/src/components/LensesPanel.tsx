@@ -64,6 +64,11 @@ export function LensesPanel({
       return;
     }
     pushToast(`Lens saved: ${finalName} (${lens.count ?? 0})`, "⧉", 3500);
+    try {
+      const sid = localStorage.getItem("brain.spaceId") || "default";
+      const k = `stat.lenses_made.${sid}`;
+      localStorage.setItem(k, String((parseInt(localStorage.getItem(k) || "0", 10) || 0) + 1));
+    } catch { /* ignore */ }
     setBuilding(false);
     setName(""); setText(""); setEmotion(""); setState(""); setImportance(""); setWithin("");
     refresh();

@@ -121,13 +121,19 @@ export const ACHIEVEMENTS: Achievement[] = [
     test: (c) => c.memories.length >= 10 && c.memories.every((n) => (n.entropy ?? 0) < 0.45),
   },
   {
+    // Repurposed from "Fully Fueled" (which rewarded hitting the cap — i.e. NOT spending):
+    // now rewards actually USING Fuel on Soumaya's on-demand help (a real sink).
     id: "full_tank",
-    name: "Fully Fueled",
-    icon: "⛽",
-    desc: "Fuel topped out",
-    test: (c) => !!c.fuel && c.fuel.fuel >= c.fuel.capacity,
-    progress: (c) =>
-      c.fuel ? { cur: Math.round(c.fuel.fuel), target: c.fuel.capacity } : { cur: 0, target: 1 },
+    name: "Patron",
+    icon: "⚡",
+    desc: "Commission Soumaya to warm your galaxy on demand.",
+    test: () => {
+      try {
+        return (parseInt(localStorage.getItem(`stat.commissions.${statsSpaceId()}`) || "0", 10) || 0) >= 1;
+      } catch {
+        return false;
+      }
+    },
   },
 
   // === NEW GAMIFICATION WAVE 3 ACHIEVEMENTS ===
@@ -362,6 +368,11 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: "idea_garden", name: "Idea Garden", icon: "💡", desc: "Cultivate 5 living ideas at once.",
     test: (c) => c.memories.filter((n) => n.kind === "idea").length >= 5,
     progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "idea").length, 5), target: 5 }) },
+
+  // Curation — saving reusable views of your galaxy (Smart Lenses).
+  { id: "lenscrafter", name: "Lenscrafter", icon: "⧉", desc: "Save 3 Smart Lenses — reusable views of your galaxy.",
+    test: () => { try { return (parseInt(localStorage.getItem(`stat.lenses_made.${statsSpaceId()}`) || "0", 10) || 0) >= 3; } catch { return false; } },
+    progress: () => { try { const v = parseInt(localStorage.getItem(`stat.lenses_made.${statsSpaceId()}`) || "0", 10) || 0; return { cur: Math.min(v, 3), target: 3 }; } catch { return { cur: 0, target: 3 }; } } },
 
   // Emotional range + longevity — the texture of a lived-in galaxy.
   { id: "light_bringer", name: "Light Bringer", icon: "☀️", desc: "Hold 15 joyful memories in your sky.",

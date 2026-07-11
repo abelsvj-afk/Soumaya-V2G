@@ -3,6 +3,7 @@ import { z } from "zod";
 import { EXTRACTABLE_NODE_TYPES, CELESTIAL_CLASSES } from "@brain/shared";
 import type { AppContext } from "../../context.js";
 import { EconomyRepo, EARN_CODEX_DISCOVERY } from "../../economy.js";
+import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { StreakRepo } from "../../streak.js";
 import { agentLogs, dailyLogs } from "../../db/schema.js";
 import { spaceOf } from "../middleware.js";
@@ -125,6 +126,44 @@ export function maintenanceRoutes(ctx: AppContext): Router {
    */
   r.get("/fuel", (_req, res) => {
     res.json(new EconomyRepo(ctx.handle, spaceOf(res)).toFuel());
+  });
+
+  /**
+   * POST /api/maintenance/commission -> a PLAYER-CONTROLLED Fuel SINK. Spend Fuel to have
+   * Soumaya do a valuable job on demand right now (instead of only her passive upkeep) —
+   * this is what gives the currency a purpose so it doesn't just pin at the cap. "warm"
+   * instantly tends your coldest memories (deterministic + offline). Costs COMMISSION_COST
+   * Fuel; refuses if you can't afford it.
+   */
+  r.post("/commission", (req, res) => {
+    const spaceId = spaceOf(res);
+    const kind = String((req.body as { kind?: unknown })?.kind ?? "warm");
+    const econ = new EconomyRepo(ctx.handle, spaceId);
+    const COMMISSION_COST = 25;
+    if (econ.toFuel().fuel < COMMISSION_COST) {
+      res.status(402).json({ error: "Not enough Fuel", cost: COMMISSION_COST });
+      return;
+    }
+    if (kind !== "warm") {
+      res.status(400).json({ error: "Unknown commission" });
+      return;
+    }
+    // The coldest memories = those tended (or created) longest ago.
+    const cold = ctx.handle.sqlite
+      .prepare(
+        `SELECT id, label FROM nodes
+         WHERE space_id = ? AND deleted_at IS NULL AND (kind IS NULL OR kind = 'memory')
+         ORDER BY COALESCE(last_tended_at, created_at) ASC LIMIT 12`,
+      )
+      .all(spaceId) as { id: number; label: string }[];
+    if (cold.length === 0) {
+      res.status(400).json({ error: "Nothing to warm yet" });
+      return;
+    }
+    econ.spend(COMMISSION_COST);
+    const nodes = new NodesRepo(ctx.handle, spaceId);
+    for (const c of cold) nodes.tend(c.id);
+    res.json({ ok: true, warmed: cold.length, labels: cold.slice(0, 4).map((c) => c.label), fuel: econ.toFuel(), cost: COMMISSION_COST });
   });
 
   /**

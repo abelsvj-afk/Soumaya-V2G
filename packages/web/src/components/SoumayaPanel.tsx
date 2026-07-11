@@ -16,7 +16,9 @@ import {
   type JobRationale,
   type Usage,
   type Undertaking,
+  commissionWarm,
 } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -47,6 +49,7 @@ export function SoumayaPanel({
   const [usage, setUsage] = useState<Usage | null>(null);
   const [undertaking, setUndertaking] = useState<Undertaking | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
+  const [commissioning, setCommissioning] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -267,6 +270,31 @@ export function SoumayaPanel({
                 ? "Out of fuel — deep-dive expansion paused. Add memories, forge links, or clear action items to refuel."
                 : "Powers deep-dive research + sector charting. Earn it by adding memories or forging links."}
             </p>
+            {/* A player-controlled SINK so Fuel isn't just a number that pins at the cap:
+                spend it to have Soumaya warm your coldest memories on demand, right now. */}
+            <button
+              className="commission-btn"
+              disabled={commissioning || fuel.fuel < 25}
+              onClick={async () => {
+                setCommissioning(true);
+                const r = await commissionWarm();
+                setCommissioning(false);
+                if (r.ok) {
+                  pushToast(`Soumaya warmed ${r.warmed} cold memories (−${r.cost}⛽) ✦`, "🔥", 4500);
+                  try {
+                    const sid = localStorage.getItem("brain.spaceId") || "default";
+                    const key = `stat.commissions.${sid}`;
+                    localStorage.setItem(key, String((parseInt(localStorage.getItem(key) || "0", 10) || 0) + 1));
+                  } catch { /* ignore */ }
+                  window.dispatchEvent(new Event("brain-memory-added")); // refresh fuel + galaxy + achievements
+                } else {
+                  pushToast(r.error ?? "Couldn't commission that.", "⚠️", 3500);
+                }
+              }}
+              title="Spend 25 Fuel to instantly warm your coldest memories"
+            >
+              {commissioning ? "Warming…" : "⚡ Commission: warm the cold belt (−25⛽)"}
+            </button>
           </div>
         )}
       </div>
