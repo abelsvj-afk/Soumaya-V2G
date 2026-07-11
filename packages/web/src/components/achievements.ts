@@ -320,8 +320,64 @@ export const ACHIEVEMENTS: Achievement[] = [
         return { cur: 0, target: 10 };
       }
     }
-  }
+  },
+
+  // === LIFETIME LADDER (Wave 4) — feats that keep unlocking for years. Kept disjoint
+  //     from the Codex (discoveries) and from Pilot Rank (the memory-COUNT ladder). ===
+
+  // Tending streaks — the long game of showing up.
+  { id: "streak_week", name: "Weekly Ritual", icon: "🗓️", desc: "Hold a 7-day tending streak.",
+    test: (c) => consistentDays(c) >= 7, progress: (c) => ({ cur: Math.min(consistentDays(c), 7), target: 7 }) },
+  { id: "streak_month", name: "Monthly Devotion", icon: "🌙", desc: "Hold a 30-day tending streak.",
+    test: (c) => consistentDays(c) >= 30, progress: (c) => ({ cur: Math.min(consistentDays(c), 30), target: 30 }) },
+  { id: "streak_100", name: "Centurion", icon: "💯", desc: "Hold a 100-day tending streak.",
+    test: (c) => consistentDays(c) >= 100, progress: (c) => ({ cur: Math.min(consistentDays(c), 100), target: 100 }) },
+  { id: "streak_year", name: "Year of the Mind", icon: "🎆", desc: "Hold a 365-day tending streak — a full year of showing up.",
+    test: (c) => consistentDays(c) >= 365, progress: (c) => ({ cur: Math.min(consistentDays(c), 365), target: 365 }) },
+
+  // Connection depth — the web keeps growing.
+  { id: "weaver_100", name: "Weaver", icon: "🕸️", desc: "Weave 100 connections across your brain.",
+    test: (c) => c.links >= 100, progress: (c) => ({ cur: Math.min(c.links, 100), target: 100 }) },
+  { id: "web_250", name: "Web of Mind", icon: "🌐", desc: "Weave 250 connections — a densely-woven galaxy.",
+    test: (c) => c.links >= 250, progress: (c) => ({ cur: Math.min(c.links, 250), target: 250 }) },
+  { id: "living_nexus", name: "Living Nexus", icon: "🌟", desc: "A single memory reaches 15+ connections.",
+    test: (c) => c.memories.some((n) => (n.degree ?? 0) >= 15),
+    progress: (c) => ({ cur: Math.min(c.memories.reduce((m, n) => Math.max(m, n.degree ?? 0), 0), 15), target: 15 }) },
+
+  // Constellations — curating maps of content.
+  { id: "cartographer", name: "Cartographer", icon: "🗺️", desc: "Chart 5 constellations from your clusters.",
+    test: (c) => c.memories.filter((n) => n.kind === "moc").length >= 5,
+    progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "moc").length, 5), target: 5 }) },
+
+  // The mind layer — direction, not just memory.
+  { id: "goal_achiever", name: "Goal Achiever", icon: "🏁", desc: "Carry a goal all the way to done.",
+    test: (c) => c.memories.some((n) => n.kind === "goal" && (n.progress ?? 0) >= 0.999) },
+  { id: "skill_advanced", name: "Practiced Hand", icon: "🎓", desc: "Grow a skill to Advanced through real practice.",
+    test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.6) },
+  { id: "skill_master", name: "Master", icon: "🥋", desc: "Grow a skill all the way to Expert.",
+    test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.85) },
+  { id: "inner_circle", name: "Inner Circle", icon: "👥", desc: "Map 5 people you orbit.",
+    test: (c) => c.memories.filter((n) => n.kind === "person_entity").length >= 5,
+    progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "person_entity").length, 5), target: 5 }) },
+  { id: "idea_garden", name: "Idea Garden", icon: "💡", desc: "Cultivate 5 living ideas at once.",
+    test: (c) => c.memories.filter((n) => n.kind === "idea").length >= 5,
+    progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "idea").length, 5), target: 5 }) },
+
+  // Emotional range + longevity — the texture of a lived-in galaxy.
+  { id: "light_bringer", name: "Light Bringer", icon: "☀️", desc: "Hold 15 joyful memories in your sky.",
+    test: (c) => c.memories.filter((n) => (n.emotionalWeight ?? 0) > 0.25).length >= 15,
+    progress: (c) => ({ cur: Math.min(c.memories.filter((n) => (n.emotionalWeight ?? 0) > 0.25).length, 15), target: 15 }) },
+  { id: "enduring_light", name: "Enduring Light", icon: "🕯️", desc: "Keep a memory alive for 180+ days.",
+    test: (c) => c.memories.some((n) => memAgeDays(n) >= 180) },
+  { id: "time_capsule", name: "Time Capsule", icon: "⌛", desc: "Keep a memory alive for a full year (365+ days).",
+    test: (c) => c.memories.some((n) => memAgeDays(n) >= 365) },
 ];
+
+/** Days since a memory was created/occurred (for longevity feats). */
+function memAgeDays(n: GraphNode): number {
+  const t = Date.parse(n.occurredAt ?? n.createdAt ?? "");
+  return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86_400_000);
+}
 
 /** Return the ids of every achievement currently satisfied. */
 export function unlockedIds(c: AchievementCtx): string[] {

@@ -9,11 +9,12 @@ import { statsSpaceId } from "./achievements.js";
  * mirroring the achievements pattern — no server round-trip to render it.
  */
 
-export type CodexCategory = "sectors" | "bodies" | "constellations" | "fleet" | "phenomena";
+export type CodexCategory = "sectors" | "bodies" | "constellations" | "mind" | "fleet" | "phenomena";
 
 export const CODEX_CATEGORIES: { id: CodexCategory; title: string; icon: string; blurb: string }[] = [
   { id: "sectors", title: "Sectors", icon: "🗺️", blurb: "The named regions of your inner cosmos — one per kind of memory." },
   { id: "constellations", title: "Constellations", icon: "🌌", blurb: "The Maps of Content you've charted from clusters of related memories." },
+  { id: "mind", title: "The Mind Layer", icon: "🧠", blurb: "What your galaxy is THINKING — the goals, skills, people and ideas that give it direction." },
   { id: "bodies", title: "Celestial Bodies", icon: "✸", blurb: "The classes of body a memory can grow into, from asteroid to supergiant." },
   { id: "fleet", title: "The Fleet", icon: "🛸", blurb: "Soumaya and the machines that tend your galaxy." },
   { id: "phenomena", title: "Phenomena", icon: "✦", blurb: "Rare events and milestones discovered as your galaxy comes alive." },
@@ -185,6 +186,37 @@ function constellationEntries(ctx: CodexCtx): CodexEntry[] {
   });
 }
 
+// ---- The Mind Layer: discover each cognitive kind as it first appears ----
+const MIND_DEFS: { kind: string; title: string; icon: string; lore: string; hint: string }[] = [
+  { kind: "goal", title: "The Ambition", icon: "🎯", hint: "Set a goal in the Mind tab to chart it.", lore: "A goal is a gravity well set in your future — a body your memories fall toward, pulling your galaxy in a direction rather than just a shape." },
+  { kind: "skill", title: "The Craft", icon: "🛠️", hint: "Add a skill in the Mind tab.", lore: "A skill brightens with every memory that proves practice — a star you don't set by hand but earn, tier by tier, from what you actually do." },
+  { kind: "person_entity", title: "The Kindred", icon: "👤", hint: "Add a person in the Mind tab.", lore: "A person is a named star others orbit. Every memory that mentions them drifts into their gravity, and their light warms or cools with how you've been." },
+  { kind: "identity", title: "The Self", icon: "🪞", hint: "Define an identity in the Mind tab.", lore: "An identity is held to the evidence of your life: memories that express who you are brighten it; ones that contradict it, in your own words, dim it." },
+  { kind: "idea", title: "The Spark", icon: "💡", hint: "Capture an idea in the Mind tab.", lore: "An idea is alive — it brightens as memories come to support it, fades if you never return, and, once ripe, can be promoted into a goal your memories orbit." },
+  { kind: "intention", title: "The Intention", icon: "🌠", hint: "Note something you mean to do soon.", lore: "A short-lived comet: an intention either gets fulfilled — you act, and it settles into memory — or it expires, burning up unremembered." },
+  { kind: "motivation", title: "The Driving Force", icon: "🧭", hint: "Name a motivation in the Mind tab.", lore: "A motivation is the deep current beneath your goals — a gravity well that brightens as more of your galaxy aligns with it." },
+];
+
+function mindEntries(ctx: CodexCtx): CodexEntry[] {
+  return MIND_DEFS.map((d) => {
+    const count = ctx.memories.filter((m) => m.kind === d.kind).length;
+    const { level, next } = tierOf(count, [1, 3, 8]);
+    return {
+      id: `mind-${d.kind}`,
+      category: "mind" as const,
+      icon: d.icon,
+      title: d.title,
+      lockedHint: d.hint,
+      lore: d.lore,
+      discovered: count >= 1,
+      level: Math.max(0, level),
+      maxLevel: 3,
+      levelLabel: count >= 1 ? `${count} in your mind` : "Unformed",
+      progressToNext: next ? { cur: count, target: next } : undefined,
+    };
+  });
+}
+
 // ---- Fleet ----
 function fleetEntries(ctx: CodexCtx): CodexEntry[] {
   const hasMem = ctx.memories.length >= 1;
@@ -259,10 +291,24 @@ function phenomenaEntries(ctx: CodexCtx): CodexEntry[] {
     maxLevel: 1,
     levelLabel: discovered ? "Observed" : "Unobserved",
   });
+  const joyful = ctx.memories.some((m) => (m.emotionalWeight ?? 0) >= 0.5);
+  const heavy = ctx.memories.some((m) => (m.emotionalWeight ?? 0) <= -0.5);
+  const bands = new Set(
+    ctx.memories
+      .filter((m) => typeof m.emotionalWeight === "number")
+      .map((m) => ((m.emotionalWeight ?? 0) > 0.12 ? "+" : (m.emotionalWeight ?? 0) < -0.12 ? "-" : "0")),
+  );
+  const supergiant = ctx.memories.some((m) => m.celestial === "supergiant");
+  const bigHub = ctx.constellations.some((h) => (h.degree ?? 0) >= 12);
   return [
     def("firstlink", "🔌", "First Synapse", "Log two related memories.", "The first filament between two memories — the moment a pile of notes became a mind.", firstLink),
     def("star", "★", "Ignition", "Grow a memory to star class.", "The first memory to catch fire and burn as a star: important, connected, luminous.", star),
+    def("supernova", "💥", "Supernova", "Grow a memory to supergiant — the rarest, heaviest light.", "The brightest event your sky can hold: a memory so massive it bends whole sectors around it. Few galaxies ever see one.", supergiant),
     def("deep", "🧲", "Deep Cluster", "Grow a memory to 6+ connections.", "A gravity well: one memory so connected that others fall into orbit around it.", deep),
+    def("crown", "👑", "Crown Jewel", "Grow a constellation to 12+ members.", "A constellation dense enough to be a landmark of its own — a crown of related stars you can navigate a whole region by.", bigHub),
+    def("goldenhour", "🌅", "Golden Hour", "Log a deeply joyful memory.", "A star burning warm gold at the top of your emotional range — the light you return to on the hard days.", joyful),
+    def("theweight", "🪨", "The Weight", "Log a deeply heavy memory.", "A dense, heavy body pulling hard on the space around it. Naming it is how you keep it from pulling the rest of the sky down with it.", heavy),
+    def("aurora", "🌈", "Aurora", "Hold joyful, neutral AND heavy memories at once.", "The full emotional spectrum lit across your sky at once — proof of a galaxy that holds the whole of a life, not just its highlights.", bands.size >= 3),
     def("ancient", "🕰️", "Ancient Light", "Keep a memory alive for 90+ days.", "Light from a memory that has survived a full season — the oldest, steadiest glow in your sky.", ancient),
     def("cooling", "❄️", "The Cold", "Let a memory drift untended for a while.", "You've witnessed entropy: a memory cooling in neglect, its color bleeding toward blue. The dark your galaxy is always fighting.", cooling),
     def("tender", "🌿", "The Gardener", "Warm 10+ cooling memories back to life.", "Proof that nothing here truly dies while you return — light restored by hand, over and over.", tended >= 10),
@@ -273,6 +319,7 @@ export function buildCodex(ctx: CodexCtx): CodexEntry[] {
   return [
     ...sectorEntries(ctx),
     ...constellationEntries(ctx),
+    ...mindEntries(ctx),
     ...bodyEntries(ctx),
     ...fleetEntries(ctx),
     ...phenomenaEntries(ctx),
