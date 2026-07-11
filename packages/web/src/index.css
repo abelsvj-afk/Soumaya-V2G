@@ -1244,7 +1244,7 @@ body,
 /* Deep-space focus mode (#2): a distraction-free reading session. Everything but the
    galaxy + the way-out recedes; hover brings a control back if you reach for it. The
    galaxy itself calms via the reduced-motion path (setFocusCalm) and toasts quiet. */
-.focus-mode .fab:not(.fab-focus-toggle),
+.focus-mode .fab:not(.fab-tools),
 .focus-mode .fuel-gauge,
 .focus-mode .streak-ember,
 .focus-mode .focus-cluster,
@@ -1252,7 +1252,7 @@ body,
   opacity: 0.08;
   transition: opacity 0.5s ease;
 }
-.focus-mode .fab:not(.fab-focus-toggle):hover,
+.focus-mode .fab:not(.fab-tools):hover,
 .focus-mode .fuel-gauge:hover,
 .focus-mode .streak-ember:hover,
 .focus-mode .focus-cluster:hover {
@@ -1265,7 +1265,7 @@ body,
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5), 0 0 16px 2px rgba(122, 249, 255, 0.4);
 }
 @media (prefers-reduced-motion: reduce) {
-  .focus-mode .fab:not(.fab-focus-toggle),
+  .focus-mode .fab:not(.fab-tools),
   .focus-mode .fuel-gauge,
   .focus-mode .streak-ember,
   .focus-mode .focus-cluster,
@@ -4435,3 +4435,43 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 }
 .focus-mode .fab-level { opacity: 0.08; transition: opacity 0.5s ease; }
 .focus-mode .fab-level:hover { opacity: 1; }
+
+/* ── Tools menu (one 🧰 button → grid of secondary tools; mobile-first declutter) ── */
+.fab-tools { top: 12px; right: 14px; }
+@supports (padding: env(safe-area-inset-top)) {
+  .fab-tools { top: calc(12px + env(safe-area-inset-top)); }
+}
+.tools-scrim { position: fixed; inset: 0; z-index: 58; background: transparent; }
+.tools-menu {
+  position: fixed;
+  top: calc(66px + env(safe-area-inset-top));
+  right: 12px;
+  z-index: 59;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  width: min(300px, 84vw);
+  max-height: calc(100dvh - 120px);
+  overflow-y: auto;
+  padding: 10px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, rgba(18, 22, 44, 0.98), rgba(10, 12, 28, 0.98));
+  border: 1px solid rgba(122, 200, 255, 0.25);
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.55);
+  animation: obs-fade 0.25s ease both;
+}
+.tools-item {
+  display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative;
+  padding: 11px 6px; border-radius: 10px; cursor: pointer;
+  background: rgba(122, 200, 255, 0.06); border: 1px solid rgba(122, 200, 255, 0.14); color: #e8ecff;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+.tools-item:hover { background: rgba(122, 200, 255, 0.15); }
+.tools-item:active { transform: scale(0.95); }
+.tools-ic { font-size: 21px; line-height: 1; }
+.tools-lbl { font-size: 11px; opacity: 0.85; text-align: center; line-height: 1.1; }
+.tools-badge {
+  position: absolute; top: 5px; right: 7px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 8px; background: #ff5a7a; color: #fff; font-size: 10px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+}

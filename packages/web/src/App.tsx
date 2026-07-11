@@ -43,6 +43,7 @@ import { pilotRank } from "./components/rank.js";
 import { ObjectLoreCard } from "./components/ObjectLoreCard.js";
 import { NotificationsBar } from "./components/NotificationsBar.js";
 import { NavRail } from "./components/NavRail.js";
+import { ToolsMenu } from "./components/ToolsMenu.js";
 import { ActionRail } from "./components/ActionRail.js";
 import {
   currentSpace,
@@ -1549,16 +1550,21 @@ export default function App() {
       {/* Floating controls — hidden while a panel is open so they never cover it */}
       {panel === null && (
         <>
-          <NavRail
+          <ToolsMenu
             onSearch={() => toggle("search")}
-            onFlashback={triggerFlashback}
+            onLenses={() => setShowLenses(true)}
             onConnections={() => setShowConnections(true)}
             candCount={candCount}
-            onLegend={() => setShowLegend(true)}
-            onTimeline={() => setShowTimeline(true)}
             onReview={() => setShowReview(true)}
             dueCount={dueCount}
+            onTimeline={() => setShowTimeline(true)}
+            onLegend={() => setShowLegend(true)}
+            onFlashback={triggerFlashback}
+            onFocusMode={() => setFocusMode((v) => !v)}
+            focusMode={focusMode}
             onHelp={() => setHelp(true)}
+          />
+          <NavRail
             onDock={() => toggle("dock")}
             onRecenter={() => {
               graphRef.current?.recenter();
@@ -1573,9 +1579,6 @@ export default function App() {
             }}
             onZoomIn={() => graphRef.current?.zoomBy(0.8)}
             onZoomOut={() => graphRef.current?.zoomBy(1.25)}
-            onFocusMode={() => setFocusMode((v) => !v)}
-            focusMode={focusMode}
-            onLenses={() => setShowLenses(true)}
           />
           {/* Game-style focus cluster: one button that pops up the camera targets. */}
           {(() => {
