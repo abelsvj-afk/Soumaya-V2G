@@ -74,6 +74,11 @@ export function NoticingCard({
       markSeen();
     }
   };
+  // Tell the app when this card is open so the object-lore card (same top-center slot)
+  // steps aside instead of stacking on top of it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("brain-noticing-open", { detail: open }));
+  }, [open]);
 
   const send = async () => {
     if (!reply.trim()) return;

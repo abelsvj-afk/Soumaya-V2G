@@ -18,6 +18,7 @@ export const EARN_ACTION_DONE = 3; // clearing a day-to-day action item
 export const EARN_MIND = 6; // adding a durable thing to your Mind (goal/person/skill/identity/idea…)
 export const EARN_THOUGHT = 2; // capturing a fresh thought in the mind space (manual only)
 export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time per entry)
+export const EARN_REVIEW = 3; // completing a spaced-repetition recall (retrieval, per NEURO north star)
 // Slow passive trickle so Soumaya keeps doing her ambitious work over time even
 // if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
 // USD budget is still the hard cap — this only refills the in-app Fuel.

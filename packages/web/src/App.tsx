@@ -270,6 +270,14 @@ export default function App() {
   // galaxy's language, then it's a tap away whenever they forget.
   const [showLegend, setShowLegend] = useState(false);
   const [showLenses, setShowLenses] = useState(false);
+  // True while the "Soumaya noticed" card is open — the object-lore card (same slot)
+  // hides so the two never stack on top of each other.
+  const [noticingOpen, setNoticingOpen] = useState(false);
+  useEffect(() => {
+    const on = (e: Event) => setNoticingOpen(!!(e as CustomEvent).detail);
+    window.addEventListener("brain-noticing-open", on);
+    return () => window.removeEventListener("brain-noticing-open", on);
+  }, []);
   // The active Smart Lens (its name), shown as a dismissable banner while the galaxy is
   // isolated to it. Clearing it exits the isolated view.
   const [activeLens, setActiveLens] = useState<string | null>(null);
@@ -1505,7 +1513,7 @@ export default function App() {
 
       {/* Evolving lore for the focused object (station / ship / beacon). Hidden while a
           panel is open or when dismissed — dismissing keeps the camera focus. */}
-      {(followStation || followShip || followSatellite) && panel === null && !loreDismissed && (
+      {(followStation || followShip || followSatellite) && panel === null && !loreDismissed && !noticingOpen && (
         <ObjectLoreCard
           kind={followShip ? "ship" : followSatellite ? "satellite" : "station"}
           graph={view}

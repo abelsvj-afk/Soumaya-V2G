@@ -22,6 +22,8 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
   const grade = async (remembered: boolean) => {
     if (!current) return;
     await gradeReview(current.id, remembered);
+    // A recall now earns Fuel + keeps the streak alive — nudge the HUD to refresh.
+    window.dispatchEvent(new Event("brain-memory-added"));
     setDone((n) => n + 1);
     setRevealed(false);
     setIdx((i) => i + 1);

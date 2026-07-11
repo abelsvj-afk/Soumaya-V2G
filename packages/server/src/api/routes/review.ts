@@ -2,6 +2,8 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { dueForReview, gradeReview, memoryStrength } from "../../analysis/review.js";
+import { EconomyRepo, EARN_REVIEW } from "../../economy.js";
+import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
 import { spaceOf } from "../middleware.js";
 
 const gradeSchema = z.object({ remembered: z.boolean() });
@@ -28,9 +30,16 @@ export function reviewRoutes(ctx: AppContext): Router {
     if (!Number.isInteger(id)) return res.status(400).json({ error: "bad id" });
     const parsed = gradeSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ error: parsed.error.issues });
-    const next = gradeReview(ctx, spaceOf(res), id, parsed.data.remembered, Date.now());
+    const spaceId = spaceOf(res);
+    const next = gradeReview(ctx, spaceId, id, parsed.data.remembered, Date.now());
     if (next === null) return res.status(404).json({ error: "not found" });
-    res.json({ ok: true, nextReviewAt: next });
+    // Retrieval IS the point (memory is made by recall, not storage) — so a completed
+    // review feeds the same loop as logging: it keeps the daily streak alive and earns
+    // Fuel. This was the game layer's biggest blind spot: it rewarded storage, not recall.
+    const { advanced } = new StreakRepo(ctx.handle, spaceId).touch();
+    const fuelEarned = EARN_REVIEW + (advanced ? STREAK_DAY_BONUS : 0);
+    new EconomyRepo(ctx.handle, spaceId).add(fuelEarned);
+    res.json({ ok: true, nextReviewAt: next, fuelEarned, streakAdvanced: advanced });
   });
 
   return r;
