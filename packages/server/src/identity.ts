@@ -79,3 +79,24 @@ export function setSpaceSoul(sqlite: SoulDb, spaceId: string, body: string): voi
   sqlite.prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`).run(spaceId);
   sqlite.prepare(`UPDATE space_meta SET soul = ? WHERE space_id = ?`).run(trimmed || null, spaceId);
 }
+
+/**
+ * Grounded-insight chat mode (toggle): when ON, Soumaya's reflections about the user must
+ * be specific, evidence-grounded and falsifiable (anti-"horoscope"); OFF relaxes her to a
+ * warmer/looser style. Defaults ON. Tolerant of a pre-migration volume (→ default ON).
+ */
+export function getGroundedInsight(sqlite: SoulDb, spaceId: string): boolean {
+  try {
+    const row = sqlite.prepare(`SELECT grounded_insight AS g FROM space_meta WHERE space_id = ?`).get(spaceId) as
+      | { g: number | null }
+      | undefined;
+    return row?.g == null ? true : row.g !== 0;
+  } catch {
+    return true;
+  }
+}
+
+export function setGroundedInsight(sqlite: SoulDb, spaceId: string, on: boolean): void {
+  sqlite.prepare(`INSERT OR IGNORE INTO space_meta (space_id) VALUES (?)`).run(spaceId);
+  sqlite.prepare(`UPDATE space_meta SET grounded_insight = ? WHERE space_id = ?`).run(on ? 1 : 0, spaceId);
+}

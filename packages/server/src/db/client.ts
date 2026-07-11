@@ -201,6 +201,11 @@ function migrateSchema(sqlite: RawDb): void {
     if (!metaCols.some((c) => c.name === "soul")) {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN soul TEXT`);
     }
+    // Grounded-insight chat mode: when ON (default), her reflections must be specific,
+    // evidence-grounded + falsifiable (anti-Barnum); OFF relaxes to a looser style.
+    if (!metaCols.some((c) => c.name === "grounded_insight")) {
+      sqlite.exec(`ALTER TABLE space_meta ADD COLUMN grounded_insight INTEGER NOT NULL DEFAULT 1`);
+    }
   }
   // (Table creation lives ONLY in bootstrapSchema, which always runs first —
   // a second CREATE block here once drifted out of sync and shipped wrong shapes.)

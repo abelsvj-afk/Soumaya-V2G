@@ -159,3 +159,26 @@ export async function setSoul(body: string): Promise<boolean> {
     return false;
   }
 }
+
+/** Grounded-insight chat mode: ON = specific/evidence-grounded reflections (anti-horoscope). */
+export async function getGroundedInsight(): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/persona/grounded-insight`);
+    const d = (await res.json().catch(() => ({}))) as { enabled?: boolean };
+    return d.enabled !== false; // default ON
+  } catch {
+    return true;
+  }
+}
+export async function setGroundedInsight(enabled: boolean): Promise<boolean> {
+  try {
+    const res = await afetch(`${API}/persona/grounded-insight`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

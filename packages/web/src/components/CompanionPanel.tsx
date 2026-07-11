@@ -1,4 +1,4 @@
-import { AboutMe, Soul, Instructions, Knowledge } from "./CompanionSections.js";
+import { AboutMe, Soul, GroundedInsight, Instructions, Knowledge } from "./CompanionSections.js";
 
 /**
  * The 🧠 Companion tab: configure WHO Soumaya is to you.
@@ -17,6 +17,7 @@ export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean
     <div className="dock-body">
       <AboutMe />
       <Soul />
+      <GroundedInsight />
       <Instructions />
       <Knowledge />
       <p className="companion-hint companion-tryhint">

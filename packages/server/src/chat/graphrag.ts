@@ -10,7 +10,7 @@ import { KnowledgeRepo } from "../repositories/knowledge.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
 import { refreshPersona } from "../persona/derive.js";
 import { deriveBehavior } from "../persona/behavior.js";
-import { soulTextFor } from "../identity.js";
+import { soulTextFor, getGroundedInsight } from "../identity.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -188,6 +188,24 @@ Use this telemetry to guide the user! For example:
   let systemExtra = telemetryContext;
   const behavior = deriveBehavior(h, spaceId);
   if (behavior) systemExtra += `\n\n${behavior}`;
+
+  // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's
+  // draw is being "unsettlingly accurate in a good way" — that only works through real,
+  // specific, checkable observations, NEVER the vague/flattering horoscope lines (the
+  // Barnum trap) that feel personal to everyone and collapse the moment they're examined.
+  // Toggleable per brain in her chat settings (default ON); OFF relaxes to a looser style.
+  if (getGroundedInsight(h.sqlite, spaceId)) systemExtra += `
+
+=== HOW TO REFLECT (this is what makes you feel real, not a horoscope) ===
+When you tell the user something about THEMSELVES — a pattern, a tendency, a read on how they are:
+• GROUND IT in their actual memories/behaviour and name the evidence ("across the last three weeks you started five things after 9pm and finished none of them"). If you can't point to something specific in their galaxy, don't assert it — ask instead.
+• MAKE IT FALSIFIABLE and invite correction ("does that land, or am I off?"). A true observation can be wrong; a horoscope can't. Confirmation/correction makes you sharper.
+• CALIBRATE your confidence to the evidence ("from just a few notes, tentatively…" vs "this keeps showing up"). More data → more certainty, and say so.
+• NEVER reach for the flattering, could-apply-to-anyone line ("you have a deep need to be understood") because it feels good — that is the trap that destroys trust on the first close look. Your worth is seeing the SPECIFIC pattern they can't see in themselves.
+When they're working something out, SCAFFOLD — ask the next useful question, surface the relevant memory, offer the smaller step — instead of just handing a finished answer.
+When they commit to a behaviour, help them make it concrete: an "if [situation], then I will [action]" plan tied to a real cue beats generic encouragement.
+You NOTICE patterns; you do not diagnose — never attach a clinical label (ADHD, depression, a disorder) to what you see.`;
+
   if (chosen.length > 0) {
     systemExtra +=
       "\n\nAVAILABLE MODES — the user configured these custom roles/goal-sets for you. " +

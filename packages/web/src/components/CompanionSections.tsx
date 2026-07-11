@@ -13,6 +13,8 @@ import {
   deleteDocument,
   getSoul,
   setSoul,
+  getGroundedInsight,
+  setGroundedInsight,
   type InstructionProfile,
   type KnowledgeDoc,
 } from "../api/client.js";
@@ -142,6 +144,47 @@ export function Soul() {
           {busy ? "Saving…" : "Save soul"}
         </button>
         {msg && <span className="companion-hint" style={{ margin: 0 }}>{msg}</span>}
+      </div>
+    </section>
+  );
+}
+
+export function GroundedInsight() {
+  const [on, setOn] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    void getGroundedInsight().then((v) => {
+      setOn(v);
+      setLoaded(true);
+    });
+  }, []);
+  const toggle = async () => {
+    const next = !on;
+    setOn(next);
+    const ok = await setGroundedInsight(next);
+    if (!ok) setOn(!next); // revert on failure
+  };
+  return (
+    <section className="companion-section">
+      <div className="row" style={{ justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <h4 style={{ margin: "0 0 4px" }}>🔬 Grounded insight</h4>
+          <p className="companion-hint" style={{ margin: 0 }}>
+            When ON, anything she tells you about <em>yourself</em> stays specific and checkable —
+            tied to real memories, said so you can confirm or correct it ("does that land?"), never
+            vague horoscope-style flattery. Turn OFF for a looser, warmer read.
+          </p>
+        </div>
+        <button
+          className={`switch ${on ? "on" : ""}`}
+          onClick={() => void toggle()}
+          aria-pressed={on}
+          disabled={!loaded}
+          aria-label="Grounded insight"
+          style={{ flex: "0 0 auto", marginLeft: 12 }}
+        >
+          <span className="knob" />
+        </button>
       </div>
     </section>
   );
