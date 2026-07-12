@@ -1676,7 +1676,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // bug). Fall back to the orbit system's own measured extent for safety.
     let radius = 1;
     for (const n of pts) radius = Math.max(radius, center.distanceTo(new THREE.Vector3(n.x, n.y, n.z ?? 0)));
-    radius = Math.max(radius, orbitsRef.current.getRadius(), center.length() + SUN_RADIUS_MAX) * 1.12;
+    radius = Math.max(radius, orbitsRef.current.getRadius(), center.length() + SUN_RADIUS_MAX) * 1.06;
     const cam = fg.camera() as THREE.PerspectiveCamera;
     // Land UPRIGHT: clear any camera roll (e.g. left over from following the banking ship
     // or free-orbit gymnastics) so recenter is always right-side up.
@@ -1684,12 +1684,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     { const c = fg.controls?.(); if (c) (c.object as THREE.Object3D).up.set(0, 1, 0); }
     const fov = ((cam.fov ?? 60) * Math.PI) / 180;
     // Guard a zero/invalid aspect (canvas not yet sized during the intro framing),
-    // which would make hFit divide by sin(0) = Infinity.
-    const aspect = cam.aspect && cam.aspect > 0 ? cam.aspect : 1;
-    // Fit by the tighter of vertical/horizontal FOV, with margin for labels/orbits.
+    // which would make hFit divide by sin(0) = Infinity. Clamp the aspect to a floor so a
+    // TALL portrait phone can't shove the camera miles back just to fit the galaxy's width
+    // (that's the "focus lands way too far out" bug) — we let the outermost stars sit a hair
+    // past the side edges instead, so the galaxy actually FILLS the screen. Landscape/desktop
+    // (aspect > 1) is unaffected since vFit dominates there.
+    const rawAspect = cam.aspect && cam.aspect > 0 ? cam.aspect : 1;
+    const aspect = Math.max(rawAspect, 0.62);
+    // Fit by the tighter of vertical/horizontal FOV, with a little margin for labels/orbits.
     const vFit = radius / Math.sin(fov / 2);
     const hFit = radius / Math.sin(Math.atan(Math.tan(fov / 2) * aspect));
-    const dist = Math.max(vFit, hFit) * 1.25;
+    const dist = Math.max(vFit, hFit) * 1.12;
     // Guarantee the ceiling admits this framing (a narrow portrait screen needs ~2× the
     // landscape distance). Raising it here + scaling scenery beyond means recenter ALWAYS
     // fits the full galaxy, at any aspect or size, instead of being clamped short.

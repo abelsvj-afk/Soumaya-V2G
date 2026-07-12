@@ -3,10 +3,11 @@ import type { Level } from "./graphicsConfig.js";
 
 /**
  * Deep-space ambience — the "other makeup of space" beyond stars + planets: drifting
- * colourful NEBULA CLOUDS, a faint interstellar DUST haze, a few distant GALAXIES, and a
- * slow ASTEROID BELT ringing your galaxy. 100% PROCEDURAL (zero external assets, so it's
- * safe to ship in a paid product) and deliberately CHEAP — sprites, ONE points cloud, and
- * ONE instanced mesh — so it runs on mid-range mobile, not just the top graphics tier.
+ * colourful NEBULA CLOUDS, a faint interstellar DUST haze, and a few distant GALAXIES.
+ * 100% PROCEDURAL (zero external assets, so it's safe to ship in a paid product) and
+ * deliberately CHEAP — sprites + ONE points cloud — so it runs on mid-range mobile, not
+ * just the top graphics tier. (An asteroid belt lived here once; it read as ugly floating
+ * blocks up close on phones, so it was removed — depth now comes from haze + galaxies.)
  *
  * Counts scale with the device `level`. Everything animates via `userData.update` (the
  * Graph3D tick traverses the scene and calls it). Built at a neutral base extent; Graph3D
@@ -141,46 +142,15 @@ function makeDistantGalaxy(): THREE.Sprite {
   return s;
 }
 
-// ---- Asteroid belt (ONE instanced mesh ringing the galaxy, slow orbit) ----
-function makeAsteroidBelt(count: number): THREE.Object3D {
-  const geo = new THREE.IcosahedronGeometry(1, 0); // low-poly rock
-  const mat = new THREE.MeshStandardMaterial({ color: "#6b6357", roughness: 0.95, metalness: 0.05, flatShading: true });
-  const mesh = new THREE.InstancedMesh(geo, mat, count);
-  const belt = BASE * 0.32;
-  const m = new THREE.Matrix4();
-  const q = new THREE.Quaternion();
-  const s = new THREE.Vector3();
-  const spins: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const a = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-    const r = belt * (0.9 + Math.random() * 0.2);
-    const y = (Math.random() - 0.5) * belt * 0.12;
-    const size = 26 + Math.random() * 70;
-    q.setFromEuler(new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6));
-    s.setScalar(size);
-    m.compose(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r), q, s);
-    mesh.setMatrixAt(i, m);
-    spins.push(Math.random() * 6);
-  }
-  mesh.instanceMatrix.needsUpdate = true;
-  const group = new THREE.Group();
-  group.add(mesh);
-  group.userData.update = () => { group.rotation.y += 0.0006; }; // the whole belt orbits slowly
-  void spins;
-  return group;
-}
-
 export function makeDeepSpace(level: Level): THREE.Group {
   const group = new THREE.Group();
   const clouds = byLevel(level, 3, 5, 8);
   const dust = byLevel(level, 350, 800, 1500);
   const galaxies = byLevel(level, 2, 3, 5);
-  const asteroids = byLevel(level, 40, 90, 150);
 
   for (let i = 0; i < clouds; i++) group.add(makeNebulaCloud());
   group.add(makeDust(dust));
   for (let i = 0; i < galaxies; i++) group.add(makeDistantGalaxy());
-  group.add(makeAsteroidBelt(asteroids));
   return group;
 }
 
