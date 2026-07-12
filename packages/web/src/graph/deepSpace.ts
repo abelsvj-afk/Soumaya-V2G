@@ -55,7 +55,7 @@ function makeNebulaCloud(): THREE.Sprite {
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
-    opacity: 0.14 + Math.random() * 0.1,
+    opacity: 0.07 + Math.random() * 0.05, // subtle haze, not a garish blob
   });
   const s = new THREE.Sprite(mat);
   const size = 2200 + Math.random() * 3200;

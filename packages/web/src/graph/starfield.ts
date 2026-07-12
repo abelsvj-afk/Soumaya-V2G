@@ -173,10 +173,12 @@ export function makeMilkyWay(radius = 8600, level: "low" | "medium" | "high" = "
     return points;
   };
 
-  const haze = level === "low" ? 340 : level === "medium" ? 620 : 1000;
-  const dust = level === "low" ? 2600 : level === "medium" ? 5200 : 9000;
-  group.add(layer(haze, 0.16, 210, 0.05, 0.25)); // soft milky glow
-  group.add(layer(dust, 0.1, 7, 0.5, 0.85)); // grainy stellar sea
+  // Lighter point budgets (mobile was hitting the <24fps lag nag) but brighter, so the band
+  // reads MORE clearly with LESS geometry — visibility from opacity/size, not point count.
+  const haze = level === "low" ? 240 : level === "medium" ? 380 : 700;
+  const dust = level === "low" ? 1600 : level === "medium" ? 2800 : 5200;
+  group.add(layer(haze, 0.16, 240, 0.07, 0.25)); // soft milky glow (bigger, a touch brighter)
+  group.add(layer(dust, 0.1, 8, 0.6, 0.85)); // grainy stellar sea (brighter, fewer points)
   // Barely-there drift so the band feels alive without visibly wandering.
   group.userData.update = (t: number) => {
     group.rotation.z = t * 0.0006;
@@ -341,11 +343,11 @@ function makeSpiralGalaxy(): THREE.Points {
   const points = new THREE.Points(
     geom,
     new THREE.PointsMaterial({
-      size: 4.5,
+      size: 6.5, // bigger so they still read as galaxies at their far distance on a phone
       sizeAttenuation: true,
       vertexColors: true,
       transparent: true,
-      opacity: 0.7,
+      opacity: 0.85,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     }),
