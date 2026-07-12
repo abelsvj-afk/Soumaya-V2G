@@ -1,5 +1,53 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
+import { gltfLoader } from "./gltf.js";
+
+// ---- Shared E-45 fleet model (real hull, loaded once, cloned per craft) ----
+// The procedural cone below stays as the offline / load-failure fallback so the fleet is
+// never invisible without the asset. Orientation constants are top-level so a nose-forward
+// tweak is a one-liner if the model flies backward on-device.
+const FLEET_MODEL_URL = "/E45-fleet.glb";
+const FLEET_LEN = 5; // target longest-axis size in world units (a touch smaller than the named cone)
+const FLEET_ROT_X = 0; // pitch tweak (radians) if the model sits nose-up/down
+const FLEET_ROT_Y = 0; // yaw tweak if the nose points the wrong way along travel
+
+let fleetProto: THREE.Object3D | null = null;
+let fleetLoading = false;
+const fleetWaiters: Array<(proto: THREE.Object3D) => void> = [];
+
+function loadFleetModel(onReady: (proto: THREE.Object3D) => void): void {
+  if (fleetProto) { onReady(fleetProto); return; }
+  fleetWaiters.push(onReady);
+  if (fleetLoading) return;
+  fleetLoading = true;
+  gltfLoader().load(
+    FLEET_MODEL_URL,
+    (gltf) => {
+      const scene = gltf.scene;
+      // Normalize: center at origin + scale so the longest side ≈ FLEET_LEN, with the tweak
+      // rotations baked into a wrapper so per-craft lookAt() still steers the whole thing.
+      const box = new THREE.Box3().setFromObject(scene);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      scene.position.sub(center);
+      scene.traverse((o: any) => {
+        if (o.isMesh && o.material) {
+          for (const m of Array.isArray(o.material) ? o.material : [o.material]) m.fog = false;
+        }
+      });
+      const wrap = new THREE.Group();
+      wrap.add(scene);
+      const longest = Math.max(size.x, size.y, size.z) || 1;
+      wrap.scale.setScalar(FLEET_LEN / longest);
+      wrap.rotation.set(FLEET_ROT_X, FLEET_ROT_Y, 0);
+      fleetProto = wrap;
+      for (const w of fleetWaiters) w(wrap);
+      fleetWaiters.length = 0;
+    },
+    undefined,
+    () => { fleetWaiters.length = 0; fleetLoading = false; /* keep the procedural cone */ },
+  );
+}
 
 /**
  * Soumaya's sub-agents — small autonomous craft that report to her and divide her
@@ -67,7 +115,8 @@ function glowSprite(color: string): THREE.Sprite {
 
 function makeCraft(hull: string, glow: string): THREE.Group {
   const group = new THREE.Group();
-  // A small dart-like body so it reads distinct from the saucer-shaped visitors.
+  // Procedural fallback: a small dart-like body (used until the real hull loads, and forever
+  // if the asset is unavailable — the fleet is never invisible offline).
   const body = new THREE.Mesh(
     new THREE.ConeGeometry(1.4, 4.2, 12),
     new THREE.MeshStandardMaterial({
@@ -80,9 +129,18 @@ function makeCraft(hull: string, glow: string): THREE.Group {
   );
   body.rotation.x = Math.PI / 2; // point "forward" (+z)
   group.add(body);
+  // The role-coloured glow stays (it's the accessible colour channel + keeps the small hull
+  // visible against dark space); the loaded hull is neutral steel underneath it.
   const light = glowSprite(glow.startsWith("rgba") ? glow : "rgba(150,220,255,0.95)");
   light.scale.set(12, 12, 1);
   group.add(light);
+  // Upgrade the cone to Soumaya's real E-45 fleet hull once it loads (cloned from the shared
+  // prototype — geometry/materials are shared across all craft, so it's cheap per unit).
+  loadFleetModel((proto) => {
+    const model = proto.clone(true);
+    group.add(model);
+    body.visible = false; // retire the placeholder cone
+  });
   return group;
 }
 

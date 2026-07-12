@@ -165,6 +165,20 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-07-12 (Claude): Real fleet hull — the E-45 model replaces the procedural cone
+User supplied an E-45 aircraft model (OBJ + MTL + PBR textures) as one of Soumaya's spawnable
+fleet ships ("smaller than her, she sends amounts out"). Integrated it as the visual for the
+sub-agent fleet (scout / defender / **Tender squadron** = the "send amounts out" mechanic):
+- **Conversion (in-sandbox):** OBJ (11.7k verts / 8.1k tris) → GLB via `obj2gltf`, textures
+  downsized 4K→512 with `sharp` (col+normal). Raw textures were ~24 MB (col alone 9.3 MB) —
+  unusable on mobile; final self-contained **`packages/web/public/E45-fleet.glb` is ~600 KB**.
+- **Wiring (`graph/subAgents.ts`):** shared prototype loaded once via `gltfLoader()`, centered +
+  scaled to ~5u longest-axis, cloned per craft (shared geo/materials = cheap). The **procedural
+  cone stays as the offline / load-failure fallback** (never break the no-asset path); the
+  role-coloured glow sprite stays as the accessible colour channel over the neutral steel hull.
+- **Orientation caveat:** couldn't view the render here, so `FLEET_ROT_X/Y` are top-level
+  one-liners — if the hull flies backward/nose-up on-device, flip one constant.
+
 ### 2026-07-11 (Claude): Richer deep space — procedural nebula/dust/galaxies/belt + a Milky Way band
 The user wanted "other space stuff" (nebulae, dust, a milky-way band, distant galaxies, asteroid
 belts) and asked whether we could pull free/commercial-safe assets (NASA, Poly Haven). **Findings on
