@@ -455,6 +455,10 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   if (mass >= 0.44) {
     const sectorLabel = makeLabel((node.celestialTitle ?? node.label).toUpperCase());
     sectorLabel.scale.multiplyScalar(2.5); // Giant sector name
+    // Remember the authored size so the LOD tick can grow it with camera distance and keep
+    // it a readable constant on-screen size at zoom-out (otherwise it shrinks to a speck,
+    // especially on a small mobile screen).
+    sectorLabel.userData.baseScale = { x: sectorLabel.scale.x, y: sectorLabel.scale.y };
     sectorLabel.position.set(0, size * 4 + 10, 0);
     sectorLabel.userData.isSectorTitle = true;
     sectorLabel.visible = false; // Toggled by LOD logic

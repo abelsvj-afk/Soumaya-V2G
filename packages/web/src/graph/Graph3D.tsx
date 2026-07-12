@@ -775,6 +775,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const tmp = new THREE.Vector3();
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
     const FADE_FAR = 540; // labels fully hidden at/over this distance
+    // Small screens show these zoomed-out sector names much smaller — give them a boost so
+    // they're actually readable on a phone (the "can't read the names when zoomed out" bug).
+    const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 760;
+    const SECTOR_LABEL_BOOST = isNarrowScreen ? 1.4 : 1;
 
     const MACRO_DIST = 2600; // swap fidelity for points-of-light beyond this
     // (raised so bodies resolve into full 3D as you fly toward a cluster, not only
@@ -1219,7 +1223,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               child.visible = isMacroView;
               if (child.visible) {
                 const mat = child.material as THREE.SpriteMaterial;
-                mat.opacity = 0.8;
+                mat.opacity = 0.92;
+                // Grow the label with camera distance so it holds a readable on-screen size
+                // as you pull further out (world-scale sprites otherwise shrink to specks),
+                // with an extra bump on small screens. Clamped so it never balloons up close.
+                const base = child.userData.baseScale;
+                if (base) {
+                  const k = Math.min(3.4, Math.max(1, dist / MACRO_DIST)) * SECTOR_LABEL_BOOST;
+                  child.scale.set(base.x * k, base.y * k, 1);
+                }
                 const mq = child.userData.marquee;
                 if (mq) {
                   mq.t += dt * 0.36;
