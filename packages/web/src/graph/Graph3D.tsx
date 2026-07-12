@@ -60,6 +60,8 @@ export interface Graph3DHandle {
   cycleFollowSatellite: () => boolean;
   /** Jump to the next visitor craft (cycles through them). False if none. */
   cycleFollowVisitor: () => boolean;
+  /** Jump to the next fleet craft — Escort first, then scout/defender/tenders. False if none. */
+  cycleFollowFleet: () => boolean;
   /** Isolate a memory's system: show only it + the bodies orbiting it. */
   isolateSystem: (id: number) => void;
   /** Exit the isolated system view (show the whole galaxy again). */
@@ -440,7 +442,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const followObjRef = useRef<THREE.Object3D | null>(null);
   const followDistRef = useRef(30);
   const followSnapRef = useRef(false);
-  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | "fig1" | "fig2" | null>(null);
+  const followKindRef = useRef<"ship" | "station" | "satellite" | "visitor" | "fleet" | "fig1" | "fig2" | null>(null);
   // Which active beacon we're cycling through with the satellite focus button.
   const satFollowIndexRef = useRef(0);
   // Ride-along anchor so focusing a moving body keeps a locked view (no swinging).
@@ -498,6 +500,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const subAgentsRef = useRef<SubAgentSystem | null>(null);
   const visitorsRef = useRef<VisitorSystem | null>(null);
   const visFollowIndexRef = useRef(0);
+  const fleetFollowIndexRef = useRef(0);
   const lastSatCountRef = useRef(-1);
   const lastVisCountRef = useRef(-1);
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
@@ -1034,7 +1037,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }),
         };
       }
-      subAgents?.update(dt, dataRef.current.nodes as any[], subAgentHazard);
+      subAgents?.update(dt, dataRef.current.nodes as any[], subAgentHazard, soumayaPos);
       // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
       visitors?.update(
         dt,
@@ -1073,6 +1076,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             followObjRef.current = null;
             followKindRef.current = null;
           }
+        }
+      }
+      // Release if the fleet craft we're following has docked (gone invisible).
+      if (followKindRef.current === "fleet") {
+        const stillFlying = (subAgentsRef.current?.getCraft() ?? []).some((c) => c.object === followObjRef.current);
+        if (!stillFlying) {
+          followObjRef.current = null;
+          followKindRef.current = null;
         }
       }
 
@@ -1946,6 +1957,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         followKindRef.current = "visitor";
         followObjRef.current = active[i]!.object;
         followDistRef.current = 34; // craft are small — sit in fairly close
+        followSnapRef.current = true;
+        followObjAnchored.current = false;
+        followRef.current = null;
+        return true;
+      },
+      cycleFollowFleet: () => {
+        const craft = subAgentsRef.current?.getCraft() ?? [];
+        if (craft.length === 0) return false;
+        const i = fleetFollowIndexRef.current % craft.length;
+        fleetFollowIndexRef.current = (i + 1) % craft.length;
+        followKindRef.current = "fleet";
+        followObjRef.current = craft[i]!.object;
+        followDistRef.current = 22; // fleet drones are small — sit in close
         followSnapRef.current = true;
         followObjAnchored.current = false;
         followRef.current = null;

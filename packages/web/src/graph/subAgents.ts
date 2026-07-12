@@ -67,7 +67,7 @@ function loadFleetModel(onReady: (proto: THREE.Object3D) => void): void {
  * separate system (satellites.ts) but are presented together in the Fleet roster.
  */
 
-export type SubAgentId = "scout" | "defender" | "tender";
+export type SubAgentId = "scout" | "defender" | "tender" | "escort";
 const MAX_TENDERS = 5; // the squadron never grows beyond this (perf + calm)
 
 export interface SubAgentStatus {
@@ -87,8 +87,10 @@ export interface SubAgentHazard {
 
 export interface SubAgentSystem {
   group: THREE.Group;
-  update: (dt: number, nodes: any[], hazard?: SubAgentHazard) => void;
+  update: (dt: number, nodes: any[], hazard?: SubAgentHazard, leaderPos?: THREE.Vector3 | null) => void;
   getStatus: () => SubAgentStatus[];
+  /** Followable craft (visible only), the Escort first — powers the fleet focus button. */
+  getCraft: () => Array<{ id: SubAgentId; object: THREE.Object3D }>;
 }
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
@@ -186,7 +188,17 @@ export function makeSubAgents(): SubAgentSystem {
   let tendersActive = 0;
   let coldestLabel: string | null = null;
 
-  const angle = { scout: Math.random() * 6.28, defender: Math.random() * 6.28, tender: 0 };
+  // The ESCORT — Soumaya's personal wing, under her DIRECT command: it flies formation on
+  // her ship rather than roaming autonomously like the scout/defender/tenders. Always active
+  // once her position is known; it's the primary target of the fleet focus button.
+  const escort = makeCraft("#bcd8ff", "rgba(150,200,255,0.95)");
+  escort.scale.setScalar(0.9);
+  escort.visible = false;
+  group.add(escort);
+  let escortAngle = Math.random() * 6.28;
+  let escortActive = false;
+
+  const angle: Record<SubAgentId, number> = { scout: Math.random() * 6.28, defender: Math.random() * 6.28, tender: 0, escort: 0 };
 
   const chooseTarget = (id: SubAgentId, memories: any[]): any | null => {
     if (memories.length === 0) return null;
@@ -200,8 +212,23 @@ export function makeSubAgents(): SubAgentSystem {
     return [...memories].sort((a, b) => hubWeight(b) - hubWeight(a))[0];
   };
 
-  const update = (dt: number, nodes: any[], hazard?: SubAgentHazard) => {
+  const update = (dt: number, nodes: any[], hazard?: SubAgentHazard, leaderPos?: THREE.Vector3 | null) => {
     try {
+      // Escort: hold a gentle formation off Soumaya's wing (she commands it directly).
+      escortActive = !!leaderPos;
+      escort.visible = escortActive;
+      if (leaderPos) {
+        escortAngle += dt * 0.6;
+        const aim = new THREE.Vector3(
+          leaderPos.x + Math.cos(escortAngle) * 26,
+          leaderPos.y + 9 + Math.sin(escortAngle * 1.5) * 4,
+          leaderPos.z + Math.sin(escortAngle) * 26,
+        );
+        const dir = aim.clone().sub(escort.position);
+        const dist = dir.length();
+        escort.position.addScaledVector(dir.normalize(), Math.min(dist, 320 * dt));
+        if (dist > 0.01) escort.lookAt(leaderPos); // keep her nose-to-nose with the flagship
+      }
       const memories = nodes.filter((n) => n.kind !== "action" && n.x != null);
       for (const u of units) {
         u.retarget -= dt;
@@ -304,8 +331,26 @@ export function makeSubAgents(): SubAgentSystem {
       targetLabel: coldestLabel,
       targetId: null,
     });
+    // The Escort — her personal wing, flying formation on the flagship.
+    base.push({
+      id: "escort",
+      active: escortActive,
+      detail: escortActive ? "Flying escort on Soumaya" : "Awaiting the flagship",
+      targetLabel: null,
+      targetId: null,
+    });
     return base;
   };
 
-  return { group, update, getStatus };
+  // Followable craft for the fleet focus button — the Escort first (her direct command),
+  // then the named craft + any deployed tenders, all only while visible.
+  const getCraft = (): Array<{ id: SubAgentId; object: THREE.Object3D }> => {
+    const out: Array<{ id: SubAgentId; object: THREE.Object3D }> = [];
+    if (escort.visible) out.push({ id: "escort", object: escort });
+    for (const u of units) if (u.craft.visible) out.push({ id: u.id, object: u.craft });
+    for (let i = 0; i < tendersActive; i++) if (tenders[i]?.visible) out.push({ id: "tender", object: tenders[i]! });
+    return out;
+  };
+
+  return { group, update, getStatus, getCraft };
 }

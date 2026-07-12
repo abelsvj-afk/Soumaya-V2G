@@ -227,8 +227,14 @@ export default function App() {
   const [satelliteCount, setSatelliteCount] = useState(0);
   const [visitorCount, setVisitorCount] = useState(0);
   const [followVisitor, setFollowVisitor] = useState(false);
+  const [followFleet, setFollowFleet] = useState(false);
   const [followFig1, setFollowFig1] = useState(false);
   const [followFig2, setFollowFig2] = useState(false);
+  // Following any other target clears the fleet button's highlight (its own button clears theirs).
+  useEffect(() => {
+    if (followShip || followStation || followSatellite || followVisitor || followFig1 || followFig2)
+      setFollowFleet(false);
+  }, [followShip, followStation, followSatellite, followVisitor, followFig1, followFig2]);
   // Lore card dismissed independently of the camera follow (× closes the card but
   // keeps focus). Reset to false whenever a new focus target is chosen.
   const [loreDismissed, setLoreDismissed] = useState(false);
@@ -1590,6 +1596,7 @@ export default function App() {
               setFollowStation(false);
               setFollowSatellite(false);
               setFollowVisitor(false);
+              setFollowFleet(false);
               setFollowFig1(false);
               setFollowFig2(false);
               setFocusMenuOpen(false);
@@ -1603,6 +1610,7 @@ export default function App() {
             let focusIdx = 0;
             const shipIdx = focusIdx++;
             const stationIdx = focusIdx++;
+            const fleetIdx = focusIdx++; // her fleet is always aloft (escort + scout + defender)
             const satelliteIdx = satelliteCount > 0 ? focusIdx++ : -1;
             const visitorIdx = visitorCount > 0 ? focusIdx++ : -1;
             const fig1Idx = (showFocusFig1 && equippedFig1 !== "none") ? focusIdx++ : -1;
@@ -1645,6 +1653,25 @@ export default function App() {
                   title="Focus the space station"
                 >
                   🌐
+                </button>
+                <button
+                  className={`fab focus-item ${followFleet ? "on" : ""}`}
+                  style={focusItemStyle(fleetIdx, focusMenuOpen)}
+                  onClick={() => {
+                    setLoreDismissed(false);
+                    const on = graphRef.current?.cycleFollowFleet() ?? false;
+                    setFollowFleet(on);
+                    setFollowShip(false);
+                    setFollowStation(false);
+                    setFollowSatellite(false);
+                    setFollowVisitor(false);
+                    setFollowFig1(false);
+                    setFollowFig2(false);
+                  }}
+                  aria-label="Focus the fleet"
+                  title="Jump to her fleet (Escort · Scout · Defender · Tenders)"
+                >
+                  🛩️
                 </button>
                 {satelliteIdx >= 0 && (
                   <button
