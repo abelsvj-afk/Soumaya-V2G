@@ -79,6 +79,10 @@ export interface IngestResult {
   fuelEarned?: number;
   /** The brain's fuel after earning. */
   fuel?: Fuel;
+  /** True when this tend counted a new day for the streak. */
+  streakAdvanced?: boolean;
+  /** True when a banked nebula shield forgave a missed day to keep the streak alive. */
+  shieldUsed?: boolean;
 }
 
 export interface SearchHit extends GraphNode {
@@ -210,7 +214,13 @@ export async function ingestText(text: string, opts?: IngestOpts): Promise<Inges
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? `Ingest failed (${res.status})`);
       }
-      return res.json() as Promise<IngestResult>;
+      const out = (await res.json()) as IngestResult;
+      // A banked nebula shield just forgave a missed day — surface it as a gentle,
+      // reassuring moment (a broken streak is data, not punishment) instead of a silent save.
+      if (out.shieldUsed && typeof window !== "undefined") {
+        try { window.dispatchEvent(new CustomEvent("brain-shield-saved")); } catch { /* no window */ }
+      }
+      return out;
     })(),
   );
 }

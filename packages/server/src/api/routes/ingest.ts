@@ -68,7 +68,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       { occurredAt, remindAt, tags },
     );
     // Tending the galaxy advances the daily streak; a new day grants a small bonus.
-    const { streak, advanced } = new StreakRepo(ctx.handle, spaceId).touch();
+    const { streak, advanced, shieldUsed } = new StreakRepo(ctx.handle, spaceId).touch();
     // Earn fuel for tending the galaxy: a memory + each association it forged,
     // plus the once-per-day streak bonus when a new day was counted.
     const fuelEarned =
@@ -87,7 +87,7 @@ export function ingestRoutes(ctx: AppContext): Router {
     } catch {
       /* best-effort; the autonomy loop retries */
     }
-    res.json({ ...result, fuelEarned, fuel: econ.toFuel(), streak, streakAdvanced: advanced });
+    res.json({ ...result, fuelEarned, fuel: econ.toFuel(), streak, streakAdvanced: advanced, shieldUsed: !!shieldUsed });
   });
   return r;
 }

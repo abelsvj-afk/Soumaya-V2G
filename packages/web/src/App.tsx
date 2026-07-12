@@ -435,6 +435,15 @@ export default function App() {
     };
   }, []);
 
+  // A banked nebula shield just forgave a missed day — celebrate the save gently so the
+  // forgiving-streak mechanic is actually FELT (a broken streak is data, not punishment).
+  useEffect(() => {
+    const onShield = () =>
+      pushToast("A nebula shield forgave your missed day — your streak is safe.", "🛡️", 7000);
+    window.addEventListener("brain-shield-saved", onShield);
+    return () => window.removeEventListener("brain-shield-saved", onShield);
+  }, []);
+
   // A fake "fuller galaxy" preview — generated once, never persisted/weighted.
   const demoData = useMemo(() => makeDemoGalaxy(), []);
   const view = demo ? demoData : data;
