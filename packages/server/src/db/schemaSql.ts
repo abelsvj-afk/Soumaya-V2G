@@ -299,4 +299,107 @@ export const BOOTSTRAP_SQL = `
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE UNIQUE INDEX IF NOT EXISTS codex_disc_key ON codex_discoveries(space_id, key);
+
+    -- Financial OS (Stage 1a). Money is INTEGER cents. Every table space-scoped.
+    CREATE TABLE IF NOT EXISTS fin_account (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL DEFAULT 'Cash',
+      currency TEXT NOT NULL DEFAULT 'USD',
+      balance_cents INTEGER NOT NULL DEFAULT 0,
+      buffer_cents INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_account_space_idx ON fin_account(space_id);
+
+    CREATE TABLE IF NOT EXISTS fin_source (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      kind TEXT NOT NULL DEFAULT 'manual',
+      blob_ref TEXT,
+      mime TEXT,
+      extraction_json TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_source_space_idx ON fin_source(space_id, id DESC);
+
+    CREATE TABLE IF NOT EXISTS fin_income (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      source_id INTEGER,
+      date TEXT NOT NULL,
+      gross_cents INTEGER,
+      net_cents INTEGER NOT NULL DEFAULT 0,
+      tax_cents INTEGER,
+      hours REAL,
+      platform TEXT,
+      confidence REAL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_income_space_idx ON fin_income(space_id, date DESC);
+
+    CREATE TABLE IF NOT EXISTS fin_expense (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      source_id INTEGER,
+      date TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      merchant TEXT,
+      category TEXT NOT NULL DEFAULT 'misc',
+      direction TEXT NOT NULL DEFAULT 'out',
+      confidence REAL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_expense_space_idx ON fin_expense(space_id, date DESC);
+
+    CREATE TABLE IF NOT EXISTS fin_bill (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      frequency TEXT NOT NULL DEFAULT 'monthly',
+      anchor_date TEXT NOT NULL,
+      every_days INTEGER,
+      autopay INTEGER NOT NULL DEFAULT 0,
+      category TEXT NOT NULL DEFAULT 'bills',
+      grace_days INTEGER,
+      late_fee_cents INTEGER,
+      payee TEXT,
+      account_last4 TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_bill_space_idx ON fin_bill(space_id, active);
+
+    CREATE TABLE IF NOT EXISTS fin_bill_occurrence (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      bill_id INTEGER NOT NULL,
+      due_date TEXT NOT NULL,
+      amount_cents INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'upcoming',
+      paid_expense_id INTEGER,
+      paid_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS fin_occ_space_idx ON fin_bill_occurrence(space_id, due_date);
+    CREATE UNIQUE INDEX IF NOT EXISTS fin_occ_unique ON fin_bill_occurrence(space_id, bill_id, due_date);
+
+    CREATE TABLE IF NOT EXISTS fin_category_override (
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      payee TEXT NOT NULL,
+      category TEXT NOT NULL,
+      PRIMARY KEY (space_id, payee)
+    );
+
+    CREATE TABLE IF NOT EXISTS fin_goal_link (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      node_id INTEGER NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'savings',
+      target_cents INTEGER,
+      target_date TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_goal_link_space_idx ON fin_goal_link(space_id);
 `;

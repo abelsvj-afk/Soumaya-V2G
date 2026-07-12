@@ -551,3 +551,104 @@ export interface Lens {
   pinned: boolean;
   count?: number;
 }
+
+// ---- Financial OS (Stage 1a) ----------------------------------------------------------
+// All money is stored + computed in INTEGER MINOR UNITS (cents) to avoid float drift.
+// See docs/financial-os/ for the design. These are the domain types shared by the
+// server repos/engines and (later) the web client.
+
+export type BillFrequency = "weekly" | "biweekly" | "monthly" | "custom";
+export type ExpenseDirection = "out" | "in";
+export type FinSourceKind = "image" | "pdf" | "paste" | "manual";
+export type BillOccurrenceStatus = "upcoming" | "paid" | "skipped";
+
+/** The single adjustable balance for a space (Stage 1: one currency, one account). */
+export interface FinAccount {
+  id: number;
+  name: string;
+  currency: string; // ISO-4217, e.g. "USD"
+  balanceCents: number;
+  bufferCents: number; // "always keep $X untouched"
+  updatedAt: string;
+}
+
+/** A recurring bill, entered once. */
+export interface FinBill {
+  id: number;
+  name: string;
+  amountCents: number;
+  frequency: BillFrequency;
+  /** Anchor for the schedule (ISO date). For monthly, its day-of-month drives recurrence. */
+  anchorDate: string;
+  /** For `custom`: days between occurrences. */
+  everyDays?: number;
+  autopay: boolean;
+  category: string;
+  graceDays?: number;
+  lateFeeCents?: number;
+  payee?: string;
+  accountLast4?: string; // last 4 only — never a full number
+  active: boolean;
+}
+
+/** A materialized instance of a bill (one due date). */
+export interface FinBillOccurrence {
+  id: number;
+  billId: number;
+  dueDate: string;
+  amountCents: number;
+  status: BillOccurrenceStatus;
+  paidExpenseId?: number | null;
+  paidAt?: string | null;
+}
+
+/** A recorded income event. */
+export interface FinIncome {
+  id: number;
+  sourceId?: number | null;
+  date: string;
+  grossCents?: number | null;
+  netCents: number;
+  taxCents?: number | null;
+  hours?: number | null;
+  platform?: string | null;
+  confidence?: number | null;
+  createdAt: string;
+}
+
+/** A recorded expense (or a non-income inflow). */
+export interface FinExpense {
+  id: number;
+  sourceId?: number | null;
+  date: string;
+  amountCents: number;
+  merchant?: string | null;
+  category: string;
+  direction: ExpenseDirection;
+  confidence?: number | null;
+  createdAt: string;
+}
+
+/** One line of the itemized Reserved breakdown. */
+export interface ReservedLine {
+  billId: number;
+  name: string;
+  amountCents: number;
+  dueDate: string;
+}
+
+/** The live budget the home screen renders + the AI cites. All cents. */
+export interface BudgetSummary {
+  balanceCents: number;
+  bufferCents: number;
+  reservedCents: number;
+  reserved: ReservedLine[];
+  /** balance − reserved − buffer, floored at 0 for display. */
+  safeToSpendCents: number;
+  /** How much reserved+buffer exceeds the balance (0 if none). Shown explicitly. */
+  shortfallCents: number;
+  /** Net income recorded so far this week (Mon-anchored). */
+  weekEarnedCents: number;
+  /** The date used as the "next income" horizon for Reserved. */
+  nextIncomeDate: string;
+}
