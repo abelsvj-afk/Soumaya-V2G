@@ -637,6 +637,33 @@ export interface ReservedLine {
   dueDate: string;
 }
 
+// ---- Ingestion / extraction (Stage 1b) ----
+// A "candidate" is a DRAFT the user confirms before it commits — never trusted silently.
+
+export interface ExtractedIncome {
+  date?: string;
+  netCents: number;
+  platform?: string;
+  confidence: number; // 0..1
+  duplicate?: boolean; // likely already recorded (same net + date)
+}
+export interface ExtractedExpense {
+  date?: string;
+  amountCents: number;
+  merchant?: string;
+  category?: string;
+  direction: ExpenseDirection;
+  confidence: number; // 0..1
+  duplicate?: boolean; // likely already recorded (same amount + date + merchant)
+}
+/** Output of an OcrProvider: structured drafts extracted from a raw source. */
+export interface FinExtractionResult {
+  incomes: ExtractedIncome[];
+  expenses: ExtractedExpense[];
+  /** Provider that produced this (for the confidence hint + debugging). */
+  provider: "heuristic" | "vision";
+}
+
 /** The live budget the home screen renders + the AI cites. All cents. */
 export interface BudgetSummary {
   balanceCents: number;

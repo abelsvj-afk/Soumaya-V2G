@@ -2,8 +2,21 @@ import { useEffect, useState } from "react";
 import type { FinBill, BillFrequency } from "@brain/shared";
 import {
   getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid,
+  ingestPaste, confirmIngest,
   type FinanceSummary,
 } from "../api/finance.js";
+
+/** An editable draft row in the confirm step (income or expense). */
+interface DraftRow {
+  keep: boolean;
+  kind: "income" | "expense";
+  amount: string; // dollars, editable
+  label: string; // platform (income) or merchant (expense)
+  category: string; // expense only
+  date: string;
+  confidence: number;
+  duplicate: boolean;
+}
 
 /**
  * Financial OS — Stage 1a UI (mobile-first). The hero is "Safe to Spend", kept honest by the
@@ -79,6 +92,7 @@ export function FinancePanel({ demo }: { demo?: boolean }) {
       {/* ---- Quick actions ---- */}
       <BalanceEditor current={b.balanceCents} onSet={async (c) => { await setBalance(c); await refresh(); }} />
       <AddMoney onDone={async (kind, ok, dup) => { setMsg(ok ? `${kind} added${dup ? " (looks like a duplicate)" : ""}` : "Couldn't save"); await refresh(); }} />
+      <PasteImport onDone={async (n) => { setMsg(n > 0 ? `Added ${n} item${n === 1 ? "" : "s"} from your paste` : "Nothing added"); await refresh(); }} />
 
       {/* ---- Upcoming bills ---- */}
       <section className="fin-bills">
@@ -155,6 +169,101 @@ function AddMoney({ onDone }: { onDone: (kind: string, ok: boolean, dup: boolean
         <button className="fin-primary" onClick={submit}>Save</button>
         <button className="fin-secondary" onClick={() => setMode(null)}>Cancel</button>
       </div>
+    </div>
+  );
+}
+
+// ---- Paste import: paste Cash App / Venmo / bank text → editable drafts → confirm ----
+function PasteImport({ onDone }: { onDone: (committed: number) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sourceId, setSourceId] = useState<number | null>(null);
+  const [drafts, setDrafts] = useState<DraftRow[] | null>(null);
+
+  const read = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    const out = await ingestPaste(text);
+    setBusy(false);
+    if (!out) { setDrafts([]); return; }
+    setSourceId(out.sourceId);
+    const rows: DraftRow[] = [
+      ...out.result.incomes.map((i): DraftRow => ({
+        keep: true, kind: "income", amount: (i.netCents / 100).toFixed(2),
+        label: i.platform ?? "", category: "", date: i.date ?? today(),
+        confidence: i.confidence, duplicate: !!i.duplicate,
+      })),
+      ...out.result.expenses.map((e): DraftRow => ({
+        keep: !e.duplicate, kind: "expense", amount: (e.amountCents / 100).toFixed(2),
+        label: e.merchant ?? "", category: e.category ?? "misc", date: e.date ?? today(),
+        confidence: e.confidence, duplicate: !!e.duplicate,
+      })),
+    ];
+    setDrafts(rows);
+  };
+
+  const set = (i: number, patch: Partial<DraftRow>) =>
+    setDrafts((d) => (d ? d.map((row, idx) => (idx === i ? { ...row, ...patch } : row)) : d));
+
+  const confirm = async () => {
+    if (!sourceId || !drafts) return;
+    const kept = drafts.filter((d) => d.keep && toCents(d.amount));
+    const res = await confirmIngest({
+      sourceId,
+      incomes: kept.filter((d) => d.kind === "income").map((d) => ({ date: d.date, netCents: toCents(d.amount)!, platform: d.label || undefined })),
+      expenses: kept.filter((d) => d.kind === "expense").map((d) => ({ date: d.date, amountCents: toCents(d.amount)!, merchant: d.label || undefined, category: d.category || "misc", direction: "out" as const })),
+    });
+    reset();
+    onDone(res?.committed ?? 0);
+  };
+  const reset = () => { setOpen(false); setText(""); setDrafts(null); setSourceId(null); };
+
+  if (!open) return <button className="fin-secondary" onClick={() => setOpen(true)}>📋 Paste from Cash App / bank</button>;
+
+  return (
+    <div className="fin-form">
+      {!drafts ? (
+        <>
+          <div className="fin-form-title">Paste your transactions</div>
+          <textarea className="fin-paste-area" rows={5} placeholder={"e.g.\nReceived $44.30 from GoPuff\n-$12.00 Starbucks\n01/09 Rent -600.00"} value={text} onChange={(e) => setText(e.target.value)} aria-label="Pasted transactions" />
+          <div className="fin-form-actions">
+            <button className="fin-primary" onClick={read} disabled={busy}>{busy ? "Reading…" : "Read"}</button>
+            <button className="fin-secondary" onClick={reset}>Cancel</button>
+          </div>
+        </>
+      ) : drafts.length === 0 ? (
+        <>
+          <div className="fin-muted">Couldn't find any transactions in that text.</div>
+          <div className="fin-form-actions"><button className="fin-secondary" onClick={() => setDrafts(null)}>Try again</button></div>
+        </>
+      ) : (
+        <>
+          <div className="fin-form-title">Review {drafts.length} item{drafts.length === 1 ? "" : "s"} — confirm to add</div>
+          <ul className="fin-draft-list">
+            {drafts.map((d, i) => (
+              <li key={i} className={`fin-draft ${d.keep ? "" : "off"}`}>
+                <label className="fin-draft-keep">
+                  <input type="checkbox" checked={d.keep} onChange={(e) => set(i, { keep: e.target.checked })} aria-label="Include this row" />
+                  <span className={d.kind === "income" ? "fin-tag-in" : "fin-tag-out"}>{d.kind === "income" ? "IN" : "OUT"}</span>
+                </label>
+                <input className="fin-draft-amt" inputMode="decimal" value={d.amount} onChange={(e) => set(i, { amount: e.target.value })} aria-label="Amount" />
+                <input className="fin-draft-lbl" value={d.label} placeholder={d.kind === "income" ? "Platform" : "Merchant"} onChange={(e) => set(i, { label: e.target.value })} />
+                {d.kind === "expense" && (
+                  <input className="fin-draft-cat" value={d.category} placeholder="Category" onChange={(e) => set(i, { category: e.target.value })} aria-label="Category" />
+                )}
+                {(d.duplicate || d.confidence < 0.5) && (
+                  <span className="fin-draft-flag">{d.duplicate ? "⚠️ maybe duplicate" : "❓ check this"}</span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <div className="fin-form-actions">
+            <button className="fin-primary" onClick={confirm}>Confirm {drafts.filter((d) => d.keep).length}</button>
+            <button className="fin-secondary" onClick={reset}>Cancel</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

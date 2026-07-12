@@ -4544,3 +4544,21 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .fin-bill-due { color: var(--muted); font-size: 0.78rem; }
 .fin-bill-list li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
 .fin-bill-manager { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Financial OS — paste import + draft confirm */
+.fin-paste-area { background: rgba(0,0,0,0.25); color: var(--text); border: 1px solid var(--glass-border);
+  border-radius: 10px; padding: 10px; font-size: 0.95rem; width: 100%; resize: vertical; font-family: inherit; }
+.fin-draft-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 46vh; overflow-y: auto; }
+.fin-draft { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px; border-radius: 8px;
+  background: rgba(0,0,0,0.18); }
+.fin-draft.off { opacity: 0.45; }
+.fin-draft-keep { display: inline-flex; align-items: center; gap: 4px; }
+.fin-tag-in { color: #7af9c0; font-weight: 700; font-size: 0.7rem; }
+.fin-tag-out { color: #ffb27a; font-weight: 700; font-size: 0.7rem; }
+.fin-draft-amt { width: 74px; }
+.fin-draft-lbl { flex: 1 1 90px; min-width: 80px; }
+.fin-draft-cat { flex: 1 1 80px; min-width: 70px; }
+.fin-draft input[type="text"], .fin-draft input:not([type]) , .fin-draft-amt, .fin-draft-lbl, .fin-draft-cat {
+  background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border); border-radius: 8px;
+  padding: 8px; min-height: 40px; font-size: 0.9rem; }
+.fin-draft-flag { flex-basis: 100%; font-size: 0.72rem; color: #ffd27a; }

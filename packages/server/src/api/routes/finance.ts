@@ -7,6 +7,7 @@ import { FinIncomeRepo } from "../../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { getBudgetSummary } from "../../finance/summary.js";
+import { ingestPaste, confirmIngest } from "../../finance/ingest.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -141,6 +142,43 @@ export function financeRoutes(ctx: AppContext): Router {
   });
   r.get("/income", (_req, res) => res.json(new FinIncomeRepo(ctx.handle, spaceOf(res)).list()));
   r.get("/expense", (_req, res) => res.json(new FinExpenseRepo(ctx.handle, spaceOf(res)).list()));
+
+  // ---- Ingestion (Stage 1b): paste → drafts → confirm. Offline, no key. ----
+  const PasteBody = z.object({ text: z.string().min(1).max(20000) }).strict();
+  r.post("/ingest/paste", async (req, res) => {
+    const p = PasteBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Body must be { text }", p.error.issues);
+    const out = await ingestPaste(ctx.handle, spaceOf(res), p.data.text);
+    res.json(out); // { sourceId, result } — nothing committed yet
+  });
+
+  const ConfirmBody = z
+    .object({
+      sourceId: z.number().int().positive(),
+      incomes: z
+        .array(z.object({ date: isoDate.optional(), netCents: posCents, platform: z.string().trim().max(60).optional() }))
+        .max(200)
+        .default([]),
+      expenses: z
+        .array(
+          z.object({
+            date: isoDate.optional(),
+            amountCents: posCents,
+            merchant: z.string().trim().max(80).optional(),
+            category: z.string().trim().min(1).max(40),
+            direction: z.enum(["out", "in"]).optional(),
+          }),
+        )
+        .max(200)
+        .default([]),
+    })
+    .strict();
+  r.post("/ingest/confirm", (req, res) => {
+    const p = ConfirmBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid confirmation", p.error.issues);
+    const out = confirmIngest(ctx.handle, spaceOf(res), p.data);
+    return out ? res.json(out) : res.status(404).json({ error: "Source not found or already handled" });
+  });
 
   return r;
 }

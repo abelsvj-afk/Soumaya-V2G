@@ -1,5 +1,5 @@
 import { API, afetch } from "./http.js";
-import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection } from "@brain/shared";
+import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult } from "@brain/shared";
 
 /**
  * Financial OS client (Stage 1a). Thin wrappers over /api/finance; space-scoped server-side
@@ -52,3 +52,12 @@ export interface IncomeInput { date: string; netCents: number; grossCents?: numb
 export interface ExpenseInput { date: string; amountCents: number; category: string; direction?: ExpenseDirection; merchant?: string }
 export const addIncome = (i: IncomeInput) => send<{ income: FinIncome; duplicate: boolean; budget: BudgetSummary }>("/income", "POST", i);
 export const addExpense = (e: ExpenseInput) => send<{ expense: FinExpense; duplicate: boolean; budget: BudgetSummary }>("/expense", "POST", e);
+
+// ---- Ingestion (Stage 1b): paste → drafts → confirm ----
+export const ingestPaste = (text: string) => send<{ sourceId: number; result: FinExtractionResult }>("/ingest/paste", "POST", { text });
+export interface ConfirmInput {
+  sourceId: number;
+  incomes: Array<{ date?: string; netCents: number; platform?: string }>;
+  expenses: Array<{ date?: string; amountCents: number; merchant?: string; category: string; direction?: ExpenseDirection }>;
+}
+export const confirmIngest = (input: ConfirmInput) => send<{ committed: number; budget: BudgetSummary }>("/ingest/confirm", "POST", input);
