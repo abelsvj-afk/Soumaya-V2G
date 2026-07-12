@@ -17,7 +17,11 @@ Read in order:
    coaching, forecasting, non-functionals.
 4. [user-stories.md](./user-stories.md) — concrete scenarios + acceptance criteria.
 5. [architecture.md](./architecture.md) — data model, OCR pipeline, Budget/Forecast engines, security,
-   staged build sequence, open questions for sign-off.
+   staged build sequence, open questions.
+6. [decisions.md](./decisions.md) — resolves the architecture open questions (ADR-lite).
+7. [ux-design.md](./ux-design.md) — Phase 4.5 **mobile-first** screens, flows, components, a11y.
+8. [roadmap.md](./roadmap.md) — Phase 6/7 staged task breakdown; the suggested first PR.
 
-**Next phases (not started):** Phase 4.5 `ux-design.md` (required before any screen is built) → Phase 6/7
-roadmap + task generation → implementation, Stage 1 first.
+**The design package is complete.** Remaining before code: the user's go-ahead (and any overrides to the
+decisions). Implementation begins at **Stage 1a** (schema + repos + Budget Engine with tests — no UI/routes
+yet), per the roadmap.
