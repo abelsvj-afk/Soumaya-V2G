@@ -4504,3 +4504,43 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .level-pill:hover { filter: brightness(1.12); }
 .level-pill:active { transform: translateX(-50%) scale(0.96); }
 .focus-mode .level-pill { opacity: 0.1; }
+
+/* ---- Financial OS (Stage 1a) — mobile-first ---- */
+.fin-panel { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 24px; }
+.fin-empty, .fin-muted { color: var(--muted); font-size: 0.9rem; }
+.fin-hero { text-align: center; padding: 14px 12px; border-radius: 16px;
+  background: radial-gradient(120% 120% at 50% 0%, rgba(122,249,255,0.12), var(--glass));
+  border: 1px solid var(--glass-border); }
+.fin-hero-label { color: var(--muted); font-size: 0.8rem; letter-spacing: 0.08em; text-transform: uppercase; }
+.fin-hero-amount { font-size: 2.6rem; font-weight: 800; color: var(--text); line-height: 1.1; }
+.fin-shortfall { margin-top: 6px; font-size: 0.9rem; font-weight: 700; color: #ffd27a;
+  display: inline-flex; gap: 6px; align-items: center; }
+.fin-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fin-stat { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px;
+  padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.fin-stat span { color: var(--muted); font-size: 0.75rem; }
+.fin-stat strong { font-size: 1.2rem; }
+.fin-reserved-head { display: flex; justify-content: space-between; align-items: center; width: 100%;
+  background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px;
+  color: var(--text); font-size: 0.95rem; }
+.fin-reserved-list { list-style: none; margin: 0; padding: 4px 6px; display: flex; flex-direction: column; gap: 6px; }
+.fin-reserved-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; font-size: 0.9rem; }
+.fin-reserved-list li span:nth-child(2) { color: var(--muted); font-size: 0.78rem; }
+.fin-add-row, .fin-form-actions, .fin-inline-form { display: flex; gap: 8px; }
+.fin-primary, .fin-secondary, .fin-paid { border-radius: 10px; padding: 10px 14px; font-weight: 700;
+  font-size: 0.95rem; min-height: 44px; cursor: pointer; border: 1px solid var(--glass-border); }
+.fin-primary { flex: 1; background: linear-gradient(120deg, #5bd6ff, #b98bff); color: #06121f; border: none; }
+.fin-secondary { background: var(--glass); color: var(--text); }
+.fin-paid { min-height: 34px; padding: 6px 12px; background: var(--glass); color: var(--accent); font-size: 0.82rem; }
+.fin-form { display: flex; flex-direction: column; gap: 8px; background: var(--glass);
+  border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; }
+.fin-form-title { font-weight: 700; }
+.fin-form input, .fin-form select, .fin-inline-form input { background: rgba(0,0,0,0.25); color: var(--text);
+  border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; min-height: 44px; font-size: 1rem; width: 100%; }
+.fin-msg { color: var(--accent); font-size: 0.9rem; }
+.fin-bills h4 { margin: 8px 0 6px; }
+.fin-bill-occ, .fin-bill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fin-bill-occ li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
+.fin-bill-due { color: var(--muted); font-size: 0.78rem; }
+.fin-bill-list li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
+.fin-bill-manager { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }

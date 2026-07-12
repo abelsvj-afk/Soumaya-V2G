@@ -13,6 +13,7 @@ import { InboxPanel } from "./InboxPanel.js";
 import { LibraryPanel } from "./LibraryPanel.js";
 import { CodexPanel } from "./CodexPanel.js";
 import { MindPanel } from "./MindPanel.js";
+import { FinancePanel } from "./FinancePanel.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel, Streak } from "@brain/shared";
 
@@ -31,6 +32,7 @@ export type DockTab =
   | "soumaya"
   | "inbox"
   | "awards"
+  | "money"
   | "hangar";
 
 interface Props {
@@ -78,6 +80,7 @@ const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "soumaya", label: "🛰️", name: "Soumaya" },
   { id: "inbox", label: "🔔", name: "Inbox" },
   { id: "awards", label: "🏆", name: "Progress" },
+  { id: "money", label: "💵", name: "Money" },
   { id: "hangar", label: "🛠️", name: "Hangar" },
 ];
 
@@ -259,6 +262,7 @@ export function RightDock({
           </div>
         )}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
+        {tab === "money" && <FinancePanel demo={demo} />}
         {tab === "awards" && (
           <div className="subtab-wrap">
             <div className="subtabs" role="tablist" aria-label="Progress view">
