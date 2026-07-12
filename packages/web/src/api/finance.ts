@@ -53,8 +53,10 @@ export interface ExpenseInput { date: string; amountCents: number; category: str
 export const addIncome = (i: IncomeInput) => send<{ income: FinIncome; duplicate: boolean; budget: BudgetSummary }>("/income", "POST", i);
 export const addExpense = (e: ExpenseInput) => send<{ expense: FinExpense; duplicate: boolean; budget: BudgetSummary }>("/expense", "POST", e);
 
-// ---- Ingestion (Stage 1b): paste → drafts → confirm ----
+// ---- Ingestion (Stage 1b/1c): paste / image → drafts → confirm ----
 export const ingestPaste = (text: string) => send<{ sourceId: number; result: FinExtractionResult }>("/ingest/paste", "POST", { text });
+export const ingestImage = (dataUrl: string, mime: string) =>
+  send<{ sourceId: number; result: FinExtractionResult; readable: boolean }>("/ingest/image", "POST", { dataUrl, mime });
 export interface ConfirmInput {
   sourceId: number;
   incomes: Array<{ date?: string; netCents: number; platform?: string }>;

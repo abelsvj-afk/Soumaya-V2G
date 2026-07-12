@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createDb, type DbHandle } from "../db/client.js";
 import { HeuristicOcrProvider } from "../ocr/heuristic.js";
 import { categorize } from "../finance/categorize.js";
-import { ingestPaste, confirmIngest } from "../finance/ingest.js";
+import { ingestPaste, ingestImage, confirmIngest } from "../finance/ingest.js";
+import type { LlmProvider } from "../llm/adapter.js";
 import { FinAccountRepo } from "../repositories/finAccount.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../repositories/finExpense.repo.js";
@@ -101,5 +102,44 @@ describe("paste → confirm pipeline", () => {
     new FinIncomeRepo(handle, "s1").create({ date: "2026-01-10", netCents: 4430, platform: "GoPuff" });
     const { result } = await ingestPaste(handle, "s1", "2026-01-10 Received $44.30 from GoPuff");
     expect(result.incomes[0]!.duplicate).toBe(true);
+  });
+});
+
+describe("image ingestion (Stage 1c, vision seam)", () => {
+  let handle: DbHandle;
+  beforeEach(() => { handle = createDb(":memory:"); });
+  afterEach(() => { handle.sqlite.close(); });
+
+  const dataUrl = "data:image/jpeg;base64,xxxx";
+
+  it("uses the vision provider, categorizes, and retains the source", async () => {
+    const llm = {
+      extractFinancialImage: async () => ({
+        incomes: [{ date: "2026-01-10", netCents: 4430, platform: "GoPuff", confidence: 0.9 }],
+        expenses: [{ date: "2026-01-10", amountCents: 1200, merchant: "Starbucks", direction: "out" as const, confidence: 0.8 }],
+        provider: "vision" as const,
+      }),
+    } as unknown as LlmProvider;
+    const out = await ingestImage(handle, llm, "s1", { dataUrl, mime: "image/jpeg" });
+    expect(out.readable).toBe(true);
+    expect(out.result.expenses[0]!.category).toBe("food"); // categorized after vision
+    expect(new FinSourceRepo(handle, "s1").get(out.sourceId)!.kind).toBe("image");
+    expect(new FinIncomeRepo(handle, "s1").list()).toHaveLength(0); // nothing committed yet
+  });
+
+  it("degrades to manual when there is no vision provider (readable=false, empty result)", async () => {
+    const llm = {} as unknown as LlmProvider; // no extractFinancialImage
+    const out = await ingestImage(handle, llm, "s1", { dataUrl, mime: "image/jpeg" });
+    expect(out.readable).toBe(false);
+    expect(out.result.incomes).toHaveLength(0);
+    expect(out.result.expenses).toHaveLength(0);
+    // Source is still retained for traceability.
+    expect(new FinSourceRepo(handle, "s1").get(out.sourceId)).not.toBeNull();
+  });
+
+  it("never throws when the vision call fails", async () => {
+    const llm = { extractFinancialImage: async () => { throw new Error("boom"); } } as unknown as LlmProvider;
+    const out = await ingestImage(handle, llm, "s1", { dataUrl, mime: "image/jpeg" });
+    expect(out.readable).toBe(false);
   });
 });

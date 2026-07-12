@@ -1,4 +1,4 @@
-import type { ExtractionResult, RelationshipType } from "@brain/shared";
+import type { ExtractionResult, RelationshipType, FinExtractionResult } from "@brain/shared";
 
 /** A previously-stored node passed to the LLM as context for extraction. */
 export interface ContextNode {
@@ -128,6 +128,11 @@ export interface LlmProvider {
    *  actually execute (curate for value + avoid noise). Returns the chosen indices.
    *  Absent → the router runs every candidate (the always-available deterministic path). */
   route?(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]>;
+  /** Optional: read a financial screenshot/PDF (pay stub, earnings, bank txns) and extract
+   *  DRAFT income/expense candidates (Financial OS Stage 1c). Absent on the heuristic/offline
+   *  provider and returns null on any failure → the ingest route degrades to manual entry, so
+   *  no feature ever hard-depends on a vision key. */
+  extractFinancialImage?(image: { dataUrl: string; mime: string }): Promise<FinExtractionResult | null>;
 }
 
 /** A grounded web-lookup result: a concise answer plus the source URLs it cited. */

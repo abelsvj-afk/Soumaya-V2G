@@ -1,6 +1,7 @@
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
-import type { FinExtractionResult, ExtractedIncome, ExtractedExpense, BudgetSummary } from "@brain/shared";
+import type { FinExtractionResult, ExtractedIncome, ExtractedExpense, BudgetSummary, FinSourceKind } from "@brain/shared";
+import type { LlmProvider } from "../llm/adapter.js";
 import { HeuristicOcrProvider } from "../ocr/heuristic.js";
 import { FinSourceRepo } from "../repositories/finSource.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
@@ -22,23 +23,11 @@ function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/**
- * Parse pasted text into DRAFT candidates: retain the raw source (status=pending), run the
- * heuristic provider, categorize expenses (learned overrides + rules), and flag likely
- * duplicates. Returns the sourceId + the annotated result. Commits NOTHING.
- */
-export async function ingestPaste(
-  handle: DbHandle,
-  spaceId: string = DEFAULT_SPACE,
-  text: string,
-): Promise<{ sourceId: number; result: FinExtractionResult }> {
-  const provider = new HeuristicOcrProvider();
-  const raw = await provider.extract({ kind: "paste", text });
-
+/** Categorize expenses (learned overrides + rules) + flag likely duplicates against the DB. */
+function annotate(handle: DbHandle, spaceId: string, raw: FinExtractionResult): FinExtractionResult {
   const overrides = new FinCategoryOverrideRepo(handle, spaceId);
   const incomeRepo = new FinIncomeRepo(handle, spaceId);
   const expenseRepo = new FinExpenseRepo(handle, spaceId);
-
   const incomes: ExtractedIncome[] = raw.incomes.map((i) => ({
     ...i,
     duplicate: !!incomeRepo.findDuplicate(i.date ?? today(), i.netCents),
@@ -48,13 +37,58 @@ export async function ingestPaste(
     category: categorize(e.merchant, overrides.get(e.merchant ?? "")),
     duplicate: !!expenseRepo.findDuplicate(e.date ?? today(), e.amountCents, e.merchant ?? null),
   }));
+  return { incomes, expenses, provider: raw.provider };
+}
 
-  const result: FinExtractionResult = { incomes, expenses, provider: raw.provider };
-  const source = new FinSourceRepo(handle, spaceId).create({
-    kind: "paste",
-    extractionJson: JSON.stringify({ raw: text.slice(0, 20_000), result }),
-  });
-  return { sourceId: source.id, result };
+/** Persist a pending source with its (truncated) raw + annotated result for traceability. */
+function persistSource(handle: DbHandle, spaceId: string, kind: FinSourceKind, mime: string | null, rawText: string | null, result: FinExtractionResult): number {
+  return new FinSourceRepo(handle, spaceId).create({
+    kind,
+    mime,
+    // NOTE: raw image blobs are NOT written to disk yet (Stage 2 hardening, decision D1);
+    // for paste we retain the text, for image we retain the mime + extraction only.
+    extractionJson: JSON.stringify({ raw: rawText ? rawText.slice(0, 20_000) : undefined, result }),
+  }).id;
+}
+
+/**
+ * Parse pasted text into DRAFT candidates: retain the raw source (status=pending), run the
+ * heuristic provider, categorize + dedup-flag. Returns the sourceId + the annotated result.
+ * Commits NOTHING. Offline: needs no cloud key.
+ */
+export async function ingestPaste(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  text: string,
+): Promise<{ sourceId: number; result: FinExtractionResult }> {
+  const raw = await new HeuristicOcrProvider().extract({ kind: "paste", text });
+  const result = annotate(handle, spaceId, raw);
+  const sourceId = persistSource(handle, spaceId, "paste", null, text, result);
+  return { sourceId, result };
+}
+
+/**
+ * Read a financial screenshot/PDF via the vision provider (Stage 1c). Degrades gracefully:
+ * if no vision key is configured (or the call fails), it returns an EMPTY result so the UI
+ * drops to manual entry — the source is still retained. Commits NOTHING.
+ */
+export async function ingestImage(
+  handle: DbHandle,
+  llm: LlmProvider,
+  spaceId: string = DEFAULT_SPACE,
+  image: { dataUrl: string; mime: string },
+): Promise<{ sourceId: number; result: FinExtractionResult; readable: boolean }> {
+  let raw: FinExtractionResult | null = null;
+  try {
+    raw = (await llm.extractFinancialImage?.(image)) ?? null;
+  } catch {
+    raw = null; // never let a vision failure break ingestion
+  }
+  const base: FinExtractionResult = raw ?? { incomes: [], expenses: [], provider: "vision" };
+  const result = annotate(handle, spaceId, base);
+  const kind: FinSourceKind = image.mime === "application/pdf" ? "pdf" : "image";
+  const sourceId = persistSource(handle, spaceId, kind, image.mime, null, result);
+  return { sourceId, result, readable: !!raw && (result.incomes.length > 0 || result.expenses.length > 0) };
 }
 
 /**

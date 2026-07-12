@@ -7,7 +7,7 @@ import { FinIncomeRepo } from "../../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { getBudgetSummary } from "../../finance/summary.js";
-import { ingestPaste, confirmIngest } from "../../finance/ingest.js";
+import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -150,6 +150,19 @@ export function financeRoutes(ctx: AppContext): Router {
     if (!p.success) return bad(res, "Body must be { text }", p.error.issues);
     const out = await ingestPaste(ctx.handle, spaceOf(res), p.data.text);
     res.json(out); // { sourceId, result } — nothing committed yet
+  });
+
+  // Snap a screenshot/PDF (Stage 1c). Vision auto-extracts when a key is configured; with no
+  // key (or on failure) it returns an empty result + readable:false so the UI drops to manual.
+  const ImageBody = z
+    // Cap under the global 1mb JSON body limit; the client downsizes before upload.
+    .object({ dataUrl: z.string().min(16).startsWith("data:").max(950_000), mime: z.string().max(60) })
+    .strict();
+  r.post("/ingest/image", async (req, res) => {
+    const p = ImageBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Body must be { dataUrl, mime }", p.error.issues);
+    const out = await ingestImage(ctx.handle, ctx.llm, spaceOf(res), { dataUrl: p.data.dataUrl, mime: p.data.mime });
+    res.json(out);
   });
 
   const ConfirmBody = z

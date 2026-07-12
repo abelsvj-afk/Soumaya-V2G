@@ -4562,3 +4562,7 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border); border-radius: 8px;
   padding: 8px; min-height: 40px; font-size: 0.9rem; }
 .fin-draft-flag { flex-basis: 100%; font-size: 0.72rem; color: #ffd27a; }
+
+/* Financial OS — snap import */
+.fin-snap { display: flex; flex-direction: column; gap: 6px; }
+.fin-snap-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }

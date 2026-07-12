@@ -1,4 +1,4 @@
-import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
+import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -93,6 +93,57 @@ export class OpenAiProvider implements LlmProvider {
     const content = body.choices?.[0]?.message?.content;
     if (!content) throw new Error("OpenAI returned no content (refusal or empty response).");
     return JSON.parse(content) as T;
+  }
+
+  /**
+   * Financial OS (Stage 1c): read a screenshot/PDF of income or expenses and return DRAFT
+   * candidates. Best-effort + fully guarded — ANY failure returns null so the ingest route
+   * degrades to manual entry (no feature hard-depends on a vision key). Amounts requested in
+   * integer cents. gpt-4o-mini is vision-capable.
+   */
+  async extractFinancialImage(image: { dataUrl: string; mime: string }): Promise<FinExtractionResult | null> {
+    try {
+      const system =
+        "You read a screenshot of financial transactions (pay stub, gig earnings like GoPuff/DoorDash/Uber/Spark, or bank/Cash App/Venmo activity). " +
+        "Return ONLY JSON: {\"incomes\":[{\"date\":\"YYYY-MM-DD or null\",\"netCents\":int,\"platform\":str or null,\"confidence\":0..1}]," +
+        "\"expenses\":[{\"date\":\"YYYY-MM-DD or null\",\"amountCents\":int,\"merchant\":str or null,\"direction\":\"out\",\"confidence\":0..1}]}. " +
+        "Money in INTEGER CENTS (e.g. $44.30 -> 4430). Income = money received; expense = money spent. Omit totals/balances. If unsure, use lower confidence.";
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: [
+              { type: "text", text: "Extract the income and expense line items from this image." },
+              { type: "image_url", image_url: { url: image.dataUrl } },
+            ] },
+          ],
+        }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { choices?: { message?: { content?: string | null } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+      if (this.recordUsage && body.usage) this.recordUsage(MODEL, body.usage.prompt_tokens ?? 0, body.usage.completion_tokens ?? 0);
+      const content = body.choices?.[0]?.message?.content;
+      if (!content) return null;
+      const raw = JSON.parse(content) as { incomes?: unknown[]; expenses?: unknown[] };
+      const cents = (v: unknown): number => Math.abs(Math.round(Number(v) || 0));
+      const conf = (v: unknown): number => Math.max(0, Math.min(1, Number(v) || 0.5));
+      const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim().slice(0, 80) : undefined);
+      const date = (v: unknown): string | undefined => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : undefined);
+      const incomes = (Array.isArray(raw.incomes) ? raw.incomes : [])
+        .map((i: any) => ({ date: date(i?.date), netCents: cents(i?.netCents), platform: str(i?.platform), confidence: conf(i?.confidence) }))
+        .filter((i) => i.netCents > 0);
+      const expenses = (Array.isArray(raw.expenses) ? raw.expenses : [])
+        .map((e: any) => ({ date: date(e?.date), amountCents: cents(e?.amountCents), merchant: str(e?.merchant), direction: "out" as const, confidence: conf(e?.confidence) }))
+        .filter((e) => e.amountCents > 0);
+      return { incomes, expenses, provider: "vision" };
+    } catch {
+      return null; // any failure → caller falls back to manual entry
+    }
   }
 
   async extract(text: string, context: ContextNode[]): Promise<ExtractionResult> {

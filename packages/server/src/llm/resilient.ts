@@ -219,6 +219,17 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
+  /** Only when the primary supports vision; null → the ingest route falls back to manual. */
+  async extractFinancialImage(image: { dataUrl: string; mime: string }): Promise<import("@brain/shared").FinExtractionResult | null> {
+    if (this.blocked || !this.primary.extractFinancialImage) return null;
+    try {
+      return await withTimeout(this.primary.extractFinancialImage(image), this.timeoutMs, "extractFinancialImage");
+    } catch (err) {
+      this.note(err, "extractFinancialImage");
+      return null;
+    }
+  }
+
   /** Agentic router selection — throws when unavailable so the caller keeps every candidate. */
   async route(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]> {
     if (this.blocked || !this.primary.route) throw new Error("route unavailable");
