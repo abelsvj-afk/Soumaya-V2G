@@ -3,18 +3,38 @@ import { getDueReviews, gradeReview, type DueReview } from "../api/client.js";
 
 /**
  * Active recall (NEURO_ALIGNMENT #1) — "memory is made by retrieval, not storage".
- * Soumaya surfaces memories that have decayed to their spaced-repetition point and
- * asks you to RECALL them before revealing. You self-grade (remembered / forgot);
- * SM-2 reschedules server-side. A gentle, few-at-a-time session — not an Anki drill.
+ * Soumaya surfaces memories that have decayed to their spaced-repetition point and asks you
+ * to RECALL them before revealing. You self-grade; SM-2 reschedules server-side.
+ *
+ * Two UX fixes (user feedback): it now EXPLAINS itself (what it is, why, what happens after
+ * you grade) and it's FINITE — a short session with a gentle DAILY CAP, so it never feels like
+ * an endless wall of 20-more-instantly. Closure > completeness.
  */
+
+const SESSION_SIZE = 7; // one sitting
+const DAILY_CAP = 15; // enough for a day; the rest keep for tomorrow
+
+const todayKey = () => `review.doneToday.${new Date().toISOString().slice(0, 10)}`;
+const doneToday = (): number => {
+  try { return parseInt(localStorage.getItem(todayKey()) || "0", 10) || 0; } catch { return 0; }
+};
+const bumpToday = () => {
+  try { localStorage.setItem(todayKey(), String(doneToday() + 1)); } catch { /* ignore */ }
+};
+
 export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus?: (id: number) => void }) {
   const [due, setDue] = useState<DueReview[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [revealed, setRevealed] = useState(false);
   const [done, setDone] = useState(0);
+  const [why, setWhy] = useState(false);
+  const [cappedForToday, setCappedForToday] = useState(false);
 
   useEffect(() => {
-    void getDueReviews().then((d) => setDue(d));
+    const already = doneToday();
+    if (already >= DAILY_CAP) { setCappedForToday(true); setDue([]); return; }
+    const room = Math.min(SESSION_SIZE, DAILY_CAP - already);
+    void getDueReviews().then((d) => setDue(d.slice(0, room)));
   }, []);
 
   const current = due && idx < due.length ? due[idx] : null;
@@ -22,7 +42,8 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
   const grade = async (remembered: boolean) => {
     if (!current) return;
     await gradeReview(current.id, remembered);
-    // A recall now earns Fuel + keeps the streak alive — nudge the HUD to refresh.
+    bumpToday();
+    // A recall earns Fuel + keeps the streak alive — nudge the HUD to refresh.
     window.dispatchEvent(new Event("brain-memory-added"));
     setDone((n) => n + 1);
     setRevealed(false);
@@ -37,35 +58,56 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
           <span className="rv-glyph">🧠</span>
           <div>
             <div className="rv-title">Recall session</div>
-            <div className="rv-sub">Retrieval, not re-reading — try to remember before you open it.</div>
+            <div className="rv-sub">
+              A quick memory workout — try to remember before you reveal.{" "}
+              <button className="rv-why" onClick={() => setWhy((v) => !v)}>{why ? "Hide" : "What's this?"}</button>
+            </div>
           </div>
         </div>
 
-        {due === null && <div className="rv-empty">Finding memories ready to revisit…</div>}
-
-        {due && due.length === 0 && (
-          <div className="rv-empty">
-            <p>Nothing due right now — your memories are fresh. 🌟</p>
-            <p className="rv-empty-sub">Soumaya will resurface them as they gently fade.</p>
+        {why && (
+          <div className="rv-explain">
+            <p><strong>Why:</strong> you remember things by <em>retrieving</em> them, not re-reading them. Recalling an old memory strengthens it — so it sticks.</p>
+            <p><strong>After you grade:</strong> "I remembered" brightens that memory's star and pushes its next review further out; "Forgot" brings it back sooner so it doesn't slip away. It's rescheduled for you automatically — you never track it.</p>
+            <p><strong>The red dot</strong> is just how many memories are ready to revisit. You don't have to clear them all — a short session is the whole point.</p>
           </div>
         )}
 
-        {due && due.length > 0 && !current && (
+        {due === null && <div className="rv-empty">Finding memories ready to revisit…</div>}
+
+        {cappedForToday && (
+          <div className="rv-empty">
+            <p>You've done your reviews for today — nice work. 🌟</p>
+            <p className="rv-empty-sub">The rest will keep. Come back tomorrow.</p>
+            <button className="rv-btn primary" onClick={onClose}>Done</button>
+          </div>
+        )}
+
+        {!cappedForToday && due && due.length === 0 && (
+          <div className="rv-empty">
+            <p>Nothing due right now — your memories are fresh. 🌟</p>
+            <p className="rv-empty-sub">Soumaya will resurface them as they gently fade.</p>
+            <button className="rv-btn primary" onClick={onClose}>Done</button>
+          </div>
+        )}
+
+        {!cappedForToday && due && due.length > 0 && !current && (
           <div className="rv-empty">
             <p>Session complete — you revisited {done} memor{done === 1 ? "y" : "ies"}. ✨</p>
+            <p className="rv-empty-sub">That's a good session. Come back later for the next few.</p>
             <button className="rv-btn primary" onClick={onClose}>Done</button>
           </div>
         )}
 
         {current && (
           <div className="rv-body">
-            <div className="rv-progress">{idx + 1} / {due!.length}</div>
+            <div className="rv-progress">{idx + 1} of {due!.length} this session</div>
             <div className="rv-prompt">Do you remember this one?</div>
             <button className="rv-label" onClick={() => current && onFocus?.(current.id)} title="Find it in the galaxy">
               {current.label}
             </button>
             {!revealed ? (
-              <button className="rv-btn reveal" onClick={() => setRevealed(true)}>Reveal & rate my recall</button>
+              <button className="rv-btn reveal" onClick={() => setRevealed(true)}>Reveal &amp; rate my recall</button>
             ) : (
               <div className="rv-grade">
                 <button className="rv-btn forgot" onClick={() => void grade(false)}>Forgot</button>

@@ -4586,3 +4586,9 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   border: 1px solid var(--glass-border); cursor: pointer; font-size: 0.9rem; }
 .fin-txn.edit input { background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border);
   border-radius: 8px; padding: 8px; min-height: 40px; font-size: 0.9rem; }
+
+/* Recall session — explanation UI */
+.rv-why { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline; padding: 0; }
+.rv-explain { background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); border-radius: 10px;
+  padding: 10px 12px; margin: 8px 0; font-size: 0.85rem; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
+.rv-explain strong { color: var(--accent); }
