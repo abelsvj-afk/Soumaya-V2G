@@ -1,0 +1,99 @@
+import type { DbHandle } from "../db/client.js";
+import { DEFAULT_SPACE } from "../db/schema.js";
+import type { Journey, JourneyLink, JourneyLinkKind, JourneyStatus } from "@brain/shared";
+
+/**
+ * Owns all SQL for `journeys` + `journey_link` (Vision 2.0). A Journey is a life chapter
+ * everything can belong to; we LINK objects to it (a ref into their own table) rather than
+ * copying them — so the knowledge graph + fin_* tables stay the source of truth. Space-scoped.
+ */
+export class JourneysRepo {
+  constructor(private handle: DbHandle, private spaceId: string = DEFAULT_SPACE) {}
+
+  private map(r: any): Journey {
+    return {
+      id: r.id, title: r.title, description: r.description, status: r.status as JourneyStatus,
+      color: r.color ?? undefined, icon: r.icon ?? undefined, progress: r.progress,
+      createdAt: r.created_at, updatedAt: r.updated_at,
+      linkCount: r.link_count != null ? Number(r.link_count) : undefined,
+    };
+  }
+
+  list(includeDone = true): Journey[] {
+    const rows = this.handle.sqlite
+      .prepare(`SELECT j.*, (SELECT COUNT(*) FROM journey_link l WHERE l.space_id = j.space_id AND l.journey_id = j.id) AS link_count
+                FROM journeys j WHERE j.space_id = ? ${includeDone ? "" : "AND j.status != 'done'"}
+                ORDER BY (j.status = 'active') DESC, j.updated_at DESC`)
+      .all(this.spaceId) as any[];
+    return rows.map((r) => this.map(r));
+  }
+
+  get(id: number): Journey | null {
+    const r = this.handle.sqlite.prepare(`SELECT * FROM journeys WHERE id = ? AND space_id = ?`).get(id, this.spaceId);
+    return r ? this.map(r) : null;
+  }
+
+  create(input: { title: string; description?: string; color?: string; icon?: string; status?: JourneyStatus }): Journey {
+    const info = this.handle.sqlite
+      .prepare(`INSERT INTO journeys (space_id, title, description, status, color, icon) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(this.spaceId, input.title.trim(), input.description ?? "", input.status ?? "active", input.color ?? null, input.icon ?? null);
+    return this.get(Number(info.lastInsertRowid))!;
+  }
+
+  update(id: number, patch: Partial<Pick<Journey, "title" | "description" | "status" | "color" | "icon" | "progress">>): Journey | null {
+    const cur = this.get(id);
+    if (!cur) return null;
+    const n = { ...cur, ...patch };
+    this.handle.sqlite
+      .prepare(`UPDATE journeys SET title=?, description=?, status=?, color=?, icon=?, progress=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND space_id=?`)
+      .run(n.title, n.description, n.status, n.color ?? null, n.icon ?? null, Math.max(0, Math.min(1, n.progress)), id, this.spaceId);
+    return this.get(id);
+  }
+
+  remove(id: number): boolean {
+    const tx = this.handle.sqlite.transaction(() => {
+      this.handle.sqlite.prepare(`DELETE FROM journey_link WHERE journey_id = ? AND space_id = ?`).run(id, this.spaceId);
+      return this.handle.sqlite.prepare(`DELETE FROM journeys WHERE id = ? AND space_id = ?`).run(id, this.spaceId).changes > 0;
+    });
+    return tx();
+  }
+
+  // ---- Links (attach any object to a journey; we never copy the object) ----
+  private mapLink(r: any): JourneyLink {
+    return { id: r.id, journeyId: r.journey_id, kind: r.kind as JourneyLinkKind, refId: r.ref_id, createdAt: r.created_at };
+  }
+
+  link(journeyId: number, kind: JourneyLinkKind, refId: number): JourneyLink | null {
+    if (!this.get(journeyId)) return null; // journey must exist + be in this space
+    this.handle.sqlite
+      .prepare(`INSERT OR IGNORE INTO journey_link (space_id, journey_id, kind, ref_id) VALUES (?, ?, ?, ?)`)
+      .run(this.spaceId, journeyId, kind, refId);
+    this.handle.sqlite.prepare(`UPDATE journeys SET updated_at = CURRENT_TIMESTAMP WHERE id = ? AND space_id = ?`).run(journeyId, this.spaceId);
+    const r = this.handle.sqlite
+      .prepare(`SELECT * FROM journey_link WHERE space_id = ? AND journey_id = ? AND kind = ? AND ref_id = ?`)
+      .get(this.spaceId, journeyId, kind, refId);
+    return r ? this.mapLink(r) : null;
+  }
+
+  unlink(journeyId: number, kind: JourneyLinkKind, refId: number): boolean {
+    return this.handle.sqlite
+      .prepare(`DELETE FROM journey_link WHERE space_id = ? AND journey_id = ? AND kind = ? AND ref_id = ?`)
+      .run(this.spaceId, journeyId, kind, refId).changes > 0;
+  }
+
+  links(journeyId: number): JourneyLink[] {
+    const rows = this.handle.sqlite
+      .prepare(`SELECT * FROM journey_link WHERE space_id = ? AND journey_id = ? ORDER BY created_at DESC`)
+      .all(this.spaceId, journeyId) as any[];
+    return rows.map((r) => this.mapLink(r));
+  }
+
+  /** Which journeys a given object belongs to (for "this memory is part of…"). */
+  journeysFor(kind: JourneyLinkKind, refId: number): Journey[] {
+    const rows = this.handle.sqlite
+      .prepare(`SELECT j.* FROM journeys j JOIN journey_link l ON l.journey_id = j.id AND l.space_id = j.space_id
+                WHERE j.space_id = ? AND l.kind = ? AND l.ref_id = ? ORDER BY j.updated_at DESC`)
+      .all(this.spaceId, kind, refId) as any[];
+    return rows.map((r) => this.map(r));
+  }
+}

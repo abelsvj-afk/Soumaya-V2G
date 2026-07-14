@@ -402,4 +402,30 @@ export const BOOTSTRAP_SQL = `
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS fin_goal_link_space_idx ON fin_goal_link(space_id);
+
+    -- Journeys (Vision 2.0): a life chapter everything can belong to. We LINK, never copy.
+    CREATE TABLE IF NOT EXISTS journeys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'active',
+      color TEXT,
+      icon TEXT,
+      progress REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS journeys_space_idx ON journeys(space_id, status);
+
+    CREATE TABLE IF NOT EXISTS journey_link (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      journey_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      ref_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS journey_link_space_idx ON journey_link(space_id, journey_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS journey_link_unique ON journey_link(space_id, journey_id, kind, ref_id);
 `;

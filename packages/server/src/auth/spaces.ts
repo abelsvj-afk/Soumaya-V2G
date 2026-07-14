@@ -43,6 +43,8 @@ const TABLES_WITH_SPACE = [
   "fin_bill_occurrence",
   "fin_category_override",
   "fin_goal_link",
+  "journeys",
+  "journey_link",
 ] as const;
 
 function hash(passcode: string, salt: string): Buffer {

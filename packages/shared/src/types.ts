@@ -552,6 +552,48 @@ export interface Lens {
   count?: number;
 }
 
+// ---- Journeys (Vision 2.0) ------------------------------------------------------------
+// A Journey is a meaningful chapter of your life (Become an RN, Recover Financially, …).
+// Everything can belong to one; we LINK objects to journeys (never copy them). See
+// docs/VISION_2_JOURNEYS.md.
+
+export type JourneyStatus = "active" | "paused" | "done";
+
+/** The kinds of object a journey can link to (a ref into that object's own table). */
+export type JourneyLinkKind =
+  | "node" // a memory / goal / person / any graph node
+  | "task" // an action item
+  | "income" | "expense" | "bill" // Financial OS rows
+  | "insight" // synthesis / belief
+  | "doc" // a knowledge document
+  | "chat" // a saved conversation
+  | "achievement";
+
+export interface Journey {
+  id: number;
+  title: string;
+  description: string;
+  status: JourneyStatus;
+  /** Accent colour (hex) for its hub star + UI; optional. */
+  color?: string;
+  /** Emoji glyph for quick recognition; optional. */
+  icon?: string;
+  /** 0..1 progress (user-set or derived); drives the Living-Galaxy hub brightness. */
+  progress: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Count of linked objects (enriched on read). */
+  linkCount?: number;
+}
+
+export interface JourneyLink {
+  id: number;
+  journeyId: number;
+  kind: JourneyLinkKind;
+  refId: number;
+  createdAt: string;
+}
+
 // ---- Financial OS (Stage 1a) ----------------------------------------------------------
 // All money is stored + computed in INTEGER MINOR UNITS (cents) to avoid float drift.
 // See docs/financial-os/ for the design. These are the domain types shared by the

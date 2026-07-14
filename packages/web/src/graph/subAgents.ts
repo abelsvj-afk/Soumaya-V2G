@@ -113,6 +113,7 @@ function glowSprite(color: string): THREE.Sprite {
       transparent: true,
       depthWrite: false,
       blending: THREE.AdditiveBlending,
+      opacity: 0.62, // dial the glow down a touch — it read too bright up close on focus (keep the colour)
     }),
   );
 }
@@ -136,7 +137,7 @@ function makeCraft(hull: string, glow: string): THREE.Group {
   // The role-coloured glow stays (it's the accessible colour channel + keeps the small hull
   // visible against dark space); the loaded hull is neutral steel underneath it.
   const light = glowSprite(glow.startsWith("rgba") ? glow : "rgba(150,220,255,0.95)");
-  light.scale.set(12, 12, 1);
+  light.scale.set(9.5, 9.5, 1); // slightly smaller so the glow doesn't wash out the hull when focused
   group.add(light);
   // Upgrade the cone to Soumaya's real E-45 fleet hull once it loads (cloned from the shared
   // prototype — geometry/materials are shared across all craft, so it's cheap per unit).
