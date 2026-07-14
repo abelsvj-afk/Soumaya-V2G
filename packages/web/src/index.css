@@ -4640,3 +4640,41 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .jn-chip.add { background: var(--glass); border-style: dashed; }
 .jn-chip-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; margin-left: 4px; padding: 0 2px; }
 .jn-chip-x:hover { color: #ff8a8a; }
+
+/* ---- Observatory → Mission Control: premium polish + staggered entrance ---- */
+@media (prefers-reduced-motion: no-preference) {
+  .obs-stack > .obs-card, .obs-stack > button.obs-card, .obs-stack > div.obs-card {
+    animation: obs-card-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.05) both;
+  }
+  /* stagger the first several cards so they cascade in */
+  .obs-stack > *:nth-child(1) { animation-delay: 0.04s; }
+  .obs-stack > *:nth-child(2) { animation-delay: 0.10s; }
+  .obs-stack > *:nth-child(3) { animation-delay: 0.16s; }
+  .obs-stack > *:nth-child(4) { animation-delay: 0.22s; }
+  .obs-stack > *:nth-child(5) { animation-delay: 0.28s; }
+  .obs-stack > *:nth-child(6) { animation-delay: 0.34s; }
+  .obs-stack > *:nth-child(7) { animation-delay: 0.40s; }
+  .obs-stack > *:nth-child(n+8) { animation-delay: 0.46s; }
+}
+@keyframes obs-card-in { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
+
+/* A subtle top-edge sheen + deeper glass for a more "pro" card. */
+.obs-card { position: relative; overflow: hidden; background: linear-gradient(160deg, rgba(20,26,50,0.82), rgba(10,13,28,0.78)); }
+.obs-card::before {
+  content: ""; position: absolute; inset: 0; border-radius: 14px; pointer-events: none;
+  background: linear-gradient(120deg, rgba(122,220,255,0.10), transparent 40%);
+}
+.obs-card:hover { border-color: rgba(122,220,255,0.55); box-shadow: 0 10px 34px rgba(0,0,0,0.5), 0 0 0 1px rgba(122,220,255,0.12) inset; }
+.obs-head h2 { background: linear-gradient(90deg, #eaf2ff, #9fd0ff 60%, #cbb8ff); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+
+/* Safe-to-spend money card */
+.obs-money .obs-money-amt { font-size: 1.9rem; font-weight: 800; line-height: 1.05;
+  background: linear-gradient(90deg, #7af9c0, #5bd6ff); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.obs-money { border-color: rgba(122,249,192,0.28); }
+
+/* Journeys mini-progress card */
+.obs-jn { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.obs-jn-name { font-size: 0.82rem; color: #dbe6ff; }
+.obs-jn-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.obs-jn-fill { display: block; height: 100%; background: linear-gradient(90deg, #5bd6ff, #b98bff); transition: width 0.8s cubic-bezier(0.2,0.9,0.3,1); }
+.obs-journeys { border-color: rgba(150,200,255,0.26); }

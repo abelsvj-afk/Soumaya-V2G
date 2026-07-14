@@ -1903,6 +1903,11 @@ export default function App() {
             setPanel("dock");
           }}
           onEnter={dismissObs}
+          onOpenTab={(t) => {
+            dismissObs();
+            setTab(t as any);
+            setPanel("dock");
+          }}
         />
       )}
 

@@ -11,6 +11,9 @@ import { dailyQuests } from "./quests.js";
 import { playSfx } from "../graph/sfx.js";
 import { pushToast } from "./Toasts.js";
 import { SoumayaEye } from "./SoumayaEye.js";
+import type { Journey } from "@brain/shared";
+import { getFinanceSummary, type FinanceSummary } from "../api/finance.js";
+import { getJourneys } from "../api/journeys.js";
 
 /** Why she's asking — the icon that frames her daily question. */
 const CONTACT_ICON: Record<string, string> = {
@@ -51,6 +54,7 @@ export function Observatory({
   onFocus,
   onOpenInsights,
   onEnter,
+  onOpenTab,
 }: {
   spaceName: string;
   memories: GraphNode[]; // non-action nodes
@@ -62,6 +66,8 @@ export function Observatory({
   onFocus: (id: number) => void;
   onOpenInsights: () => void;
   onEnter: () => void;
+  /** Open a dock tab (Mission Control cards route here — money, journeys, …). */
+  onOpenTab?: (tab: string) => void;
 }) {
   const [insight, setInsight] = useState<Insight | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
@@ -69,6 +75,9 @@ export function Observatory({
   const [contact, setContact] = useState<DailyContact | null>(null);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  // Mission Control daily-loop data: the money glance + active journeys.
+  const [finance, setFinance] = useState<FinanceSummary | null>(null);
+  const [journeys, setJourneys] = useState<Journey[]>([]);
 
   useEffect(() => {
     getDigest()
@@ -80,6 +89,8 @@ export function Observatory({
     getDailyContact()
       .then(setContact)
       .catch(() => {});
+    getFinanceSummary().then((f) => setFinance(f)).catch(() => {});
+    getJourneys().then((j) => setJourneys((j ?? []).filter((x) => x.status === "active").slice(0, 3))).catch(() => {});
   }, []);
   // The welcome-home motif used to play from the separate away card.
   useEffect(() => {
@@ -263,6 +274,36 @@ export function Observatory({
             <span className="obs-body">
               <span className="obs-title">Her discovery of the day</span>
               <span className="obs-line obs-clamp">{contact.discovery.text}</span>
+            </span>
+          </button>
+        )}
+
+        {finance && (finance.budget.balanceCents !== 0 || finance.upcoming.length > 0) && (
+          <button className="obs-card obs-money" onClick={() => (onOpenTab ? onOpenTab("money") : onEnter())} title="Open Money">
+            <span className="obs-ic">💵</span>
+            <span className="obs-body">
+              <span className="obs-title">Safe to spend</span>
+              <span className="obs-money-amt">${Math.round(finance.budget.safeToSpendCents / 100)}</span>
+              <span className="obs-line">
+                {finance.budget.shortfallCents > 0
+                  ? `⚠️ short $${Math.round(finance.budget.shortfallCents / 100)} before ${finance.budget.nextIncomeDate}`
+                  : `${finance.upcoming.length} bill${finance.upcoming.length === 1 ? "" : "s"} coming up`}
+              </span>
+            </span>
+          </button>
+        )}
+
+        {journeys.length > 0 && (
+          <button className="obs-card obs-journeys" onClick={() => (onOpenTab ? onOpenTab("journeys") : onEnter())} title="Open Journeys">
+            <span className="obs-ic">🧭</span>
+            <span className="obs-body">
+              <span className="obs-title">Your journeys</span>
+              {journeys.map((j) => (
+                <span key={j.id} className="obs-jn">
+                  <span className="obs-jn-name">{j.icon ?? "🧭"} {j.title}</span>
+                  <span className="obs-jn-bar"><span className="obs-jn-fill" style={{ width: `${Math.round((j.progress ?? 0) * 100)}%` }} /></span>
+                </span>
+              ))}
             </span>
           </button>
         )}

@@ -50,6 +50,13 @@ glance (funded ✓, approaching ◐, at-risk/cooling ❄ blue, overdue !, paid �
 is exactly the state→glyph model already in `docs/financial-os/stage-4-galaxy-and-zero-based.md` §A2 —
 implement the on-focus glyph badge as part of the money-sky.
 
+## Theme 4b — Observatory = Mission Control (DECIDED + executed)
+Checked the Observatory for redundancy with the planned Mission Control: they are the SAME surface
+(a calm home you land on). Decision: **evolve the Observatory into Mission Control** rather than build
+a second home. Added the two missing daily-loop cards — **Safe to Spend** (opens Money) and **active
+Journeys progress** (opens Journeys) — to the existing Observatory, which already had Daily Contact,
+the away digest, reminders, discovery, quests, and recent. No duplicate component created.
+
 ## Theme 5 — Budgeting & to-do depth
 - Budgeting hasn't gone deep yet beyond Stage 1–3 — the **zero-based "give every dollar a job"** +
   **Audit** (Stage 4 B/C) are where the depth lands.
