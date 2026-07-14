@@ -2031,6 +2031,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       exitCluster: () => {
         setCluster(null);
         followRef.current = null;
+        // Restore the contextual overlay layers hidden during a focused/category view.
+        if (sceneryRef.current.moneysky) sceneryRef.current.moneysky.visible = true;
+        if (sceneryRef.current.journeyhubs) sceneryRef.current.journeyhubs.visible = true;
         frameGalaxy(800);
       },
       isolateSet: (ids: number[]) => {
@@ -2038,6 +2041,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // them. Reuses the isolate-system cluster machinery with an arbitrary set.
         const set = new Set(ids);
         setCluster(set);
+        // While viewing a slice (category view / lens), drop the extra sprite overlays
+        // (money-sky + journey hubs) — fewer draw calls on a weak phone; restored on exit.
+        if (sceneryRef.current.moneysky) sceneryRef.current.moneysky.visible = false;
+        if (sceneryRef.current.journeyhubs) sceneryRef.current.journeyhubs.visible = false;
         followRef.current = null;
         followObjRef.current = null;
         followKindRef.current = null;
