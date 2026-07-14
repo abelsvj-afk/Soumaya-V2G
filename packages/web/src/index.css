@@ -4592,3 +4592,40 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .rv-explain { background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); border-radius: 10px;
   padding: 10px 12px; margin: 8px 0; font-size: 0.85rem; color: var(--text); display: flex; flex-direction: column; gap: 6px; }
 .rv-explain strong { color: var(--accent); }
+
+/* ---- Journeys (Vision 2.0) — mobile-first ---- */
+.jn-panel { display: flex; flex-direction: column; gap: 10px; padding: 4px 2px 24px; }
+.jn-empty { color: var(--muted); font-size: 0.9rem; }
+.jn-intro { font-size: 0.88rem; color: var(--text); background: radial-gradient(120% 120% at 50% 0%, rgba(122,249,255,0.10), var(--glass));
+  border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; }
+.jn-intro strong { color: var(--accent); }
+.jn-suggest-row, .jn-form-actions, .jn-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.jn-chip { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 999px; color: var(--text);
+  padding: 8px 12px; min-height: 40px; cursor: pointer; font-size: 0.88rem; }
+.jn-card { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden;
+  animation: finFade 0.28s ease both; }
+.jn-card.paused { opacity: 0.7; }
+.jn-card.done { opacity: 0.6; }
+.jn-card-head { display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; color: var(--text);
+  padding: 12px; cursor: pointer; font-size: 0.98rem; }
+.jn-icon { font-size: 1.3rem; }
+.jn-name { flex: 1; font-weight: 700; text-align: left; }
+.jn-links { color: var(--muted); font-size: 0.75rem; }
+.jn-bar { height: 5px; background: rgba(255,255,255,0.08); }
+.jn-bar-fill { height: 100%; background: linear-gradient(90deg, #5bd6ff, #b98bff); transition: width 0.6s ease; }
+.jn-detail { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--glass-border); }
+.jn-desc { color: var(--muted); font-size: 0.85rem; }
+.jn-progress-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
+.jn-progress-row input[type="range"] { flex: 1; }
+.jn-hint { color: var(--muted); font-size: 0.78rem; }
+.jn-form { display: flex; flex-direction: column; gap: 8px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; }
+.jn-form-row { display: flex; gap: 8px; }
+.jn-icon-in { width: 52px; text-align: center; }
+.jn-title-in { flex: 1; }
+.jn-form input { background: rgba(0,0,0,0.25); color: var(--text); border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; min-height: 44px; font-size: 1rem; }
+.jn-primary, .jn-secondary, .jn-danger { border-radius: 10px; padding: 10px 14px; font-weight: 700; font-size: 0.9rem; min-height: 44px; cursor: pointer; border: 1px solid var(--glass-border); }
+.jn-primary { background: linear-gradient(120deg, #5bd6ff, #b98bff); color: #06121f; border: none; }
+.jn-add { width: 100%; }
+.jn-secondary { background: var(--glass); color: var(--text); }
+.jn-danger { background: var(--glass); color: #ff8a8a; }
+.jn-done summary { color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 6px 0; }
