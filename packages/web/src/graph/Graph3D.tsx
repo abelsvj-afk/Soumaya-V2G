@@ -777,7 +777,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const camera: THREE.Camera = fg.camera();
     const tmp = new THREE.Vector3();
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
-    const FADE_FAR = 540; // labels fully hidden at/over this distance
+    // Labels are transparent canvas sprites (extra draw calls + overdraw) — the cost that makes
+    // a big galaxy heavy on a weak phone (you feel it lift when a lens/isolate hides bodies). So
+    // on lower graphics tiers, fade labels out SOONER: fewer are on screen at once = less GPU load.
+    const perfTier = gfxRef.current?.tier ?? "quality";
+    const FADE_FAR = perfTier === "performance" ? 300 : perfTier === "balanced" ? 420 : 540;
     // Small screens show these zoomed-out sector names much smaller — give them a boost so
     // they're actually readable on a phone (the "can't read the names when zoomed out" bug).
     const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 760;
