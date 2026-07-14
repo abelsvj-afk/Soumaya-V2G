@@ -32,7 +32,7 @@ export function ToolsMenu(p: ToolsMenuProps) {
     { icon: "⧉", label: "Lenses", on: p.onLenses },
     { icon: "🔗", label: "Connections", on: p.onConnections, badge: p.candCount },
     { icon: "🧠", label: "Recall", on: p.onReview, badge: p.dueCount },
-    { icon: "🕰️", label: "Chronicle", on: p.onTimeline },
+    { icon: "🕰️", label: "Timeline", on: p.onTimeline },
     { icon: "🗺️", label: "Legend", on: p.onLegend },
     { icon: "☄️", label: "Flashback", on: p.onFlashback },
     { icon: p.focusMode ? "🌐" : "🌌", label: p.focusMode ? "Exit focus" : "Focus mode", on: p.onFocusMode },
