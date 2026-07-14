@@ -30,6 +30,7 @@ import { HelpPanel } from "./components/HelpPanel.js";
 import { Legend } from "./components/Legend.js";
 import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
+import { GalaxyViews } from "./components/GalaxyViews.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -1501,6 +1502,17 @@ export default function App() {
       {space && !demo && (
         <LensChips
           activeLens={activeLens}
+          onOpen={openLens}
+          onExit={exitLens}
+          hidden={panel !== null || showChat || showObs || !!selected}
+        />
+      )}
+
+      {/* Galaxy category views — render one category at a time (lighter on a cheap phone). */}
+      {space && !demo && (
+        <GalaxyViews
+          nodes={view.nodes as GraphNode[]}
+          activeView={activeLens}
           onOpen={openLens}
           onExit={exitLens}
           hidden={panel !== null || showChat || showObs || !!selected}

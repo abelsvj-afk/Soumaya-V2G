@@ -4678,3 +4678,16 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .obs-jn-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .obs-jn-fill { display: block; height: 100%; background: linear-gradient(90deg, #5bd6ff, #b98bff); transition: width 0.8s cubic-bezier(0.2,0.9,0.3,1); }
 .obs-journeys { border-color: rgba(150,200,255,0.26); }
+
+/* ---- Galaxy Views (mobile perf: render one category at a time) ---- */
+.gv-wrap { position: fixed; left: 12px; bottom: 150px; z-index: 40; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
+.gv-toggle { background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border); color: var(--text);
+  border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.85rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
+.gv-toggle.open { border-color: rgba(122,220,255,0.5); }
+.gv-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 72vw; animation: finFade 0.2s ease both; }
+.gv-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border);
+  color: var(--text); border-radius: 999px; padding: 7px 12px; min-height: 38px; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(6px); }
+.gv-chip.on { border-color: rgba(122,220,255,0.6); background: rgba(122,220,255,0.14); }
+.gv-chip.gv-all { border-style: dashed; }
+.gv-count { color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
+.gv-chip.on .gv-count { color: var(--accent); }
