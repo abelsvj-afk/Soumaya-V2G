@@ -11,6 +11,7 @@ import { AttachmentsRepo } from "../../repositories/attachments.repo.js";
 import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
 import { requestMaintenance } from "../../maintenance/agent.js";
 import { spaceOf } from "../middleware.js";
+import { researchSteer } from "../../analysis/researchType.js";
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
 const PatchBody = z.object({ importance: z.number().min(0).max(1).nullable() });
@@ -182,7 +183,7 @@ export function nodesRoutes(ctx: AppContext): Router {
           .values({ spaceId, nodeA: id, nodeB: neighbors[0]?.id ?? id, text, score: 0.8 })
           .run();
       } else {
-        const research = await ctx.llm.research({ label: node.label, content: node.content });
+        const research = await ctx.llm.research({ label: node.label, content: node.content }, researchSteer(node as any));
         if (research.questions && research.questions.length > 0) {
           questions = research.questions;
           new NodesRepo(ctx.handle, spaceId).updateResearch(id, questions, {});
@@ -336,7 +337,7 @@ export function nodesRoutes(ctx: AppContext): Router {
     const userAnswersText = lines.join("\n\n");
 
     try {
-      const research = await ctx.llm.research({ label: node.label, content: node.content }, userAnswersText);
+      const research = await ctx.llm.research({ label: node.label, content: node.content }, `${researchSteer(node as any)}\n\n${userAnswersText}`);
       const expandedContent = `${node.content}\n\n--- Research Deep Dive ---\n${research.content}`;
       const newImp = Math.min(1.0, (node.importance ?? 0.5) + 0.2);
 

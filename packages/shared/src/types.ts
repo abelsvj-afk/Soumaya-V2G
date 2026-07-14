@@ -552,6 +552,39 @@ export interface Lens {
   count?: number;
 }
 
+// ---- Investigator + typed research (docs/INVESTIGATOR_RESEARCH.md) ---------------------
+// One generic "research" doesn't fit trauma AND a business model. Research is TYPED, and
+// Investigator (an internal, cited deep-dive) runs first and feeds it.
+
+export type ResearchType =
+  | "emotional" // trauma / grief / relationship pain — gentle, non-clinical
+  | "relationship"
+  | "financial"
+  | "health"
+  | "learning"
+  | "business"
+  | "decision"
+  | "general"; // the current default behaviour (fallback)
+
+/** One cited item the investigator surfaced as relevant to the subject. */
+export interface InvestigationEvidence {
+  nodeId: number;
+  label: string;
+  /** Why it's relevant (e.g. "linked via relates_to", "shares tag Work"). */
+  why: string;
+}
+
+/** The internal, cited deep-dive Soumaya runs BEFORE any outward research. */
+export interface InvestigationReport {
+  subjectId: number;
+  subjectLabel: string;
+  researchType: ResearchType;
+  /** Grounded, falsifiable summary — notices patterns/origins, never diagnoses. */
+  summary: string;
+  evidence: InvestigationEvidence[];
+  openQuestions: string[];
+}
+
 // ---- Journeys (Vision 2.0) ------------------------------------------------------------
 // A Journey is a meaningful chapter of your life (Become an RN, Recover Financially, …).
 // Everything can belong to one; we LINK objects to journeys (never copy them). See

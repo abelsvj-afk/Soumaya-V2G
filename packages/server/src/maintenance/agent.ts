@@ -1,6 +1,7 @@
 import { and, eq, or } from "drizzle-orm";
 import type { AppContext } from "../context.js";
 import { findCandidates } from "../synthesis/engine.js";
+import { researchSteer } from "../analysis/researchType.js";
 import { pickResearchTarget } from "./researchPriority.js";
 import { rationaleFor } from "./jobRationale.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
@@ -550,7 +551,7 @@ export async function executeJob(
     // already deep-dived doesn't get a second stacked dive (mirrors selection).
     if (original?.content.includes("--- Research Deep Dive ---")) return null;
     if (original) {
-      const research = await ctx.llm.research({ label: original.label, content: original.content });
+      const research = await ctx.llm.research({ label: original.label, content: original.content }, researchSteer(original as any));
       if (research.questions && research.questions.length > 0) {
         nodesRepo.updateResearch(original.id, research.questions, {});
         description = `Researched "${original.label}" and found information gaps. Generated ${research.questions.length} clarifying questions for the pilot.`;
