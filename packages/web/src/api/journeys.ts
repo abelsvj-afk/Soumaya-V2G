@@ -12,7 +12,11 @@ async function getJson<T>(path: string): Promise<T | null> {
 async function send<T>(path: string, method: string, body?: unknown): Promise<T | null> {
   try {
     const res = await afetch(`${API}/journeys${path}`, { method, headers: { "Content-Type": "application/json" }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
-    return res.ok ? ((await res.json()) as T) : null;
+    if (!res.ok) return null;
+    const out = (await res.json()) as T;
+    // A journey change (create/progress/status/link) → refresh the galaxy's Journey hubs.
+    try { window.dispatchEvent(new Event("brain-journeys-changed")); } catch { /* no window */ }
+    return out;
   } catch { return null; }
 }
 

@@ -187,6 +187,15 @@ export function Legend({ onClose }: { onClose: () => void }) {
           </section>
 
           <section>
+            <h3>Living galaxy</h3>
+            <ul className="legend-list">
+              <li><span className="legend-glyph">🧭</span><span className="legend-name">Journey hubs</span><span className="legend-meaning">your life chapters, ringed high above</span></li>
+              <li><span className="legend-glyph">✦</span><span className="legend-name">Brightening</span><span className="legend-meaning">a journey glows brighter as it progresses</span></li>
+              <li><span className="legend-glyph">◦</span><span className="legend-name">Cold</span><span className="legend-meaning">a paused journey dims + cools to slate</span></li>
+            </ul>
+          </section>
+
+          <section>
             <h3>Your money sky</h3>
             <ul className="legend-list">
               <li><span className="legend-glyph">◐</span><span className="legend-name">Approaching</span><span className="legend-meaning">a bill due soon — pulses red as it nears</span></li>

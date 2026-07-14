@@ -19,6 +19,8 @@ import { makeConstellations, loadNebulaSkybox, loadEquirectSkybox } from "./skyb
 import { makeDeepSpace, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
+import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
+import { getJourneys } from "../api/journeys.js";
 import { addBloom } from "./bloom.js";
 import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
 import { makeCollisionBursts, makeLinkForming } from "./effects.js";
@@ -169,6 +171,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const visitBufRef = useRef<{ nodeId: number; type: string }[]>([]);
   const demoRef = useRef(false);
   const finChangeHandlerRef = useRef<(() => void) | null>(null);
+  const journeyChangeHandlerRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     demoRef.current = !!demo;
     // Keep the ship demo-aware: in the demo galaxy she flies local patrols only
@@ -510,7 +513,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
   // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
-  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D }>({});
+  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D }>({});
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -527,6 +530,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     fit(s.equirect, 11500, 9.5); // optional photographic Milky Way panorama (if the asset exists)
     fit(s.deepspace, DEEP_SPACE_BASE, 8.5); // nebula clouds / dust / galaxies / belt sit far out
     fit(s.moneysky, MONEY_SKY_BASE, 1.6); // your money constellation sits just outside the galaxy
+    fit(s.journeyhubs, JOURNEY_HUBS_BASE, 1.9); // life-chapter hubs ring higher, watching over it all
     fit(s.skybox, 12000, 10); // the nebula shell sits furthest out
     // The far clip must exceed the (now-scaled) skybox on the far side of the galaxy, or
     // everything past 30000 clips. Scale it with the ceiling (kept ≥ the old 30000).
@@ -692,6 +696,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const onFinanceChanged = () => void rebuildMoneySky();
       finChangeHandlerRef.current = onFinanceChanged;
       window.addEventListener("brain-finance-changed", onFinanceChanged);
+
+      // Living Galaxy — Journey hubs (Vision 2.0): bright hubs that brighten with progress, dim
+      // when cold. Same pattern as the money-sky; rebuilt on `brain-journeys-changed`.
+      const rebuildJourneyHubs = async () => {
+        if (demoRef.current) return;
+        const journeys = (await getJourneys()) ?? [];
+        const old = sceneryRef.current.journeyhubs;
+        if (old) { scene.remove(old); disposeGroup(old); }
+        const grp = makeJourneyHubs(journeys);
+        sceneryRef.current.journeyhubs = grp;
+        scene.add(grp);
+        scaleSceneryRef.current();
+      };
+      void rebuildJourneyHubs();
+      const onJourneysChanged = () => void rebuildJourneyHubs();
+      journeyChangeHandlerRef.current = onJourneysChanged;
+      window.addEventListener("brain-journeys-changed", onJourneysChanged);
       const bursts = makeCollisionBursts();
       burstsRef.current = bursts;
       scene.add(bursts.group);
@@ -1505,6 +1526,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cancelAnimationFrame(raf);
       engine?.dispose();
       if (finChangeHandlerRef.current) window.removeEventListener("brain-finance-changed", finChangeHandlerRef.current);
+      if (journeyChangeHandlerRef.current) window.removeEventListener("brain-journeys-changed", journeyChangeHandlerRef.current);
       if (fg.__brainCleanupClick) fg.__brainCleanupClick();
       // The bloom pass holds several render targets (real VRAM) and lives on the
       // library's persistent composer — without remove+dispose, a re-init would
