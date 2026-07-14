@@ -253,6 +253,24 @@ export default function App() {
     return () => window.removeEventListener("brain-finance-changed", on);
   }, [space, demo]);
 
+  // Make dream cycles VISIBLE: on return, if Soumaya consolidated a new belief while you were
+  // away, surface a gentle clickable notification → tap to fly to the belief. (She used to do
+  // this silently, so it felt like nothing was happening.)
+  useEffect(() => {
+    if (!space || demo) return;
+    getAgentLogs().then((logs) => {
+      const dream = logs.find((l) => l.action === "dream"); // newest first
+      if (!dream) return;
+      let lastId = 0;
+      try { lastId = parseInt(localStorage.getItem("notif.lastDreamLogId") || "0", 10) || 0; } catch { /* ignore */ }
+      if (dream.id <= lastId) return;
+      try { localStorage.setItem("notif.lastDreamLogId", String(dream.id)); } catch { /* ignore */ }
+      let beliefId: number | undefined;
+      try { const t = JSON.parse(dream.targets); if (Array.isArray(t)) beliefId = Number(t[0]); } catch { /* ignore */ }
+      pushToast(`🌙 ${dream.description}`, "🌙", 10000, "normal", beliefId ? { kind: "focus", value: beliefId } : undefined);
+    }).catch(() => {});
+  }, [space, demo]);
+
   // Following any other target clears the fleet button's highlight (its own button clears theirs).
   useEffect(() => {
     if (followShip || followStation || followSatellite || followVisitor || followFig1 || followFig2)

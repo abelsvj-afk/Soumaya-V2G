@@ -222,6 +222,14 @@ if (process.env.AUTONOMY !== "off") {
               ctx.handle.sqlite
                 .prepare(`UPDATE space_meta SET last_dream_date = ? WHERE space_id = ?`)
                 .run(today, spaceId);
+              // Log the dream so it's VISIBLE (activity feed + a "she dreamed" notification) —
+              // background intelligence must announce itself, not run silently.
+              const belief = ctx.handle.sqlite
+                .prepare(`SELECT label FROM nodes WHERE id = ? AND space_id = ?`)
+                .get(beliefId, spaceId) as { label: string } | undefined;
+              ctx.handle.sqlite
+                .prepare(`INSERT INTO agent_logs (space_id, agent, action, description, targets) VALUES (?, 'soumaya', 'dream', ?, ?)`)
+                .run(spaceId, `Consolidated a belief while dreaming: "${belief?.label ?? "a pattern in your memories"}"`, JSON.stringify([beliefId]));
               console.log(`[autonomy] ${spaceId.slice(0, 8)}: dreamed belief #${beliefId}`);
             }
           }
