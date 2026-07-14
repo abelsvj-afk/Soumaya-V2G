@@ -1076,6 +1076,12 @@ export default function App() {
     graphRef.current?.exitCluster();
     setActiveLens(null);
   }, []);
+  // View only an overlay layer (money-sky / journey hubs) — their own category view.
+  const openLayer = useCallback((layer: "money" | "journeys", name: string) => {
+    graphRef.current?.isolateLayer(layer);
+    setActiveLens(name);
+    setSelected(null);
+  }, []);
 
   const triggerFlashback = useCallback(() => {
     // Find an old, high-mass memory (Serendipity hook)
@@ -1514,6 +1520,7 @@ export default function App() {
           nodes={view.nodes as GraphNode[]}
           activeView={activeLens}
           onOpen={openLens}
+          onLayer={openLayer}
           onExit={exitLens}
           hidden={panel !== null || showChat || showObs || !!selected}
         />

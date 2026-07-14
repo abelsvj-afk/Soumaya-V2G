@@ -72,6 +72,9 @@ export interface Graph3DHandle {
   exitCluster: () => void;
   /** Isolate an arbitrary SET of memories (a Smart Lens) and frame them. */
   isolateSet: (ids: number[]) => void;
+  /** View ONLY an overlay layer (the money-sky or journey hubs): hide memories + the other
+   *  overlay, frame this one. Their own "category view" for the perf pivot. */
+  isolateLayer: (layer: "money" | "journeys") => void;
   /** Trigger a visual burst at a node (e.g., for user action rewards). */
   spawnBurst: (nodeId: number, type?: string) => void;
   /** A celebratory burst salvo around the Sun (rank-ups, milestones). */
@@ -2051,6 +2054,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (set.size > 0) {
           scheduleTimeout(() => frameGalaxy(900, (n: any) => set.has(n.id)), 80);
           lightUpSweep(ids, "calibration"); // the lens' stars ripple alight as it opens
+        }
+      },
+      isolateLayer: (layer: "money" | "journeys") => {
+        setCluster(new Set()); // hide all memory bodies
+        followRef.current = null;
+        followObjRef.current = null;
+        followKindRef.current = null;
+        const money = layer === "money";
+        const s = sceneryRef.current;
+        if (s.moneysky) s.moneysky.visible = money;
+        if (s.journeyhubs) s.journeyhubs.visible = !money;
+        // Frame the chosen overlay ring by its bounding sphere.
+        const grp = money ? s.moneysky : s.journeyhubs;
+        const fg = fgRef.current;
+        const cam = fg?.camera?.() as THREE.PerspectiveCamera | undefined;
+        if (grp && fg && cam) {
+          const sphere = new THREE.Box3().setFromObject(grp).getBoundingSphere(new THREE.Sphere());
+          if (sphere.radius > 0) {
+            const fov = ((cam.fov ?? 60) * Math.PI) / 180;
+            const dist = (sphere.radius / Math.sin(fov / 2)) * 1.15;
+            const dir = new THREE.Vector3(0.3, 0.45, 1).normalize();
+            const pos = sphere.center.clone().addScaledVector(dir, dist);
+            fg.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: sphere.center.x, y: sphere.center.y, z: sphere.center.z }, 900);
+          }
         }
       },
       spawnBurst: (id: number, type = "user") => {

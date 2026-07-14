@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { GraphNode } from "@brain/shared";
+import { getMoneySky } from "../api/finance.js";
+import { getJourneys } from "../api/journeys.js";
 
 /**
  * Galaxy Views (mobile performance pivot) — view ONE category of the galaxy at a time instead
@@ -25,6 +27,7 @@ export function GalaxyViews({
   nodes,
   activeView,
   onOpen,
+  onLayer,
   onExit,
   hidden,
 }: {
@@ -32,10 +35,21 @@ export function GalaxyViews({
   /** The label of the active view/lens (so we can highlight + toggle). */
   activeView: string | null;
   onOpen: (ids: number[], name: string) => void;
+  /** View only an overlay layer that physically populates the galaxy (money-sky / journeys). */
+  onLayer?: (layer: "money" | "journeys", name: string) => void;
   onExit: () => void;
   hidden?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [moneyCount, setMoneyCount] = useState(0);
+  const [journeyCount, setJourneyCount] = useState(0);
+
+  // These are separate render layers (not graph nodes), so we count them directly.
+  useEffect(() => {
+    if (!open) return;
+    getMoneySky().then((s) => setMoneyCount(s?.length ?? 0)).catch(() => {});
+    getJourneys().then((j) => setJourneyCount((j ?? []).filter((x) => x.status !== "done").length)).catch(() => {});
+  }, [open]);
 
   // Which categories actually have bodies, with their ids (computed from the loaded graph).
   const cats = useMemo(() => {
@@ -43,7 +57,7 @@ export function GalaxyViews({
       .filter((v) => v.ids.length > 0);
   }, [nodes]);
 
-  if (hidden || cats.length === 0) return null;
+  if (hidden || (cats.length === 0 && nodes.length === 0)) return null;
 
   const tap = (v: (typeof cats)[number]) => {
     const name = `${v.icon} ${v.label}`;
@@ -70,6 +84,17 @@ export function GalaxyViews({
               </button>
             );
           })}
+          {/* Overlay layers that physically populate the galaxy get their own view too. */}
+          {onLayer && moneyCount > 0 && (() => {
+            const name = "💵 Money sky"; const on = activeView === name;
+            return <button className={`gv-chip ${on ? "on" : ""}`} onClick={() => (on ? onExit() : onLayer("money", name))} aria-pressed={on} title="View only your money stars">
+              <span>💵 Money</span><span className="gv-count">{on ? "✕" : moneyCount}</span></button>;
+          })()}
+          {onLayer && journeyCount > 0 && (() => {
+            const name = "🧭 Journeys"; const on = activeView === name;
+            return <button className={`gv-chip ${on ? "on" : ""}`} onClick={() => (on ? onExit() : onLayer("journeys", name))} aria-pressed={on} title="View only your journey hubs">
+              <span>🧭 Journeys</span><span className="gv-count">{on ? "✕" : journeyCount}</span></button>;
+          })()}
           {activeView && <button className="gv-chip gv-all" onClick={onExit}>★ Show all</button>}
         </div>
       )}
