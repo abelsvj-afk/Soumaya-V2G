@@ -1,5 +1,5 @@
 import { API, afetch } from "./http.js";
-import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult } from "@brain/shared";
+import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult, MoneyStar } from "@brain/shared";
 
 /**
  * Financial OS client (Stage 1a). Thin wrappers over /api/finance; space-scoped server-side
@@ -27,13 +27,18 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T 
       headers: { "Content-Type": "application/json" },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     });
-    return res.ok ? ((await res.json()) as T) : null;
+    if (!res.ok) return null;
+    const out = (await res.json()) as T;
+    // A money change (balance/bill/income/expense/paid) → refresh the galaxy's money-sky stars.
+    try { window.dispatchEvent(new Event("brain-finance-changed")); } catch { /* no window */ }
+    return out;
   } catch {
     return null;
   }
 }
 
 export const getFinanceSummary = () => getJson<FinanceSummary>("/summary");
+export const getMoneySky = () => getJson<MoneyStar[]>("/sky");
 export const setBalance = (cents: number) => send<FinAccount>("/account/balance", "PUT", { cents });
 export const setBuffer = (cents: number) => send<FinAccount>("/account/buffer", "PUT", { cents });
 

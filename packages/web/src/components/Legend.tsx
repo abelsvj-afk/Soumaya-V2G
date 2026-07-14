@@ -187,6 +187,17 @@ export function Legend({ onClose }: { onClose: () => void }) {
           </section>
 
           <section>
+            <h3>Your money sky</h3>
+            <ul className="legend-list">
+              <li><span className="legend-glyph">◐</span><span className="legend-name">Approaching</span><span className="legend-meaning">a bill due soon — pulses red as it nears</span></li>
+              <li><span className="legend-glyph">!</span><span className="legend-name">Overdue</span><span className="legend-meaning">past due + unpaid — red, urgent pulse</span></li>
+              <li><span className="legend-glyph">❄</span><span className="legend-name">Cooling</span><span className="legend-meaning">you can't cover it yet — turns blue</span></li>
+              <li><span className="legend-glyph">•</span><span className="legend-name">Calm</span><span className="legend-meaning">funded, not due soon — soft gold</span></li>
+              <li><span className="legend-glyph">✓</span><span className="legend-name">Paid</span><span className="legend-meaning">settled — calm green</span></li>
+            </ul>
+          </section>
+
+          <section>
             <h3>Credits</h3>
             <ul className="legend-list">
               <li>
