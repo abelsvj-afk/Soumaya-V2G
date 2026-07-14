@@ -1,11 +1,23 @@
 import { useEffect, useState } from "react";
-import type { FinBill, BillFrequency } from "@brain/shared";
+import type { FinBill, BillFrequency, FinIncome, FinExpense } from "@brain/shared";
 import type { FinExtractionResult } from "@brain/shared";
+import { useCountUp } from "../hooks/useCountUp.js";
 import {
   getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid,
   ingestPaste, ingestImage, confirmIngest,
+  listIncome, listExpense, editIncome, deleteIncome, editExpense, deleteExpense,
   type FinanceSummary,
 } from "../api/finance.js";
+
+/** A dollar amount that DIALS to its value (never snaps) — respects reduced-motion. */
+function Money({ cents, className }: { cents: number; className?: string }) {
+  const shown = useCountUp(cents, 700);
+  return <span className={className}>{fmt(shown)}</span>;
+}
+function MoneyC({ cents, className }: { cents: number; className?: string }) {
+  const shown = useCountUp(cents, 700);
+  return <span className={className}>{fmtc(shown)}</span>;
+}
 
 /** An editable draft row in the confirm step (income or expense). */
 interface DraftRow {
@@ -61,23 +73,23 @@ export function FinancePanel({ demo }: { demo?: boolean }) {
       {/* ---- Hero: Safe to Spend ---- */}
       <section className="fin-hero">
         <div className="fin-hero-label">Safe to Spend</div>
-        <div className="fin-hero-amount">{fmt(b.safeToSpendCents)}</div>
+        <Money cents={b.safeToSpendCents} className="fin-hero-amount" />
         {b.shortfallCents > 0 && (
           <div className="fin-shortfall" role="status">
-            <span aria-hidden>⚠️</span> Short by {fmtc(b.shortfallCents)} before {b.nextIncomeDate}
+            <span aria-hidden>⚠️</span> Short by <MoneyC cents={b.shortfallCents} /> before {b.nextIncomeDate}
           </div>
         )}
       </section>
 
       <div className="fin-row2">
-        <div className="fin-stat"><span>Earned this week</span><strong>{fmt(b.weekEarnedCents)}</strong></div>
-        <div className="fin-stat"><span>Balance</span><strong>{fmt(b.balanceCents)}</strong></div>
+        <div className="fin-stat"><span>Earned this week</span><Money cents={b.weekEarnedCents} className="fin-stat-num" /></div>
+        <div className="fin-stat"><span>Balance</span><Money cents={b.balanceCents} className="fin-stat-num" /></div>
       </div>
 
       {/* ---- Reserved (collapsible, itemized) ---- */}
       <button className="fin-reserved-head" onClick={() => setReservedOpen((v) => !v)} aria-expanded={reservedOpen}>
         <span>Reserved for bills</span>
-        <strong>{fmt(b.reservedCents)} {reservedOpen ? "▾" : "▸"}</strong>
+        <strong><Money cents={b.reservedCents} /> {reservedOpen ? "▾" : "▸"}</strong>
       </button>
       {reservedOpen && (
         <ul className="fin-reserved-list">
@@ -112,7 +124,83 @@ export function FinancePanel({ demo }: { demo?: boolean }) {
         </ul>
         <BillManager onChanged={refresh} />
       </section>
+
+      {/* ---- History: everything you added, editable + deletable ---- */}
+      <History onChanged={refresh} />
     </div>
+  );
+}
+
+// ---- History: recent income + expenses, each editable + deletable ----
+interface TxnRow { kind: "income" | "expense"; id: number; date: string; cents: number; label: string; category?: string }
+
+function History({ onChanged }: { onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<TxnRow[]>([]);
+  const [editing, setEditing] = useState<TxnRow | null>(null);
+
+  const load = async () => {
+    const [inc, exp] = await Promise.all([listIncome(), listExpense()]);
+    const merged: TxnRow[] = [
+      ...(inc ?? []).map((i: FinIncome): TxnRow => ({ kind: "income", id: i.id, date: i.date, cents: i.netCents, label: i.platform ?? "" })),
+      ...(exp ?? []).map((e: FinExpense): TxnRow => ({ kind: "expense", id: e.id, date: e.date, cents: e.amountCents, label: e.merchant ?? "", category: e.category })),
+    ].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.id - a.id));
+    setRows(merged);
+  };
+  useEffect(() => { if (open) void load(); }, [open]);
+
+  const del = async (row: TxnRow) => {
+    if (row.kind === "income") await deleteIncome(row.id); else await deleteExpense(row.id);
+    await load(); onChanged();
+  };
+  const save = async (row: TxnRow, amount: string, label: string, date: string, category: string) => {
+    const c = toCents(amount);
+    if (c == null || c <= 0) return;
+    if (row.kind === "income") await editIncome(row.id, { netCents: c, platform: label || null, date });
+    else await editExpense(row.id, { amountCents: c, merchant: label || null, date, category: category || "misc" });
+    setEditing(null); await load(); onChanged();
+  };
+
+  return (
+    <section className="fin-history">
+      <button className="fin-secondary" onClick={() => setOpen((v) => !v)}>{open ? "Hide history" : "🧾 View / edit history"}</button>
+      {open && (
+        <ul className="fin-txn-list">
+          {rows.length === 0 && <li className="fin-muted">Nothing recorded yet.</li>}
+          {rows.map((row) => editing && editing.id === row.id && editing.kind === row.kind ? (
+            <li key={`${row.kind}-${row.id}`} className="fin-txn edit">
+              <EditRow row={row} onSave={save} onCancel={() => setEditing(null)} />
+            </li>
+          ) : (
+            <li key={`${row.kind}-${row.id}`} className="fin-txn">
+              <span className={row.kind === "income" ? "fin-tag-in" : "fin-tag-out"}>{row.kind === "income" ? "IN" : "OUT"}</span>
+              <span className="fin-txn-lbl">{row.label || (row.category ?? "—")}</span>
+              <span className="fin-txn-date">{row.date}</span>
+              <strong>{fmt(row.cents)}</strong>
+              <button className="fin-mini" onClick={() => setEditing(row)} aria-label="Edit">✏️</button>
+              <button className="fin-mini" onClick={() => del(row)} aria-label="Delete">🗑️</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function EditRow({ row, onSave, onCancel }: { row: TxnRow; onSave: (r: TxnRow, amount: string, label: string, date: string, category: string) => void; onCancel: () => void }) {
+  const [amount, setAmount] = useState((row.cents / 100).toFixed(2));
+  const [label, setLabel] = useState(row.label);
+  const [date, setDate] = useState(row.date);
+  const [category, setCategory] = useState(row.category ?? "");
+  return (
+    <>
+      <input className="fin-draft-amt" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Amount" />
+      <input className="fin-draft-lbl" value={label} placeholder={row.kind === "income" ? "Platform" : "Merchant"} onChange={(e) => setLabel(e.target.value)} />
+      {row.kind === "expense" && <input className="fin-draft-cat" value={category} placeholder="Category" onChange={(e) => setCategory(e.target.value)} />}
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Date" />
+      <button className="fin-mini" onClick={() => onSave(row, amount, label, date, category)} aria-label="Save">✅</button>
+      <button className="fin-mini" onClick={onCancel} aria-label="Cancel">✖️</button>
+    </>
   );
 }
 
@@ -247,13 +335,14 @@ function PasteImport({ onDone }: { onDone: (committed: number) => void }) {
     setReview(out ? { sourceId: out.sourceId, drafts: resultToDrafts(out.result) } : { sourceId: -1, drafts: [] });
   };
 
-  if (!open) return <button className="fin-secondary" onClick={() => setOpen(true)}>📋 Paste from Cash App / bank</button>;
+  if (!open) return <button className="fin-secondary" onClick={() => setOpen(true)}>✍️ Type or paste transactions</button>;
   return (
     <div className="fin-form">
       {!review ? (
         <>
-          <div className="fin-form-title">Paste your transactions</div>
-          <textarea className="fin-paste-area" rows={5} placeholder={"e.g.\nReceived $44.30 from GoPuff\n-$12.00 Starbucks\n01/09 Rent -600.00"} value={text} onChange={(e) => setText(e.target.value)} aria-label="Pasted transactions" />
+          <div className="fin-form-title">Type it in your own words, or paste an export</div>
+          <textarea className="fin-paste-area" rows={5} placeholder={"e.g.\ngot 44.30 from DoorDash today\nspent 12 at the store\n01/09 rent -600"} value={text} onChange={(e) => setText(e.target.value)} aria-label="Type or paste transactions" />
+          <div className="fin-muted">One per line. Say where money came from or went, and I'll sort out the amounts — you confirm before anything's added.</div>
           <div className="fin-form-actions">
             <button className="fin-primary" onClick={read} disabled={busy}>{busy ? "Reading…" : "Read"}</button>
             <button className="fin-secondary" onClick={reset}>Cancel</button>

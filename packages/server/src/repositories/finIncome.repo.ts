@@ -37,6 +37,22 @@ export class FinIncomeRepo {
     return r ? this.map(r) : null;
   }
 
+  update(id: number, patch: { date?: string; netCents?: number; platform?: string | null }): FinIncome | null {
+    const cur = this.get(id);
+    if (!cur) return null;
+    const date = (patch.date ?? cur.date).slice(0, 10);
+    const net = patch.netCents != null ? Math.round(patch.netCents) : cur.netCents;
+    const platform = patch.platform !== undefined ? patch.platform : cur.platform;
+    this.handle.sqlite
+      .prepare(`UPDATE fin_income SET date = ?, net_cents = ?, platform = ? WHERE id = ? AND space_id = ?`)
+      .run(date, net, platform ?? null, id, this.spaceId);
+    return this.get(id);
+  }
+
+  remove(id: number): boolean {
+    return this.handle.sqlite.prepare(`DELETE FROM fin_income WHERE id = ? AND space_id = ?`).run(id, this.spaceId).changes > 0;
+  }
+
   list(limit = 200): FinIncome[] {
     const rows = this.handle.sqlite
       .prepare(`SELECT * FROM fin_income WHERE space_id = ? ORDER BY date DESC, id DESC LIMIT ?`)

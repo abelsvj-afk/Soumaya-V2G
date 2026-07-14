@@ -33,6 +33,24 @@ export class FinExpenseRepo {
     return r ? this.map(r) : null;
   }
 
+  update(id: number, patch: { date?: string; amountCents?: number; merchant?: string | null; category?: string; direction?: ExpenseDirection }): FinExpense | null {
+    const cur = this.get(id);
+    if (!cur) return null;
+    const date = (patch.date ?? cur.date).slice(0, 10);
+    const amount = patch.amountCents != null ? Math.round(patch.amountCents) : cur.amountCents;
+    const merchant = patch.merchant !== undefined ? patch.merchant : cur.merchant;
+    const category = patch.category ?? cur.category;
+    const direction = patch.direction ?? cur.direction;
+    this.handle.sqlite
+      .prepare(`UPDATE fin_expense SET date = ?, amount_cents = ?, merchant = ?, category = ?, direction = ? WHERE id = ? AND space_id = ?`)
+      .run(date, amount, merchant ?? null, category, direction, id, this.spaceId);
+    return this.get(id);
+  }
+
+  remove(id: number): boolean {
+    return this.handle.sqlite.prepare(`DELETE FROM fin_expense WHERE id = ? AND space_id = ?`).run(id, this.spaceId).changes > 0;
+  }
+
   list(limit = 200): FinExpense[] {
     const rows = this.handle.sqlite
       .prepare(`SELECT * FROM fin_expense WHERE space_id = ? ORDER BY date DESC, id DESC LIMIT ?`)

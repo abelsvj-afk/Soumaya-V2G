@@ -53,6 +53,14 @@ export interface ExpenseInput { date: string; amountCents: number; category: str
 export const addIncome = (i: IncomeInput) => send<{ income: FinIncome; duplicate: boolean; budget: BudgetSummary }>("/income", "POST", i);
 export const addExpense = (e: ExpenseInput) => send<{ expense: FinExpense; duplicate: boolean; budget: BudgetSummary }>("/expense", "POST", e);
 
+// ---- History: list + edit + delete recorded transactions ----
+export const listIncome = () => getJson<FinIncome[]>("/income");
+export const listExpense = () => getJson<FinExpense[]>("/expense");
+export const editIncome = (id: number, patch: { date?: string; netCents?: number; platform?: string | null }) => send<{ ok: boolean; budget: BudgetSummary }>(`/income/${id}`, "PATCH", patch);
+export const deleteIncome = (id: number) => send<{ ok: boolean; budget: BudgetSummary }>(`/income/${id}`, "DELETE");
+export const editExpense = (id: number, patch: { date?: string; amountCents?: number; merchant?: string | null; category?: string; direction?: ExpenseDirection }) => send<{ ok: boolean; budget: BudgetSummary }>(`/expense/${id}`, "PATCH", patch);
+export const deleteExpense = (id: number) => send<{ ok: boolean; budget: BudgetSummary }>(`/expense/${id}`, "DELETE");
+
 // ---- Ingestion (Stage 1b/1c): paste / image → drafts → confirm ----
 export const ingestPaste = (text: string) => send<{ sourceId: number; result: FinExtractionResult }>("/ingest/paste", "POST", { text });
 export const ingestImage = (dataUrl: string, mime: string) =>

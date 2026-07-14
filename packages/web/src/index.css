@@ -4566,3 +4566,23 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 /* Financial OS — snap import */
 .fin-snap { display: flex; flex-direction: column; gap: 6px; }
 .fin-snap-btn { display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+
+/* Financial OS — animated numbers + history + smooth reveals */
+.fin-stat-num { font-size: 1.2rem; font-weight: 700; }
+.fin-hero-amount { transition: color 0.2s; }
+@media (prefers-reduced-motion: no-preference) {
+  .fin-panel section, .fin-panel .fin-form, .fin-reserved-list, .fin-txn-list { animation: finFade 0.28s ease both; }
+  @keyframes finFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+}
+.fin-history { display: flex; flex-direction: column; gap: 8px; }
+.fin-txn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow-y: auto; }
+.fin-txn { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.18); font-size: 0.9rem; }
+.fin-txn.edit { background: rgba(122,249,255,0.08); }
+.fin-txn-lbl { flex: 1 1 80px; min-width: 60px; }
+.fin-txn-date { color: var(--muted); font-size: 0.76rem; }
+.fin-txn strong { margin-left: auto; }
+.fin-txn.edit strong { margin-left: 0; }
+.fin-mini { min-height: 36px; min-width: 36px; padding: 4px 8px; border-radius: 8px; background: var(--glass);
+  border: 1px solid var(--glass-border); cursor: pointer; font-size: 0.9rem; }
+.fin-txn.edit input { background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border);
+  border-radius: 8px; padding: 8px; min-height: 40px; font-size: 0.9rem; }

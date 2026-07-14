@@ -8,6 +8,7 @@ import { FinExpenseRepo } from "../../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { getBudgetSummary } from "../../finance/summary.js";
 import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js";
+import { editIncome, deleteIncome, editExpense, deleteExpense } from "../../finance/mutations.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -142,6 +143,42 @@ export function financeRoutes(ctx: AppContext): Router {
   });
   r.get("/income", (_req, res) => res.json(new FinIncomeRepo(ctx.handle, spaceOf(res)).list()));
   r.get("/expense", (_req, res) => res.json(new FinExpenseRepo(ctx.handle, spaceOf(res)).list()));
+
+  // ---- Edit / delete recorded transactions (balance-aware, per D3) ----
+  const IncomePatch = z.object({ date: isoDate.optional(), netCents: posCents.optional(), platform: z.string().trim().max(60).nullable().optional() }).strict();
+  const ExpensePatch = z.object({
+    date: isoDate.optional(), amountCents: posCents.optional(), merchant: z.string().trim().max(80).nullable().optional(),
+    category: z.string().trim().min(1).max(40).optional(), direction: z.enum(["out", "in"]).optional(),
+  }).strict();
+
+  r.patch("/income/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = IncomePatch.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid patch", p.error.issues);
+    const budget = editIncome(ctx.handle, spaceOf(res), id, p.data);
+    return budget ? res.json({ ok: true, budget }) : res.status(404).json({ error: "Not found" });
+  });
+  r.delete("/income/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const budget = deleteIncome(ctx.handle, spaceOf(res), id);
+    return budget ? res.json({ ok: true, budget }) : res.status(404).json({ error: "Not found" });
+  });
+  r.patch("/expense/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = ExpensePatch.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid patch", p.error.issues);
+    const budget = editExpense(ctx.handle, spaceOf(res), id, p.data);
+    return budget ? res.json({ ok: true, budget }) : res.status(404).json({ error: "Not found" });
+  });
+  r.delete("/expense/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const budget = deleteExpense(ctx.handle, spaceOf(res), id);
+    return budget ? res.json({ ok: true, budget }) : res.status(404).json({ error: "Not found" });
+  });
 
   // ---- Ingestion (Stage 1b): paste → drafts → confirm. Offline, no key. ----
   const PasteBody = z.object({ text: z.string().min(1).max(20000) }).strict();

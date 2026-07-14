@@ -11,6 +11,7 @@ import { InsightsRepo } from "../repositories/insights.repo.js";
 import { refreshPersona } from "../persona/derive.js";
 import { deriveBehavior } from "../persona/behavior.js";
 import { soulTextFor, getGroundedInsight } from "../identity.js";
+import { financialSnapshotText } from "../finance/snapshot.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -188,6 +189,16 @@ Use this telemetry to guide the user! For example:
   let systemExtra = telemetryContext;
   const behavior = deriveBehavior(h, spaceId);
   if (behavior) systemExtra += `\n\n${behavior}`;
+
+  // Financial OS (Stage 2): give her the AGGREGATED money snapshot so she can answer budget
+  // questions from real numbers + the user's goals (deterministic math; she only explains).
+  // Only when the module has data; only totals/top-lines reach the LLM (decision D5).
+  try {
+    const finance = financialSnapshotText(h, spaceId);
+    if (finance) systemExtra += `\n\n${finance}`;
+  } catch {
+    /* finance context is best-effort; never break chat */
+  }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's
   // draw is being "unsettlingly accurate in a good way" — that only works through real,
