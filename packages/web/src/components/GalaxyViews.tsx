@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphNode } from "@brain/shared";
 import { getMoneySky } from "../api/finance.js";
 import { getJourneys } from "../api/journeys.js";
@@ -56,6 +56,20 @@ export function GalaxyViews({
     return VIEWS.map((v) => ({ ...v, ids: nodes.filter((n) => n.kind !== "action" && v.pred(n)).map((n) => n.id) }))
       .filter((v) => v.ids.length > 0);
   }, [nodes]);
+
+  // Keep an active CATEGORY view in sync with the galaxy: when you dump a new memory (or
+  // Soumaya places one) that matches the active category, the graph updates → recompute this
+  // category's ids and re-isolate so the new body populates INSIDE the current view.
+  const lastSig = useRef<string>("");
+  useEffect(() => {
+    if (!activeView) { lastSig.current = ""; return; }
+    const cat = cats.find((c) => `${c.icon} ${c.label}` === activeView);
+    if (!cat) { lastSig.current = ""; return; } // active view is a lens/layer, not our category
+    const sig = cat.ids.join(",");
+    if (sig === lastSig.current) return;
+    lastSig.current = sig;
+    onOpen(cat.ids, activeView);
+  }, [cats, activeView, onOpen]);
 
   if (hidden || (cats.length === 0 && nodes.length === 0)) return null;
 
