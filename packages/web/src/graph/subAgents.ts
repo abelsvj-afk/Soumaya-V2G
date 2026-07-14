@@ -9,7 +9,9 @@ import { gltfLoader } from "./gltf.js";
 const FLEET_MODEL_URL = "/E45-fleet.glb";
 const FLEET_LEN = 5; // target longest-axis size in world units (a touch smaller than the named cone)
 const FLEET_ROT_X = 0; // pitch tweak (radians) if the model sits nose-up/down
-const FLEET_ROT_Y = 0; // yaw tweak if the nose points the wrong way along travel
+// glTF authors "forward" as -Z, but craft.lookAt() flies the group +Z-forward, so the model
+// went tail-first. Flip 180° about Y so the nose leads the direction of travel.
+const FLEET_ROT_Y = Math.PI;
 
 let fleetProto: THREE.Object3D | null = null;
 let fleetLoading = false;

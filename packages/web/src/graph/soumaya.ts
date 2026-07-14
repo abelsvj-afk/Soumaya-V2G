@@ -222,7 +222,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         const center = new THREE.Vector3();
         box.getCenter(center);
         model.position.copy(center.multiplyScalar(-k)); // recenter on origin
-        
+
         hull.visible = false;
         currentLoadedModel = model;
         group.add(model);

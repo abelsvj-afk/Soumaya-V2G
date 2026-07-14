@@ -30,6 +30,14 @@ memory is made by *retrieval*, not storage** — the galaxy is the memory palace
 repetition + gentle active-recall layer (dimming stars = review cue; Soumaya nudges recall in her
 own voice, never Anki decks) is the highest-leverage growth direction and a first-class staged feature.
 
+**MANDATORY — Vision 2.0 (Journeys).** [`docs/VISION_2_JOURNEYS.md`](./docs/VISION_2_JOURNEYS.md) is the
+user-authored, version-controlled **source of truth** for Soumaya's next era: everything ultimately
+belongs to a **Journey** (a meaningful life chapter), Soumaya asks *"what Journey does this help?"*
+instead of "where do I save this?", the daily loop lands in **Mission Control**, the galaxy is a
+**Living Galaxy** that reflects life in motion, and money/tasks/memories/people all connect through
+Journeys. **Consider every new feature against this doc — where it can serve a Journey, it should.**
+Large pieces get their own spec first (per the workflow), but this governs *what* we build toward.
+
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
