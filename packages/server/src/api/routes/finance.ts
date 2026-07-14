@@ -9,6 +9,7 @@ import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { getBudgetSummary } from "../../finance/summary.js";
 import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js";
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../../finance/mutations.js";
+import { moneySky } from "../../finance/sky.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -74,6 +75,9 @@ export function financeRoutes(ctx: AppContext): Router {
     const upcoming = new FinBillRepo(ctx.handle, spaceId).upcoming(20);
     res.json({ budget, account, upcoming });
   });
+
+  // ---- Money-sky: bills as stars with a state (Stage 4) ----
+  r.get("/sky", (_req, res) => res.json(moneySky(ctx.handle, spaceOf(res))));
 
   // ---- Account (balance / buffer / meta) ----
   r.get("/account", (_req, res) => res.json(new FinAccountRepo(ctx.handle, spaceOf(res)).getOrCreate()));

@@ -739,6 +739,31 @@ export interface FinExtractionResult {
   provider: "heuristic" | "vision";
 }
 
+// ---- Money in the galaxy (Stage 4 — bills/goals as STARS) ----
+// Meaning is carried by state → colour/glyph/glow (never colour alone). Cooling = blue.
+export type MoneyStarState =
+  | "calm" // funded, not due soon
+  | "approaching" // due soon, funded
+  | "cooling" // overspend pace / short — the user's blue
+  | "overdue" // past due, unpaid
+  | "paid" // settled recently
+  | "goal_filling"
+  | "goal_reached";
+
+export interface MoneyStar {
+  kind: "bill" | "goal";
+  id: number;
+  label: string;
+  amountCents: number;
+  state: MoneyStarState;
+  /** The on-focus status icon (good/bad/in-between at a glance). */
+  glyph: string;
+  /** 0..1 — urgency (bills) or fill (goals); drives brightness/pulse. */
+  intensity: number;
+  dueInDays?: number;
+  fillPct?: number;
+}
+
 /** The live budget the home screen renders + the AI cites. All cents. */
 export interface BudgetSummary {
   balanceCents: number;
