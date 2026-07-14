@@ -25,7 +25,15 @@ feature should make its state legible. Concrete instances:
   question. User hasn't seen it in a while and can't tell if it still fires. **If it works, leave it;**
   the real fix is a way to SEE that it's alive (a status/heartbeat, or a log of recent proactive
   moments). Applies to all background intelligence (daily contact, nudges, tender fleet, upkeep).
-- General principle: prefer visible confirmations, "last run" timestamps, and honest empty/զerror
+- **Dream cycles / beliefs are invisible.** User: "no clue where the dream cycle is or what it does."
+  It runs once/day in the autonomy loop (`analysis/dreamCycle.ts`), consolidating the densest memory
+  cluster into a **belief** star — but there's no home for it and no notice when it happens. Fix in the
+  clarity pass: (a) surface each new belief when it's formed (a gentle "Soumaya consolidated a belief:
+  …" moment / in the away digest), (b) a place to see recent beliefs + what a dream cycle is, (c)
+  explain it in Help/Legend. Emblematic of the whole theme: **background intelligence must announce
+  itself.** A single "What Soumaya's been up to" activity feed (over `agent_logs`) likely covers dreams
+  + nudges + tending + links formed in one legible place.
+- General principle: prefer visible confirmations, "last run" timestamps, and honest empty/error
   states over silent success/failure.
 
 ## Theme 3 — The Mind / Recall panel (DONE — first fix of this pass)

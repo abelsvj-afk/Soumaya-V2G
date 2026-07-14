@@ -4629,3 +4629,14 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .jn-secondary { background: var(--glass); color: var(--text); }
 .jn-danger { background: var(--glass); color: #ff8a8a; }
 .jn-done summary { color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 6px 0; }
+
+/* Journey chips inside the memory inspector */
+.ni-journeys { margin: 10px 0; padding: 8px 10px; background: rgba(0,0,0,0.18); border: 1px solid var(--glass-border); border-radius: 10px; }
+.ni-journeys-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 6px; }
+.ni-journeys-row, .ni-journeys-add { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ni-journeys-add { margin-top: 6px; }
+.ni-journeys-empty { color: var(--muted); font-size: 0.8rem; }
+.jn-chip.on { background: rgba(122,249,255,0.14); border-color: rgba(122,249,255,0.4); }
+.jn-chip.add { background: var(--glass); border-style: dashed; }
+.jn-chip-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; margin-left: 4px; padding: 0 2px; }
+.jn-chip-x:hover { color: #ff8a8a; }

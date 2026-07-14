@@ -8,6 +8,8 @@ import { MarkdownView } from "./MarkdownView.js";
 import { Chronicle } from "./Chronicle.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
 import { playSfx } from "../graph/sfx.js";
+import type { Journey } from "@brain/shared";
+import { getJourneys, journeysForNode, linkToJourney, unlinkFromJourney } from "../api/journeys.js";
 
 interface Props {
   node: GraphNode | null;
@@ -266,6 +268,8 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </div>
       )}
 
+      {!demo && node.kind !== "action" && <JourneyChips nodeId={node.id} />}
+
       {node.kind === "action" ? (
         <div className="action-due">
           <span>
@@ -409,6 +413,55 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         ))}
         {neighbors.length === 0 && <li className="empty">No connections yet.</li>}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * Which Journeys this memory belongs to + add/remove (Vision 2.0: everything belongs to a
+ * Journey). Links only — the memory itself is untouched. Offline-safe (guards on null).
+ */
+function JourneyChips({ nodeId }: { nodeId: number }) {
+  const [mine, setMine] = useState<Journey[]>([]);
+  const [all, setAll] = useState<Journey[]>([]);
+  const [adding, setAdding] = useState(false);
+
+  const refresh = async () => {
+    const [m, a] = await Promise.all([journeysForNode(nodeId), getJourneys()]);
+    setMine(m ?? []);
+    setAll(a ?? []);
+  };
+  useEffect(() => { void refresh(); }, [nodeId]);
+
+  const mineIds = new Set(mine.map((j) => j.id));
+  const addable = all.filter((j) => !mineIds.has(j.id) && j.status !== "done");
+
+  return (
+    <div className="ni-journeys">
+      <div className="ni-journeys-label">🧭 Journeys</div>
+      <div className="ni-journeys-row">
+        {mine.map((j) => (
+          <span key={j.id} className="jn-chip on">
+            {j.icon ?? "🧭"} {j.title}
+            <button className="jn-chip-x" aria-label={`Remove from ${j.title}`}
+              onClick={async () => { await unlinkFromJourney(j.id, "node", nodeId); await refresh(); }}>×</button>
+          </span>
+        ))}
+        {mine.length === 0 && !adding && <span className="ni-journeys-empty">Not part of a journey yet.</span>}
+        {!adding && (all.length === 0
+          ? <span className="ni-journeys-empty">Create a journey in the 🧭 tab first.</span>
+          : addable.length > 0 && <button className="jn-chip add" onClick={() => setAdding(true)}>＋ Add</button>)}
+      </div>
+      {adding && (
+        <div className="ni-journeys-add">
+          {addable.map((j) => (
+            <button key={j.id} className="jn-chip" onClick={async () => { await linkToJourney(j.id, "node", nodeId); setAdding(false); await refresh(); }}>
+              {j.icon ?? "🧭"} {j.title}
+            </button>
+          ))}
+          <button className="jn-chip" onClick={() => setAdding(false)}>Cancel</button>
+        </div>
+      )}
     </div>
   );
 }
