@@ -6,12 +6,19 @@ import { playSfx } from "../graph/sfx.js";
  * with `pushToast(...)`; the <Toasts/> overlay renders + auto-dismisses them.
  * Deliberately dependency-free + offline-safe — pure in-app, no network.
  */
+/** Where a clickable notification takes you when tapped. */
+export interface ToastAction {
+  kind: "focus" | "tab" | "panel" | "chat";
+  value?: string | number;
+}
+
 export interface Toast {
   id: number;
   text: string;
   icon: string;
   ttl: number;
   priority?: "low" | "normal" | "high";
+  action?: ToastAction;
 }
 
 export interface InboxNotification {
@@ -84,9 +91,10 @@ export function pushToast(
   text: string,
   icon = "✨",
   ttl = 8000,
-  priority: "low" | "normal" | "high" = "normal"
+  priority: "low" | "normal" | "high" = "normal",
+  action?: ToastAction,
 ): void {
-  const t: Toast = { id: nextId++, text, icon, ttl, priority };
+  const t: Toast = { id: nextId++, text, icon, ttl, priority, action };
   // Buffer when paused, or when quieted (focus mode) unless it's high-priority.
   if (paused || (quiet && priority !== "high")) buffer.push(t); // still logged to inbox below
   else {
@@ -162,23 +170,32 @@ export function Toasts() {
     if (hoveredId === id) setHoveredId(null);
   };
 
+  const runAction = (t: Toast & { remaining: number }) => {
+    if (!t.action) return;
+    try { window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: t.action })); } catch { /* no window */ }
+    removeToast(t.id);
+  };
+
   if (items.length === 0) return null;
   return (
     <div className="toast-wrap">
       {items.map((t) => (
         <div
           key={t.id}
-          className="toast"
+          className={`toast ${t.action ? "actionable" : ""}`}
           onMouseEnter={() => setHoveredId(t.id)}
           onMouseLeave={() => setHoveredId(null)}
+          onClick={t.action ? () => runAction(t) : undefined}
+          role={t.action ? "button" : undefined}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
             <span className="toast-ic">{t.icon}</span>
             <span className="toast-msg">{t.text}</span>
+            {t.action && <span className="toast-go" aria-hidden>›</span>}
           </div>
           <button
-            onClick={() => removeToast(t.id)}
+            onClick={(e) => { e.stopPropagation(); removeToast(t.id); }}
             style={{
               background: "transparent",
               border: "none",

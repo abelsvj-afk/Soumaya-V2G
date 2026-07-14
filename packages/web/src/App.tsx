@@ -31,6 +31,7 @@ import { Legend } from "./components/Legend.js";
 import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
 import { GalaxyViews } from "./components/GalaxyViews.js";
+import { getMoneySky } from "./api/finance.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -231,6 +232,27 @@ export default function App() {
   const [followFleet, setFollowFleet] = useState(false);
   const [followFig1, setFollowFig1] = useState(false);
   const [followFig2, setFollowFig2] = useState(false);
+  // Money urgency → a clickable notification (bills with due dates + risk). Once per bill per
+  // day; taps open the Money tab. Re-checked whenever finances change.
+  useEffect(() => {
+    if (!space || demo) return;
+    const check = async () => {
+      const stars = await getMoneySky();
+      if (!stars) return;
+      const urgent = stars.filter((s) => s.state === "overdue" || s.state === "cooling").slice(0, 2);
+      for (const s of urgent) {
+        const key = `notif.bill.${s.id}.${new Date().toISOString().slice(0, 10)}`;
+        try { if (localStorage.getItem(key)) continue; localStorage.setItem(key, "1"); } catch { /* ignore */ }
+        const word = s.state === "overdue" ? `${s.label} is overdue` : `${s.label} needs attention — you can't cover it yet`;
+        pushToast(`${word}`, "💸", 9000, "high", { kind: "tab", value: "money" });
+      }
+    };
+    void check();
+    const on = () => void check();
+    window.addEventListener("brain-finance-changed", on);
+    return () => window.removeEventListener("brain-finance-changed", on);
+  }, [space, demo]);
+
   // Following any other target clears the fleet button's highlight (its own button clears theirs).
   useEffect(() => {
     if (followShip || followStation || followSatellite || followVisitor || followFig1 || followFig2)
@@ -446,7 +468,7 @@ export default function App() {
   // forgiving-streak mechanic is actually FELT (a broken streak is data, not punishment).
   useEffect(() => {
     const onShield = () =>
-      pushToast("A nebula shield forgave your missed day — your streak is safe.", "🛡️", 7000);
+      pushToast("A nebula shield forgave your missed day — your streak is safe.", "🛡️", 7000, "normal", { kind: "tab", value: "awards" });
     window.addEventListener("brain-shield-saved", onShield);
     return () => window.removeEventListener("brain-shield-saved", onShield);
   }, []);
@@ -1065,6 +1087,21 @@ export default function App() {
   );
 
   const focus = useCallback((id: number) => goTo(id, true, true), [goTo]);
+
+  // Clickable notifications: a toast with an action routes here when tapped (focus a memory,
+  // open a tab/panel, or open chat) — so every notification can take you to the thing.
+  useEffect(() => {
+    const onAction = (e: Event) => {
+      const a = (e as CustomEvent).detail as { kind: string; value?: string | number } | undefined;
+      if (!a) return;
+      if (a.kind === "focus" && a.value != null) { focus(Number(a.value)); }
+      else if (a.kind === "tab" && a.value != null) { dismissObs(); setTab(String(a.value) as any); setPanel("dock"); }
+      else if (a.kind === "panel" && a.value != null) { setPanel(String(a.value) as any); }
+      else if (a.kind === "chat") { setShowChat(true); }
+    };
+    window.addEventListener("brain-toast-action", onAction);
+    return () => window.removeEventListener("brain-toast-action", onAction);
+  }, [focus]);
 
   // Smart Lens open/exit — shared by the Lenses panel and the on-galaxy pinned chips.
   const openLens = useCallback((ids: number[], name: string) => {

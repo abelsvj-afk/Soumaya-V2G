@@ -2807,7 +2807,13 @@ button {
   line-height: 1.25;
   backdrop-filter: blur(8px);
   animation: toast-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  /* The wrap is pointer-events:none (so gaps let galaxy taps through); each toast must
+     re-enable events or its × is dead AND taps fall through to the galaxy behind it. */
+  pointer-events: auto;
 }
+.toast.actionable { cursor: pointer; }
+.toast.actionable:hover { border-color: rgba(122, 220, 255, 0.6); }
+.toast-go { color: rgba(122,220,255,0.85); font-size: 0.95rem; }
 .toast-ic { font-size: 1.05rem; flex: 0 0 auto; }
 .toast-msg { min-width: 0; }
 @keyframes toast-in {
