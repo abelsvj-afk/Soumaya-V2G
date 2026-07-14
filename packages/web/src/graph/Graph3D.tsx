@@ -158,6 +158,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const [hoverId, setHoverId] = useState<number | null>(null);
   // When set, only these node ids (a memory + its orbiting system) are shown.
   const [cluster, setCluster] = useState<Set<number> | null>(null);
+  // Mirror the cluster into a ref so the render loop can scope Soumaya + the fleet to the
+  // VISIBLE bodies only (she shouldn't fly off to tend things hidden by a lens/category view).
+  const clusterRef = useRef<Set<number> | null>(null);
+  useEffect(() => { clusterRef.current = cluster; }, [cluster]);
   // Hover wins; otherwise the selected node drives the highlight (mobile = no hover).
   const activeId = hoverId ?? selectedId ?? null;
   // Ref mirror for callbacks captured once (the imperative handle only rebuilds on
@@ -1058,6 +1062,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         bloomRef.current.strength += (target - bloomRef.current.strength) * Math.min(1, dt * 3);
       }
 
+      // Scope Soumaya + the fleet to the VISIBLE bodies when a lens/category view is active —
+      // she can't work on things a lens is hiding. No cluster → the whole galaxy, as before.
+      const _cl = clusterRef.current;
+      const workNodes = _cl && _cl.size
+        ? (dataRef.current.nodes as any[]).filter((n: any) => _cl.has(n.id))
+        : (dataRef.current.nodes as any[]);
+
       // Beacons launch from the station/ship, so hand the satellites their world positions.
       const stationWorld = stationObjRef.current
         ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
@@ -1065,7 +1076,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const soumayaPos = soumayaObjRef.current
         ? soumayaObjRef.current.position.clone()
         : null;
-      satellites?.update(dt, dataRef.current.nodes as any[], stationWorld, soumayaPos);
+      satellites?.update(dt, workNodes, stationWorld, soumayaPos);
       if (satellites && soumayaHandleRef.current) {
         const pending = satellites.getPendingDispatches();
         if (pending.length > 0) {
@@ -1090,7 +1101,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }),
         };
       }
-      subAgents?.update(dt, dataRef.current.nodes as any[], subAgentHazard, soumayaPos);
+      subAgents?.update(dt, workNodes, subAgentHazard, soumayaPos);
       // Drifters fear/hate the beacons: hand the visitor system the live hazard set.
       visitors?.update(
         dt,
@@ -1327,7 +1338,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           : null;
         soumaya.update(
           dt,
-          d.nodes as any[],
+          workNodes,
           d.links as any[],
           (x, y, z, type, nodeId) => {
             // Demo flights must not feed real progression stats.
