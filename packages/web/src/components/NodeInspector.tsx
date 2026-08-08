@@ -65,6 +65,15 @@ function sizeReason(n: GraphNode): string {
 }
 
 export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo }: Props) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 720);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
   const [synthBusy, setSynthBusy] = useState(false);
@@ -175,79 +184,91 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       })()}
 
       {node.researchQuestions && node.researchQuestions.length > 0 && (
-        <div className="research-questions-box" style={{
-          marginTop: "1.25rem",
-          marginBottom: "1.25rem",
-          padding: "1rem",
-          borderRadius: "8px",
-          background: "rgba(255, 171, 0, 0.08)",
-          border: "1px solid rgba(255, 171, 0, 0.25)",
-        }}>
-          <h3 style={{ margin: "0 0 0.5rem 0", color: "#ffab00", fontSize: "0.95rem" }}>
+        <details
+          className="dock-section research-questions-details"
+          open={!isMobile}
+          style={{
+            marginTop: "1.25rem",
+            marginBottom: "1.25rem",
+            borderRadius: "8px",
+            background: "rgba(255, 171, 0, 0.08)",
+            border: "1px solid rgba(255, 171, 0, 0.25)",
+          }}
+        >
+          <summary style={{
+            padding: "1rem",
+            cursor: "pointer",
+            fontWeight: "bold",
+            color: "#ffab00",
+            fontSize: "0.95rem",
+            listStyle: "none"
+          }}>
             🛸 Clarifying Research Questions
-          </h3>
-          <p style={{ fontSize: "0.82rem", opacity: 0.85, margin: "0 0 1rem 0" }}>
-            Soumaya needs more context to finalize the deep-dive research for this memory.
-          </p>
-          {researchError && (
-            <p style={{ color: "#ff5252", fontSize: "0.82rem", margin: "0 0 0.75rem 0" }}>
-              {researchError}
+          </summary>
+          <div style={{ padding: "0 1rem 1rem 1rem" }}>
+            <p style={{ fontSize: "0.82rem", opacity: 0.85, margin: "0 0 1rem 0" }}>
+              Soumaya needs more context to finalize the deep-dive research for this memory.
             </p>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {node.researchQuestions.map((q) => (
-              <div key={q} style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                <label style={{ fontSize: "0.82rem", fontWeight: 500, color: "#eaf2ff" }}>{q}</label>
-                <textarea
-                  style={{
-                    width: "100%",
-                    background: "rgba(10, 12, 28, 0.6)",
-                    border: "1px solid rgba(122, 200, 255, 0.25)",
-                    borderRadius: "4px",
-                    color: "#fff",
-                    padding: "0.5rem",
-                    fontSize: "0.86rem",
-                    fontFamily: "inherit",
-                    resize: "vertical",
-                    minHeight: "50px",
-                  }}
-                  value={answers[q] ?? ""}
-                  onChange={(e) => {
-                    setAnswers((prev) => ({ ...prev, [q]: e.target.value }));
-                  }}
-                  placeholder="Type your response..."
-                />
-              </div>
-            ))}
+            {researchError && (
+              <p style={{ color: "#ff5252", fontSize: "0.82rem", margin: "0 0 0.75rem 0" }}>
+                {researchError}
+              </p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+              {node.researchQuestions.map((q) => (
+                <div key={q} style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  <label style={{ fontSize: "0.82rem", fontWeight: 500, color: "#eaf2ff" }}>{q}</label>
+                  <textarea
+                    style={{
+                      width: "100%",
+                      background: "rgba(10, 12, 28, 0.6)",
+                      border: "1px solid rgba(122, 200, 255, 0.25)",
+                      borderRadius: "4px",
+                      color: "#fff",
+                      padding: "0.5rem",
+                      fontSize: "0.86rem",
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                      minHeight: "50px",
+                    }}
+                    value={answers[q] ?? ""}
+                    onChange={(e) => {
+                      setAnswers((prev) => ({ ...prev, [q]: e.target.value }));
+                    }}
+                    placeholder="Type your response..."
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              className="synth-btn"
+              style={{
+                marginTop: "1rem",
+                background: "linear-gradient(135deg, #ffab00 0%, #ff8f00 100%)",
+                color: "#0a0c1c",
+                fontWeight: "bold",
+                borderColor: "transparent",
+              }}
+              disabled={researchSubmitting || node.researchQuestions.some(q => !(answers[q] ?? "").trim())}
+              onClick={() => {
+                setResearchSubmitting(true);
+                setResearchError("");
+                answerResearch(node.id, answers)
+                  .then(() => {
+                    onChanged?.(node.id);
+                  })
+                  .catch((e) => {
+                    setResearchError((e as Error).message);
+                  })
+                  .finally(() => {
+                    setResearchSubmitting(false);
+                  });
+              }}
+            >
+              {researchSubmitting ? "Submitting Context..." : "Submit Clarification"}
+            </button>
           </div>
-          <button
-            className="synth-btn"
-            style={{
-              marginTop: "1rem",
-              background: "linear-gradient(135deg, #ffab00 0%, #ff8f00 100%)",
-              color: "#0a0c1c",
-              fontWeight: "bold",
-              borderColor: "transparent",
-            }}
-            disabled={researchSubmitting || node.researchQuestions.some(q => !(answers[q] ?? "").trim())}
-            onClick={() => {
-              setResearchSubmitting(true);
-              setResearchError("");
-              answerResearch(node.id, answers)
-                .then(() => {
-                  onChanged?.(node.id);
-                })
-                .catch((e) => {
-                  setResearchError((e as Error).message);
-                })
-                .finally(() => {
-                  setResearchSubmitting(false);
-                });
-            }}
-          >
-            {researchSubmitting ? "Submitting Context..." : "Submit Clarification"}
-          </button>
-        </div>
+        </details>
       )}
 
       {(node.tags?.length || node.occurredAt || node.remindAt) && (
@@ -301,9 +322,23 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <p className="lore">✦ {loreFor(node)}</p>
       )}
 
-      {node.kind !== "action" && <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />}
+      {node.kind !== "action" && (
+        <details className="dock-section" open={!isMobile}>
+          <summary>📜 Chronicle / History</summary>
+          <div style={{ padding: "10px" }}>
+            <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />
+          </div>
+        </details>
+      )}
 
-      {node.kind !== "action" && <MemoryAttachments nodeId={node.id} demo={demo} />}
+      {node.kind !== "action" && (
+        <details className="dock-section" open={!isMobile}>
+          <summary>📎 Attachments</summary>
+          <div style={{ padding: "10px" }}>
+            <MemoryAttachments nodeId={node.id} demo={demo} />
+          </div>
+        </details>
+      )}
 
       <div className="weight">
         <div className="weight-head">

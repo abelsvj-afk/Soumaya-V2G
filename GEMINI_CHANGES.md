@@ -165,6 +165,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): Open Card Mobile Scroll Fix & Collapsible Accordions
+- [ ] Verified by Claude
+- Fixed Bug 2 from the Priority List: Open card / Details Tab cards scrollability and layout issue on mobile device screens.
+- Added a CSS definition for `.dock-body` inside `packages/web/src/index.css` to enable a flex column layout with `min-height: 0` and `flex: 1`, preventing inner cards from squishing or layout overflows.
+- Added reactive `isMobile` screen width tracking state (`window.innerWidth <= 720`) in `NodeInspector.tsx`.
+- Wrapped research questions, Chronicle/History, and MemoryAttachments in `<details className="dock-section">` elements that auto-collapse on mobile view (`open={!isMobile}`) and remain open on desktop, ensuring the details tab doesn't overflow mobile height budgets.
+- Files touched:
+  - `packages/web/src/index.css`
+  - `packages/web/src/components/NodeInspector.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 32 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): Memory List Defaults, Tooltip Dates & Test Environment Fix
 - [ ] Verified by Claude
 - Fixed a long-standing web test suite issue where `localStorage` was undefined under happy-dom in Vitest, by implementing a resilient `localStorage` mock/polyfill in `packages/web/src/test-setup.ts`. This restored the entire web test suite to green (all 31 tests passing).
