@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): DigestPanel API Concurrency parallelization and loading skeletons (Bug 6)
+- [ ] Verified by Claude
+- Fixed Bug 6 from the Priority List: DigestPanel (Insights tab) 9 waterfall API calls on mount.
+- Refactored `DigestPanel.tsx` `useEffect` hook to load all 10 initial requests concurrently using `Promise.all` instead of 10 sequential waterfall fetches, drastically boosting the load speed of the Insights tab on slow networks.
+- Handled individual Promise rejections gracefully with inline `.catch()` fallbacks, ensuring single endpoint failures don't crash the entire panel load.
+- Designed a stunning loading shimmer skeleton UI inside `DigestPanel.tsx` that mimics the layout of the loaded insights, beliefs, and log entries during loading.
+- Added smooth `.loading-shimmer` CSS keyframe transitions to `packages/web/src/index.css`.
+- Added unit/smoke tests to `components.smoke.test.tsx` verifying shimmer layout and correct post-load data rendering under Vitest.
+- Files touched:
+  - `packages/web/src/index.css`
+  - `packages/web/src/components/DigestPanel.tsx`
+  - `packages/web/src/components/components.smoke.test.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 34 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): Performance Settings Override Persistence & Time/Location Aliveness (Bug 5)
 - [ ] Verified by Claude
 - Fixed a bug where manual graphics settings overrides (like selecting Performance or Quality) did not persist down to 3D rendering elements (like `TimelineView`) because `resolveGraphics` would always reset the `tier` parameter to the synchronous `detectTier()`. Re-architected `resolveGraphics()` to correctly set `tier` based on the user's manual mode setting when not in `"auto"`.

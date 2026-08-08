@@ -33,6 +33,7 @@ export function DigestPanel({
   onPromoted?: () => void;
 }) {
   const [items, setItems] = useState<Insight[]>([]);
+  const [loading, setLoading] = useState(true);
   const [daily, setDaily] = useState<DailyDigest | null>(null);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
   const [emotional, setEmotional] = useState<EmotionalTrajectory | null>(null);
@@ -81,36 +82,45 @@ export function DigestPanel({
   }
 
   useEffect(() => {
-    getDigest()
-      .then(setItems)
-      .catch(() => {});
-    getDailyDigest()
-      .then(setDaily)
-      .catch(() => {});
-    getConstellations()
-      .then(setConstellations)
-      .catch(() => {});
-    getEmotionalTrajectory()
-      .then(setEmotional)
-      .catch(() => {});
-    getDormant()
-      .then(setDormant)
-      .catch(() => {});
-    getEvolutionLinks()
-      .then(setEvolution)
-      .catch(() => {});
-    getLifeAreas()
-      .then(setLifeAreas)
-      .catch(() => {});
-    getSelfReview()
-      .then(setSelfReview)
-      .catch(() => {});
-    getDailyLog()
-      .then((dl) => dl && setDailyLog(dl))
-      .catch(() => {});
-    getBeliefs()
-      .then(setBeliefs)
-      .catch(() => {});
+    setLoading(true);
+    Promise.all([
+      getDigest().catch(() => [] as Insight[]),
+      getDailyDigest().catch(() => null as DailyDigest | null),
+      getConstellations().catch(() => [] as Constellation[]),
+      getEmotionalTrajectory().catch(() => null as EmotionalTrajectory | null),
+      getDormant().catch(() => [] as DormantItem[]),
+      getEvolutionLinks().catch(() => [] as EvolutionLink[]),
+      getLifeAreas().catch(() => [] as LifeAreaCount[]),
+      getSelfReview().catch(() => [] as SelfReviewItem[]),
+      getDailyLog().catch(() => null as DailyLog | null),
+      getBeliefs().catch(() => [] as Belief[]),
+    ])
+      .then(([
+        itemsRes,
+        dailyRes,
+        constellationsRes,
+        emotionalRes,
+        dormantRes,
+        evolutionRes,
+        lifeAreasRes,
+        selfReviewRes,
+        dailyLogRes,
+        beliefsRes,
+      ]) => {
+        setItems(itemsRes);
+        setDaily(dailyRes);
+        setConstellations(constellationsRes);
+        setEmotional(emotionalRes);
+        setDormant(dormantRes);
+        setEvolution(evolutionRes);
+        setLifeAreas(lifeAreasRes);
+        setSelfReview(selfReviewRes);
+        if (dailyLogRes) setDailyLog(dailyLogRes);
+        setBeliefs(beliefsRes);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   async function run() {
@@ -140,6 +150,30 @@ export function DigestPanel({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="dock-body loading-shimmer" style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+        <div className="skeleton-section" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div className="skeleton-title" style={{ width: "60%", height: "16px", background: "rgba(255,255,255,0.06)", borderRadius: "4px" }} />
+          <div className="skeleton-line" style={{ width: "90%", height: "10px", background: "rgba(255,255,255,0.04)", borderRadius: "4px" }} />
+          <div className="skeleton-grid" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ height: "45px", background: "rgba(255,255,255,0.03)", borderRadius: "6px" }} />
+            <div style={{ height: "45px", background: "rgba(255,255,255,0.03)", borderRadius: "6px" }} />
+          </div>
+        </div>
+        <div className="skeleton-section" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div className="skeleton-title" style={{ width: "40%", height: "16px", background: "rgba(255,255,255,0.06)", borderRadius: "4px" }} />
+          <div className="skeleton-line" style={{ width: "80%", height: "10px", background: "rgba(255,255,255,0.04)", borderRadius: "4px" }} />
+          <div style={{ height: "80px", background: "rgba(255,255,255,0.03)", borderRadius: "6px" }} />
+        </div>
+        <div className="skeleton-section" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          <div className="skeleton-title" style={{ width: "50%", height: "16px", background: "rgba(255,255,255,0.06)", borderRadius: "4px" }} />
+          <div style={{ height: "55px", background: "rgba(255,255,255,0.03)", borderRadius: "6px" }} />
+        </div>
+      </div>
+    );
   }
 
   return (

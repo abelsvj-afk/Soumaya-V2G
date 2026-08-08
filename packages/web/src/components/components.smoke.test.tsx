@@ -3,6 +3,7 @@ import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import { StreakEmber } from "./StreakEmber.js";
 import { FuelEarnSheet } from "./FuelEarnSheet.js";
 import { NodeList } from "./NodeList.js";
+import { DigestPanel } from "./DigestPanel.js";
 import * as clientApi from "../api/client.js";
 
 afterEach(cleanup);
@@ -129,5 +130,32 @@ describe("NodeList", () => {
     fireEvent.click(spaceBtn);
 
     expect(onTagChange).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("DigestPanel", () => {
+  it("renders with a loading shimmer skeleton, then loads data concurrently", async () => {
+    vi.spyOn(clientApi, "getDigest").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getDailyDigest").mockResolvedValue(null);
+    vi.spyOn(clientApi, "getConstellations").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getEmotionalTrajectory").mockResolvedValue(null);
+    vi.spyOn(clientApi, "getDormant").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getEvolutionLinks").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getLifeAreas").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getSelfReview").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getDailyLog").mockResolvedValue(null);
+    vi.spyOn(clientApi, "getBeliefs").mockResolvedValue([
+      { id: 101, content: "You value deep connections", evidence: 5 } as any,
+    ]);
+
+    const { container } = render(<DigestPanel onFocus={vi.fn()} />);
+
+    // Initially, it shows the loading-shimmer elements
+    expect(container.querySelector(".loading-shimmer")).toBeTruthy();
+
+    // After resolving promises, loading state disappears and content displays
+    const beliefText = await screen.findByText("You value deep connections");
+    expect(beliefText).toBeTruthy();
+    expect(container.querySelector(".loading-shimmer")).toBeNull();
   });
 });

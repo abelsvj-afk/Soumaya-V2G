@@ -4729,3 +4729,19 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .gv-chip.gv-all { border-style: dashed; }
 .gv-count { color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 .gv-chip.on .gv-count { color: var(--accent); }
+
+/* ---- DigestPanel loading shimmer skeleton animations ---- */
+@keyframes shimmer-pulse {
+  0% { opacity: 0.45; }
+  50% { opacity: 0.85; }
+  100% { opacity: 0.45; }
+}
+.loading-shimmer .skeleton-section * {
+  animation: shimmer-pulse 1.5s infinite ease-in-out;
+}
+.loading-shimmer .skeleton-section:nth-child(2) * {
+  animation-delay: 0.2s;
+}
+.loading-shimmer .skeleton-section:nth-child(3) * {
+  animation-delay: 0.4s;
+}
