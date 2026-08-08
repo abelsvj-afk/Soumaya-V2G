@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { afterEach } from "vitest";
 import { StreakEmber } from "./StreakEmber.js";
 import { FuelEarnSheet } from "./FuelEarnSheet.js";
+import { NodeList } from "./NodeList.js";
+import * as clientApi from "../api/client.js";
 
 afterEach(cleanup);
+beforeEach(() => vi.restoreAllMocks());
 
 /**
  * Leaf-component render smoke tests — the first web component tests. They prove the
@@ -50,5 +52,64 @@ describe("FuelEarnSheet", () => {
     // The first actionable row is "Log a memory" → kind "memory".
     fireEvent.click(screen.getAllByText("Go")[0]!);
     expect(onAction).toHaveBeenCalledWith("memory");
+  });
+});
+
+describe("NodeList", () => {
+  const mockNodes: any[] = [
+    {
+      id: 1,
+      label: "A beautiful memory",
+      content: "This is some test memory content",
+      kind: "memory",
+      type: "knowledge",
+      occurredAt: "2026-08-05 12:00:00",
+      createdAt: "2026-08-05 12:00:00",
+      celestial: "asteroid",
+      emotionalWeight: 0.5,
+      entropy: 0.2,
+      degree: 2,
+      tags: ["brain", "space"],
+    },
+    {
+      id: 2,
+      label: "A chilly decision",
+      content: "Decided to implement offline fallback",
+      kind: "memory",
+      type: "decision",
+      occurredAt: "2026-08-01 10:00:00",
+      createdAt: "2026-08-01 10:00:00",
+      celestial: "planet",
+      emotionalWeight: -0.5,
+      entropy: 0.8,
+      degree: 0,
+      tags: ["offline"],
+    },
+  ];
+
+  it("renders and groups by timeline by default, showing exact dates", async () => {
+    vi.spyOn(clientApi, "getConstellations").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getVisitorActivity").mockResolvedValue([]);
+
+    const onFocus = vi.fn();
+    render(<NodeList nodes={mockNodes} onFocus={onFocus} demo={true} />);
+
+    // Timeline grouping displays buckets (like "Earlier this week" or "August 2026")
+    // Let's assert the labels render
+    expect(screen.getByText("A beautiful memory")).toBeTruthy();
+    expect(screen.getByText("A chilly decision")).toBeTruthy();
+
+    // Verify sort selector has 'most recent' selected (since sort defaults to recent)
+    const select = screen.getByTitle("Sort by") as HTMLSelectElement;
+    expect(select.value).toBe("recent");
+
+    // Verify timeline button is 'on'
+    const timelineBtn = screen.getByTitle("Group by when each memory happened");
+    expect(timelineBtn.className).toContain("on");
+
+    // Verify dates show exact format in title tooltip or text (showExactDate is true)
+    // The element for the date is an <abbr>
+    const abbrs = screen.getAllByTitle(/2026/);
+    expect(abbrs.length).toBeGreaterThan(0);
   });
 });

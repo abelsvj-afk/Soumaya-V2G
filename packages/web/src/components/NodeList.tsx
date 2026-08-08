@@ -77,9 +77,9 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
   const [type, setType] = useState<NodeType | "all">("all");
   const [cooling, setCooling] = useState(false);
   const [drifting, setDrifting] = useState(false); // orphan lint: memories with no links
-  const [sort, setSort] = useState<Sort>("mass");
+  const [sort, setSort] = useState<Sort>("recent");
   const [tag, setTag] = useState<string | null>(null);
-  const [timeline, setTimeline] = useState(false);
+  const [timeline, setTimeline] = useState(true);
   const [visited, setVisited] = useState<VisitedMemory[]>([]);
   const [constellationMap, setConstellationMap] = useState<Map<number, string>>(new Map());
 
@@ -170,6 +170,9 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
     const cls = n.celestial ?? "moon";
     const emo = emotionBucket(n.emotionalWeight);
     const when = relative(n.occurredAt ?? n.createdAt);
+    const timestamp = ms(n.occurredAt ?? n.createdAt);
+    const fullDate = !Number.isNaN(timestamp) ? new Date(timestamp).toLocaleDateString() : "";
+    const showExactDate = sort === "recent" || timeline;
     const v = visitorMap.get(n.id);
     const constel = constellationMap.get(n.id);
     const isProcessing = processing.has(n.id);
@@ -185,7 +188,20 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
             <span className="nl-meta2">
               <span title="growth stage">{CELESTIAL_ICON[cls]} {CELESTIAL_LABEL[cls]}</span>
               {(n.degree ?? 0) > 0 && <span title="connections">· {n.degree} link{n.degree === 1 ? "" : "s"}</span>}
-              {when && <span title="when">· {when}</span>}
+              {when && (
+                <span title="when">
+                  ·{" "}
+                  {showExactDate && fullDate ? (
+                    <abbr title={fullDate} style={{ textDecoration: "none" }}>
+                      {fullDate} ({when})
+                    </abbr>
+                  ) : (
+                    <abbr title={fullDate || "when"} style={{ textDecoration: "none" }}>
+                      {when}
+                    </abbr>
+                  )}
+                </span>
+              )}
               <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
               {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
               {v && <span title={`visited ${v.visits}× · last ${relative(v.lastAt)}`}>· 👽 {v.visits}</span>}

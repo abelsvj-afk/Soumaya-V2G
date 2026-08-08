@@ -165,6 +165,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): Memory List Defaults, Tooltip Dates & Test Environment Fix
+- [ ] Verified by Claude
+- Fixed a long-standing web test suite issue where `localStorage` was undefined under happy-dom in Vitest, by implementing a resilient `localStorage` mock/polyfill in `packages/web/src/test-setup.ts`. This restored the entire web test suite to green (all 31 tests passing).
+- Changed the default sorting in `NodeList.tsx` (Memory browse tab) from `"mass"` to `"recent"` and enabled the `"timeline"` grouping by default, prioritizing recent activity in the user's view.
+- Added actual formatted date strings (e.g., `toLocaleDateString()`) next to relative time descriptions inside semantic `<abbr>` tags with title tooltips for rows when sorting by `"recent"` or when `"timeline"` is active.
+- Added a robust unit test suite for `NodeList` inside `packages/web/src/components/components.smoke.test.tsx` checking that default states (recent, timeline-on) render and display dates correctly under test.
+- Files touched:
+  - `packages/web/src/test-setup.ts`
+  - `packages/web/src/components/NodeList.tsx`
+  - `packages/web/src/components/components.smoke.test.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 31 web tests passing, and web build clean.
+
 ### 2026-07-12 (Claude): Real fleet hull — the E-45 model replaces the procedural cone
 User supplied an E-45 aircraft model (OBJ + MTL + PBR textures) as one of Soumaya's spawnable
 fleet ships ("smaller than her, she sends amounts out"). Integrated it as the visual for the

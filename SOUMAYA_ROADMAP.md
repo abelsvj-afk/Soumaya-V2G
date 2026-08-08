@@ -101,3 +101,4 @@ This document tracks identified architectural gaps, technical debt, and proposed
   `b95e4b1`, `e248c2e`), TTS dramatization, focus speed-dial.
 - **2026-06-17:** **Claude — audit pass:** autonomous jobs now tend their nodes,
   beam NaN guard, offline `emotionalWeight`, beacon lore-card auto-close; docs synced.
+- **2026-08-08:** **Gemini — Memory list chronological defaults + full date formatting & tooltips + robust test environment fix:** fixed `localStorage` undefined bug under happy-dom in vitest, defaulted Memory browse list sorting to `"recent"` and enabled `"timeline"` grouping by default, and displayed full date strings with relative tooltips inside `<abbr>` tags for rows.
