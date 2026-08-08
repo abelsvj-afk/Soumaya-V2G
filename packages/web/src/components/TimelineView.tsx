@@ -3,6 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { GraphNode, TimelineChapter, ChapterTrend } from "@brain/shared";
 import { getTimeline, addTimelineChapter, deleteTimelineChapter, listAttachments, attachmentObjectUrl } from "../api/client.js";
+import { resolveGraphics } from "../graph/graphicsConfig.js";
 
 /**
  * The Chronicle — a 3D flowing-river timeline of your life. Chapters (written by
@@ -135,11 +136,16 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
     const mount = mountRef.current;
     if (!mount || !chapters || chapters.length === 0) return;
 
+    const config = resolveGraphics();
+
     const scene = new THREE.Scene();
     scene.background = new THREE.Color("#05010d");
     const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 4000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
+    const renderer = new THREE.WebGLRenderer({
+      antialias: config.tier !== "performance",
+      alpha: true,
+    });
+    renderer.setPixelRatio(config.pixelRatio);
     renderer.setSize(mount.clientWidth, mount.clientHeight);
     mount.appendChild(renderer.domElement);
 
@@ -166,21 +172,24 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
     // --- Flowing ribbon (2+ chapters) ---
     if (N >= 2) {
       const curve = new THREE.CatmullRomCurve3(points, false, "catmullrom", 0.5);
-      const geo = track(new THREE.TubeGeometry(curve, N * 24, 1.6, 10, false));
+      const tubularSegments = config.tier === "performance" ? N * 8 : N * 24;
+      const radialSegments = config.tier === "performance" ? 4 : 10;
+      const geo = track(new THREE.TubeGeometry(curve, tubularSegments, 1.6, radialSegments, false));
       ribbonTex.repeat.set(N * 1.5, 1);
       const mat = track(
         new THREE.MeshBasicMaterial({ map: ribbonTex, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }),
       );
       scene.add(new THREE.Mesh(geo, mat));
 
-      // Colour packets drifting along the river for extra life.
+      // Colour packets drifting along the river for extra life (scaled by particleScale).
       const packets: { sprite: THREE.Sprite; t: number; speed: number }[] = [];
-      for (let i = 0; i < N * 2; i++) {
+      const packetCount = Math.max(1, Math.round(N * 2 * config.particleScale));
+      for (let i = 0; i < packetCount; i++) {
         const col = new THREE.Color(PALETTE[i % PALETTE.length]!);
         const spr = new THREE.Sprite(track(new THREE.SpriteMaterial({ map: glowTex, color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
         spr.scale.setScalar(6);
         scene.add(spr);
-        packets.push({ sprite: spr, t: i / (N * 2), speed: 0.02 + (i % 3) * 0.006 });
+        packets.push({ sprite: spr, t: i / packetCount, speed: 0.02 + (i % 3) * 0.006 });
       }
       (scene.userData as { packets?: typeof packets; curve?: THREE.CatmullRomCurve3 }).packets = packets;
       (scene.userData as { curve?: THREE.CatmullRomCurve3 }).curve = curve;
@@ -189,12 +198,14 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
     // --- Chapter nodes + photo bubbles ---
     const clickTargets: THREE.Object3D[] = [];
     const bubbleCycles: { sprite: THREE.Sprite; seed: number }[] = [];
+    const sphereSubdiv = config.tier === "performance" ? 10 : 24;
+    const bubbleSubdiv = config.tier === "performance" ? 8 : 18;
     chapters.forEach((ch, idx) => {
       const pos = points[idx]!;
       const trendCol = new THREE.Color(TREND_COLOR[ch.trend]);
       const r = 3 + ch.score * 6;
       const node = new THREE.Mesh(
-        track(new THREE.SphereGeometry(r, 24, 24)),
+        track(new THREE.SphereGeometry(r, sphereSubdiv, sphereSubdiv)),
         track(new THREE.MeshBasicMaterial({ color: trendCol })),
       );
       node.position.copy(pos);
@@ -213,7 +224,7 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
         const rad = r + 10 + (k % 2) * 5;
         const bpos = new THREE.Vector3(pos.x + Math.cos(ang) * rad, pos.y + Math.sin(ang) * rad, pos.z + (k % 2 ? 6 : -6));
         const bubble = new THREE.Mesh(
-          track(new THREE.SphereGeometry(2.6, 18, 18)),
+          track(new THREE.SphereGeometry(2.6, bubbleSubdiv, bubbleSubdiv)),
           track(new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false })),
         );
         bubble.position.copy(bpos);
@@ -272,12 +283,14 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
       raf = requestAnimationFrame(animate);
       const dt = Math.min(0.05, clock.getDelta());
       ribbonTex.offset.x -= dt * 0.05; // colour flows along the river
-      // Twinkle the photo bubbles.
-      const t = clock.elapsedTime;
-      bubbleCycles.forEach((b, i) => {
-        const s = 8 + Math.sin(t * 2 + i) * 1.6;
-        b.sprite.scale.setScalar(s);
-      });
+      // Twinkle the photo bubbles (gated/throttled on animationScale).
+      if (config.animationScale > 0.5) {
+        const t = clock.elapsedTime;
+        bubbleCycles.forEach((b, i) => {
+          const s = 8 + Math.sin(t * 2 + i) * 1.6;
+          b.sprite.scale.setScalar(s);
+        });
+      }
       // Drift packets along the curve.
       if (sceneData.packets && sceneData.curve) {
         for (const p of sceneData.packets) {

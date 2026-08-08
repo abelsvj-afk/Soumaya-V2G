@@ -76,7 +76,7 @@ export function detectTier(): "performance" | "balanced" | "quality" {
     else if (cores >= 8) score += 1;
     if (minSide <= 480) score -= 1; // small phone screen
     if (dpr >= 3) score -= 1; // very high-DPI is expensive to fill
-    if (score <= 0) return "performance"; // bias low: most phones land here (no bloom)
+    if (score <= 1) return "performance"; // bias low: most phones/mid-range (like A37 5G) land here (no bloom)
     if (score >= 3) return "quality"; // bloom only for genuinely powerful devices
     return "balanced";
   } catch {

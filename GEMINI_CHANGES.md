@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): Timeline 3D Scene Adaptive Performance Optimizations
+- [ ] Verified by Claude
+- Fixed Bug 4 from the Priority List: Timeline performance on mid-range and budget screens like the Galaxy A37 5G.
+- Adjusted the device capability scoring in `graphicsConfig.ts` to return `"performance"` (low tier) if the score is `<=` 1 (instead of `<=` 0), classifying mid-range 4GB/8-core phones into the correct performance bucket.
+- Refactored `TimelineView.tsx` to read the active graphics settings via `resolveGraphics()`.
+- Dynamically disabled WebGL anti-aliasing (`antialias: config.tier !== "performance"`) and set the device pixel ratio to the resolved performance target (`config.pixelRatio`), saving fillrate on low-end screens.
+- Scaled down the flowing river color packets count on low-tier screens by scaling with `config.particleScale`.
+- Optimized the TubeGeometry segment divisions (3x fewer tubular segments, 2.5x fewer radial segments) and SphereGeometry subdivisions for chapter nodes and photo bubbles by a factor of 4x to 6x on low-performance devices.
+- Gated/throttled the per-frame photo bubbles scale twinkle loop when the animation quality scale is lower (`config.animationScale > 0.5`), saving CPU/GPU frame overhead.
+- Files touched:
+  - `packages/web/src/graph/graphicsConfig.ts`
+  - `packages/web/src/components/TimelineView.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 33 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): Interactive Alive Tags with Count Clouds & Hover Glows
 - [ ] Verified by Claude
 - Fixed Bug 3 from the Priority List: Tag interactions and alive visual representation.
