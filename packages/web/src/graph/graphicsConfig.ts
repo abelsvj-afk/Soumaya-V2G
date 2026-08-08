@@ -138,7 +138,8 @@ const ANIM = { low: 0.5, medium: 0.8, high: 1 } as const;
 
 /** Translate the stored settings into the concrete numbers Graph3D consumes. */
 export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGraphics {
-  const tier = detectTier();
+  const detected = detectTier();
+  const tier = s.mode === "auto" ? detected : s.mode;
   // In auto mode the device decides; otherwise honor the stored (possibly custom) fields.
   const eff: Omit<GraphicsSettings, "mode"> = s.mode === "auto" ? { ...PRESETS[tier] } : s;
   const dpr = window.devicePixelRatio || 1;

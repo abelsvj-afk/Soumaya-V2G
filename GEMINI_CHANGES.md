@@ -165,6 +165,19 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): Performance Settings Override Persistence & Time/Location Aliveness (Bug 5)
+- [ ] Verified by Claude
+- Fixed a bug where manual graphics settings overrides (like selecting Performance or Quality) did not persist down to 3D rendering elements (like `TimelineView`) because `resolveGraphics` would always reset the `tier` parameter to the synchronous `detectTier()`. Re-architected `resolveGraphics()` to correctly set `tier` based on the user's manual mode setting when not in `"auto"`.
+- Resolved Bug 5 from the Priority List: Time/Location alive view feel.
+- Added a gorgeous, monospace persistent ambient Sci-Fi status strip at the top of the details dock in `RightDock.tsx`. It displays reactive localized greetings based on current user time (e.g. Good morning/afternoon/evening/night) coupled with dynamic spaceport orbital tracks, sector tracking numbers, and localized real-time coordinates (e.g. Lagrange-5, Alpha Quadrant) which update every 30 seconds.
+- Implemented a sticky today strip inside the Browse tab (`NodeList.tsx`) that surfaces today's added memories count and upcoming countdown reminders due in the next 24 hours (e.g., `"Reminder incoming: 'Dentist appointment' in 4h"`).
+- Files touched:
+  - `packages/web/src/graph/graphicsConfig.ts`
+  - `packages/web/src/components/RightDock.tsx`
+  - `packages/web/src/components/NodeList.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 33 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): Timeline 3D Scene Adaptive Performance Optimizations
 - [ ] Verified by Claude
 - Fixed Bug 4 from the Priority List: Timeline performance on mid-range and budget screens like the Galaxy A37 5G.

@@ -175,6 +175,34 @@ export function NodeList({ nodes, onFocus, demo, initialTag, onTagChange }: Prop
     return [...map.values()].sort((a, b) => b.rank - a.rank);
   }, [timeline, shown]);
 
+  const todayMemories = useMemo(() => {
+    const todayStr = new Date().toLocaleDateString();
+    return memories.filter(n => {
+      const timestamp = ms(n.occurredAt ?? n.createdAt);
+      return !Number.isNaN(timestamp) && new Date(timestamp).toLocaleDateString() === todayStr;
+    });
+  }, [memories]);
+
+  const upcomingReminders = useMemo(() => {
+    const now = Date.now();
+    return nodes.filter(n => {
+      if (!n.remindAt) return false;
+      const timestamp = ms(n.remindAt);
+      return !Number.isNaN(timestamp) && timestamp > now && timestamp - now < 24 * 3600 * 1000; // next 24 hours
+    });
+  }, [nodes]);
+
+  const relativeFuture = (raw?: string) => {
+    const t = ms(raw);
+    if (Number.isNaN(t)) return "";
+    const diff = t - Date.now();
+    if (diff <= 0) return "now";
+    const h = Math.round(diff / 3.6e6);
+    if (h < 24) return `in ${h}h`;
+    const d = Math.round(diff / 8.64e7);
+    return `in ${d}d`;
+  };
+
   if (memories.length === 0) {
     return <p className="empty">No memories yet — dump a thought to begin.</p>;
   }
@@ -237,6 +265,31 @@ export function NodeList({ nodes, onFocus, demo, initialTag, onTagChange }: Prop
         onChange={(e) => setQ(e.target.value)}
         placeholder={`Search ${memories.length} memories…`}
       />
+
+      {(todayMemories.length > 0 || upcomingReminders.length > 0) && (
+        <div className="sticky-today-strip" style={{
+          margin: "10px 0",
+          padding: "8px 12px",
+          background: "rgba(91, 214, 255, 0.08)",
+          border: "1px solid rgba(91, 214, 255, 0.25)",
+          borderRadius: "8px",
+          fontSize: "12px",
+          color: "#eaf2ff",
+        }}>
+          {todayMemories.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: upcomingReminders.length > 0 ? "6px" : 0 }}>
+              <span>📅</span>
+              <span><strong>Today:</strong> {todayMemories.length} new star{todayMemories.length === 1 ? "" : "s"} added.</span>
+            </div>
+          )}
+          {upcomingReminders.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span>🔔</span>
+              <span><strong>Reminder incoming:</strong> "{upcomingReminders[0]!.label.slice(0, 30)}..." {relativeFuture(upcomingReminders[0]!.remindAt)}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="discovery-filters">
         <select value={tier} onChange={(e) => setTier(e.target.value as CelestialClass | "all")} title="Size / growth stage">

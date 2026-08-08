@@ -124,6 +124,32 @@ export function RightDock({
   const [progressView, setProgressView] = useState<ProgressView>("codex");
   const [fleetOpen, setFleetOpen] = useState(false);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [ambientInfo, setAmbientInfo] = useState({ greeting: "", location: "" });
+
+  useEffect(() => {
+    const updateAmbient = () => {
+      const hours = new Date().getHours();
+      let greeting = "Good evening";
+      if (hours >= 5 && hours < 12) greeting = "Good morning";
+      else if (hours >= 12 && hours < 17) greeting = "Good afternoon";
+      else if (hours >= 17 && hours < 22) greeting = "Good evening";
+      else greeting = "Good night";
+
+      const sector = Math.floor(Math.sin(Date.now() / 10000) * 4) + 5;
+      const sectors = ["Delta-V", "Lagrange-5", "Orion Outpost", "Alpha Quadrant", "E-45 Station"];
+      const orbit = sectors[Math.abs(hours) % sectors.length];
+      const timeStr = new Date().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+
+      setAmbientInfo({
+        greeting: `${greeting}, traveller`,
+        location: `🛰️ Spaceport · ${orbit} (Sector ${sector}) · ${timeStr}`
+      });
+    };
+
+    updateAmbient();
+    const iv = setInterval(updateAmbient, 30000);
+    return () => clearInterval(iv);
+  }, []);
 
   useEffect(() => {
     const updateCount = () => {
@@ -200,6 +226,22 @@ export function RightDock({
             ×
           </button>
         )}
+      </div>
+      {/* Persistent Sci-Fi Ambient Status Strip */}
+      <div className="dock-ambient-strip" style={{
+        padding: "6px 16px",
+        background: "rgba(10, 12, 28, 0.4)",
+        borderBottom: "1px solid var(--glass-border)",
+        fontSize: "11px",
+        color: "#7ac8ff",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        fontFamily: "monospace",
+        opacity: 0.85
+      }}>
+        <span>{ambientInfo.greeting}</span>
+        <span>{ambientInfo.location}</span>
       </div>
       <div className="dock-content">
         {tab === "details" && (
