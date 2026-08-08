@@ -16,6 +16,8 @@ interface Props {
   nodes: GraphNode[];
   onFocus: (id: number) => void;
   demo?: boolean;
+  initialTag?: string | null;
+  onTagChange?: (tag: string | null) => void;
 }
 
 type Emotion = "all" | "positive" | "neutral" | "negative";
@@ -69,7 +71,7 @@ function bucket(t: number): { key: string; label: string; rank: number } {
  * filters, so a memory can be found WITHOUT remembering its name ("the large blue
  * planet, cooling, from a while back"). All data is already derived on each node.
  */
-export function NodeList({ nodes, onFocus, demo }: Props) {
+export function NodeList({ nodes, onFocus, demo, initialTag, onTagChange }: Props) {
   const processing = useProcessingNodes();
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<CelestialClass | "all">("all");
@@ -78,10 +80,21 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
   const [cooling, setCooling] = useState(false);
   const [drifting, setDrifting] = useState(false); // orphan lint: memories with no links
   const [sort, setSort] = useState<Sort>("recent");
-  const [tag, setTag] = useState<string | null>(null);
+  const [tag, setTag] = useState<string | null>(initialTag ?? null);
   const [timeline, setTimeline] = useState(true);
   const [visited, setVisited] = useState<VisitedMemory[]>([]);
   const [constellationMap, setConstellationMap] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    if (initialTag !== undefined) {
+      setTag(initialTag);
+    }
+  }, [initialTag]);
+
+  const handleTagChange = (newTag: string | null) => {
+    setTag(newTag);
+    onTagChange?.(newTag);
+  };
 
   useEffect(() => {
     if (demo) return;
@@ -110,10 +123,10 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
 
   const memories = useMemo(() => nodes.filter((n) => n.kind !== "action"), [nodes]);
 
-  const allTags = useMemo(() => {
+  const allTagsWithCounts = useMemo(() => {
     const f = new Map<string, number>();
     for (const n of memories) for (const t of n.tags ?? []) f.set(t, (f.get(t) ?? 0) + 1);
-    return [...f.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([t]) => t);
+    return [...f.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, count]) => ({ name, count }));
   }, [memories]);
 
   // Distinct kinds present (legacy values normalized to the canonical taxonomy).
@@ -293,17 +306,24 @@ export function NodeList({ nodes, onFocus, demo }: Props) {
         </div>
       )}
 
-      {allTags.length > 0 && (
-        <div className="discovery-tags">
-          {allTags.map((t) => (
-            <button
-              key={t}
-              className={`tag-chip ${tag === t ? "on" : ""}`}
-              onClick={() => setTag(tag === t ? null : t)}
-            >
-              {t}
-            </button>
-          ))}
+      {allTagsWithCounts.length > 0 && (
+        <div className="discovery-tags" style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+          {allTagsWithCounts.map(({ name: t, count }) => {
+            const maxCount = Math.max(...allTagsWithCounts.map(tc => tc.count), 1);
+            const fontSize = `${11 + (count / maxCount) * 5}px`;
+            const isHot = count >= 3 || (count / maxCount) >= 0.5;
+            return (
+              <button
+                key={t}
+                className={`tag-chip ${tag === t ? "on" : ""} ${isHot ? "hot" : ""}`}
+                style={{ fontSize }}
+                onClick={() => handleTagChange(tag === t ? null : t)}
+                title={`Filter by tag #${t} (${count} memories)`}
+              >
+                #{t} <span style={{ opacity: 0.6, fontSize: "0.8em" }}>{count}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 

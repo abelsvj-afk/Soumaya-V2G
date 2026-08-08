@@ -123,6 +123,7 @@ export function RightDock({
   const [browseView, setBrowseView] = useState<BrowseView>("all");
   const [progressView, setProgressView] = useState<ProgressView>("codex");
   const [fleetOpen, setFleetOpen] = useState(false);
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
 
   useEffect(() => {
     const updateCount = () => {
@@ -210,6 +211,11 @@ export function RightDock({
             onDeleted={onDeleted}
             onIsolate={onIsolate}
             demo={demo}
+            onTagClick={(t) => {
+              setSelectedTag(t);
+              setTab("list");
+              setBrowseView("all");
+            }}
           />
         )}
         {tab === "list" && (
@@ -225,7 +231,15 @@ export function RightDock({
                 🪐 Hubs
               </button>
             </div>
-            {browseView === "all" && <NodeList nodes={graph.nodes} onFocus={onFocus} demo={demo} />}
+            {browseView === "all" && (
+              <NodeList
+                nodes={graph.nodes}
+                onFocus={onFocus}
+                demo={demo}
+                initialTag={selectedTag}
+                onTagChange={setSelectedTag}
+              />
+            )}
             {browseView === "folders" && (
               <LibraryPanel graph={graph} onFocus={onFocus} spaceName={spaceName} />
             )}

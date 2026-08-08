@@ -165,6 +165,23 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-08 (Gemini): Interactive Alive Tags with Count Clouds & Hover Glows
+- [ ] Verified by Claude
+- Fixed Bug 3 from the Priority List: Tag interactions and alive visual representation.
+- Lifted selected tag state into `RightDock.tsx` using `selectedTag` state, passing it into `NodeList.tsx` and `NodeInspector.tsx` for cross-tab synchronizations.
+- Updated `NodeInspector.tsx` to render tag chips as `<button className="tag-chip clickable">` elements which triggers filtering by that tag when clicked, auto-transitioning the user to the Browse / Memory list tab.
+- Re-architected tag discovery section in `NodeList.tsx` to render an inline-cloud tag grid where each tag shows its exact occurrence counts (`#tag 3`) and has its font-size proportionally sized according to its frequency relative to others (`11px` to `16px`).
+- Added subtle pulse and hover glow CSS keyframe animations for clickable and hot tags in `packages/web/src/index.css`.
+- Extended `components.smoke.test.tsx` to verify tag cloud filtering and tag navigation callback functionality under unit tests.
+- Files touched:
+  - `packages/web/src/index.css`
+  - `packages/web/src/components/RightDock.tsx`
+  - `packages/web/src/components/NodeList.tsx`
+  - `packages/web/src/components/NodeInspector.tsx`
+  - `packages/web/src/components/components.smoke.test.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 33 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): Open Card Mobile Scroll Fix & Collapsible Accordions
 - [ ] Verified by Claude
 - Fixed Bug 2 from the Priority List: Open card / Details Tab cards scrollability and layout issue on mobile device screens.

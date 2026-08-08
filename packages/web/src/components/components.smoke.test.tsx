@@ -112,4 +112,22 @@ describe("NodeList", () => {
     const abbrs = screen.getAllByTitle(/2026/);
     expect(abbrs.length).toBeGreaterThan(0);
   });
+
+  it("filters by tag and triggers parent callback on tag click", async () => {
+    vi.spyOn(clientApi, "getConstellations").mockResolvedValue([]);
+    vi.spyOn(clientApi, "getVisitorActivity").mockResolvedValue([]);
+
+    const onTagChange = vi.fn();
+    render(<NodeList nodes={mockNodes} onFocus={vi.fn()} demo={true} initialTag="space" onTagChange={onTagChange} />);
+
+    // Only "A beautiful memory" has the tag "space", so "A chilly decision" shouldn't be rendered
+    expect(screen.getByText("A beautiful memory")).toBeTruthy();
+    expect(screen.queryByText("A chilly decision")).toBeNull();
+
+    // Click the "space" tag filter to toggle it off
+    const spaceBtn = screen.getByTitle(/Filter by tag #space/);
+    fireEvent.click(spaceBtn);
+
+    expect(onTagChange).toHaveBeenCalledWith(null);
+  });
 });

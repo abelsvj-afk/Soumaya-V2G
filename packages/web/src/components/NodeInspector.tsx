@@ -23,6 +23,7 @@ interface Props {
   onIsolate?: (id: number) => void;
   /** Demo galaxy has no backend — hide lore/Chronicle there. */
   demo?: boolean;
+  onTagClick?: (tag: string) => void;
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
@@ -64,7 +65,7 @@ function sizeReason(n: GraphNode): string {
   return bits.slice(0, 3).join(", ");
 }
 
-export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo }: Props) {
+export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo, onTagClick }: Props) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -276,9 +277,19 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           {node.tags && node.tags.length > 0 && (
             <div className="node-tags">
               {node.tags.map((t) => (
-                <span key={t} className="tag-chip readonly">
-                  {t}
-                </span>
+                <button
+                  key={t}
+                  className="tag-chip clickable"
+                  onClick={() => onTagClick?.(t)}
+                  title={`Filter by tag #${t}`}
+                  style={{
+                    background: "rgba(122, 162, 255, 0.08)",
+                    border: "1px solid rgba(122, 162, 255, 0.25)",
+                    cursor: "pointer",
+                  }}
+                >
+                  #{t}
+                </button>
               ))}
             </div>
           )}

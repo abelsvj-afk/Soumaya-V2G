@@ -2012,6 +2012,32 @@ body,
 .tag-chip.readonly {
   cursor: default;
 }
+.tag-chip.clickable {
+  transition: all 0.2s ease-in-out;
+}
+.tag-chip.clickable:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 0 12px rgba(122, 200, 255, 0.5);
+  border-color: #7ac8ff;
+  color: #fff;
+}
+@keyframes tag-pulse {
+  0% {
+    box-shadow: 0 0 4px rgba(122, 200, 255, 0.15);
+    border-color: rgba(122, 200, 255, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(122, 200, 255, 0.45);
+    border-color: rgba(122, 200, 255, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 4px rgba(122, 200, 255, 0.15);
+    border-color: rgba(122, 200, 255, 0.15);
+  }
+}
+.tag-chip.hot {
+  animation: tag-pulse 2s infinite ease-in-out;
+}
 .tag-input {
   background: rgba(0, 0, 0, 0.3);
   border: 1px dashed var(--glass-border);
