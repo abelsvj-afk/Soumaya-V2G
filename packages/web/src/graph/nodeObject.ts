@@ -9,35 +9,43 @@ const WORLD_SCALE = 0.11; // canvas px -> world units
 const WINDOW_PX = 470; // max on-screen label width before it scrolls (marquee)
 const MAX_CHARS = 80; // cap canvas width for very long entries
 
+const labelTexCache = new Map<string, { map: THREE.CanvasTexture; width: number; height: number }>();
+const glowTexCache = new Map<string, THREE.CanvasTexture>();
+const geometryCache = new Map<string, THREE.BufferGeometry>();
+
 /**
- * Build a floating text label as a lightweight sprite (no polygons). Long names
- * aren't truncated — instead the sprite shows a fixed-width "window" and the text
- * gently scrolls back and forth (marquee). The animation + distance fade is
- * driven from the Graph3D tick loop via flags stashed in `userData`.
+ * Build a floating text label as a lightweight sprite (no polygons).
  */
 function makeLabel(rawText: string): THREE.Sprite {
-  const text = rawText.length > MAX_CHARS ? `${rawText.slice(0, MAX_CHARS)}…` : rawText;
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d")!;
-  const font = `600 ${FONT_SIZE}px Inter, system-ui, sans-serif`;
-  ctx.font = font;
-  const textWidth = Math.ceil(ctx.measureText(text).width);
-  canvas.width = textWidth + PADDING * 2;
-  canvas.height = FONT_SIZE + PADDING * 2;
+  const cacheKey = rawText;
+  let cached = labelTexCache.get(cacheKey);
+  
+  if (!cached) {
+    const text = rawText.length > MAX_CHARS ? `${rawText.slice(0, MAX_CHARS)}…` : rawText;
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d")!;
+    const font = `600 ${FONT_SIZE}px Inter, system-ui, sans-serif`;
+    ctx.font = font;
+    const textWidth = Math.ceil(ctx.measureText(text).width);
+    canvas.width = textWidth + PADDING * 2;
+    canvas.height = FONT_SIZE + PADDING * 2;
 
-  ctx.font = font;
-  ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(0,0,0,0.85)";
-  ctx.shadowBlur = 8;
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.fillText(text, PADDING, canvas.height / 2);
+    ctx.font = font;
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.85)";
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = "rgba(255,255,255,0.95)";
+    ctx.fillText(text, PADDING, canvas.height / 2);
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.minFilter = THREE.LinearFilter;
-  // depthTest false + high renderOrder => the name always draws on top of its body
-  // no matter the camera angle (never hides behind the planet).
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    cached = { map: texture, width: canvas.width, height: canvas.height };
+    labelTexCache.set(cacheKey, cached);
+  }
+
+  const { map, width, height } = cached;
   const material = new THREE.SpriteMaterial({
-    map: texture,
+    map,
     transparent: true,
     depthWrite: false,
     depthTest: false,
@@ -45,16 +53,16 @@ function makeLabel(rawText: string): THREE.Sprite {
   const sprite = new THREE.Sprite(material);
   sprite.renderOrder = 999;
 
-  const tooWide = canvas.width > WINDOW_PX;
-  const displayPx = tooWide ? WINDOW_PX : canvas.width;
-  sprite.scale.set(displayPx * WORLD_SCALE, canvas.height * WORLD_SCALE, 1);
+  const tooWide = width > WINDOW_PX;
+  const displayPx = tooWide ? WINDOW_PX : width;
+  sprite.scale.set(displayPx * WORLD_SCALE, height * WORLD_SCALE, 1);
   sprite.position.set(0, 9, 0);
 
   sprite.userData.isLabel = true;
   if (tooWide) {
-    texture.wrapS = THREE.RepeatWrapping;
-    texture.repeat.x = WINDOW_PX / canvas.width;
-    sprite.userData.marquee = { range: 1 - WINDOW_PX / canvas.width, t: 0 };
+    map.wrapS = THREE.RepeatWrapping;
+    map.repeat.x = WINDOW_PX / width;
+    sprite.userData.marquee = { range: 1 - WINDOW_PX / width, t: 0 };
   }
   return sprite;
 }
@@ -66,18 +74,26 @@ const rgbOf = (hex: string): string => {
 
 /** Soft radial-gradient sprite used as a star's corona / planet's atmosphere. */
 function makeGlow(color: string, size: number): THREE.Sprite {
-  const c = document.createElement("canvas");
-  c.width = c.height = 128;
-  const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-  const rgb = rgbOf(color);
-  g.addColorStop(0, `rgba(${rgb},0.9)`);
-  g.addColorStop(0.35, `rgba(${rgb},0.35)`);
-  g.addColorStop(1, `rgba(${rgb},0)`);
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
+  const cacheKey = `${color}-${size}`;
+  let texture = glowTexCache.get(cacheKey);
+
+  if (!texture) {
+    const c = document.createElement("canvas");
+    c.width = c.height = 128;
+    const ctx = c.getContext("2d")!;
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    const rgb = rgbOf(color);
+    g.addColorStop(0, `rgba(${rgb},0.9)`);
+    g.addColorStop(0.35, `rgba(${rgb},0.35)`);
+    g.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+    texture = new THREE.CanvasTexture(c);
+    glowTexCache.set(cacheKey, texture);
+  }
+  
   const mat = new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(c),
+    map: texture,
     transparent: true,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
@@ -86,6 +102,19 @@ function makeGlow(color: string, size: number): THREE.Sprite {
   sprite.scale.set(size, size, 1);
   return sprite;
 }
+
+function getGeometry(type: "sphere" | "icosahedron" | "octahedron", size: number, detail: number): THREE.BufferGeometry {
+  const cacheKey = `${type}-${size}-${detail}`;
+  let geom = geometryCache.get(cacheKey);
+  if (!geom) {
+    if (type === "sphere") geom = new THREE.SphereGeometry(size, detail, detail);
+    else if (type === "icosahedron") geom = new THREE.IcosahedronGeometry(size, detail);
+    else geom = new THREE.OctahedronGeometry(size, detail);
+    geometryCache.set(cacheKey, geom);
+  }
+  return geom;
+}
+
 
 /** A ring of drifting rock particles (asteroid belt) around a big body. */
 function makeAsteroidBelt(inner: number, outer: number, count = 360): THREE.Points {
@@ -377,8 +406,8 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // Asteroids are jagged rocks; everything else is a sphere.
   const geom =
     cls === "asteroid"
-      ? new THREE.IcosahedronGeometry(size, 0)
-      : new THREE.SphereGeometry(size, isRocky ? 24 : 48, isRocky ? 24 : 48);
+      ? getGeometry("icosahedron", size, 0)
+      : getGeometry("sphere", size, isRocky ? 24 : 48);
   const mesh = new THREE.Mesh(geom, material);
   mesh.userData.pulse = {
     base: baseBrightness,
@@ -388,19 +417,17 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     vitality, // age-driven glow: brighter when fresh, dimmer when stale + unconnected
   };
 
-  // 1. The High-Fidelity Body (Complex geometry, lights, etc.)
-  const fidelity = new THREE.Group();
-  fidelity.userData.isFidelity = true;
   // Self-rotation: the body (+ its rings) spins on its own axis while the orbit
   // system carries it around its heaviest neighbor. Smaller bodies spin faster.
-  // (Spin lives on the fidelity group so camera-facing labels don't rotate.)
-  fidelity.userData.spin = true;
-  fidelity.userData.spinSpeed = 0.0015 + 0.05 / (size + 4);
-  fidelity.add(mesh);
+  mesh.userData.spin = true;
+  mesh.userData.spinSpeed = 0.0015 + 0.05 / (size + 4);
 
   // Rings are a SIGNATURE of a RARE, special body — not every gas giant. On an
   // established brain many memories land in the gas-giant band, so gate rings to a
   // stable ~1/5 of them (hashed on id) so a ringed world reads as a standout.
+  const nodeGroup = new THREE.Group();
+  nodeGroup.add(mesh);
+  
   if (cls === "gas_giant" && ((node.id * 2654435761) >>> 0) % 5 === 0) {
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(size * 1.6, size * 2.4, 48),
@@ -413,7 +440,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       }),
     );
     ring.rotation.x = Math.PI / 2.4;
-    fidelity.add(ring);
+    nodeGroup.add(ring);
   }
 
   // Brighter bodies give off more light. Star-like bodies get a corona + a real
@@ -426,7 +453,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       speed: 0.5 + mass * 0.7,
       phase: (node.id % 7) * 0.7,
     };
-    fidelity.add(glow);
+    nodeGroup.add(glow);
     const light = new THREE.PointLight(
       new THREE.Color(color),
       cls === "supergiant" ? 3.0 + mass * 3.5 : 1.6 + mass * 3,
@@ -434,9 +461,9 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       2,
     );
     light.userData.isStarLight = true;
-    fidelity.add(light);
+    nodeGroup.add(light);
     // A faint asteroid belt orbiting the sun.
-    fidelity.add(makeAsteroidBelt(size * 2.6, size * 3.8));
+    nodeGroup.add(makeAsteroidBelt(size * 2.6, size * 3.8));
   } else if (isPlanetLike) {
     const glow = makeGlow(color, size * (cls === "giant" ? 1.5 : 1.35));
     glow.userData.corona = {
@@ -445,30 +472,28 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       speed: 0.4 + mass * 0.6,
       phase: (node.id % 7) * 0.7,
     };
-    fidelity.add(glow);
+    nodeGroup.add(glow);
   }
 
   // 2. The Macro Body (low-poly self-lit sphere; spins so it never looks frozen)
   const macro = makeMacroBody(color, size, isStarLike);
 
-  // 3. Sector Title — every hub gets a name at macro/zoomed-out view (its poetic
-  // celestialTitle if the LLM gave one, else the memory's own label).
+  // 3. Sector Title — every hub gets a name at macro/zoomed-out view
   if (mass >= 0.44) {
     const sectorLabel = makeLabel((node.celestialTitle ?? node.label).toUpperCase());
     sectorLabel.scale.multiplyScalar(2.5); // Giant sector name
-    // Remember the authored size so the LOD tick can grow it with camera distance and keep
-    // it a readable constant on-screen size at zoom-out (otherwise it shrinks to a speck,
-    // especially on a small mobile screen).
     sectorLabel.userData.baseScale = { x: sectorLabel.scale.x, y: sectorLabel.scale.y };
     sectorLabel.position.set(0, size * 4 + 10, 0);
     sectorLabel.userData.isSectorTitle = true;
     sectorLabel.visible = false; // Toggled by LOD logic
-    group.add(sectorLabel);
+    nodeGroup.add(sectorLabel);
   }
 
-  group.add(makeLabel(node.label));
-  group.add(fidelity);
-  group.add(macro);
-  group.userData.nodeId = node.id;
-  return group;
+  nodeGroup.add(makeLabel(node.label));
+  nodeGroup.add(macro);
+  nodeGroup.userData.nodeId = node.id;
+  // Preserve reference for LOD logic in Graph3D
+  nodeGroup.userData.isFidelity = true; 
+  return nodeGroup;
 }
+

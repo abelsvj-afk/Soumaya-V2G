@@ -134,7 +134,13 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
               <li key={n.id}>
                 <button className="agenda-main" onClick={() => onFocus(n.id)} title="Fly to it">
                   <span className="agenda-label">{n.label}</span>
-                  <span className="agenda-due">{countdown(at).text}</span>
+                  <span className="agenda-due">
+                    {countdown(at).text}
+                    <br />
+                    <span style={{ fontSize: "0.85em", opacity: 0.8 }}>
+                      {new Date(at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </span>
                 </button>
               </li>
             ))}

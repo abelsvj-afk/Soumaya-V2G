@@ -944,6 +944,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let lastRefreshTime = 0;
     let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
     let starBlur = 0;
+    let frameCount = 0;
     const followAnchor = new THREE.Vector3();
     let followAnchorId: number | null = null;
     const followPos = new THREE.Vector3();
@@ -953,6 +954,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // animation work when we're ahead of the target rate — a real CPU saving on weak
       // phones without touching functionality.
       const nowMs = performance.now();
+      frameCount++;
       const cap = gfxRef.current?.fpsCap ?? 60;
       if (nowMs - lastFrameMs < 1000 / cap - 1.5) return;
       lastFrameMs = nowMs;
@@ -1253,11 +1255,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             o.scale.setScalar(1.0);
           }
 
-          o.children.forEach((child: any) => {
+          for (const child of o.children as any[]) {
             // Self-rotation: the body (+ rings) spins on its own axis while the
             // orbit system carries it around its neighbor. (Lives on the fidelity
             // group so labels don't rotate.)
             if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
+            
+            // Optimization: throttle updates for distant/insignificant labels
+            if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
+              continue;
+            }
+
             // Pulse/Brightness
             if (child.userData?.pulse) {
               const bf = brightness(dist);
@@ -1330,7 +1338,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                 }
               }
             }
-          });
+          }
         });
       }
 

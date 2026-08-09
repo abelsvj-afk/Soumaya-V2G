@@ -1,8 +1,11 @@
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
+import { fileURLToPath } from "node:url";
 import BetterSqlite3 from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import * as sqliteVec from "sqlite-vec";
 import * as schema from "./schema.js";
-import { bootstrapVec, type RawDb } from "./vec.js";
+import { bootstrapVec, setVectorEnabled, type RawDb } from "./vec.js";
 import { bootstrapFts } from "./fts.js";
 import { BOOTSTRAP_SQL } from "./schemaSql.js";
 
@@ -217,7 +220,23 @@ function migrateSchema(sqlite: RawDb): void {
  */
 export function createDb(path: string = process.env.DB_PATH ?? "./brain.db"): DbHandle {
   const sqlite = new BetterSqlite3(path);
-  sqliteVec.load(sqlite);
+  try {
+    const serverRoot = nodePath.resolve(fileURLToPath(import.meta.url), "../../../");
+    const localVecPath = nodePath.join(serverRoot, "vec0.so");
+    if (fs.existsSync(localVecPath)) {
+      sqlite.loadExtension(localVecPath);
+      setVectorEnabled(sqlite, true);
+    } else {
+      sqliteVec.load(sqlite);
+      setVectorEnabled(sqlite, true);
+    }
+  } catch (err) {
+    console.warn(
+      `WARNING: Failed to load sqlite-vec extension. Vector features (semantic search, AI routing) will be disabled.`,
+      err
+    );
+    setVectorEnabled(sqlite, false);
+  }
   if (path !== ":memory:") {
     sqlite.pragma("journal_mode = WAL");
   }

@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     globals: true,
+    setupFiles: ["src/test-setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
     css: false,
   },

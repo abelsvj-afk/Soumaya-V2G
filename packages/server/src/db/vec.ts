@@ -8,6 +8,16 @@ import type BetterSqlite3 from "better-sqlite3";
 
 export type RawDb = BetterSqlite3.Database;
 
+const dbVectorSupport = new WeakMap<RawDb, boolean>();
+
+export function setVectorEnabled(db: RawDb, enabled: boolean): void {
+  dbVectorSupport.set(db, enabled);
+}
+
+export function isVectorEnabled(db: RawDb): boolean {
+  return dbVectorSupport.get(db) ?? true;
+}
+
 /**
  * Single source of truth for the embedding dimension. This is LOCKED to the
  * active embedding model: the vec0 column width is fixed, so changing the model
@@ -22,6 +32,9 @@ export const EMBED_DIM = Number(process.env.EMBED_DIM ?? 384);
  * similarity = 1 - distance.
  */
 export function bootstrapVec(db: RawDb): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   db.exec(
     `CREATE VIRTUAL TABLE IF NOT EXISTS vec_nodes USING vec0(
       node_id INTEGER PRIMARY KEY,
@@ -54,6 +67,9 @@ function vecToBlob(vec: Float32Array): Buffer {
  * L2-normalizing the vector (transformers.js does this with `normalize: true`).
  */
 export function upsertEmbedding(db: RawDb, nodeId: number, vec: Float32Array): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   if (vec.length !== EMBED_DIM) {
     throw new Error(
       `Embedding dim mismatch: got ${vec.length}, expected ${EMBED_DIM}. ` +
@@ -75,11 +91,17 @@ export function upsertEmbedding(db: RawDb, nodeId: number, vec: Float32Array): v
 
 /** Remove a node's stored embedding (used when deleting a memory). */
 export function deleteEmbedding(db: RawDb, nodeId: number): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   db.prepare(`DELETE FROM vec_nodes WHERE node_id = ?`).run(BigInt(nodeId));
 }
 
 /** Read back a stored embedding as a Float32Array (e.g. to KNN from an existing node). */
 export function getEmbedding(db: RawDb, nodeId: number): Float32Array | undefined {
+  if (!isVectorEnabled(db)) {
+    return undefined;
+  }
   const row = db.prepare(`SELECT embedding FROM vec_nodes WHERE node_id = ?`).get(BigInt(nodeId)) as
     | { embedding: Buffer }
     | undefined;
@@ -110,6 +132,9 @@ export const cosineSimilarity = (distance: number): number => 1 - distance;
  * `nodes` table — keeping every space's similarity search fully private.
  */
 export function knn(db: RawDb, queryVec: Float32Array, k: number, spaceId?: string): KnnHit[] {
+  if (!isVectorEnabled(db)) {
+    return [];
+  }
   if (queryVec.length !== EMBED_DIM) {
     throw new Error(`Query dim mismatch: got ${queryVec.length}, expected ${EMBED_DIM}.`);
   }
@@ -150,6 +175,9 @@ export function knn(db: RawDb, queryVec: Float32Array, k: number, spaceId?: stri
 
 /** Generic delete-then-insert upsert into one of the companion vec0 tables. */
 function upsertVec(db: RawDb, table: string, pk: string, id: number, vec: Float32Array): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   if (vec.length !== EMBED_DIM) {
     throw new Error(`Embedding dim mismatch: got ${vec.length}, expected ${EMBED_DIM}.`);
   }
@@ -165,6 +193,9 @@ export function upsertDocEmbedding(db: RawDb, chunkId: number, vec: Float32Array
   upsertVec(db, "vec_docs", "chunk_id", chunkId, vec);
 }
 export function deleteDocEmbeddings(db: RawDb, chunkIds: number[]): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   const stmt = db.prepare(`DELETE FROM vec_docs WHERE chunk_id = ?`);
   db.transaction(() => {
     for (const id of chunkIds) stmt.run(BigInt(id));
@@ -175,6 +206,9 @@ export function upsertProfileEmbedding(db: RawDb, profileId: number, vec: Float3
   upsertVec(db, "vec_profiles", "profile_id", profileId, vec);
 }
 export function deleteProfileEmbedding(db: RawDb, profileId: number): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
   db.prepare(`DELETE FROM vec_profiles WHERE profile_id = ?`).run(BigInt(profileId));
 }
 
@@ -186,6 +220,9 @@ export interface DocKnnHit {
 
 /** KNN over knowledge-doc chunks, space-filtered via the relational knowledge_chunks table. */
 export function knnDocs(db: RawDb, queryVec: Float32Array, k: number, spaceId?: string): DocKnnHit[] {
+  if (!isVectorEnabled(db)) {
+    return [];
+  }
   if (queryVec.length !== EMBED_DIM) {
     throw new Error(`Query dim mismatch: got ${queryVec.length}, expected ${EMBED_DIM}.`);
   }
@@ -214,6 +251,9 @@ export interface ProfileKnnHit {
 
 /** KNN over instruction-profile vectors (intent routing), space-filtered. */
 export function knnProfiles(db: RawDb, queryVec: Float32Array, k: number, spaceId?: string): ProfileKnnHit[] {
+  if (!isVectorEnabled(db)) {
+    return [];
+  }
   if (queryVec.length !== EMBED_DIM) {
     throw new Error(`Query dim mismatch: got ${queryVec.length}, expected ${EMBED_DIM}.`);
   }

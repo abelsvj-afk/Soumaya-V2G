@@ -165,6 +165,17 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-09 (Gemini): Chat and Agenda Improvements (Bugs 7, 8, 9)
+- [ ] Verified by Claude
+- Fixed Bug 7: Increased Chat history window sent to LLM from 8 turns to 16, improving conversational context retention.
+- Fixed Bug 8: Added clear date formatting (e.g., "Sat, Aug 10 · 2:30 PM") beneath relative countdowns for upcoming reminders in the Agenda (ActionsPanel).
+- Fixed Bug 9: Implemented auto-growing textarea in ChatDock with `onInput` height calculation (capped at 120px) to prevent blind typing on mobile.
+- Files touched:
+  - `packages/web/src/components/ChatDock.tsx`
+  - `packages/web/src/components/ActionsPanel.tsx`
+- Zone: Green (shipped)
+- Gate: Typecheck clean, all 34 web tests passing, and web build clean.
+
 ### 2026-08-08 (Gemini): DigestPanel API Concurrency parallelization and loading skeletons (Bug 6)
 - [ ] Verified by Claude
 - Fixed Bug 6 from the Priority List: DigestPanel (Insights tab) 9 waterfall API calls on mount.
