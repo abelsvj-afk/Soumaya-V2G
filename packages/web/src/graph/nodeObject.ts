@@ -433,6 +433,7 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       size * (cls === "supergiant" ? 60 : 45),
       2,
     );
+    light.userData.isStarLight = true;
     fidelity.add(light);
     // A faint asteroid belt orbiting the sun.
     fidelity.add(makeAsteroidBelt(size * 2.6, size * 3.8));

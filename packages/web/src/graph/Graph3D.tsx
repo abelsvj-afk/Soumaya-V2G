@@ -1282,6 +1282,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                 mat.emissiveIntensity = intensity;
               }
             }
+            // Point Light Management
+            if (child.userData?.isStarLight) {
+              child.visible = dist < 2200;
+            }
             // Corona
             if (child.userData?.corona) {
               const bf = brightness(dist);
