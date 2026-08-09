@@ -111,17 +111,19 @@ export function ChatDock({
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
+    const textarea = document.querySelector(".chatdock-input textarea") as HTMLTextAreaElement;
+    if (textarea) textarea.style.height = "auto";
     // She sees the recent thread too — this is what makes it a conversation
     // instead of a series of amnesiac one-shots. Fold an ask-back bubble back
     // INTO its answer turn so the model reads one coherent Soumaya turn (a bare
     // trailing "?" made it re-ask); the server still detects "just asked".
     const history: { role: "you" | "soumaya"; text: string }[] = [];
-    for (const m of messages.slice(-9)) {
+    for (const m of messages.slice(-32)) {
       const prev = history[history.length - 1];
       if (m.ask && prev && prev.role === "soumaya") prev.text = `${prev.text} ${m.text}`;
       else history.push({ role: m.role, text: m.text });
     }
-    const trimmed = history.slice(-8);
+    const trimmed = history.slice(-32);
     setMessages((m) => [...m, { role: "you", text: q }]);
     setBusy(true);
     try {
@@ -446,10 +448,16 @@ export function ChatDock({
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onInput={(e) => {
+              const target = e.target as HTMLTextAreaElement;
+              target.style.height = "auto";
+              target.style.height = Math.min(target.scrollHeight, 120) + "px";
+            }}
             placeholder={listening ? "Listening — take your time…" : `Message ${spaceName}…`}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
+                (e.target as HTMLTextAreaElement).style.height = "auto";
                 void send(input);
               }
             }}
