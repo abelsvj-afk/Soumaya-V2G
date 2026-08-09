@@ -342,7 +342,13 @@ export function linkCognitiveAnchor(
     for (const r of rows) {
       if (made >= MAX_KEYWORD || formed >= remaining) break;
       const hay = `${r.label}\n${r.content}`;
-      if (!tokens.some((t) => mentions(hay, t))) continue; // enforce whole-word match
+      
+      // LOGGING: Detailed check
+      const results = tokens.map(t => ({ token: t, mentioned: mentions(hay, t) }));
+      const isMentioned = results.some(res => res.mentioned);
+      console.log(`[Cognitive] Checking node ${r.id} (${r.label}). Mentions results:`, results);
+
+      if (!isMentioned) continue; // enforce whole-word match
       if (link(r.id)) made++;
     }
   }
