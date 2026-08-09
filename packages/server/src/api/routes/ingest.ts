@@ -63,6 +63,7 @@ export function ingestRoutes(ctx: AppContext): Router {
     const result = await ingest(
       ctx.handle,
       { embeddings: ctx.embeddings, llm: ctx.llm },
+      ctx,
       text,
       spaceId,
       { occurredAt, remindAt, tags },
