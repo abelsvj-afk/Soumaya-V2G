@@ -323,6 +323,10 @@ export function linkCognitiveAnchor(
   // 1) Name / keyword / ALIAS match — so "my girlfriend did X" links to the person
   //    you've told her that alias belongs to, even without her actual name.
   const tokens = anchorMatchTokens(label, anchorRow?.aliases ?? null);
+  
+  // LOGGING: Debugging token generation
+  console.log(`[Cognitive] Linking anchor "${label}" (ID: ${anchorId}). Tokens:`, tokens);
+  
   if (tokens.length > 0) {
     const likeClause = tokens.map(() => `lower(content) LIKE ? OR lower(label) LIKE ?`).join(" OR ");
     const params: string[] = [];
