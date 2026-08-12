@@ -1931,6 +1931,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     cache.set(key, { at: nowMs, v });
     return v;
   };
+  
+  // Minimal Link LOD: short-circuit expensive accessors for distant/inactive links.
+  const shouldRenderLink = (l: any) => {
+    const activity = getLinkActivity(l);
+    const sId = linkEnd(l.source);
+    const tId = linkEnd(l.target);
+    const lit = activeId === null || (isLit(sId) && isLit(tId));
+    
+    // Always render if active or important (recently tended)
+    if (lit || activity > 0.4) return true;
+
+    // Otherwise, check distance
+    const camera = fgRef.current?.camera();
+    const dist = camera ? camera.position.length() : 1200;
+    
+    // Only render inactive/weak links if close
+    return dist < 800;
+  };
+
   const computeLinkActivity = (l: any, nowMs: number) => {
     // O(1) id→node lookup (rebuilt on each data change) — the link color/width/
     // curvature accessors call this per link on every refresh, so a .find() scan
@@ -2385,6 +2404,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // carried by streams of drifting "space dust" rather than solid lines.
       // Curvature and opacity are biased by activity (recent tending) and zoom distance.
       linkColor={(l: any) => {
+        if (!shouldRenderLink(l)) return "rgba(0,0,0,0)";
         // Connections are living synapses: they REST in a colour set by the emotion of
         // the two memories (green = neutral/positive spark, gold = joyful/warm, indigo =
         // heavy) and flare BRIGHT when Soumaya pulses them (recent activity), easing back
@@ -2412,6 +2432,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         return `rgba(${r}, ${g}, ${b}, ${Math.min(1, opacity).toFixed(2)})`;
       }}
       linkWidth={(l: any) => {
+        if (!shouldRenderLink(l)) return 0;
         // The LINE itself is the glow. A tended connection swells into a fat, bright
         // tube (quadratic in activity, so the bloom pass lights it up), then thins back
         // to a clean resting filament over ~3 days. Cold links stay slim but visible.
