@@ -1,6 +1,6 @@
 import { COGNITIVE_META, skillTier, type Lens, type LensQuery } from "@brain/shared";
 import type { AppContext } from "../context.js";
-import { ingest } from "../ingestion/pipeline.js";
+import { ingest, ingestWithContext } from "../ingestion/pipeline.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { LensesRepo } from "../repositories/lenses.repo.js";
@@ -584,7 +584,7 @@ export async function answerInquiry(
     .get(id, spaceId) as { nodeIds: string; kind: string } | undefined;
   if (!row) return null;
 
-  const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, text, spaceId);
+  const result = await ingestWithContext(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, ctx, text, spaceId);
   const nodeIds = result.nodes.map((n) => n.id);
 
   // Tie the answer to every body the question was about — that's the point.

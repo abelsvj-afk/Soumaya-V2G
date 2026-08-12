@@ -1,7 +1,7 @@
 import type { DailyDigest } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { chat } from "../chat/graphrag.js";
-import { ingest } from "../ingestion/pipeline.js";
+import { ingest, ingestWithContext } from "../ingestion/pipeline.js";
 import { buildDailyDigest } from "../synthesis/dailyDigest.js";
 import { getDailyContact } from "../analysis/dailyContact.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
@@ -183,7 +183,7 @@ export async function handleTelegramUpdate(
       await send(chatId, "Add the memory after /log — e.g. /log call mom on Sunday");
       return;
     }
-    const result = await ingest(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, body, spaceId);
+    const result = await ingestWithContext(ctx.handle, { embeddings: ctx.embeddings, llm: ctx.llm }, ctx, body, spaceId);
     const linkCount = result.associativeEdges.length;
     // A /log while her daily question is pending counts as answering it —
     // otherwise the same question rode every digest forever for Telegram-first

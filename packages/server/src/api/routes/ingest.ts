@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { ingest } from "../../ingestion/pipeline.js";
+import { ingest, ingestWithContext } from "../../ingestion/pipeline.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../../economy.js";
 import { StreakRepo, STREAK_DAY_BONUS } from "../../streak.js";
@@ -60,7 +60,7 @@ export function ingestRoutes(ctx: AppContext): Router {
       return;
     }
 
-    const result = await ingest(
+    const result = await ingestWithContext(
       ctx.handle,
       { embeddings: ctx.embeddings, llm: ctx.llm },
       ctx,

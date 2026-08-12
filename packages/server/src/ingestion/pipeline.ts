@@ -6,7 +6,27 @@ import type { LlmProvider } from "../llm/adapter.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { linkCognitiveAnchor } from "../analysis/cognitive.js";
-import { suggestPeople } from "../analysis/people.js"; // This might not be quite right, I need to scan text for mentions of EXISTING people.
+import {
+  associativeLink,
+  DEFAULT_LINK_OPTIONS,
+  type AssociativeLinkOptions,
+} from "./associativeLink.js";
+import type { AppContext } from "../context.js";
+
+export interface IngestDeps {
+  embeddings: EmbeddingProvider;
+  llm: LlmProvider;
+  linkOptions?: AssociativeLinkOptions;
+  /** How many recent nodes to give the LLM as extraction context. */
+  contextSize?: number;
+}
+
+/** Optional user-supplied temporal/context metadata stamped on every created node. */
+export interface IngestMeta {
+  occurredAt?: string;
+  remindAt?: string;
+  tags?: string[];
+}
 
 // Need to detect mentions of existing person entities
 function getMentionedPeople(s: any, spaceId: string, text: string): string[] {
@@ -40,13 +60,14 @@ export interface IngestResult {
   suggestedTags?: string[];
 }
 
-export async function ingest(
+// Internal shared implementation
+async function ingestCore(
   h: DbHandle,
   deps: IngestDeps,
-  ctx: any,
   rawText: string,
-  spaceId: string = DEFAULT_SPACE,
+  spaceId: string,
   meta?: IngestMeta,
+  ctx?: AppContext,
 ): Promise<IngestResult> {
   const nodesRepo = new NodesRepo(h, spaceId);
   const edgesRepo = new EdgesRepo(h, spaceId);
@@ -79,7 +100,9 @@ export async function ingest(
     labelToId.set(n.label, node.id);
     
     // Immediate cognitive linking
-    linkCognitiveAnchor(ctx, spaceId, node.id, node.label, vectors[i]!);
+    if (ctx) {
+        linkCognitiveAnchor(ctx, spaceId, node.id, node.label, vectors[i]!);
+    }
   }
 
   // 4a. Persist the edges the LLM extracted within this input (label -> id).
@@ -107,4 +130,25 @@ export async function ingest(
   }
 
   return { nodes: createdNodes, extractedEdges, associativeEdges, suggestedTags };
+}
+
+export async function ingest(
+  h: DbHandle,
+  deps: IngestDeps,
+  rawText: string,
+  spaceId: string = DEFAULT_SPACE,
+  meta?: IngestMeta,
+): Promise<IngestResult> {
+    return ingestCore(h, deps, rawText, spaceId, meta);
+}
+
+export async function ingestWithContext(
+  h: DbHandle,
+  deps: IngestDeps,
+  ctx: AppContext,
+  rawText: string,
+  spaceId: string = DEFAULT_SPACE,
+  meta?: IngestMeta,
+): Promise<IngestResult> {
+    return ingestCore(h, deps, rawText, spaceId, meta, ctx);
 }

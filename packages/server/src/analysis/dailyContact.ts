@@ -1,5 +1,5 @@
 import type { AppContext } from "../context.js";
-import { ingest } from "../ingestion/pipeline.js";
+import { ingest, ingestWithContext } from "../ingestion/pipeline.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { EconomyRepo, EARN_MEMORY, EARN_LINK } from "../economy.js";
@@ -187,9 +187,10 @@ export async function answerDailyContact(
   text: string,
 ): Promise<{ nodeIds: number[]; fuelEarned: number; streakAdvanced: boolean }> {
   const contact = getDailyContact(ctx, spaceId);
-  const result = await ingest(
+  const result = await ingestWithContext(
     ctx.handle,
     { embeddings: ctx.embeddings, llm: ctx.llm },
+    ctx,
     text,
     spaceId,
   );
