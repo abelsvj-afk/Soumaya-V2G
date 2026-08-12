@@ -1610,7 +1610,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // "galaxy stuck" safe-mode flag. A hang/throw during mount or the first tick
       // never reaches here, so the flag persists and the next load boots the app
       // without the 3D galaxy (always usable) instead of freezing again.
-      if (!firstFrameDoneRef.current) {
+      // Defensively trigger if we have any nodes, even if controls haven't initialized damping.
+      if (!firstFrameDoneRef.current && dataRef.current.nodes.length > 0) {
         firstFrameDoneRef.current = true;
         try { onFirstFrameRef.current?.(); } catch { /* best-effort */ }
       }
