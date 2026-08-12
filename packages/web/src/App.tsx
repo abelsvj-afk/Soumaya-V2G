@@ -601,22 +601,6 @@ export default function App() {
     }
   }, [visitorCount, followVisitor]);
 
-  // Watchdog: no matter what happens in the boot chain (a hung request, a stalled
-  // WebGL init, a thrown effect), never sit on the loading sun forever — force the
-  // overlay to clear after a hard ceiling and, if we still have no data, offer
-  // recovery. This is the last line of defense behind the per-request timeouts.
-  useEffect(() => {
-    if (loaded) return;
-    const t = window.setTimeout(() => {
-      if (!loaded) {
-        console.warn("[BOOT] watchdog tripped — forcing loaded, offering recovery");
-        setInitError((e) => e ?? "timeout");
-        setLoaded(true);
-      }
-    }, 15_000);
-    return () => window.clearTimeout(t);
-  }, [loaded]);
-
   // Tell the index.html boot-failsafe we booted OK, so it stands down. "Booted" =
   // React mounted and the auth check finished (login screen OR the app is rendering).
   // NOT gated on the galaxy loading — that's a slower, separate step handled by the

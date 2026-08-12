@@ -1604,14 +1604,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Single damped update per frame (required for inertia + zoom-to-cursor).
       controls?.update();
-
-      // Survived a full frame → the galaxy is alive. Tell the app so it clears its
-      // "galaxy stuck" safe-mode flag.
-      // Defensively trigger if we have any nodes or if enough time has passed.
-      if (!firstFrameDoneRef.current && (dataRef.current.nodes.length > 0 || performance.now() > 5000)) {
-        firstFrameDoneRef.current = true;
-        try { onFirstFrameRef.current?.(); } catch { /* best-effort */ }
-      }
     };
     tick();
 
