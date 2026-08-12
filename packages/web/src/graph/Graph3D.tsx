@@ -520,7 +520,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
   // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
-  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D }>({});
+  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D; nebulae?: THREE.Object3D; comets?: THREE.Object3D }>({});
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -657,8 +657,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           sceneryRef.current.skybox = sky;
           scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
         });
-        scene.add(makeNebulae());
-        scene.add(makeComets());
+        const nebulae = makeNebulae();
+        sceneryRef.current.nebulae = nebulae;
+        scene.add(nebulae);
+        const comets = makeComets();
+        sceneryRef.current.comets = comets;
+        scene.add(comets);
       }
       // Distant spiral galaxies — just a few thousand Points total, so they belong on EVERY
       // tier, not only heavy scenery (they were silently vanishing on mid/low mobile). Count
@@ -1212,9 +1216,22 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
 
       // 1. Update background / global objects
-      scene.traverse((o: any) => {
-        if (typeof o.userData?.update === "function") o.userData.update(now, starBlur);
-      });
+      const s = sceneryRef.current;
+      s.starfield?.userData?.update?.(now, starBlur);
+      s.milkyway?.userData?.update?.(now);
+      s.skybox?.userData?.update?.(now);
+      s.constellations?.userData?.update?.(now);
+      s.galaxies?.children.forEach((o: any) => o.userData?.update?.(now));
+      s.equirect?.userData?.update?.(now);
+      s.deepspace?.children.forEach((o: any) => o.userData?.update?.(now));
+      s.moneysky?.children.forEach((o: any) => o.userData?.update?.(now));
+      s.journeyhubs?.children.forEach((o: any) => o.userData?.update?.(now));
+      s.nebulae?.children.forEach((o: any) => o.userData?.update?.(now));
+      s.comets?.children.forEach((o: any) => o.userData?.update?.(now));
+      burstsRef.current?.group?.children.forEach((o: any) => o.userData?.update?.());
+      linkFormingRef.current?.group?.userData?.update?.();
+      sunRef.current?.userData?.update?.(now);
+      stationObjRef.current?.userData?.update?.(now);
 
       // 2. Optimized node updates (LOD + Pulse + Corona)
       // Instead of traversing the WHOLE scene (including starfield/nebulae), we

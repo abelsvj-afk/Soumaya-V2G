@@ -3053,7 +3053,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: calc(24px + env(safe-area-inset-top, 0)) 24px calc(24px + env(safe-area-inset-bottom, 0));
   background: radial-gradient(ellipse at center, rgba(6, 8, 20, 0.35), rgba(4, 6, 16, 0.66));
   backdrop-filter: blur(3px);
   animation: obs-fade 0.8s ease both;
@@ -3071,7 +3071,7 @@ button {
   /* The stack grew (away report + Daily Contact + discovery) past small screens,
      pushing "Enter the galaxy" off-screen with no way to close. Cap it to the
      viewport and scroll INSIDE the stack instead. */
-  max-height: calc(100dvh - 40px);
+  max-height: 100%;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
