@@ -1055,12 +1055,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // First frame with real positions → open zoomed-out (not inside the sun).
       if (!initialFramedRef.current) {
-        if (loadedRef.current) {
-          const ns = dataRef.current.nodes as any[];
-          if (ns.length === 0 || ns.some((n) => n.x != null && !isNaN(n.x))) {
-            initialFramedRef.current = true;
-            frameGalaxy(3200, undefined, true);
-          }
+        // Trigger intro if we have loaded data.
+        const ns = dataRef.current.nodes as any[];
+        if (ns.length > 0 && ns.some((n) => n.x != null && !isNaN(n.x))) {
+          initialFramedRef.current = true;
+          frameGalaxy(3200, undefined, true);
         }
       }
 
