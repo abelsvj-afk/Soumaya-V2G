@@ -494,6 +494,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const bloomRef = useRef<{ strength: number } | null>(null);
   const gfxRef = useRef<ResolvedGraphics | null>(null);
   const initialFramedRef = useRef(false);
+  const cinematicStartedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
   const knownLinksRef = useRef<Set<string>>(new Set());
   // Node ids we've already seen, so only BRAND-NEW memories get ferried into place.
@@ -1054,10 +1055,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       orbitsRef.current.update(motionDt, dataRef.current.nodes as any[]);
 
       // First frame with real positions → open zoomed-out (not inside the sun).
-      if (!initialFramedRef.current) {
+      if (!cinematicStartedRef.current) {
         // Trigger intro if we have loaded data.
         const ns = dataRef.current.nodes as any[];
         if (ns.length > 0) {
+          cinematicStartedRef.current = true;
           initialFramedRef.current = true;
           frameGalaxy(3200, undefined, true);
         }
@@ -1608,9 +1610,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     tick();
 
     // Trigger intro sequence independently of loading dismissal, once data is ready.
-    if (!initialFramedRef.current) {
+    if (!cinematicStartedRef.current) {
         const ns = dataRef.current.nodes as any[];
         if (ns.length > 0) {
+            cinematicStartedRef.current = true;
             initialFramedRef.current = true;
             frameGalaxy(3200, undefined, true);
         }
