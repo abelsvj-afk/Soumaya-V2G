@@ -1057,7 +1057,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (!initialFramedRef.current) {
         // Trigger intro if we have loaded data.
         const ns = dataRef.current.nodes as any[];
-        if (ns.length > 0 && ns.some((n) => n.x != null && !isNaN(n.x))) {
+        if (ns.length > 0) {
           initialFramedRef.current = true;
           frameGalaxy(3200, undefined, true);
         }
@@ -1610,7 +1610,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Trigger intro sequence independently of loading dismissal, once data is ready.
     if (!initialFramedRef.current) {
         const ns = dataRef.current.nodes as any[];
-        if (ns.length > 0 && ns.some((n) => n.x != null && !isNaN(n.x))) {
+        if (ns.length > 0) {
             initialFramedRef.current = true;
             frameGalaxy(3200, undefined, true);
         }
