@@ -1557,7 +1557,7 @@ export default function App() {
           activeLens={activeLens}
           onOpen={openLens}
           onExit={exitLens}
-          hidden={panel !== null || showChat || showObs || !!selected}
+          hidden={panel !== null || showChat || showObs}
         />
       )}
 
@@ -1569,7 +1569,7 @@ export default function App() {
           onOpen={openLens}
           onLayer={openLayer}
           onExit={exitLens}
-          hidden={panel !== null || showChat || showObs || !!selected}
+          hidden={panel !== null || showChat || showObs}
         />
       )}
 
