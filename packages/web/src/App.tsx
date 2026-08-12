@@ -526,6 +526,7 @@ export default function App() {
       const g = await getGraph();
       console.info(`[BOOT] graph received (${g.nodes.length} nodes)`);
       setData(g);
+      setLoaded(true);
       setInitError(null);
       getFuel().then((f) => f && setFuel(f)).catch(() => {});
       // Let the proactive "she noticed…" card re-check (a fresh memory can form a
