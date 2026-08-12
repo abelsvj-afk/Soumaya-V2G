@@ -1254,7 +1254,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             o.position.set(n.x, n.y, n.z ?? 0);
           }
 
-          o.getWorldPosition(tmp);
+          tmp.set(n.x, n.y, n.z ?? 0);
           const dist = tmp.distanceTo(camera.position);
           const isSelected = id === activeId;
           const isMacroView = dist > MACRO_DIST && !isSelected;
