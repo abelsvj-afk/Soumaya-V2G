@@ -554,6 +554,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Accessibility: when reduced-motion is on we crawl the orbits + skip ambient
   // pulses (#3b). Kept in a ref so the render loop reads it without re-subscribing.
   const calmMotionRef = useRef(shouldCalmMotion());
+  const spatialGrid = useRef<Map<string, { isVisible: boolean }>>(new Map());
+  const lastCellUpdatePos = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
+  const frustum = useRef(new THREE.Frustum());
+  const projScreenMatrix = useRef(new THREE.Matrix4());
+  const sphere = useRef(new THREE.Sphere(new THREE.Vector3(), 150));
   useEffect(() => {
     const sync = () => { calmMotionRef.current = shouldCalmMotion(); };
     window.addEventListener("brain-motion-change", sync);
@@ -1237,6 +1242,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Instead of traversing the WHOLE scene (including starfield/nebulae), we
       // only iterate the bodies themselves. react-force-graph keeps them in a
       // dedicated group.
+      const cam = fgRef.current?.camera() as THREE.PerspectiveCamera | undefined;
+      if (cam?.isPerspectiveCamera) {
+        cam.updateMatrixWorld();
+        cam.matrixWorldInverse.copy(cam.matrixWorld).invert();
+        projScreenMatrix.current.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+        frustum.current.setFromProjectionMatrix(projScreenMatrix.current);
+      }
+
       // Find the group react-force-graph keeps the node objects in. Identify it by
       // its CONTENTS (children carrying a nodeId) rather than a fragile children-
       // count heuristic, which could latch onto the link group and silently stop
@@ -1245,6 +1258,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         (c: any) => c.type === "Group" && c.children?.some((ch: any) => ch.userData?.nodeId != null),
       );
       if (graphGroup) {
+        // Update spatial grid visibility throttled
+        if (frameCount % 60 === 0 || camera.position.distanceTo(lastCellUpdatePos.current) > 500) {
+          spatialGrid.current.forEach((cell, key) => {
+            const [cx, cy, cz] = key.split('_').map(Number);
+            const cellPos = new THREE.Vector3(cx! * 1500 + 750, cy! * 1500 + 750, cz! * 1500 + 750);
+            cell.isVisible = camera.position.distanceTo(cellPos) < 4000;
+          });
+          lastCellUpdatePos.current.copy(camera.position);
+        }
+
         graphGroup.children.forEach((o: any) => {
           if (o.userData?.nodeId == null) return;
           const id = o.userData.nodeId;
@@ -1273,11 +1296,29 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             o.scale.setScalar(1.0);
           }
 
+          // Spatial Grid Check
+          const key = `${Math.floor(n.x / 1500)}_${Math.floor(n.y / 1500)}_${Math.floor(n.z / 1500)}`;
+          if (!spatialGrid.current.has(key)) spatialGrid.current.set(key, { isVisible: true });
+          const cell = spatialGrid.current.get(key)!;
+
+          sphere.current.center.set(n.x, n.y, n.z);
+          const isFocused = isSelected || id === followRef.current;
+          const isCulled = !isFocused && !frustum.current.intersectsSphere(sphere.current);
+
+          if (!cell.isVisible && !isFocused) {
+            o.visible = false;
+            return;
+          }
+          o.visible = true;
+
           for (const child of o.children as any[]) {
             // Self-rotation: the body (+ rings) spins on its own axis while the
             // orbit system carries it around its neighbor. (Lives on the fidelity
             // group so labels don't rotate.)
             if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
+
+            // Skip individual label processing if too far, not selected, and not focused.
+            if (child.userData?.isLabel && dist > MACRO_DIST && !isSelected && id !== followRef.current) continue;
             
             // Optimization: throttle updates for distant/insignificant labels
             if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
@@ -1292,6 +1333,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             // LOD Swapping
             if (child.userData?.isFidelity) child.visible = !isMacroView;
             if (child.userData?.isMacro) child.visible = isMacroView;
+
+            if (isCulled) continue;
+
             if (child.userData?.isSectorTitle) {
               child.visible = isMacroView;
               if (child.visible) {
