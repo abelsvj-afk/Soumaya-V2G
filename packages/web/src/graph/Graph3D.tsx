@@ -1606,9 +1606,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       controls?.update();
 
       // Survived a full frame → the galaxy is alive. Tell the app so it clears its
-      // "galaxy stuck" safe-mode flag. A hang/throw during mount or the first tick
-      // never reaches here, so the flag persists and the next load boots the app
-      // without the 3D galaxy (always usable) instead of freezing again.
+      // "galaxy stuck" safe-mode flag.
       // Defensively trigger if we have any nodes or if enough time has passed.
       if (!firstFrameDoneRef.current && (dataRef.current.nodes.length > 0 || performance.now() > 5000)) {
         firstFrameDoneRef.current = true;
@@ -1616,6 +1614,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
     };
     tick();
+
+    // Trigger intro sequence independently of loading dismissal, once data is ready.
+    if (!initialFramedRef.current) {
+        const ns = dataRef.current.nodes as any[];
+        if (ns.length > 0 && ns.some((n) => n.x != null && !isNaN(n.x))) {
+            initialFramedRef.current = true;
+            frameGalaxy(3200, undefined, true);
+        }
+    }
+
     return () => {
       cancelAnimationFrame(raf);
       engine?.dispose();
