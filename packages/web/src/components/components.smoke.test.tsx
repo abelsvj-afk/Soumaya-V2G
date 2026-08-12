@@ -136,9 +136,25 @@ describe("NodeList", () => {
 describe("DigestPanel", () => {
   it("renders with a loading shimmer skeleton, then loads data concurrently", async () => {
     vi.spyOn(clientApi, "getDigest").mockResolvedValue([]);
-    vi.spyOn(clientApi, "getDailyDigest").mockResolvedValue(null);
+    vi.spyOn(clientApi, "getDailyDigest").mockResolvedValue({
+      date: "2026-08-11",
+      greeting: "Hello!",
+      fresh: [],
+      connections: [],
+      expiredActions: [],
+      cooling: [],
+      reminders: [],
+      closing: "Bye!",
+    });
     vi.spyOn(clientApi, "getConstellations").mockResolvedValue([]);
-    vi.spyOn(clientApi, "getEmotionalTrajectory").mockResolvedValue(null);
+    vi.spyOn(clientApi, "getEmotionalTrajectory").mockResolvedValue({
+      points: [],
+      trend: "steady",
+      average: 0,
+      volatility: 0,
+      patterns: [],
+      sampleSize: 0,
+    });
     vi.spyOn(clientApi, "getDormant").mockResolvedValue([]);
     vi.spyOn(clientApi, "getEvolutionLinks").mockResolvedValue([]);
     vi.spyOn(clientApi, "getLifeAreas").mockResolvedValue([]);

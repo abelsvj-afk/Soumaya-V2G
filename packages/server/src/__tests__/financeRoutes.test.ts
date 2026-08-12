@@ -6,6 +6,7 @@ import { createApp } from "../api/server.js";
 import { HashEmbeddingProvider } from "../embeddings/hash.js";
 import { HeuristicProvider } from "../llm/heuristic.js";
 import { EMBED_DIM } from "../db/vec.js";
+import type { FinAccount, BudgetSummary, FinIncome, FinExpense, FinBillOccurrence } from "@brain/shared";
 
 /** Stage 1a — the finance REST surface end-to-end (thin routes over the tested engine). */
 
@@ -27,7 +28,6 @@ beforeAll(async () => {
 });
 afterAll(() => { server?.close(); ctx.handle.sqlite.close(); });
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 const H = () => ({ "Content-Type": "application/json", "x-space-id": spaceId });
 const post = async (p: string, b: unknown) => {
   const res = await fetch(`${base}${p}`, { method: "POST", headers: H(), body: JSON.stringify(b) });
@@ -51,11 +51,12 @@ describe("finance routes", () => {
   it("400s on an invalid bill body with issue detail", async () => {
     const { status, body } = await post("/api/finance/bills", { name: "", amountCents: -5, frequency: "yearly", anchorDate: "nope" });
     expect(status).toBe(400);
-    expect(Array.isArray(body.issues)).toBe(true);
+    expect(Array.isArray((body as { issues: unknown[] }).issues)).toBe(true);
   });
 
   it("drives a full budget: balance + bill + income → safe to spend", async () => {
-    expect((await put("/api/finance/account/balance", { cents: 114000 })).body.balanceCents).toBe(114000);
+    const balanceRes = await put("/api/finance/account/balance", { cents: 114000 });
+    expect((balanceRes.body as FinAccount).balanceCents).toBe(114000);
 
     for (const b of [
       { name: "Rent", amountCents: 60000, frequency: "monthly", anchorDate: "2026-01-20" },
@@ -65,23 +66,24 @@ describe("finance routes", () => {
     }
 
     const summary = await get("/api/finance/summary");
+    const summaryBody = summary.body as { account: FinAccount; budget: BudgetSummary; upcoming: FinBillOccurrence[] };
     expect(summary.status).toBe(200);
-    expect(summary.body.account.balanceCents).toBe(114000);
-    expect(typeof summary.body.budget.safeToSpendCents).toBe("number");
+    expect(summaryBody.account.balanceCents).toBe(114000);
+    expect(typeof summaryBody.budget.safeToSpendCents).toBe("number");
     // Bills materialize into upcoming occurrences.
-    expect(summary.body.upcoming.length).toBeGreaterThan(0);
+    expect(summaryBody.upcoming.length).toBeGreaterThan(0);
 
     // Manual income adjusts the balance going forward and reports a live budget.
     const inc = await post("/api/finance/income", { date: "2026-01-10", netCents: 5000, platform: "GoPuff" });
     expect(inc.status).toBe(200);
-    expect(inc.body.budget.balanceCents).toBe(119000);
+    expect((inc.body as { budget: BudgetSummary }).budget.balanceCents).toBe(119000);
 
     // Manual expense subtracts.
     const exp = await post("/api/finance/expense", { date: "2026-01-10", amountCents: 2000, category: "food" });
-    expect(exp.body.budget.balanceCents).toBe(117000);
+    expect((exp.body as { budget: BudgetSummary }).budget.balanceCents).toBe(117000);
 
     // A repeat income is flagged as a likely duplicate (but still recorded).
     const dup = await post("/api/finance/income", { date: "2026-01-10", netCents: 5000, platform: "GoPuff" });
-    expect(dup.body.duplicate).toBe(true);
+    expect((dup.body as { duplicate: boolean }).duplicate).toBe(true);
   });
 });
