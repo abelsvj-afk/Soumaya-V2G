@@ -225,7 +225,12 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
    `fly deploy` must run; the service worker can serve old cached JS even on a fresh server). Never "fix"
    code that measurement shows is already correct to chase a deploy/cache problem.
 
-## House rules
+## Pending Validation
+
+- **Fix: Cinematic Intro Trigger** (Graph3D.tsx): Relaxed the intro trigger condition.
+- **Fix: Cinematic Startup Race Condition** (Graph3D.tsx): Added `cinematicStartedRef` to prevent redundant triggers.
+- **Fix: GalaxyViews Visibility** (App.tsx): Removed the `!!selected` constraint so Views remain accessible during node selection.
+
 
 - Match the surrounding code's style and comment density (comments explain *why*).
 - Don't add dependencies casually — prefer small, dependency-free solutions.
