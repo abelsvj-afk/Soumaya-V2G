@@ -66,6 +66,10 @@ recovery tap, and how to add a GitHub Actions CI check later. (The old
 `fly-deploy.yml` workflow was removed: this account's Actions runners don't
 provision, so it only produced red noise and never deployed anything.)
 
+
+## Project Performance
+- [Performance Checkpoint](./PERFORMANCE_CHECKPOINT.md)
+
 ## Status
 
 - [x] **Phase I** — data foundation: schema, sqlite-vec KNN, recursive-CTE

@@ -380,6 +380,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let target: any = null;
   let currentJob: MaintenanceJob | null = null;
   let isFetching = false;
+  let lastMaintenanceRefresh = 0;
   let demoMode = false; // demo galaxy: local patrols only, no real backend jobs
 
   // Beacons she needs to dispatch (fly to target memory and deploy)
@@ -466,7 +467,9 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   };
 
   const fillPlannedMaintenance = async (nodes: any[]) => {
-    if (isFetching || nodes.length === 0) return;
+    const now = Date.now();
+    if (isFetching || nodes.length === 0 || now - lastMaintenanceRefresh < 1000) return;
+    lastMaintenanceRefresh = now;
 
     while (plannedMaintenance.length < 3) {
       let job: MaintenanceJob | null = null;

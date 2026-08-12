@@ -1256,6 +1256,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
           tmp.set(n.x, n.y, n.z ?? 0);
           const dist = tmp.distanceTo(camera.position);
+          const bf = brightness(dist);
           const isSelected = id === activeId;
           const isMacroView = dist > MACRO_DIST && !isSelected;
 
@@ -1283,41 +1284,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               continue;
             }
 
-            // Pulse/Brightness
-            if (child.userData?.pulse) {
-              const bf = brightness(dist);
-              const p = child.userData.pulse;
-              
-              let s;
-              let intensity;
-              if (processing) {
-                // Faster, stronger pulse during processing
-                s = Math.sin(now * 8.0) * 0.5 + 0.5;
-                intensity = (p.base * 1.5 + 0.65 * s) * bf;
-              } else {
-                s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
-                intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
-              }
-
-              const mat = child.material as any;
-              if (mat?.isShaderMaterial) {
-                mat.uniforms.uBrightness.value = intensity;
-                mat.uniforms.uTime.value = now;
-              } else if (mat && mat.emissiveIntensity != null) {
-                mat.emissiveIntensity = intensity;
-              }
-            }
             // Point Light Management
             if (child.userData?.isStarLight) {
               child.visible = dist < 2200;
-            }
-            // Corona
-            if (child.userData?.corona) {
-              const bf = brightness(dist);
-              const c = child.userData.corona;
-              const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
-              child.scale.set(k, k, 1);
-              (child.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
             }
 
             // LOD Swapping
@@ -1354,6 +1323,39 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                   mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
                 }
               }
+            }
+
+            if (!child.visible) continue;
+
+            // Pulse/Brightness
+            if (child.userData?.pulse) {
+              const p = child.userData.pulse;
+              
+              let s;
+              let intensity;
+              if (processing) {
+                // Faster, stronger pulse during processing
+                s = Math.sin(now * 8.0) * 0.5 + 0.5;
+                intensity = (p.base * 1.5 + 0.65 * s) * bf;
+              } else {
+                s = Math.sin(now * p.speed + p.phase) * 0.5 + 0.5;
+                intensity = (p.base + p.amp * s) * bf * (p.vitality ?? 1);
+              }
+
+              const mat = child.material as any;
+              if (mat?.isShaderMaterial) {
+                mat.uniforms.uBrightness.value = intensity;
+                mat.uniforms.uTime.value = now;
+              } else if (mat && mat.emissiveIntensity != null) {
+                mat.emissiveIntensity = intensity;
+              }
+            }
+            // Corona
+            if (child.userData?.corona) {
+              const c = child.userData.corona;
+              const k = c.base * (1 + 0.2 * (Math.sin(now * c.speed + c.phase) * 0.5 + 0.5));
+              child.scale.set(k, k, 1);
+              (child.material as THREE.SpriteMaterial).opacity = c.baseOpacity * Math.min(1, bf);
             }
           }
         });
@@ -1428,7 +1430,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const fo = followObjRef.current;
       if (fo && controls) {
         const sp = new THREE.Vector3();
-        fo.getWorldPosition(sp);
+        sp.copy(fo.position);
         
         // Disable damping when following her ship to prevent aggravating lag/trailing.
         if (followKindRef.current === "ship") {
