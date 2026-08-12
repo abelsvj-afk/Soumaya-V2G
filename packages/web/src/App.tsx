@@ -613,7 +613,7 @@ export default function App() {
         setInitError((e) => e ?? "timeout");
         setLoaded(true);
       }
-    }, 9_000);
+    }, 15_000);
     return () => window.clearTimeout(t);
   }, [loaded]);
 
