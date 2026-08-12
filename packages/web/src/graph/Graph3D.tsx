@@ -589,155 +589,171 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     activeId === null || id === activeId || (adjacency.get(activeId)?.has(id) ?? false);
 
   // One-time imperative scene setup: lights, starfield, bloom, spin loop.
+  const defer = (fn: () => void) => {
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(fn);
+    } else {
+      setTimeout(fn, 1);
+    }
+  };
+
   useEffect(() => {
-    const fg = fgRef.current;
-    if (!fg || fg.__brainInited) return;
-    fg.__brainInited = true;
+  const fg = fgRef.current;
+  if (!fg || fg.__brainInited) return;
+  fg.__brainInited = true;
 
-    const scene: THREE.Scene = fg.scene();
-    const controls = fg.controls?.();
-    // See the far galaxies + the nebula skybox shell (~12000 out).
-    const pcam = fg.camera() as THREE.PerspectiveCamera;
-    if (pcam?.isPerspectiveCamera) {
-      pcam.far = 30000;
-      pcam.updateProjectionMatrix();
-    }
-    scene.add(new THREE.AmbientLight(0x8888aa, 1.2));
-    const dir = new THREE.DirectionalLight(0xffffff, 1.6);
-    dir.position.set(1, 1, 1);
-    scene.add(dir);
+  const scene: THREE.Scene = fg.scene();
+  const controls = fg.controls?.();
+  // See the far galaxies + the nebula skybox shell (~12000 out).
+  const pcam = fg.camera() as THREE.PerspectiveCamera;
+  if (pcam?.isPerspectiveCamera) {
+    pcam.far = 30000;
+    pcam.updateProjectionMatrix();
+  }
+  scene.add(new THREE.AmbientLight(0x8888aa, 1.2));
+  const dir = new THREE.DirectionalLight(0xffffff, 1.6);
+  dir.position.set(1, 1, 1);
+  scene.add(dir);
 
-    // Image-based lighting: a PMREM environment so the glTF models (ship, station,
-    // Aura satellites) — which use metallic PBR materials — actually catch light and
-    // reflections instead of rendering as black silhouettes. Also gives every body a
-    // subtle premium sheen. Generated once from a neutral procedural room.
+  // Image-based lighting: a PMREM environment so the glTF models (ship, station,
+  // Aura satellites) — which use metallic PBR materials — actually catch light and
+  // reflections instead of rendering as black silhouettes. Also gives every body a
+  // subtle premium sheen. Generated once from a neutral procedural room.
+  try {
+    const renderer = fg.renderer() as THREE.WebGLRenderer;
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose(); // the generator's internal render targets are no longer needed
+  } catch (err) {
+    console.warn("[graph] environment map unavailable:", err);
+  }
+
+  // Declared outside try-catch so spawnBurst can access it
+  let soumaya: SoumayaHandle | null = null;
+  let engine: ReturnType<typeof makeEngineAudio> | null = null;
+  let prevShipPos: THREE.Vector3 | null = null;
+  let visitors: VisitorSystem | null = null;
+  let satellites: SatelliteSystem | null = null;
+  let subAgents: SubAgentSystem | null = null;
+
+  // Adaptive graphics: the central config decides how heavy we render (Graph3D
+  // never decides itself). Weak devices get fewer stars, no bloom, a capped pixel
+  // ratio and FPS — the SAME app, optimized. Held in a ref so live setting changes
+  // can retune the cheap knobs (pixel ratio, FPS) without a reload.
+  const gfx: ResolvedGraphics = resolveGraphics();
+  gfxRef.current = gfx;
+  try {
+    // Cap the renderer's pixel ratio FIRST — the single biggest GPU cost on mobile
+    // (a 3× retina phone renders 9× the pixels). This alone prevents most freezes.
     try {
-      const renderer = fg.renderer() as THREE.WebGLRenderer;
-      const pmrem = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-      pmrem.dispose(); // the generator's internal render targets are no longer needed
-    } catch (err) {
-      console.warn("[graph] environment map unavailable:", err);
+      fg.renderer().setPixelRatio(gfx.pixelRatio);
+    } catch {
+      /* renderer not ready yet — the effect below re-applies it */
     }
-
-    // Declared outside try-catch so spawnBurst can access it
-    let soumaya: SoumayaHandle | null = null;
-    let engine: ReturnType<typeof makeEngineAudio> | null = null;
-    let prevShipPos: THREE.Vector3 | null = null;
-    let visitors: VisitorSystem | null = null;
-    let satellites: SatelliteSystem | null = null;
-    let subAgents: SubAgentSystem | null = null;
-    
-    // Adaptive graphics: the central config decides how heavy we render (Graph3D
-    // never decides itself). Weak devices get fewer stars, no bloom, a capped pixel
-    // ratio and FPS — the SAME app, optimized. Held in a ref so live setting changes
-    // can retune the cheap knobs (pixel ratio, FPS) without a reload.
-    const gfx: ResolvedGraphics = resolveGraphics();
-    gfxRef.current = gfx;
-    try {
-      // Cap the renderer's pixel ratio FIRST — the single biggest GPU cost on mobile
-      // (a 3× retina phone renders 9× the pixels). This alone prevents most freezes.
-      try {
-        fg.renderer().setPixelRatio(gfx.pixelRatio);
-      } catch {
-        /* renderer not ready yet — the effect below re-applies it */
-      }
-      // Deep-space base COLOUR only — not a baked star texture. A Texture set as
-      // scene.background is drawn screen-locked (it never parallaxes with the camera),
-      // which read as a "stale film of stars over the lens" on top of the real, moving
-      // 3D starfield. The parallaxing stars/nebulae/skybox below do all the depth work.
-      scene.background = new THREE.Color(BG);
-      const starfield = makeStarfield(gfx.starCount);
-      sceneryRef.current.starfield = starfield;
-      scene.add(starfield);
-      // The Milky Way band — procedural (no asset/licence), cheap enough for every tier, so
-      // even mid-range mobile gets the signature galactic arc, not just a flat star scatter.
-      const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
-      sceneryRef.current.milkyway = milkyway;
-      scene.add(milkyway);
-      // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
-      // extra draw calls + textures that can stall a mid/low phone on the first frame —
-      // render it only on the top graphics tier. The starfield alone still reads as space.
-      if (gfx.heavyScenery) {
-        loadNebulaSkybox(scene, 12000, (sky) => {
-          sceneryRef.current.skybox = sky;
-          scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
-        });
-        const nebulae = makeNebulae();
-        sceneryRef.current.nebulae = nebulae;
-        scene.add(nebulae);
-        const comets = makeComets();
-        sceneryRef.current.comets = comets;
-        scene.add(comets);
-      }
-      // Distant spiral galaxies — just a few thousand Points total, so they belong on EVERY
-      // tier, not only heavy scenery (they were silently vanishing on mid/low mobile). Count
-      // scales with the tier; tracked in sceneryRef so they push outward as the galaxy grows.
-      const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
-      sceneryRef.current.galaxies = galaxies;
-      scene.add(galaxies);
-      // Optional photographic Milky Way panorama (ESO/S. Brunier, CC BY 4.0). Purely additive:
-      // the loader self-gates to desktop and no-ops silently if the asset isn't present, so the
-      // procedural sky above is untouched until a `/milkyway-eso.jpg` is dropped into public/.
-      loadEquirectSkybox(scene, "/milkyway-eso.jpg", 11500, (sky) => {
-        sceneryRef.current.equirect = sky;
-        scaleSceneryRef.current();
+    // Deep-space base COLOUR only — not a baked star texture. A Texture set as
+    // scene.background is drawn screen-locked (it never parallaxes with the camera),
+    // which read as a "stale film of stars over the lens" on top of the real, moving
+    // 3D starfield. The parallaxing stars/nebulae/skybox below do all the depth work.
+    scene.background = new THREE.Color(BG);
+    const starfield = makeStarfield(gfx.starCount);
+    sceneryRef.current.starfield = starfield;
+    scene.add(starfield);
+    // The Milky Way band — procedural (no asset/licence), cheap enough for every tier, so
+    // even mid-range mobile gets the signature galactic arc, not just a flat star scatter.
+    const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+    sceneryRef.current.milkyway = milkyway;
+    scene.add(milkyway);
+    // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
+    // extra draw calls + textures that can stall a mid/low phone on the first frame —
+    // render it only on the top graphics tier. The starfield alone still reads as space.
+    if (gfx.heavyScenery) {
+      defer(() => {
+          loadNebulaSkybox(scene, 12000, (sky) => {
+            sceneryRef.current.skybox = sky;
+            scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
+          });
+          const nebulae = makeNebulae();
+          sceneryRef.current.nebulae = nebulae;
+          scene.add(nebulae);
+          const comets = makeComets();
+          sceneryRef.current.comets = comets;
+          scene.add(comets);
       });
-      const constellations = makeConstellations();
-      sceneryRef.current.constellations = constellations;
-      scene.add(constellations);
-      // Deep-space ambience — nebula clouds / dust / distant galaxies / asteroid belt.
-      // Procedural (no assets) + cheap, so it runs on mid-range mobile too (not just the
-      // top graphics tier like the legacy heavy scenery). Count scales with the tier.
-      const deepspace = makeDeepSpace(gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
-      sceneryRef.current.deepspace = deepspace;
-      scene.add(deepspace);
-      // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
-      // server (state → colour/glyph/pulse; cooling=blue, urgent=red pulse) and rebuilt whenever
-      // finances change. Skipped in the demo galaxy (no backend).
-      const disposeGroup = (g: THREE.Object3D) => g.traverse((o: any) => {
-        if (o.material) { const m = o.material; (Array.isArray(m) ? m : [m]).forEach((x: any) => { x.map?.dispose?.(); x.dispose?.(); }); }
-        o.geometry?.dispose?.();
-      });
-      const rebuildMoneySky = async () => {
-        if (demoRef.current) return;
-        const stars = (await getMoneySky()) ?? [];
-        const old = sceneryRef.current.moneysky;
-        if (old) { scene.remove(old); disposeGroup(old); }
-        const grp = makeMoneySky(stars);
-        sceneryRef.current.moneysky = grp;
-        scene.add(grp);
-        scaleSceneryRef.current();
-      };
-      void rebuildMoneySky();
-      const onFinanceChanged = () => void rebuildMoneySky();
-      finChangeHandlerRef.current = onFinanceChanged;
-      window.addEventListener("brain-finance-changed", onFinanceChanged);
+    }
+    // Distant spiral galaxies — just a few thousand Points total, so they belong on EVERY
+    // tier, not only heavy scenery (they were silently vanishing on mid/low mobile). Count
+    // scales with the tier; tracked in sceneryRef so they push outward as the galaxy grows.
+    const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
+    sceneryRef.current.galaxies = galaxies;
+    scene.add(galaxies);
+    // Optional photographic Milky Way panorama (ESO/S. Brunier, CC BY 4.0). Purely additive:
+    // the loader self-gates to desktop and no-ops silently if the asset isn't present, so the
+    // procedural sky above is untouched until a `/milkyway-eso.jpg` is dropped into public/.
+    loadEquirectSkybox(scene, "/milkyway-eso.jpg", 11500, (sky) => {
+      sceneryRef.current.equirect = sky;
+      scaleSceneryRef.current();
+    });
+    const constellations = makeConstellations();
+    sceneryRef.current.constellations = constellations;
+    scene.add(constellations);
+    // Deep-space ambience — nebula clouds / dust / distant galaxies / asteroid belt.
+    // Procedural (no assets) + cheap, so it runs on mid-range mobile too (not just the
+    // top graphics tier like the legacy heavy scenery). Count scales with the tier.
+    defer(() => {
+        const deepspace = makeDeepSpace(gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+        sceneryRef.current.deepspace = deepspace;
+        scene.add(deepspace);
+    });
+    // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
+    // server (state → colour/glyph/pulse; cooling=blue, urgent=red pulse) and rebuilt whenever
+    // finances change. Skipped in the demo galaxy (no backend).
+    const disposeGroup = (g: THREE.Object3D) => g.traverse((o: any) => {
+      if (o.material) { const m = o.material; (Array.isArray(m) ? m : [m]).forEach((x: any) => { x.map?.dispose?.(); x.dispose?.(); }); }
+      o.geometry?.dispose?.();
+    });
+    defer(() => {
+        const rebuildMoneySky = async () => {
+          if (demoRef.current) return;
+          const stars = (await getMoneySky()) ?? [];
+          const old = sceneryRef.current.moneysky;
+          if (old) { scene.remove(old); disposeGroup(old); }
+          const grp = makeMoneySky(stars);
+          sceneryRef.current.moneysky = grp;
+          scene.add(grp);
+          scaleSceneryRef.current();
+        };
+        void rebuildMoneySky();
+        const onFinanceChanged = () => void rebuildMoneySky();
+        finChangeHandlerRef.current = onFinanceChanged;
+        window.addEventListener("brain-finance-changed", onFinanceChanged);
+    });
 
-      // Living Galaxy — Journey hubs (Vision 2.0): bright hubs that brighten with progress, dim
-      // when cold. Same pattern as the money-sky; rebuilt on `brain-journeys-changed`.
-      const rebuildJourneyHubs = async () => {
-        if (demoRef.current) return;
-        const journeys = (await getJourneys()) ?? [];
-        const old = sceneryRef.current.journeyhubs;
-        if (old) { scene.remove(old); disposeGroup(old); }
-        const grp = makeJourneyHubs(journeys);
-        sceneryRef.current.journeyhubs = grp;
-        scene.add(grp);
-        scaleSceneryRef.current();
-      };
-      void rebuildJourneyHubs();
-      const onJourneysChanged = () => void rebuildJourneyHubs();
-      journeyChangeHandlerRef.current = onJourneysChanged;
-      window.addEventListener("brain-journeys-changed", onJourneysChanged);
-      const bursts = makeCollisionBursts();
-      burstsRef.current = bursts;
-      scene.add(bursts.group);
-      // Constellation-forming flourish (#1b): a comet sweeps along each new link.
-      const linkForming = makeLinkForming();
-      linkForming.group.userData.update = () => linkForming.update();
-      linkFormingRef.current = linkForming;
-      scene.add(linkForming.group);
+    // Living Galaxy — Journey hubs (Vision 2.0): bright hubs that brighten with progress, dim
+    // when cold. Same pattern as the money-sky; rebuilt on `brain-journeys-changed`.
+    defer(() => {
+        const rebuildJourneyHubs = async () => {
+          if (demoRef.current) return;
+          const journeys = (await getJourneys()) ?? [];
+          const old = sceneryRef.current.journeyhubs;
+          if (old) { scene.remove(old); disposeGroup(old); }
+          const grp = makeJourneyHubs(journeys);
+          sceneryRef.current.journeyhubs = grp;
+          scene.add(grp);
+          scaleSceneryRef.current();
+        };
+        void rebuildJourneyHubs();
+        const onJourneysChanged = () => void rebuildJourneyHubs();
+        journeyChangeHandlerRef.current = onJourneysChanged;
+        window.addEventListener("brain-journeys-changed", onJourneysChanged);
+    });
+    const bursts = makeCollisionBursts();
+    burstsRef.current = bursts;
+    scene.add(bursts.group);
+    // Constellation-forming flourish (#1b): a comet sweeps along each new link.
+    const linkForming = makeLinkForming();
+    linkForming.group.userData.update = () => linkForming.update();
+    linkFormingRef.current = linkForming;
+    scene.add(linkForming.group);
 
       // Create background figurine groups and register them
       const fig1Group = new THREE.Group();
