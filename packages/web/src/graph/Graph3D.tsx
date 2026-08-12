@@ -1312,50 +1312,55 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           o.visible = true;
 
           for (const child of o.children as any[]) {
-            // Self-rotation: the body (+ rings) spins on its own axis while the
-            // orbit system carries it around its neighbor. (Lives on the fidelity
-            // group so labels don't rotate.)
-            if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
+          // Self-rotation: the body (+ rings) spins on its own axis while the
+          // orbit system carries it around its neighbor. (Lives on the fidelity
+          // group so labels don't rotate.)
+          if (child.userData?.spin) child.rotation.y += child.userData.spinSpeed ?? 0.005;
 
-            // Skip individual label processing if too far, not selected, and not focused.
-            if (child.userData?.isLabel && dist > MACRO_DIST && !isSelected && id !== followRef.current) continue;
-            
-            // Optimization: throttle updates for distant/insignificant labels
-            if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
-              continue;
-            }
-
-            // Point Light Management
-            if (child.userData?.isStarLight) {
-              child.visible = dist < 2200;
-            }
-
-            // LOD Swapping
-            if (child.userData?.isFidelity) child.visible = !isMacroView;
-            if (child.userData?.isMacro) child.visible = isMacroView;
-
-            if (isCulled) continue;
-
-            if (child.userData?.isSectorTitle) {
-              child.visible = isMacroView;
-              if (child.visible) {
-                const mat = child.material as THREE.SpriteMaterial;
-                mat.opacity = 0.92;
-                // Grow the label with camera distance so it holds a readable on-screen size
-                // as you pull further out (world-scale sprites otherwise shrink to specks),
-                // with an extra bump on small screens. Clamped so it never balloons up close.
-                const base = child.userData.baseScale;
-                if (base) {
-                  const k = Math.min(3.4, Math.max(1, dist / MACRO_DIST)) * SECTOR_LABEL_BOOST;
-                  child.scale.set(base.x * k, base.y * k, 1);
-                }
-                const mq = child.userData.marquee;
-                if (mq) {
-                  mq.t += dt * 0.36;
-                  mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
-                }
+          // Process titles regardless of parent culling
+          if (child.userData?.isSectorTitle) {
+            child.visible = isMacroView;
+            if (child.visible) {
+              const mat = child.material as THREE.SpriteMaterial;
+              mat.opacity = 0.92;
+              // Grow the label with camera distance so it holds a readable on-screen size
+              // as you pull further out (world-scale sprites otherwise shrink to specks),
+              // with an extra bump on small screens. Clamped so it never balloons up close.
+              const base = child.userData.baseScale;
+              if (base) {
+                const k = Math.min(3.4, Math.max(1, dist / MACRO_DIST)) * SECTOR_LABEL_BOOST;
+                child.scale.set(base.x * k, base.y * k, 1);
               }
-            } else if (child.userData?.isLabel) {
+              const mq = child.userData.marquee;
+              if (mq) {
+                mq.t += dt * 0.36;
+                mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
+              }
+            }
+          }
+
+          // Skip individual label processing if too far, not selected, and not focused.
+          if (child.userData?.isLabel && dist > MACRO_DIST && !isSelected && id !== followRef.current) continue;
+          
+          // Optimization: throttle updates for distant/insignificant labels
+          if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
+            continue;
+          }
+
+          // Point Light Management
+          if (child.userData?.isStarLight) {
+            child.visible = dist < 2200;
+          }
+
+          // LOD Swapping
+          if (child.userData?.isFidelity) child.visible = !isMacroView;
+          if (child.userData?.isMacro) child.visible = isMacroView;
+
+          if (isCulled) continue;
+
+          if (child.userData?.isSectorTitle) {
+            // Already handled above
+          } else if (child.userData?.isLabel) {
               const labelVis = (isMacroView && !isSelected) ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
               child.visible = labelVis > 0.02;
               if (child.visible) {

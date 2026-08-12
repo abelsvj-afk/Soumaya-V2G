@@ -564,8 +564,8 @@ export default function App() {
       const timedOut = err instanceof DOMException && err.name === "AbortError";
       console.error(`[BOOT] graph load ${timedOut ? "timed out" : "failed"}:`, err);
       setInitError(timedOut ? "timeout" : "error");
-    } finally {
       setLoaded(true);
+    } finally {
       console.info("[BOOT] loaded complete");
     }
     getHealth()
@@ -1311,7 +1311,11 @@ export default function App() {
       <Graph3D
         ref={graphRef}
         data={view}
-        onFirstFrame={clearGalaxyStuck}
+        onFirstFrame={() => {
+          clearGalaxyStuck();
+          setLoaded(true);
+          console.info("[BOOT] Galaxy rendered — loading complete");
+        }}
         onFuelBurn={(amount) => {
           // Optimistic: drop the gauge now (fires the −pop), then confirm with the server.
           setFuel((f) => (f ? { ...f, fuel: Math.max(0, f.fuel - amount) } : f));
