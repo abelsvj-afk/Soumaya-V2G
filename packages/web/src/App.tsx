@@ -875,10 +875,13 @@ export default function App() {
   }, [demo]);
 
   // Reveal the Observatory home once per app open, AFTER the cinematic fly-in
-  // (~3.2s) has settled — never touches the intro itself. Skips the demo galaxy
+  // has settled — never touches the intro itself. Skips the demo galaxy
   // and won't pop over a panel the user already opened during the swoop.
   useEffect(() => {
     if (obsShownRef.current || demo || !space || !loaded) return;
+    
+    // The intro animation takes ~3.2s from the point of triggering in Graph3D.
+    // Triggering now ensures it follows the intro, regardless of load time.
     const t = window.setTimeout(() => {
       obsShownRef.current = true;
       if (panel === null) setShowObs(true);
