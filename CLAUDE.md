@@ -230,6 +230,11 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 - **Fix: Cinematic Intro Trigger** (Graph3D.tsx): Relaxed the intro trigger condition.
 - **Fix: Cinematic Startup Race Condition** (Graph3D.tsx): Added `cinematicStartedRef` to prevent redundant triggers.
 - **Fix: GalaxyViews Visibility** (App.tsx): Removed the `!!selected` constraint so Views remain accessible during node selection.
+- **Optimization: Performance Audit & Improvements** (various): Ongoing performance work.
+- **Fix: Visibility and Loading Issues** (various).
+- **Optimization: Link LOD** (Graph3D.tsx): LOD optimization for dense brains.
+- **Refactor: Intro and Observatory Timing** (various): Timing adjustments for smooth entrance.
+- **Refactor: Startup Flow** (various): Decoupled loading dismissal from intro sequence.
 
 
 - Match the surrounding code's style and comment density (comments explain *why*).
