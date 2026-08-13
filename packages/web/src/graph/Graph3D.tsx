@@ -650,52 +650,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
     }
-    // Deep-space base COLOUR only — not a baked star texture. A Texture set as
-    // scene.background is drawn screen-locked (it never parallaxes with the camera),
-    // which read as a "stale film of stars over the lens" on top of the real, moving
-    // 3D starfield. The parallaxing stars/nebulae/skybox below do all the depth work.
     scene.background = new THREE.Color(BG);
-    const starfield = makeStarfield(gfx.starCount);
-    sceneryRef.current.starfield = starfield;
-    scene.add(starfield);
-    // The Milky Way band — procedural (no asset/licence), cheap enough for every tier, so
-    // even mid-range mobile gets the signature galactic arc, not just a flat star scatter.
-    const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
-    sceneryRef.current.milkyway = milkyway;
-    scene.add(milkyway);
+    defer(() => {
+        const starfield = makeStarfield(gfx.starCount);
+        sceneryRef.current.starfield = starfield;
+        scene.add(starfield);
+        
+        const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+        sceneryRef.current.milkyway = milkyway;
+        scene.add(milkyway);
+
+        const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
+        sceneryRef.current.galaxies = galaxies;
+        scene.add(galaxies);
+
+        const constellations = makeConstellations();
+        sceneryRef.current.constellations = constellations;
+        scene.add(constellations);
+        
+        scaleSceneryRef.current(); // Ensure scale is applied after addition
+    });
+    
     // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
     // extra draw calls + textures that can stall a mid/low phone on the first frame —
     // render it only on the top graphics tier. The starfield alone still reads as space.
-    if (gfx.heavyScenery) {
-      defer(() => {
-          loadNebulaSkybox(scene, 12000, (sky) => {
-            sceneryRef.current.skybox = sky;
-            scaleSceneryRef.current(); // catch up to the current galaxy size once loaded
-          });
-          const nebulae = makeNebulae();
-          sceneryRef.current.nebulae = nebulae;
-          scene.add(nebulae);
-          const comets = makeComets();
-          sceneryRef.current.comets = comets;
-          scene.add(comets);
-      });
-    }
-    // Distant spiral galaxies — just a few thousand Points total, so they belong on EVERY
-    // tier, not only heavy scenery (they were silently vanishing on mid/low mobile). Count
-    // scales with the tier; tracked in sceneryRef so they push outward as the galaxy grows.
-    const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
-    sceneryRef.current.galaxies = galaxies;
-    scene.add(galaxies);
-    // Optional photographic Milky Way panorama (ESO/S. Brunier, CC BY 4.0). Purely additive:
-    // the loader self-gates to desktop and no-ops silently if the asset isn't present, so the
-    // procedural sky above is untouched until a `/milkyway-eso.jpg` is dropped into public/.
-    loadEquirectSkybox(scene, "/milkyway-eso.jpg", 11500, (sky) => {
-      sceneryRef.current.equirect = sky;
-      scaleSceneryRef.current();
-    });
-    const constellations = makeConstellations();
-    sceneryRef.current.constellations = constellations;
-    scene.add(constellations);
     // Deep-space ambience — nebula clouds / dust / distant galaxies / asteroid belt.
     // Procedural (no assets) + cheap, so it runs on mid-range mobile too (not just the
     // top graphics tier like the legacy heavy scenery). Count scales with the tier.
