@@ -1606,16 +1606,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     };
     tick();
 
-    // Trigger intro sequence independently of loading dismissal, once data is ready.
-    if (!cinematicStartedRef.current) {
-        const ns = dataRef.current.nodes as any[];
-        if (ns.length > 0) {
-            cinematicStartedRef.current = true;
-            initialFramedRef.current = true;
-            frameGalaxy(3200, undefined, true);
-        }
-    }
-
     return () => {
       cancelAnimationFrame(raf);
       engine?.dispose();
