@@ -607,7 +607,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // See the far galaxies + the nebula skybox shell (~12000 out).
   const pcam = fg.camera() as THREE.PerspectiveCamera;
   if (pcam?.isPerspectiveCamera) {
-    pcam.far = 30000;
+    pcam.far = Math.max(30000, maxDistRef.current * 4);
     pcam.updateProjectionMatrix();
   }
   scene.add(new THREE.AmbientLight(0x8888aa, 1.2));
