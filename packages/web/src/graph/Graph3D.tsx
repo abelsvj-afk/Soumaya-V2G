@@ -2375,7 +2375,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       graphData={data as any}
       backgroundColor={BG}
       showNavInfo={false}
-      warmupTicks={30}
+      warmupTicks={0}
       cooldownTicks={9999999}
       cooldownTime={9999999}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
