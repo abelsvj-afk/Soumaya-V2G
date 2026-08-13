@@ -745,19 +745,23 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       updateFigurine(fig1Group, equippedFig1Ref.current, new THREE.Vector3(8000, 3000, -9500), () => scene.environment);
       updateFigurine(fig2Group, equippedFig2Ref.current, new THREE.Vector3(-9000, -2000, -9500), () => scene.environment);
 
-      soumaya = makeSoumaya(equippedShipRef.current);
-      soumayaHandleRef.current = soumaya;
-      soumaya.setDemoMode(demoRef.current);
-      if (soumaya.setTrailColor) {
-        soumaya.setTrailColor(equippedTrailRef.current);
-      }
-      scene.add(soumaya.object);
-      scene.add(soumaya.taskLabel);
-      scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
-      scene.add(soumaya.trail); // engine plume (world-space)
-      soumaya.setTaskVisible(!!showShipTaskRef.current);
-      soumaya.setPilotSpeed?.(pilotSpeedRef.current);
-      soumayaObjRef.current = soumaya.object;
+      defer(() => {
+        const s = makeSoumaya(equippedShipRef.current);
+        soumaya = s;
+        soumayaHandleRef.current = s;
+        s.setDemoMode(demoRef.current);
+        if (s.setTrailColor) {
+          s.setTrailColor(equippedTrailRef.current);
+        }
+        scene.add(s.object);
+        scene.add(s.taskLabel);
+        scene.add(s.cargo); // the discarded memory she drags into the Sun
+        scene.add(s.trail); // engine plume (world-space)
+        s.setTaskVisible(!!showShipTaskRef.current);
+        s.setPilotSpeed?.(pilotSpeedRef.current);
+        soumayaObjRef.current = s.object;
+      });
+
       // Real ship-engine audio, only audible when the camera is focused on her.
       engine = makeEngineAudio();
       // The Sun: the gigantic central body every cluster revolves around.
@@ -1415,7 +1419,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           dt,
           workNodes,
           d.links as any[],
-          (x, y, z, type, nodeId) => {
+          (x: number, y: number, z: number, type: string, nodeId: number | undefined) => {
             // Demo flights must not feed real progression stats.
             if (spaceIdRef.current && !demoRef.current) {
               const hopKey = `stat.travel_hops.${spaceIdRef.current}`;
@@ -1436,7 +1440,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           },
           stationP,
           // When she fastens a new connection, fire a burst of pulses down it.
-          (key) => fireLink(key),
+          (key: string) => fireLink(key),
           // Orbit seam: lets her ferry a held new memory to its live slot, then
           // release it back to normal orbiting once she drops it home.
           {
