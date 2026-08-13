@@ -769,9 +769,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       sunRef.current = sun;
       sun.userData.setBrainScale?.(dataRef.current.nodes.length);
       scene.add(sun);
-      const station = makeSpaceStation();
-      scene.add(station);
-      stationObjRef.current = station;
+      
+      defer(() => {
+        const station = makeSpaceStation();
+        scene.add(station);
+        stationObjRef.current = station;
+      });
+
       visitors = makeVisitors(3, (nodeId, type) => {
         if (!demoRef.current) visitBufRef.current.push({ nodeId, type });
       });
