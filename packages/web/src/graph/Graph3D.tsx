@@ -745,38 +745,31 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       updateFigurine(fig1Group, equippedFig1Ref.current, new THREE.Vector3(8000, 3000, -9500), () => scene.environment);
       updateFigurine(fig2Group, equippedFig2Ref.current, new THREE.Vector3(-9000, -2000, -9500), () => scene.environment);
 
-      defer(() => {
-        const s = makeSoumaya(equippedShipRef.current);
-        soumaya = s;
-        soumayaHandleRef.current = s;
-        s.setDemoMode(demoRef.current);
-        if (s.setTrailColor) {
-          s.setTrailColor(equippedTrailRef.current);
-        }
-        scene.add(s.object);
-        scene.add(s.taskLabel);
-        scene.add(s.cargo); // the discarded memory she drags into the Sun
-        scene.add(s.trail); // engine plume (world-space)
-        s.setTaskVisible(!!showShipTaskRef.current);
-        s.setPilotSpeed?.(pilotSpeedRef.current);
-        soumayaObjRef.current = s.object;
-      });
+      soumaya = makeSoumaya(equippedShipRef.current);
+      soumayaHandleRef.current = soumaya;
+      soumaya.setDemoMode(demoRef.current);
+      if (soumaya.setTrailColor) {
+        soumaya.setTrailColor(equippedTrailRef.current);
+      }
+      scene.add(soumaya.object);
+      scene.add(soumaya.taskLabel);
+      scene.add(soumaya.cargo); // the discarded memory she drags into the Sun
+      scene.add(soumaya.trail); // engine plume (world-space)
+      soumaya.setTaskVisible(!!showShipTaskRef.current);
+      soumaya.setPilotSpeed?.(pilotSpeedRef.current);
+      soumayaObjRef.current = soumaya.object;
 
       // Real ship-engine audio, only audible when the camera is focused on her.
       engine = makeEngineAudio();
       // The Sun: the gigantic central body every cluster revolves around.
-      defer(() => {
-        const sun = makeSun();
-        sunRef.current = sun;
-        sun.userData.setBrainScale?.(dataRef.current.nodes.length);
-        scene.add(sun);
-      });
+      const sun = makeSun();
+      sunRef.current = sun;
+      sun.userData.setBrainScale?.(dataRef.current.nodes.length);
+      scene.add(sun);
       
-      defer(() => {
-        const station = makeSpaceStation();
-        scene.add(station);
-        stationObjRef.current = station;
-      });
+      const station = makeSpaceStation();
+      scene.add(station);
+      stationObjRef.current = station;
 
       visitors = makeVisitors(3, (nodeId, type) => {
         if (!demoRef.current) visitBufRef.current.push({ nodeId, type });
