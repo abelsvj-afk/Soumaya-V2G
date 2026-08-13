@@ -765,10 +765,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Real ship-engine audio, only audible when the camera is focused on her.
       engine = makeEngineAudio();
       // The Sun: the gigantic central body every cluster revolves around.
-      const sun = makeSun();
-      sunRef.current = sun;
-      sun.userData.setBrainScale?.(dataRef.current.nodes.length);
-      scene.add(sun);
+      defer(() => {
+        const sun = makeSun();
+        sunRef.current = sun;
+        sun.userData.setBrainScale?.(dataRef.current.nodes.length);
+        scene.add(sun);
+      });
       
       defer(() => {
         const station = makeSpaceStation();
