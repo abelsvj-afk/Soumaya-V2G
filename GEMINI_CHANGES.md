@@ -165,6 +165,14 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-15 (Antigravity): PMREM Startup Test (Deferred PMREM Generator in Graph3D)
+- [ ] Verified by Claude
+- Defer `PMREMGenerator`/`fromScene(RoomEnvironment)` environment-map generation in `Graph3D.tsx` using the `defer` utility to avoid blocking initial startup frames.
+- Preserves fallback lighting (`AmbientLight` + `DirectionalLight`), all scene objects (Soumaya, Sun, SpaceStation, nebulae, galaxies), and all cinematic, LOD, bloom, camera, loading, and culling behavior.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean across all workspaces.
+
 ### 2026-08-09 (Gemini): Chat and Agenda Improvements (Bugs 7, 8, 9)
 - [ ] Verified by Claude
 - Fixed Bug 7: Increased Chat history window sent to LLM from 8 turns to 16, improving conversational context retention.

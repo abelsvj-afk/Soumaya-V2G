@@ -619,14 +619,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Aura satellites) — which use metallic PBR materials — actually catch light and
   // reflections instead of rendering as black silhouettes. Also gives every body a
   // subtle premium sheen. Generated once from a neutral procedural room.
-  try {
-    const renderer = fg.renderer() as THREE.WebGLRenderer;
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose(); // the generator's internal render targets are no longer needed
-  } catch (err) {
-    console.warn("[graph] environment map unavailable:", err);
-  }
+  defer(() => {
+    try {
+      const renderer = fg.renderer() as THREE.WebGLRenderer;
+      const pmrem = new THREE.PMREMGenerator(renderer);
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      pmrem.dispose(); // the generator's internal render targets are no longer needed
+    } catch (err) {
+      console.warn("[graph] environment map unavailable:", err);
+    }
+  });
 
   // Declared outside try-catch so spawnBurst can access it
   let soumaya: SoumayaHandle | null = null;
