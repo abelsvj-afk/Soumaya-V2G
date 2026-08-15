@@ -29,7 +29,7 @@ export function makeSun(): THREE.Object3D {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
   const ctx = c.getContext("2d")!;
-  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 58);
   g.addColorStop(0, "rgba(255,240,200,0.9)");
   g.addColorStop(0.35, "rgba(255,180,90,0.45)");
   g.addColorStop(1, "rgba(255,140,60,0)");

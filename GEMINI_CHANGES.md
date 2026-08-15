@@ -180,6 +180,15 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Zone: Green (shipped)
 - Gate: `npm run typecheck` clean across all workspaces.
 
+### 2026-08-15 (Antigravity): Sun Corona Glow Texture Edge Margin Diagnostic
+- [ ] Verified by Claude
+- Reduced the radial gradient radius of the Sun corona CanvasTexture in `sun.ts` from 64px to 58px on the 128x128 canvas.
+- Creates a clean 6px transparent edge margin preventing radial gradient stop values from touching the square CanvasTexture boundary, resolving camera-aligned square bloom artifacting on the Sun corona billboard.
+- Preserved material settings, `depthTest`, `depthWrite`, `blending`, bloom pass configuration, and camera behaviors.
+- Files touched: `packages/web/src/graph/sun.ts`, `packages/web/src/components/ErrorBoundary.tsx`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean across all workspaces.
+
 ### 2026-08-15 (Antigravity): Bloom Startup Diagnostic (Deferred addBloom in Graph3D)
 - [ ] Verified by Claude
 - Deferred the `addBloom()` post-processing initialization in `Graph3D.tsx` using the `defer` utility to allow the initial 1–2 frames to render directly to screen before `UnrealBloomPass` attaches.
