@@ -786,10 +786,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scene.add(subAgents.group);
       // Bloom is expensive post-processing — skip it entirely on Performance/weak
       // devices (a major GPU + VRAM saving), else add it at the resolved strength.
-      // Deferred to allow the first 1–2 frames to render directly before UnrealBloomPass is attached.
-      defer(() => {
-        bloomRef.current = gfx.bloom ? addBloom(fg, { strength: gfx.bloomStrength }) : null;
-      });
+      bloomRef.current = gfx.bloom ? addBloom(fg, { strength: gfx.bloomStrength }) : null;
 
       // Click detection for Soumaya's ship
       const canvas = fg.renderer().domElement;

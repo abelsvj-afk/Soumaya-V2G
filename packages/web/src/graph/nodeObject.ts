@@ -60,7 +60,7 @@ function makeLabel(rawText: string): THREE.Sprite {
 
   sprite.userData.isLabel = true;
   if (tooWide) {
-    map.wrapS = THREE.RepeatWrapping;
+    map.wrapS = THREE.ClampToEdgeWrapping;
     map.repeat.x = WINDOW_PX / width;
     sprite.userData.marquee = { range: 1 - WINDOW_PX / width, t: 0 };
   }

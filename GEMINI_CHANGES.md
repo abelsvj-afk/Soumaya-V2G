@@ -165,6 +165,21 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-15 (Antigravity): Label CanvasTexture NPOT Diagnostic (nodeObject.ts)
+- [ ] Verified by Claude
+- Swapped `map.wrapS` on label `CanvasTexture`s in `makeLabel` from `THREE.RepeatWrapping` to `THREE.ClampToEdgeWrapping` to eliminate NPOT texture wrapping sampling corruption.
+- Preserves all other rendering systems, dimensions, alpha settings, shader logic, and bloom settings.
+- Files touched: `packages/web/src/graph/nodeObject.ts`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean across all workspaces.
+
+### 2026-08-15 (Antigravity): Revert Bloom Startup Diagnostic in Graph3D
+- [ ] Verified by Claude
+- Reverted the temporary `addBloom()` deferral diagnostic in `Graph3D.tsx`, restoring `addBloom()` to its exact synchronous initialization behavior while preserving PMREM deferral and all other scene functionality.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean across all workspaces.
+
 ### 2026-08-15 (Antigravity): Bloom Startup Diagnostic (Deferred addBloom in Graph3D)
 - [ ] Verified by Claude
 - Deferred the `addBloom()` post-processing initialization in `Graph3D.tsx` using the `defer` utility to allow the initial 1–2 frames to render directly to screen before `UnrealBloomPass` attaches.
