@@ -180,6 +180,18 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 - Zone: Green (shipped)
 - Gate: `npm run typecheck` clean across all workspaces.
 
+### 2026-08-15 (Antigravity): Exclude three/webgpu from WebGL bundle via Vite alias stub
+- [ ] Verified by Claude
+- Fixed cross-device Galaxy crash: `Cannot read properties of undefined (reading 'VERTEX')` caused by `three-render-objects@1.42.0` importing `WebGPURenderer` from `three/webgpu` at module scope, which triggered `WGSLNodeBuilder.js` → `WebGPUConstants.js` on all devices including those without WebGPU support.
+- Created `packages/web/src/graph/webgpuStub.ts`: a minimal stub exporting a `WebGPURenderer` class that only throws if ever instantiated (it never is — `useWebGPU` defaults to `false`).
+- Added `resolve.alias` for `"three/webgpu"` → stub in `packages/web/vite.config.ts`.
+- **`THREE.WebGLRenderer` is unaffected** — it is imported from the main `"three"` bundle, entirely separate from `three/webgpu`.
+- **Bundle size impact:** `Graph3D` chunk reduced **518 kB raw / 145 kB gzip** (from 859 kB → 341 kB) — the entire WebGPU node builder chain is excluded.
+- Verified: `WGSLNodeBuilder`, `WebGPUBackend`, `GPUShaderStage`, `WebGPUConstants`, `xi.VERTEX` are all absent from the new bundle. `WebGLRenderer` is confirmed present.
+- Files touched: `packages/web/src/graph/webgpuStub.ts` (new), `packages/web/vite.config.ts`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean + `npm run build -w @brain/web` succeeded.
+
 ### 2026-08-15 (Antigravity): Sun Corona Glow Texture Edge Margin Diagnostic
 - [ ] Verified by Claude
 - Reduced the radial gradient radius of the Sun corona CanvasTexture in `sun.ts` from 64px to 58px on the 128x128 canvas.
