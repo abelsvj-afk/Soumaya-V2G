@@ -2342,6 +2342,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     [data],
   );
 
+  const renderCountRef = useRef(0);
+  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 9));
+  useEffect(() => {
+    renderCountRef.current++;
+    console.log(`[Graph3D] Render: ${renderCountRef.current}, Instance: ${instanceIdRef.current}`);
+  });
+  useEffect(() => {
+    console.log(`[Graph3D] Mount: ${instanceIdRef.current}`);
+    return () => console.log(`[Graph3D] Unmount: ${instanceIdRef.current}`);
+  }, []);
+
   return (
     <ForceGraph3D
       ref={fgRef}

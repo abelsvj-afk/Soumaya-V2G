@@ -660,6 +660,7 @@ export default function App() {
 
   // Whether the 3D galaxy is about to mount this render (mirrors the JSX gate below).
   const galaxyWillMount = (loaded || demo) && !lite;
+  console.log("[App] galaxyWillMount:", galaxyWillMount, { loaded, demo, lite });
   // Heal any stale "galaxy stuck" flag left by the earlier crash-loop breaker. That
   // safeguard existed only to survive the achievement-DFS freeze (now fixed at the
   // source); with the freeze gone it was misfiring on ordinary lag and hiding a
