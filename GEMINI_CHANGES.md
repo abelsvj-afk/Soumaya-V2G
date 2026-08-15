@@ -165,6 +165,14 @@ Also mark completed items `[x]` in `SOUMAYA_ROADMAP.md` and note new gaps you fo
 
 ## Completed Tasks
 
+### 2026-08-15 (Antigravity): Bloom Startup Diagnostic (Deferred addBloom in Graph3D)
+- [ ] Verified by Claude
+- Deferred the `addBloom()` post-processing initialization in `Graph3D.tsx` using the `defer` utility to allow the initial 1–2 frames to render directly to screen before `UnrealBloomPass` attaches.
+- Preserves all graphics settings, bloom parameters (strength/radius/threshold), scene objects, camera, cinematic, LOD, culling, PMREM, and loading screen behavior.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`
+- Zone: Green (shipped)
+- Gate: `npm run typecheck` clean across all workspaces.
+
 ### 2026-08-15 (Antigravity): PMREM Startup Test (Deferred PMREM Generator in Graph3D)
 - [ ] Verified by Claude
 - Defer `PMREMGenerator`/`fromScene(RoomEnvironment)` environment-map generation in `Graph3D.tsx` using the `defer` utility to avoid blocking initial startup frames.
