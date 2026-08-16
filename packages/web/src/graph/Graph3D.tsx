@@ -813,7 +813,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       fg.d3Force("charge")?.strength(0);
       fg.d3Force("center", null);
       fg.d3Force("link")?.strength(0);
-      fg.d3AlphaTarget(0.05); // Keep the simulation ticking forever so kinematic updates render correctly
 
       // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
       // so you can admire it all but never zoom past the star field. Smooth,
