@@ -1374,7 +1374,7 @@ export default function App() {
                 onClick={() => {
                   setInitError(null);
                   setLoaded(false);
-                  void refresh();
+                  setTimeout(() => void refresh(), 0);
                 }}
               >
                 ↻ Retry
@@ -1384,7 +1384,7 @@ export default function App() {
                   setGraphicsMode("performance");
                   setInitError(null);
                   setLoaded(false);
-                  void refresh();
+                  setTimeout(() => void refresh(), 0);
                 }}
                 title="Lighter rendering for weaker phones"
               >
