@@ -16,13 +16,11 @@ export function NoticingCard({
   onFocus,
   onAnswered,
   hidden,
-  demo,
   spaceId,
 }: {
   onFocus: (id: number) => void;
   onAnswered?: () => void;
   hidden?: boolean;
-  demo?: boolean;
   spaceId?: string;
 }) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
@@ -41,7 +39,6 @@ export function NoticingCard({
 
   const refresh = () => getInquiries().then(setInquiries).catch(() => {});
   useEffect(() => {
-    if (demo) return;
     refresh();
     const t = setInterval(refresh, 30_000);
     // A fresh memory can produce a noticing server-side — re-check after ingests.
@@ -51,9 +48,15 @@ export function NoticingCard({
       clearInterval(t);
       window.removeEventListener("brain-memory-added", onIngest);
     };
-  }, [demo]);
+  }, []);
 
-  if (demo || hidden || inquiries.length === 0) return null;
+  // Tell the app when this card is open so the object-lore card (same top-center slot)
+  // steps aside instead of stacking on top of it.
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("brain-noticing-open", { detail: open }));
+  }, [open]);
+
+  if (hidden || inquiries.length === 0) return null;
   const q = inquiries[0]!;
   const maxId = inquiries.reduce((m, i) => Math.max(m, i.id), 0);
   const glow = maxId > seenId; // there's a noticing you haven't opened yet
@@ -74,11 +77,6 @@ export function NoticingCard({
       markSeen();
     }
   };
-  // Tell the app when this card is open so the object-lore card (same top-center slot)
-  // steps aside instead of stacking on top of it.
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent("brain-noticing-open", { detail: open }));
-  }, [open]);
 
   const send = async () => {
     if (!reply.trim()) return;

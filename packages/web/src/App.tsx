@@ -1598,7 +1598,6 @@ export default function App() {
           onFocus={focus}
           onAnswered={() => refresh()}
           hidden={panel !== null || showObs || !obsSettled}
-          demo={demo}
           spaceId={space?.id}
         />
       </ErrorBoundary>
