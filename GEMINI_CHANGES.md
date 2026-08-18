@@ -1,3 +1,16 @@
+### 2026-08-17 (Gemini): Instrument ErrorBoundary for Diagnostic Logging
+- [ ] Verified by Claude
+- Instrumented `ErrorBoundary.tsx` to log error details (message, component stack) to the diagnostic buffer via `logDiagnosticEvent` upon `componentDidCatch`.
+- Files touched: `packages/web/src/components/ErrorBoundary.tsx`.
+- Zone: Green (Instrumentation only, safe for prod).
+- Gate: Verified via commit/push; build status maintained.
+
+### 2026-08-17 (Gemini): Mandatory Commit/Push Tracking & Observability Standards
+- [ ] Verified by Claude
+- Updated `AGENTS.md` and project mandates to require automatic commit/push logging in `GEMINI_CHANGES.md`.
+- Enforced a standard for incorporating observability (middleware, error boundaries, diagnostic logging) for all new features.
+- Zone: Green (Policy)
+
 # Gemini Changes Tracker
 
 This document tracks all changes made by Gemini to the Soumaya Brain repository. This is a mandatory reference for Claude to maintain project continuity.
