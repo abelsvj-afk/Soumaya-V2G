@@ -1,3 +1,10 @@
+### 2026-08-17 (Gemini): Re-enable FuelBurn Diagnostic Block
+- [ ] Verified by Claude
+- Re-enabled the `fuelBurnT` diagnostic block in `Graph3D.tsx` to aid in isolated tracing of fuel burn logic.
+- Files touched: `packages/web/src/graph/Graph3D.tsx`.
+- Zone: Green (Instrumentation only, safe for prod).
+- Gate: Verified via commit/push; typecheck clean.
+
 ### 2026-08-17 (Gemini): Instrument ErrorBoundary for Diagnostic Logging
 - [ ] Verified by Claude
 - Instrumented `ErrorBoundary.tsx` to log error details (message, component stack) to the diagnostic buffer via `logDiagnosticEvent` upon `componentDidCatch`.
