@@ -53,9 +53,12 @@ These exist because unverified, hallucinated changes have broken the live app. O
 
 ### 1. Mandatory Tracking Updates
 **ALWAYS** update after any implementation or significant change:
-- **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)**: a detailed log entry (rationale + files),
-  with a `[ ] Verified by Claude` checkbox at the top of the new entry.
-- **[SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md)**: mark completed `[x]`; note new gaps.
+- **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)**: A detailed log entry (rationale + files), with a `[ ] Verified by Claude` checkbox at the top of the new entry.
+- **[SOUMAYA_ROADMAP.md](./SOUMAYA_ROADMAP.md)**: Mark completed `[x]`; note new gaps.
+- **Commit/Push Protocol:** Immediately upon `git commit` and `git push`, the agent MUST:
+    1. Compare current state with the previous commit to generate a summary.
+    2. Log the changes into `GEMINI_CHANGES.md` (following the existing format).
+    3. Ensure all new features, tabs, or functionality include required observability (middleware/guardrails, error boundaries, diagnostic logging).
 
 ### 2. Review Workflow
 `agy` must **never** mark its own work as "Verified". The ✅ is reserved for Claude after
