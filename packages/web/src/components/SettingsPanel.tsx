@@ -5,6 +5,14 @@ import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
 import { isColorblind, setColorblind } from "../graph/theme.js";
 import { prefersReducedMotion, setReducedMotionOverride } from "../graph/motion.js";
 import {
+  isDiagnosticsEnabled,
+  setDiagnosticsEnabled,
+} from "../diagnostics/config.js";
+import {
+  clearDiagnosticEvents,
+  getDiagnosticSnapshot,
+} from "../diagnostics/buffer.js";
+import {
   getGraphics,
   setGraphicsMode,
   setGraphicsField,
@@ -40,6 +48,8 @@ export function SettingsPanel({
   });
   const [colorblind, setCb] = useState(isColorblind());
   const [reduceMotion, setRm] = useState(prefersReducedMotion());
+  const [diagnosticsOn, setDiagnosticsOn] = useState(isDiagnosticsEnabled());
+  const [diagReport, setDiagReport] = useState<string | null>(null);
   const voiceSupported = isVoiceSupported();
   const resolved = resolveGraphics(gfx);
 
@@ -216,6 +226,42 @@ export function SettingsPanel({
               <span className="knob" />
             </button>
           </label>
+        </section>
+
+        <section className="settings-section">
+          <h3>🔬 Diagnostics</h3>
+          <label className="settings-toggle">
+            <span>
+              Diagnostic recording
+              <em>{diagnosticsOn ? "ON - Events are being logged." : "OFF - Zero overhead."}</em>
+            </span>
+            <button
+              className={`switch ${diagnosticsOn ? "on" : ""}`}
+              onClick={() => {
+                const next = !diagnosticsOn;
+                setDiagnosticsOn(next);
+                setDiagnosticsEnabled(next);
+              }}
+              aria-pressed={diagnosticsOn}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+          <div className="row" style={{ marginTop: "10px", gap: "8px", display: "flex", flexWrap: "wrap" }}>
+            <button onClick={() => clearDiagnosticEvents()}>Clear Events</button>
+            <button onClick={() => setDiagReport(JSON.stringify(getDiagnosticSnapshot(), null, 2))}>View Report</button>
+            {diagReport && (
+              <button onClick={() => {
+                  navigator.clipboard.writeText(diagReport);
+                  alert("Report copied to clipboard!");
+              }}>Copy Report</button>
+            )}
+          </div>
+          {diagReport && (
+            <div style={{ marginTop: "10px", padding: "8px", background: "#222", color: "#fff", fontSize: "10px", maxHeight: "150px", overflow: "auto", whiteSpace: "pre-wrap", border: "1px solid #444", borderRadius: "4px" }}>
+              {diagReport}
+            </div>
+          )}
         </section>
 
         <section className="settings-section">
