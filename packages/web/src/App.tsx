@@ -1,3 +1,4 @@
+import { logDiagnosticEvent } from "./diagnostics/buffer";
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties } from "react";
 import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
@@ -71,6 +72,12 @@ import {
 type Panel = "search" | "ingest" | "dock" | null;
 
 export default function App() {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  useEffect(() => {
+    logDiagnosticEvent('event', 'App', { action: 'mount', render: renderCount.current });
+    return () => logDiagnosticEvent('event', 'App', { action: 'unmount' });
+  }, []);
   const [space, setSpace] = useState<{ id: string; name: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
@@ -527,6 +534,7 @@ export default function App() {
       console.info(`[BOOT] graph received (${g.nodes.length} nodes)`);
       setData(g);
       setLoaded(true);
+      logDiagnosticEvent('state', 'App.loaded', { loaded: true });
       setInitError(null);
       getFuel().then((f) => f && setFuel(f)).catch(() => {});
       // Let the proactive "she noticed…" card re-check (a fresh memory can form a
@@ -645,6 +653,7 @@ export default function App() {
     currentSpace()
       .then((sp) => {
         console.info(`[BOOT] auth finished (${sp ? "brain open" : "no brain"})`);
+        logDiagnosticEvent('state', 'App.space', { action: 'load', spaceId: sp?.id });
         setSpace(sp);
         // Demo mode removed — always your real brain.
         setDemo(false);
@@ -1214,7 +1223,13 @@ export default function App() {
     void refresh();
   }, [refresh]);
 
-  const toggle = (p: Exclude<Panel, null>) => setPanel((cur) => (cur === p ? null : p));
+  const toggle = (p: Exclude<Panel, null>) => {
+    setPanel((cur) => {
+      const next = cur === p ? null : p;
+      logDiagnosticEvent('state', 'App.panel', { action: 'toggle', panel: p, visible: !!next });
+      return next;
+    });
+  };
 
   const llmStatus = health
     ? health.llm.available

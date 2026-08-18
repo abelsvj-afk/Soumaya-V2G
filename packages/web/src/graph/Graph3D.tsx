@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { logDiagnosticEvent } from "../diagnostics/buffer";
 import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
@@ -154,6 +155,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   },
   ref,
 ) {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  useEffect(() => {
+    logDiagnosticEvent('event', 'Graph3D', { action: 'mount', render: renderCount.current });
+    return () => logDiagnosticEvent('event', 'Graph3D', { action: 'unmount' });
+  }, []);
+  
+  useEffect(() => {
+    logDiagnosticEvent('effect', 'Graph3D.data', { nodes: data.nodes.length, links: data.links.length });
+  }, [data]);
+
+  useEffect(() => {
+    logDiagnosticEvent('effect', 'Graph3D.selectedId', { id: selectedId });
+  }, [selectedId]);
+
   const fgRef = useRef<any>(null);
   const [hoverId, setHoverId] = useState<number | null>(null);
   // When set, only these node ids (a memory + its orbiting system) are shown.
@@ -800,6 +816,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         raycaster.setFromCamera(mouse, fg.camera());
         const intersects = raycaster.intersectObject(soumaya!.object, true);
         if (intersects.length > 0) {
+          logDiagnosticEvent('callback', 'Graph3D.onSoumayaClick');
           onSoumayaClick();
         }
       };
@@ -975,7 +992,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // multiple O(nodes) scans + builds arrays, and stringifying the result was
       // running at 60fps purely to DETECT change (a measured mobile battery sink).
       taskSyncT -= dt;
-      if (taskSyncT <= 0 && soumayaHandleRef.current && onTasksChangeRef.current) {
+      /* DIAGNOSTIC: DISABLED */
+      /* if (taskSyncT <= 0 && soumayaHandleRef.current && onTasksChangeRef.current) {
         taskSyncT = 0.35;
         const currentTasks = soumayaHandleRef.current.getTasks(dataRef.current.nodes);
         const tasksJson = JSON.stringify(currentTasks);
@@ -983,16 +1001,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastTasksJsonRef.current = tasksJson;
           onTasksChangeRef.current(currentTasks);
         }
-      }
+      } */
 
       // Flush her accumulated fast-flight fuel burn to the app (~every 4s), so the
       // gauge ticks down as she cruises hard — without a per-frame network call.
       fuelBurnT -= dt;
-      if (fuelBurnT <= 0) {
+      /* DIAGNOSTIC: DISABLED */
+      /* if (fuelBurnT <= 0) {
         fuelBurnT = 4;
         const burned = soumayaHandleRef.current?.getAndResetFuelBurn?.() ?? 0;
         if (burned > 0.05 && onFuelBurnRef.current) onFuelBurnRef.current(Math.round(burned * 100) / 100);
-      }
+      } */
 
       // Make link curvature/opacity zoom-bias live:
       // Track camera distance and periodically refresh link styles when zooming/scrolling
@@ -1121,12 +1140,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           : undefined,
       );
       // Tell React how many beacons are live, so the focus button can pulse.
+      // Tell React how many beacons are live, so the focus button can pulse.
       if (satellites) {
         const active = satellites.getActive();
-        if (active.length !== lastSatCountRef.current) {
+        /* DIAGNOSTIC: DISABLED */
+        /* if (active.length !== lastSatCountRef.current) {
           lastSatCountRef.current = active.length;
           onSatelliteCount?.(active.length);
-        }
+        } */
         // If the beacon we're following went dark, release the camera.
         if (followKindRef.current === "satellite") {
           const stillActive = active.some((a) => a.object === followObjRef.current);
@@ -1139,10 +1160,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Tell React how many visitors are around (drives the "jump to visitor" FAB).
       if (visitors) {
         const vActive = visitors.getActive();
-        if (vActive.length !== lastVisCountRef.current) {
+        /* DIAGNOSTIC: DISABLED */
+        /* if (vActive.length !== lastVisCountRef.current) {
           lastVisCountRef.current = vActive.length;
           onVisitorCount?.(vActive.length);
-        }
+        } */
         // Release the camera if the visitor we were following has left.
         if (followKindRef.current === "visitor") {
           const stillHere = vActive.some((a) => a.object === followObjRef.current);
@@ -2395,6 +2417,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         return `${n.label}${proc} · ${String(n.type).replace(/_/g, " ")}`;
       }}
       onNodeClick={(n: any) => {
+        logDiagnosticEvent('callback', 'Graph3D.onNodeClick', { nodeId: n.id });
         onSelect(n);
         // Instant tap feedback: a soft ripple right on the body you clicked, so the
         // selection registers visually the moment you tap (before the fly-to lands).

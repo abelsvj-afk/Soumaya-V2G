@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { getInquiries, answerInquiry, dismissInquiry, rejectInquiry, confirmInquiry, type Inquiry } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
+import { logDiagnosticEvent } from "../diagnostics/buffer";
 
 /**
  * "Soumaya noticed…" — the proactive-intelligence surface. She NEVER pops this open on
@@ -23,6 +24,12 @@ export function NoticingCard({
   hidden?: boolean;
   spaceId?: string;
 }) {
+  const renderCount = useRef(0);
+  renderCount.current++;
+  useEffect(() => {
+    logDiagnosticEvent('event', 'NoticingCard', { action: 'mount', render: renderCount.current });
+    return () => logDiagnosticEvent('event', 'NoticingCard', { action: 'unmount' });
+  }, []);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [open, setOpen] = useState(false);
   const [reply, setReply] = useState("");
@@ -37,7 +44,10 @@ export function NoticingCard({
     try { setSeenId(parseInt(localStorage.getItem(seenKey) || "0", 10) || 0); } catch { setSeenId(0); }
   }, [seenKey]);
 
-  const refresh = () => getInquiries().then(setInquiries).catch(() => {});
+  const refresh = () => getInquiries().then(inquiries => { 
+    setInquiries(inquiries); 
+    logDiagnosticEvent('state', 'NoticingCard.inquiries', { count: inquiries.length }); 
+  }).catch(() => {});
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 30_000);
@@ -53,6 +63,7 @@ export function NoticingCard({
   // Tell the app when this card is open so the object-lore card (same top-center slot)
   // steps aside instead of stacking on top of it.
   useEffect(() => {
+    logDiagnosticEvent('event', 'NoticingCard.sync', { open: open });
     window.dispatchEvent(new CustomEvent("brain-noticing-open", { detail: open }));
   }, [open]);
 
@@ -72,8 +83,10 @@ export function NoticingCard({
   const toggle = () => {
     if (open) {
       setOpen(false);
+      logDiagnosticEvent('state', 'NoticingCard.open', { open: false });
     } else {
       setOpen(true);
+      logDiagnosticEvent('state', 'NoticingCard.open', { open: true });
       markSeen();
     }
   };
