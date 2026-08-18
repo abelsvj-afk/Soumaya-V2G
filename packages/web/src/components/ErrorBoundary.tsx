@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { getDiagnosticSnapshot } from "../diagnostics/buffer";
+import { getDiagnosticSnapshot, logDiagnosticEvent } from "../diagnostics/buffer";
 import { isDiagnosticsEnabled } from "../diagnostics/config";
 
 interface Props {
@@ -33,6 +33,7 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error(`[app] render error${this.props.label ? ` (${this.props.label})` : ""}:`, error, info.componentStack);
+    logDiagnosticEvent('error', this.props.label || 'boundary', { message: error.message, componentStack: info.componentStack });
     if (isDiagnosticsEnabled()) {
       console.log("[diagnostics] Crash snapshot:", getDiagnosticSnapshot());
     }
