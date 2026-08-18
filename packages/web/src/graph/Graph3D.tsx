@@ -1006,12 +1006,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Flush her accumulated fast-flight fuel burn to the app (~every 4s), so the
       // gauge ticks down as she cruises hard — without a per-frame network call.
       fuelBurnT -= dt;
-      /* DIAGNOSTIC: DISABLED */
-      /* if (fuelBurnT <= 0) {
+      if (fuelBurnT <= 0) {
         fuelBurnT = 4;
         const burned = soumayaHandleRef.current?.getAndResetFuelBurn?.() ?? 0;
         if (burned > 0.05 && onFuelBurnRef.current) onFuelBurnRef.current(Math.round(burned * 100) / 100);
-      } */
+      }
 
       // Make link curvature/opacity zoom-bias live:
       // Track camera distance and periodically refresh link styles when zooming/scrolling
