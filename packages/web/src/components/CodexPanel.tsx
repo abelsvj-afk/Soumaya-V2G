@@ -14,21 +14,18 @@ export function CodexPanel({
   graph,
   onFocus,
   spaceId = "",
-  demo,
   onReward,
 }: {
   graph: GraphData;
   onFocus: (id: number) => void;
   spaceId?: string;
-  demo?: boolean;
   onReward?: () => void;
 }) {
   // Soumaya's autonomously-charted field notes (server), merged into the atlas.
   const [discoveries, setDiscoveries] = useState<AgentDiscovery[]>([]);
   useEffect(() => {
-    if (demo) return;
     getCodexDiscoveries().then(setDiscoveries).catch(() => {});
-  }, [demo, spaceId]);
+  }, [spaceId]);
 
   const entries = useMemo(() => {
     const nodes = graph.nodes as GraphNode[];
@@ -47,7 +44,7 @@ export function CodexPanel({
 
   // Fire a discovery toast + claim the reward once per newly-discovered entry.
   useEffect(() => {
-    if (demo || !spaceId) return;
+    if (!spaceId) return;
     const key = `codex.seen.${spaceId}`;
     let seen: Set<string>;
     try {
@@ -79,7 +76,7 @@ export function CodexPanel({
     }
     if (credited) playSfx("achievement");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, spaceId, demo]);
+  }, [entries, spaceId]);
 
   const shown = entries.filter((e) => e.category === tab);
 

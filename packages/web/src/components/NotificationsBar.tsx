@@ -11,12 +11,11 @@ interface NotificationsBarProps {
   onOpenTab: (tab: DockTab) => void;
   /** Open the "Ways to earn Fuel" cheat-sheet (from the low-fuel alert). */
   onEarnFuel?: () => void;
-  demo: boolean;
 }
 
 const DISMISS_KEY = "brain.dismissedAlerts";
 
-export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, onEarnFuel, demo }: NotificationsBarProps) {
+export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, onEarnFuel }: NotificationsBarProps) {
   const [dismissed, setDismissed] = useState<Set<string>>(() => {
     try { return new Set(JSON.parse(sessionStorage.getItem(DISMISS_KEY) || "[]")); } catch { return new Set(); }
   });
@@ -27,8 +26,6 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
       try { sessionStorage.setItem(DISMISS_KEY, JSON.stringify([...next])); } catch { /* ignore */ }
       return next;
     });
-
-  if (demo) return null;
 
   const alerts: { id: string; type: "warning" | "info" | "error"; text: string; icon: string; actionText?: string; onClick?: () => void }[] = [];
 

@@ -10,11 +10,9 @@ import { getLore, evolveLore } from "../api/client.js";
 export function Chronicle({
   subjectType,
   subjectId,
-  demo,
 }: {
   subjectType: LoreSubjectType;
   subjectId: string;
-  demo?: boolean;
 }) {
   const [history, setHistory] = useState<LoreEntry[]>([]);
   const [open, setOpen] = useState(false);
@@ -23,7 +21,6 @@ export function Chronicle({
   useEffect(() => {
     setHistory([]);
     setOpen(false);
-    if (demo) return;
     let alive = true;
     getLore(subjectType, subjectId).then((h) => {
       if (alive) setHistory(h);
@@ -31,9 +28,7 @@ export function Chronicle({
     return () => {
       alive = false;
     };
-  }, [subjectType, subjectId, demo]);
-
-  if (demo) return null;
+  }, [subjectType, subjectId]);
 
   const current = history[history.length - 1];
   const older = history.slice(0, -1).reverse();
