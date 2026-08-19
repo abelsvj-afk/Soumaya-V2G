@@ -644,7 +644,7 @@ export function MindPanel({
                           <p className="empty small">No interactions yet — memories that mention them (or an alias) will appear here.</p>
                         )}
                         {/* Profile photos for this person — tap a thumbnail to view full-screen. */}
-                        <MemoryAttachments nodeId={it.id} demo={demo} label="📷 Photos" />
+                        <MemoryAttachments nodeId={it.id} label="📷 Photos" />
                       </div>
                     )}
                   </div>

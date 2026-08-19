@@ -252,7 +252,6 @@ export function RightDock({
             onChanged={onChanged}
             onDeleted={onDeleted}
             onIsolate={onIsolate}
-            demo={demo}
             onTagClick={(t) => {
               setSelectedTag(t);
               setTab("list");

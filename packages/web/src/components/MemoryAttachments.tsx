@@ -14,11 +14,9 @@ const fmtSize = (b: number) => (b < 1024 ? `${b} B` : b < 1e6 ? `${(b / 1024).to
 
 export function MemoryAttachments({
   nodeId,
-  demo,
   label = "📎 Attachments",
 }: {
   nodeId: number;
-  demo?: boolean;
   /** Section heading — e.g. "📷 Photos" on a person. */
   label?: string;
 }) {
@@ -29,13 +27,12 @@ export function MemoryAttachments({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (demo) return;
     let alive = true;
     listAttachments(nodeId).then((a) => alive && setItems(a)).catch(() => {});
     return () => {
       alive = false;
     };
-  }, [nodeId, demo]);
+  }, [nodeId]);
 
   // Fetch object URLs for image attachments (once each); revoke on unmount.
   useEffect(() => {
@@ -90,8 +87,6 @@ export function MemoryAttachments({
       });
     }
   };
-
-  if (demo) return null;
 
   return (
     <div style={{ marginTop: "0.85rem" }}>

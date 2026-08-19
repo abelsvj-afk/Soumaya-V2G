@@ -21,8 +21,6 @@ interface Props {
   onDeleted?: () => void;
   /** Show only this memory + the bodies orbiting it. */
   onIsolate?: (id: number) => void;
-  /** Demo galaxy has no backend — hide lore/Chronicle there. */
-  demo?: boolean;
   onTagClick?: (tag: string) => void;
 }
 
@@ -65,7 +63,7 @@ function sizeReason(n: GraphNode): string {
   return bits.slice(0, 3).join(", ");
 }
 
-export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, demo, onTagClick }: Props) {
+export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIsolate, onTagClick }: Props) {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -300,7 +298,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         </div>
       )}
 
-      {!demo && node.kind !== "action" && <JourneyChips nodeId={node.id} />}
+      {node.kind !== "action" && <JourneyChips nodeId={node.id} />}
 
       {node.kind === "action" ? (
         <div className="action-due">
@@ -337,7 +335,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <details className="dock-section" open={!isMobile}>
           <summary>📜 Chronicle / History</summary>
           <div style={{ padding: "10px" }}>
-            <Chronicle subjectType="memory" subjectId={String(node.id)} demo={demo} />
+            <Chronicle subjectType="memory" subjectId={String(node.id)} />
           </div>
         </details>
       )}
@@ -346,7 +344,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <details className="dock-section" open={!isMobile}>
           <summary>📎 Attachments</summary>
           <div style={{ padding: "10px" }}>
-            <MemoryAttachments nodeId={node.id} demo={demo} />
+            <MemoryAttachments nodeId={node.id} />
           </div>
         </details>
       )}
@@ -424,7 +422,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       </button>
       {insight && <p className="insight-text">{insight}</p>}
 
-      {!demo && node.kind !== "action" && (
+      {node.kind !== "action" && (
         <button
           className="synth-btn"
           disabled={requested}
