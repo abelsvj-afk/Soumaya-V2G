@@ -992,8 +992,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // multiple O(nodes) scans + builds arrays, and stringifying the result was
       // running at 60fps purely to DETECT change (a measured mobile battery sink).
       taskSyncT -= dt;
-      /* DIAGNOSTIC: DISABLED */
-      /* if (taskSyncT <= 0 && soumayaHandleRef.current && onTasksChangeRef.current) {
+      if (taskSyncT <= 0 && soumayaHandleRef.current && onTasksChangeRef.current) {
         taskSyncT = 0.35;
         const currentTasks = soumayaHandleRef.current.getTasks(dataRef.current.nodes);
         const tasksJson = JSON.stringify(currentTasks);
@@ -1001,7 +1000,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastTasksJsonRef.current = tasksJson;
           onTasksChangeRef.current(currentTasks);
         }
-      } */
+      }
 
       // Flush her accumulated fast-flight fuel burn to the app (~every 4s), so the
       // gauge ticks down as she cruises hard — without a per-frame network call.
@@ -1142,11 +1141,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Tell React how many beacons are live, so the focus button can pulse.
       if (satellites) {
         const active = satellites.getActive();
-        /* DIAGNOSTIC: DISABLED */
-        /* if (active.length !== lastSatCountRef.current) {
+        if (active.length !== lastSatCountRef.current) {
           lastSatCountRef.current = active.length;
           onSatelliteCount?.(active.length);
-        } */
+        }
         // If the beacon we're following went dark, release the camera.
         if (followKindRef.current === "satellite") {
           const stillActive = active.some((a) => a.object === followObjRef.current);
@@ -1159,11 +1157,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Tell React how many visitors are around (drives the "jump to visitor" FAB).
       if (visitors) {
         const vActive = visitors.getActive();
-        /* DIAGNOSTIC: DISABLED */
-        /* if (vActive.length !== lastVisCountRef.current) {
+        if (vActive.length !== lastVisCountRef.current) {
           lastVisCountRef.current = vActive.length;
           onVisitorCount?.(vActive.length);
-        } */
+        }
         // Release the camera if the visitor we were following has left.
         if (followKindRef.current === "visitor") {
           const stillHere = vActive.some((a) => a.object === followObjRef.current);
