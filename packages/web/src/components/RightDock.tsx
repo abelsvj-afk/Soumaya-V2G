@@ -49,8 +49,6 @@ interface Props {
   onClose?: () => void;
   onBack?: () => void;
   canBack?: boolean;
-  /** Demo galaxy is read-only (no backend) — disables destructive actions. */
-  demo?: boolean;
   /** Live fleet status getter (from the 3D scene) for the Fleet section. */
   getFleetStatus?: () => FleetStatus | undefined;
   /** Floating ship-task label preference + setter (Soumaya tab toggle). */
@@ -104,7 +102,6 @@ export function RightDock({
   onClose,
   onBack,
   canBack,
-  demo,
   getFleetStatus,
   showShipTask,
   setShowShipTask,
@@ -276,7 +273,6 @@ export function RightDock({
               <NodeList
                 nodes={graph.nodes}
                 onFocus={onFocus}
-                demo={demo}
                 initialTag={selectedTag}
                 onTagChange={setSelectedTag}
               />
@@ -289,9 +285,9 @@ export function RightDock({
             )}
           </div>
         )}
-        {tab === "mind" && <MindPanel onFocus={onFocus} demo={demo} onChanged={() => onChanged?.(-1)} />}
+        {tab === "mind" && <MindPanel onFocus={onFocus} onChanged={() => onChanged?.(-1)} />}
         {tab === "actions" && (
-          <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} readOnly={demo} />
+          <ActionsPanel nodes={graph.nodes} onFocus={onFocus} onChanged={onDeleted} />
         )}
         {tab === "insights" && <DigestPanel onFocus={onFocus} onPromoted={onPromoted} />}
         {tab === "soumaya" && (
@@ -314,14 +310,14 @@ export function RightDock({
             >
               <summary>🚀 Fleet — her support craft</summary>
               {fleetOpen && (
-                <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} demo={demo} />
+                <FleetPanel getStatus={getFleetStatus ?? (() => undefined)} onFocus={onFocus} />
               )}
             </details>
           </div>
         )}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
-        {tab === "money" && <FinancePanel demo={demo} />}
-        {tab === "journeys" && <JourneysPanel demo={demo} />}
+        {tab === "money" && <FinancePanel />}
+        {tab === "journeys" && <JourneysPanel />}
         {tab === "awards" && (
           <div className="subtab-wrap">
             <div className="subtabs" role="tablist" aria-label="Progress view">
@@ -336,7 +332,7 @@ export function RightDock({
               </button>
             </div>
             {progressView === "codex" && (
-              <CodexPanel graph={graph} onFocus={onFocus} spaceId={spaceId} demo={demo} onReward={() => onChanged?.(-1)} />
+              <CodexPanel graph={graph} onFocus={onFocus} spaceId={spaceId} onReward={() => onChanged?.(-1)} />
             )}
             {progressView === "awards" && (
               <AchievementsPanel graph={graph} fuel={fuel ?? null} streak={streak ?? null} spaceId={spaceId ?? ""} />
@@ -348,7 +344,6 @@ export function RightDock({
             spaceId={spaceId ?? ""}
             memoriesCount={graph.nodes.filter((n) => n.kind !== "action").length}
             onEquipChanged={() => onChanged?.(-1)}
-            demo={demo}
           />
         )}
       </div>
