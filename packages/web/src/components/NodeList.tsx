@@ -15,7 +15,6 @@ import { getConstellations, getVisitorActivity, useProcessingNodes, type Visited
 interface Props {
   nodes: GraphNode[];
   onFocus: (id: number) => void;
-  demo?: boolean;
   initialTag?: string | null;
   onTagChange?: (tag: string | null) => void;
 }
@@ -71,7 +70,7 @@ function bucket(t: number): { key: string; label: string; rank: number } {
  * filters, so a memory can be found WITHOUT remembering its name ("the large blue
  * planet, cooling, from a while back"). All data is already derived on each node.
  */
-export function NodeList({ nodes, onFocus, demo, initialTag, onTagChange }: Props) {
+export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
   const processing = useProcessingNodes();
   const [q, setQ] = useState("");
   const [tier, setTier] = useState<CelestialClass | "all">("all");
@@ -97,21 +96,19 @@ export function NodeList({ nodes, onFocus, demo, initialTag, onTagChange }: Prop
   };
 
   useEffect(() => {
-    if (demo) return;
     const load = () => getVisitorActivity().then(setVisited);
     load();
     const iv = window.setInterval(load, 15000);
     return () => window.clearInterval(iv);
-  }, [demo]);
+  }, []);
 
   useEffect(() => {
-    if (demo) return;
     getConstellations().then((cs) => {
       const map = new Map<number, string>();
       for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
       setConstellationMap(map);
     });
-  }, [demo]);
+  }, []);
 
   const visitorMap = useMemo(() => {
     const map = new Map<number, VisitedMemory>();

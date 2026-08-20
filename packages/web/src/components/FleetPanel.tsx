@@ -12,11 +12,9 @@ import type { FleetStatus } from "../graph/Graph3D.js";
 export function FleetPanel({
   getStatus,
   onFocus,
-  demo: _demo,
 }: {
   getStatus: () => FleetStatus | undefined;
   onFocus: (id: number) => void;
-  demo?: boolean;
 }) {
   const [status, setStatus] = useState<FleetStatus>({});
   const [openLore, setOpenLore] = useState<string | null>(null);
