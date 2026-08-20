@@ -7,7 +7,6 @@ interface Props {
   onFocus: (id: number) => void;
   /** Called after an action is cleared so the galaxy + fuel refresh. */
   onChanged?: () => void;
-  /** Demo galaxy has no backend — hide the destructive "Done" there. */
   readOnly?: boolean;
 }
 
