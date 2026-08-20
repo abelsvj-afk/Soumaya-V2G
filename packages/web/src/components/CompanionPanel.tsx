@@ -9,10 +9,7 @@ import { AboutMe, Soul, GroundedInsight, Instructions, Knowledge } from "./Compa
  * (There's no chat here on purpose — talk to her via the 💬 chat button, which
  *  already uses these active roles + knowledge. Kept single to avoid redundancy.)
  */
-export function CompanionPanel({ demo, spaceName = "Soumaya" }: { demo?: boolean; spaceName?: string }) {
-  if (demo) {
-    return <p className="empty">The Companion is available in your own brain — sign in to configure it.</p>;
-  }
+export function CompanionPanel({ spaceName = "Soumaya" }: { spaceName?: string }) {
   return (
     <div className="dock-body">
       <AboutMe />

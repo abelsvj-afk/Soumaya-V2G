@@ -46,7 +46,6 @@ export function ChatDock({
   onFocus,
   onRecall,
   onCreated,
-  demo,
 }: {
   spaceName?: string;
   onClose: () => void;
@@ -54,7 +53,6 @@ export function ChatDock({
   onRecall?: (ids: number[]) => void;
   /** Called with the new node ids after a message is saved as a memory. */
   onCreated?: (newIds: number[]) => void;
-  demo?: boolean;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
@@ -346,7 +344,7 @@ export function ChatDock({
 
       {showPersona ? (
         <div className="chatdock-msgs chatdock-persona">
-          <CompanionPanel demo={demo} spaceName={spaceName} />
+          <CompanionPanel spaceName={spaceName} />
         </div>
       ) : (
         <div className="chatdock-msgs" ref={listRef}>
