@@ -80,6 +80,15 @@ export function makeSun(): THREE.Object3D {
         mixer.timeScale = 0.08; // the baked clip spins fast — slow it way down
         for (const clip of gltf.animations) mixer.clipAction(clip).play();
       }
+      // The sun is meant to read as uniformly self-luminous, never as a reflective studio
+      // object — with the scene-wide PMREM environment map applied, its PBR materials were
+      // catching a visible reflected highlight from the environment's room geometry (the
+      // reported "square block of light" on the sun). Zero its envMapIntensity so it stays
+      // emissive-only; other bodies still get the ambient sheen from the environment map.
+      model.traverse((obj) => {
+        const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+        if (mat && "envMapIntensity" in mat) mat.envMapIntensity = 0;
+      });
       fallback.visible = false;
       group.add(model);
       applyRadius();

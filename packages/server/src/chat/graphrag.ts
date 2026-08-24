@@ -69,6 +69,7 @@ export async function chat(
     label: n.label,
     type: n.type,
     content: n.content,
+    occurredAt: n.occurredAt ?? n.createdAt,
   }));
 
   // --- AI Companion layers (reuse the single question embedding `vec`) ---

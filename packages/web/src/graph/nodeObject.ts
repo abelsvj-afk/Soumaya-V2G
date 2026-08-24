@@ -60,8 +60,20 @@ function makeLabel(rawText: string): THREE.Sprite {
 
   sprite.userData.isLabel = true;
   if (tooWide) {
-    map.wrapS = THREE.ClampToEdgeWrapping;
-    map.repeat.x = WINDOW_PX / width;
+    // `map` is the CACHED texture (labelTexCache), shared by every sprite built from the
+    // same text — e.g. two different bodies that happen to share a name, or a sector title
+    // vs. its regular label. The marquee below scrolls by mutating the texture's own
+    // `offset`/`repeat`, which are texture-level (not per-material) state; sharing that
+    // texture across sprites meant multiple marquees fought over the same offset, each
+    // frame jumping between scroll positions and rendering a corrupted, overlapping slice
+    // of text — the reported "smudged / only half the name" look. Give this sprite its own
+    // texture instance (cheap: shares the underlying canvas image, no re-render) so its
+    // scroll state is exclusively its own.
+    const marqueeMap = map.clone();
+    marqueeMap.needsUpdate = true;
+    marqueeMap.wrapS = THREE.ClampToEdgeWrapping;
+    marqueeMap.repeat.x = WINDOW_PX / width;
+    material.map = marqueeMap;
     sprite.userData.marquee = { range: 1 - WINDOW_PX / width, t: 0 };
   }
   return sprite;
@@ -475,6 +487,17 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     nodeGroup.add(glow);
   }
 
+  // Tag every full-detail child added so far (mesh, rings, glow/corona, point light,
+  // asteroid belt) as "isFidelity" so Graph3D's tick loop can hide them all at macro
+  // distance (see makeMacroBody's comment below — that was the whole point of the macro
+  // LOD swap). This must be set on the CHILDREN, not on nodeGroup itself: the tick loop's
+  // LOD check reads `child.userData.isFidelity` while iterating `o.children` where `o` IS
+  // nodeGroup, so a flag on nodeGroup itself is never seen — that mismatch previously left
+  // the full-detail body always rendered even at macro range, double-drawing on top of the
+  // cheap macro body. Must run BEFORE the sector title / label / macro body are added below
+  // — those toggle visibility by their own LOD tags and must not inherit this one.
+  for (const c of nodeGroup.children) c.userData.isFidelity = true;
+
   // 2. The Macro Body (low-poly self-lit sphere; spins so it never looks frozen)
   const macro = makeMacroBody(color, size, isStarLike);
 
@@ -492,8 +515,6 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   nodeGroup.add(makeLabel(node.label));
   nodeGroup.add(macro);
   nodeGroup.userData.nodeId = node.id;
-  // Preserve reference for LOD logic in Graph3D
-  nodeGroup.userData.isFidelity = true; 
   return nodeGroup;
 }
 

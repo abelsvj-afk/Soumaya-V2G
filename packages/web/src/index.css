@@ -4720,7 +4720,15 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .obs-journeys { border-color: rgba(150,200,255,0.26); }
 
 /* ---- Galaxy Views (mobile perf: render one category at a time) ---- */
-.gv-wrap { position: fixed; left: 12px; bottom: 150px; z-index: 40; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
+/* bottom: 150px used to sit squarely inside .fab-music's footprint (bottom:130px, 46px
+   tall = 130-176px) — same z-index as .fab meant whichever rendered later in the DOM won
+   ties, so this toggle randomly appeared hidden behind / cut off by the left FAB column.
+   196px clears the whole left-column stack (dock/recenter/music end at 176px, focus-toggle
+   starts at 242px) and z-index is bumped above .fab so it's never ambiguous again. */
+.gv-wrap { position: fixed; left: 12px; bottom: 196px; z-index: 45; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
+@supports (padding: env(safe-area-inset-bottom)) {
+  .gv-wrap { bottom: calc(196px + env(safe-area-inset-bottom)); }
+}
 .gv-toggle { background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border); color: var(--text);
   border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.85rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
 .gv-toggle.open { border-color: rgba(122,220,255,0.5); }

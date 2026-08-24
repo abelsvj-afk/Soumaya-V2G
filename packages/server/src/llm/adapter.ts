@@ -6,6 +6,9 @@ export interface ContextNode {
   label: string;
   type: string;
   content: string;
+  /** When the memory happened (falls back to creation time) — lets the model reason
+   *  about recency ("that was 3 weeks ago") instead of treating every memory as "now". */
+  occurredAt?: string;
 }
 
 /** Two candidate endpoints for an associative link decision. */

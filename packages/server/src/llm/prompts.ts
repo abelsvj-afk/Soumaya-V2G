@@ -5,6 +5,25 @@ import type { ContextNode, LinkCandidate } from "./adapter.js";
 const NODE_TYPE_LIST = EXTRACTABLE_NODE_TYPES.map((t) => `  • ${t} — ${NODE_TYPE_GUIDE[t]}`).join("\n");
 
 /**
+ * A short "how long ago" label for a memory's occurredAt/createdAt, relative to real
+ * wall-clock time — the model otherwise has NO temporal signal at all (ContextNode
+ * carried no date until this) and treats every memory as equally "now".
+ */
+function relativeTime(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const ms = Date.parse(iso.includes("T") ? iso : `${iso.replace(" ", "T")}Z`);
+  if (Number.isNaN(ms)) return undefined;
+  const days = (Date.now() - ms) / 86_400_000;
+  if (days < 0) return undefined; // clock skew / future timestamp — say nothing rather than lie
+  if (days < 1) return "today";
+  if (days < 2) return "yesterday";
+  if (days < 7) return `${Math.floor(days)} days ago`;
+  if (days < 31) return `${Math.floor(days / 7)} week${Math.floor(days / 7) === 1 ? "" : "s"} ago`;
+  if (days < 365) return `${Math.floor(days / 30)} month${Math.floor(days / 30) === 1 ? "" : "s"} ago`;
+  return `${Math.floor(days / 365)} year${Math.floor(days / 365) === 1 ? "" : "s"} ago`;
+}
+
+/**
  * System instruction for ontological extraction. Forces the model to act as a
  * structured parser, not a chat assistant. The JSON shape is enforced separately
  * via responseSchema; this prompt steers classification quality.
@@ -216,7 +235,12 @@ export function buildAnswerPrompt(
 ): string {
   const memories =
     context.length > 0
-      ? context.map((c) => `[${c.id}] (${c.type}) ${c.label}: ${c.content}`).join("\n")
+      ? context
+          .map((c) => {
+            const when = relativeTime(c.occurredAt);
+            return `[${c.id}] (${c.type}${when ? `, ${when}` : ""}) ${c.label}: ${c.content}`;
+          })
+          .join("\n")
       : "(no relevant memories found)";
   const kb = knowledge ? `\n\nKNOWLEDGE DOCUMENTS (the user's reference library):\n${knowledge}` : "";
   const convo = history
@@ -243,6 +267,20 @@ export function composeSystem(opts?: {
   systemExtra?: string;
 }): string {
   let s = ANSWER_SYSTEM;
+  // She previously had NO notion of the current date/time at all — nothing in this prompt
+  // ever told her "now", so she couldn't reason about recency, relative dates ("last
+  // Tuesday" from today), or how stale/fresh a memory is beyond what relativeTime() already
+  // stamps on each memory line below.
+  s += `\n\nRIGHT NOW: ${new Date().toLocaleString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  })}. Use this as "now" for anything time-relative (today, this week, how long ago something was).`;
   if (opts?.soul) {
     // Deeper character (soul.md). Sits in the identity slot but cannot override the
     // mechanics above (companion-never-the-user, citations, JSON output).

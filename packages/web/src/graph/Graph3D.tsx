@@ -15,8 +15,8 @@ import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateF
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
-import { makeStarfield, makeNebulae, makeComets, makeGalaxies, makeMilkyWay } from "./starfield.js";
-import { makeConstellations, loadNebulaSkybox, loadEquirectSkybox } from "./skybox.js";
+import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
+import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
@@ -573,6 +573,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const calmMotionRef = useRef(shouldCalmMotion());
   const spatialGrid = useRef<Map<string, { isVisible: boolean }>>(new Map());
   const lastCellUpdatePos = useRef(new THREE.Vector3(Infinity, Infinity, Infinity));
+  // Simultaneous-label cap (see MAX_VISIBLE_LABELS below): the nearest-N eligible bodies,
+  // recomputed on a throttle rather than every frame.
+  const labelCandidatesRef = useRef<{ id: number; d: number }[]>([]);
+  const visibleLabelIdsRef = useRef<Set<number>>(new Set());
+  const lastLabelCapFrameRef = useRef(-999);
+  // Link LOD hysteresis: whether we're currently in the "fully zoomed in, every link
+  // draws" state. A single hard threshold re-checked every frame flickers links on/off
+  // whenever the camera orbits near that exact distance; this only flips once the camera
+  // has crossed a buffer PAST the threshold, so hovering near the boundary is stable.
+  const linkLodZoomedInRef = useRef(true);
   const frustum = useRef(new THREE.Frustum());
   const projScreenMatrix = useRef(new THREE.Matrix4());
   const sphere = useRef(new THREE.Sphere(new THREE.Vector3(), 150));
@@ -604,10 +614,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const isLit = (id: number): boolean =>
     activeId === null || id === activeId || (adjacency.get(activeId)?.has(id) ?? false);
 
-  // One-time imperative scene setup: lights, starfield, bloom, spin loop.
+  // One-time imperative scene setup: lights, starfield, bloom, spin loop. A `timeout` is
+  // REQUIRED here — this app runs a continuous requestAnimationFrame render loop, so the
+  // main thread is rarely ever truly "idle" and an untimed requestIdleCallback can be
+  // starved indefinitely (the browser never gets a large-enough idle gap to run it),
+  // which silently dropped the starfield/nebula/galaxy scenery layers entirely. The
+  // timeout guarantees each deferred block still runs within ~2s even under sustained load.
   const defer = (fn: () => void) => {
     if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(fn);
+      requestIdleCallback(fn, { timeout: 2000 });
     } else {
       setTimeout(fn, 1);
     }
@@ -639,7 +654,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     try {
       const renderer = fg.renderer() as THREE.WebGLRenderer;
       const pmrem = new THREE.PMREMGenerator(renderer);
-      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+      // A high blur (sigma) is deliberate: RoomEnvironment is a small stylized room with a
+      // few flat rectangular "panel" lights, and a near-mirror-sharp env map (the previous
+      // 0.04) reflects those panels as crisp, visible rectangles on any glTF PBR surface —
+      // exactly the "square block of light" artifact reported on the sun. A heavy blur turns
+      // that into the intended soft ambient sheen instead of a discrete rectangle.
+      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.6).texture;
       pmrem.dispose(); // the generator's internal render targets are no longer needed
     } catch (err) {
       console.warn("[graph] environment map unavailable:", err);
@@ -860,6 +880,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // on lower graphics tiers, fade labels out SOONER: fewer are on screen at once = less GPU load.
     const perfTier = gfxRef.current?.tier ?? "quality";
     const FADE_FAR = perfTier === "performance" ? 300 : perfTier === "balanced" ? 420 : 540;
+    // The distance fade alone doesn't cap how many names can be on screen AT ONCE — a dense
+    // cluster sitting inside the fade band shows every one of its names simultaneously,
+    // which is the "not 100% how I wanted it" clutter (the original intent, per the
+    // comment above, was to keep the galaxy from populating everything on screen at once).
+    // This caps it to the nearest N regardless of how many bodies are within fade range.
+    const MAX_VISIBLE_LABELS = perfTier === "performance" ? 10 : perfTier === "balanced" ? 16 : 24;
     // Small screens show these zoomed-out sector names much smaller — give them a boost so
     // they're actually readable on a phone (the "can't read the names when zoomed out" bug).
     const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 760;
@@ -1285,6 +1311,28 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastCellUpdatePos.current.copy(camera.position);
         }
 
+        // Recompute the nearest-N label cap on a throttle (not every frame — a full
+        // distance sort over every body is unnecessary at 60fps for something that only
+        // needs to settle within a few frames of the camera moving).
+        if (frameCount - lastLabelCapFrameRef.current >= 6) {
+          lastLabelCapFrameRef.current = frameCount;
+          const candidates = labelCandidatesRef.current;
+          candidates.length = 0;
+          for (const o of graphGroup.children as any[]) {
+            const id = o.userData?.nodeId;
+            if (id == null) continue;
+            const n = nodeByIdRef.current.get(id);
+            if (!n || n.x == null || isNaN(n.x)) continue;
+            tmp.set(n.x, n.y, n.z ?? 0);
+            const d = tmp.distanceTo(camera.position);
+            if (d < FADE_FAR) candidates.push({ id, d });
+          }
+          candidates.sort((a, b) => a.d - b.d);
+          const visible = visibleLabelIdsRef.current;
+          visible.clear();
+          for (let i = 0; i < Math.min(MAX_VISIBLE_LABELS, candidates.length); i++) visible.add(candidates[i]!.id);
+        }
+
         graphGroup.children.forEach((o: any) => {
           if (o.userData?.nodeId == null) return;
           const id = o.userData.nodeId;
@@ -1378,7 +1426,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           if (child.userData?.isSectorTitle) {
             // Already handled above
           } else if (child.userData?.isLabel) {
-              const labelVis = (isMacroView && !isSelected) ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
+              // Always exempt the selected/followed body — its name should never be
+              // subject to the crowd cap, only the ambient population is capped.
+              const capped = !isSelected && id !== followRef.current && !visibleLabelIdsRef.current.has(id);
+              const labelVis = (isMacroView && !isSelected) || capped ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
               child.visible = labelVis > 0.02;
               if (child.visible) {
                 const mat = child.material as THREE.SpriteMaterial;
@@ -2391,7 +2442,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (total <= LINK_LOD_MIN) return true;
         const camera = fgRef.current?.camera();
         const dist = camera ? camera.position.length() : 1200;
-        if (dist < LINK_LOD_ZOOM) return true; // zoomed in: full detail
+        // Hysteresis band around LINK_LOD_ZOOM (see linkLodZoomedInRef above) — without
+        // it, orbiting the camera near this exact distance flipped every link's
+        // visibility on/off every single frame ("lines disappear and pop back up").
+        const HYST = 80;
+        if (linkLodZoomedInRef.current) {
+          if (dist > LINK_LOD_ZOOM + HYST) linkLodZoomedInRef.current = false;
+        } else if (dist < LINK_LOD_ZOOM - HYST) {
+          linkLodZoomedInRef.current = true;
+        }
+        if (linkLodZoomedInRef.current) return true; // zoomed in: full detail
         const strength = (l.weight ?? 0.4) + getLinkActivity(l);
         return strength >= LINK_LOD_CUTOFF;
       }}
