@@ -1,3 +1,42 @@
+### 2026-08-24 (Claude): Galaxy scenery / label / sun / LOD / mobile-CSS fix pass
+- [x] Verified by Claude
+- Root-cause fix: `defer()`'s `requestIdleCallback(fn)` had no `timeout`, so under this
+  app's continuous render loop it could be starved indefinitely — starfield, Milky Way,
+  galaxies, constellations, and deep-space nebula/dust were silently never painting.
+  Added `{ timeout: 2000 }`.
+- Label marquee ("smudged / first-half-only" names): the cached label texture was shared
+  across every sprite built from the same text, but the marquee animated the texture's own
+  `offset`/`repeat` — multiple sprites fought over one texture's scroll state. Each
+  marquee-enabled sprite now clones its own texture instance.
+- Sun's "square block of light" artifact: PMREM env map sigma raised 0.04 → 0.6 (was
+  near-mirror-sharp, reflecting RoomEnvironment's rectangular panel lights as a crisp
+  rectangle), and the sun's glTF model materials get `envMapIntensity = 0` (it should read
+  as self-luminous, not reflective).
+- Dead LOD tag fixed: `nodeGroup.userData.isFidelity` was set on the group but the tick
+  loop only ever checked it on `o.children` — so the full-detail mesh/glow/point-light/
+  asteroid-belt never actually hid at macro distance; tagged the actual children instead.
+- Label clutter: added a tier-scaled nearest-N simultaneous-label cap on top of the
+  existing distance fade (the original "only show names when close" system was real and
+  intentional — it just had no count cap, so a dense cluster showed every name at once).
+- Link-line flicker on camera movement: added hysteresis around the `LINK_LOD_ZOOM`
+  distance threshold (was flipping every link's visibility every frame near that exact
+  distance).
+- Mobile Views button (`.gv-wrap`) sat inside `.fab-music`'s footprint at an identical
+  z-index — repositioned clear of the left FAB column + bumped z-index.
+- Soumaya's chat prompt now carries real current date/time, and each memory in the answer
+  context carries a relative-time label ("3 days ago") — she previously had zero temporal
+  signal at all.
+- Files touched: `packages/web/src/graph/{Graph3D.tsx,nodeObject.ts,sun.ts}`,
+  `packages/web/src/index.css`, `packages/server/src/llm/{adapter.ts,prompts.ts}`,
+  `packages/server/src/chat/graphrag.ts`.
+- Zone: mixed (Graph3D.tsx/orbits-adjacent LOD + label code is Red-Zone-adjacent, kept for
+  Claude per policy).
+- Gate: `npm run typecheck && npm test && npm run build -w @brain/web` all green (380
+  server tests, 36 web tests). Visual fixes (scenery, sun artifact, label smudging, mobile
+  CSS) are NOT yet re-verified live — this sandbox cannot reach the deployed site and a
+  `fly deploy` still needs to run (Actions is blocked; see deploy section above). Please
+  re-check on the live app after the next deploy.
+
 ### 2026-08-17 (Gemini): Re-enable FuelBurn Diagnostic Block
 - [ ] Verified by Claude
 - Re-enabled the `fuelBurnT` diagnostic block in `Graph3D.tsx` to aid in isolated tracing of fuel burn logic.
