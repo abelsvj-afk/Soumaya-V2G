@@ -1545,7 +1545,6 @@ export default function App() {
             setPanel("dock");
           }}
           onEarnFuel={() => setShowFuelWays(true)}
-          demo={demo}
         />
       )}
 
@@ -1959,7 +1958,6 @@ export default function App() {
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           onCreated={(ids) => void refresh(ids)}
-          demo={demo}
         />
       )}
 
@@ -2014,7 +2012,6 @@ export default function App() {
           onClose={() => setPanel(null)}
           onBack={back}
           canBack={history.length > 0}
-          demo={demo}
           getFleetStatus={() => graphRef.current?.getFleetStatus()}
           showShipTask={showShipTask}
           setShowShipTask={setShowShipTask}

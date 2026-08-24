@@ -58,9 +58,13 @@ describe("finance routes", () => {
     const balanceRes = await put("/api/finance/account/balance", { cents: 114000 });
     expect((balanceRes.body as FinAccount).balanceCents).toBe(114000);
 
+    // Anchor a few days out from the REAL "now" (not a hardcoded past date) so the bill always
+    // materializes inside the summary's default horizon regardless of which day the suite runs —
+    // a hardcoded "2026-01-20" drifted out of the horizon window as wall-clock time moved past it.
+    const soon = (daysAhead: number) => new Date(Date.now() + daysAhead * 86_400_000).toISOString().slice(0, 10);
     for (const b of [
-      { name: "Rent", amountCents: 60000, frequency: "monthly", anchorDate: "2026-01-20" },
-      { name: "Insurance", amountCents: 25000, frequency: "monthly", anchorDate: "2026-01-18" },
+      { name: "Rent", amountCents: 60000, frequency: "monthly", anchorDate: soon(3) },
+      { name: "Insurance", amountCents: 25000, frequency: "monthly", anchorDate: soon(5) },
     ]) {
       expect((await post("/api/finance/bills", b)).status).toBe(200);
     }

@@ -47,9 +47,16 @@ describe("foresight (recurring-negative pattern → heads-up)", () => {
 
     const f = detectForesight(handle, "legacy");
     // Only asserts when today is actually near month-end; otherwise the detector
-    // correctly stays quiet. Cover both: if today is within the trigger window we
-    // get a monthly foresight, else null — either is correct behavior.
-    if (now.getUTCDate() >= dNow - 6) {
+    // correctly stays quiet. Mirror the IMPLEMENTATION's exact window math (not an
+    // approximation) so this is correct for whatever real date the test runs on —
+    // an earlier hand-approximated cutoff (`dNow - 6`) drifted out of sync with the
+    // real trigger (`bandStart - todayDom <= 5`, i.e. `dNow - 8`) as wall-clock time
+    // moved, which is exactly the kind of date-drift flakiness to avoid here.
+    const bandStart = Math.max(1, dNow - 3);
+    let inDays = bandStart - now.getUTCDate();
+    if (inDays < -3) inDays += dim(y, m);
+    const inWindow = inDays <= 5 && inDays >= -3;
+    if (inWindow) {
       expect(f?.kind).toBe("monthly");
       expect(f?.text).toMatch(/month/i);
     } else {
