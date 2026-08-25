@@ -18,6 +18,7 @@ import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, DEEP_SPACE_BASE } from "./deepSpace.js";
+import { beginTick, endTick, attachRenderer, markMoved } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
@@ -672,6 +673,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // (a 3× retina phone renders 9× the pixels). This alone prevents most freezes.
     try {
       fg.renderer().setPixelRatio(gfx.pixelRatio);
+      // Frame-timing instrument (Stage 0): patches renderer.render so we can measure the
+      // true present cadence and draw-submission cost. react-force-graph owns the render
+      // loop, so this is the only place a frame's completion is observable to us.
+      attachRenderer(fg.renderer() as THREE.WebGLRenderer);
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
     }
@@ -1004,6 +1009,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const cap = gfxRef.current?.fpsCap ?? 60;
       if (nowMs - lastFrameMs < 1000 / cap - 1.5) return;
       lastFrameMs = nowMs;
+      // Open the frame-timing bracket AFTER the cap gate, so skipped frames (which do no
+      // work) never dilute the measurement of what a real frame actually costs.
+      beginTick();
 
       const now = nowMs * 0.001;
       const dt = Math.min(0.05, now - last);
@@ -1250,6 +1258,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             const move = cam.position.distanceTo(prevCamPos);
             const target = Math.min(1, move / 26); // ~26 u/frame = full blur
             starBlur += (target - starBlur) * 0.25;
+            // Reuse this existing camera-speed signal to flag "the window contained real
+            // motion". Idle frames are cheap and would lie to the adaptive controller about
+            // how much headroom the device actually has (Stage 6).
+            if (move > 0.5) markMoved();
             prevCamPos.copy(cam.position);
           } else {
             prevCamPos = cam.position.clone();
@@ -1681,6 +1693,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Single damped update per frame (required for inertia + zoom-to-cursor).
       controls?.update();
+      // Close the frame-timing bracket (Stage 0 instrument). The sample is only committed
+      // once the frame actually draws — see perfStats.attachRenderer.
+      endTick();
     };
     tick();
 

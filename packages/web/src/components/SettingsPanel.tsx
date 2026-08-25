@@ -21,6 +21,7 @@ import {
   type GraphicsSettings,
   type Level,
 } from "../graph/graphicsConfig.js";
+import { perfHudEnabled, setPerfHudEnabled } from "./PerfHUD.js";
 
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
@@ -49,6 +50,7 @@ export function SettingsPanel({
   const [colorblind, setCb] = useState(isColorblind());
   const [reduceMotion, setRm] = useState(prefersReducedMotion());
   const [diagnosticsOn, setDiagnosticsOn] = useState(isDiagnosticsEnabled());
+  const [perfHudOn, setPerfHudOn] = useState(perfHudEnabled());
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const voiceSupported = isVoiceSupported();
   const resolved = resolveGraphics(gfx);
@@ -323,6 +325,24 @@ export function SettingsPanel({
             <span>Battery saver <em>Caps FPS, drops bloom + resolution to save power.</em></span>
             <span className="gfx-when instant">instant</span>
             <button className={`switch ${gfx.batterySaver ? "on" : ""}`} onClick={() => setField("batterySaver", !gfx.batterySaver)} aria-pressed={gfx.batterySaver}>
+              <span className="knob" />
+            </button>
+          </label>
+          <label className="settings-toggle">
+            <span>
+              Performance readout
+              <em>{perfHudOn ? "ON — a small overlay showing real frame-time/GPU numbers." : "OFF — the on-screen diagnostic HUD for tuning performance."}</em>
+            </span>
+            <span className="gfx-when instant">instant</span>
+            <button
+              className={`switch ${perfHudOn ? "on" : ""}`}
+              onClick={() => {
+                const next = !perfHudOn;
+                setPerfHudOn(next);
+                setPerfHudEnabled(next);
+              }}
+              aria-pressed={perfHudOn}
+            >
               <span className="knob" />
             </button>
           </label>

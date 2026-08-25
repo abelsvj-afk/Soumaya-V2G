@@ -39,6 +39,7 @@ import { useCountUp } from "./hooks/useCountUp.js";
 import { usePolledCount } from "./hooks/usePolledCount.js";
 import { LoginScreen } from "./components/LoginScreen.js";
 import { Toasts, pushToast, cleanupNotifications, setToastsPaused, setToastsQuiet } from "./components/Toasts.js";
+import { PerfHUD } from "./components/PerfHUD.js";
 import { setFocusCalm } from "./graph/motion.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/achievements.js";
 import { pilotRank } from "./components/rank.js";
@@ -1214,6 +1215,9 @@ export default function App() {
   return (
     <div className={`app${focusMode ? " focus-mode" : ""}${focusMenuOpen ? " focus-menu-open" : ""}`}>
       <Toasts />
+      {/* Performance readout (Stage 0 instrument). Renders nothing unless enabled via
+          Settings or ?perf=1, and polls at 2Hz rather than reading anything per frame. */}
+      <PerfHUD nodeCount={view.nodes.length} />
       {/* Left-edge HUD (fuel + streak) — hidden whenever a panel/chat/Observatory is up
           so it never overlaps their content. */}
       {panel === null && !showChat && !showObs && !showSettings && !showConnections && !showTimeline && (
