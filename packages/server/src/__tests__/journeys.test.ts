@@ -8,13 +8,32 @@ let handle: DbHandle;
 beforeEach(() => { handle = createDb(":memory:"); });
 afterEach(() => { handle.sqlite.close(); });
 
+// link() validates that a ref actually exists in-space before linking (see
+// JourneysRepo.refExists) — these insert a minimal real row so link() sees a real target
+// instead of the old tests' fabricated ids (42, 7, 100, 1), which link() now correctly
+// refuses to attach.
+function makeNode(spaceId: string): number {
+  return Number(
+    handle.sqlite
+      .prepare(`INSERT INTO nodes (space_id, label, type, content) VALUES (?, 'n', 'knowledge', 'c')`)
+      .run(spaceId).lastInsertRowid,
+  );
+}
+function makeExpense(spaceId: string): number {
+  return Number(
+    handle.sqlite
+      .prepare(`INSERT INTO fin_expense (space_id, date, amount_cents) VALUES (?, '2026-01-01', 500)`)
+      .run(spaceId).lastInsertRowid,
+  );
+}
+
 describe("JourneysRepo", () => {
   it("creates + lists journeys, active first, with a link count", () => {
     const repo = new JourneysRepo(handle, "s1");
     const rn = repo.create({ title: "Become an RN", icon: "🩺" });
     const done = repo.create({ title: "Old goal", status: "done" });
-    repo.link(rn.id, "node", 42);
-    repo.link(rn.id, "expense", 7);
+    repo.link(rn.id, "node", makeNode("s1"));
+    repo.link(rn.id, "expense", makeExpense("s1"));
 
     const list = repo.list();
     expect(list[0]!.title).toBe("Become an RN"); // active before done
@@ -25,10 +44,11 @@ describe("JourneysRepo", () => {
   it("links are unique (no double-count) and unlinkable", () => {
     const repo = new JourneysRepo(handle, "s1");
     const j = repo.create({ title: "Recover Financially" });
-    repo.link(j.id, "expense", 7);
-    repo.link(j.id, "expense", 7); // duplicate → ignored
+    const expenseId = makeExpense("s1");
+    repo.link(j.id, "expense", expenseId);
+    repo.link(j.id, "expense", expenseId); // duplicate → ignored
     expect(repo.links(j.id)).toHaveLength(1);
-    expect(repo.unlink(j.id, "expense", 7)).toBe(true);
+    expect(repo.unlink(j.id, "expense", expenseId)).toBe(true);
     expect(repo.links(j.id)).toHaveLength(0);
   });
 
@@ -36,16 +56,17 @@ describe("JourneysRepo", () => {
     const repo = new JourneysRepo(handle, "s1");
     const a = repo.create({ title: "Health" });
     const b = repo.create({ title: "Family" });
-    repo.link(a.id, "node", 100);
-    repo.link(b.id, "node", 100);
-    const forNode = repo.journeysFor("node", 100);
+    const nodeId = makeNode("s1");
+    repo.link(a.id, "node", nodeId);
+    repo.link(b.id, "node", nodeId);
+    const forNode = repo.journeysFor("node", nodeId);
     expect(forNode.map((j) => j.title).sort()).toEqual(["Family", "Health"]);
   });
 
   it("update sets progress (clamped) and delete removes links too", () => {
     const repo = new JourneysRepo(handle, "s1");
     const j = repo.create({ title: "Learn Japanese" });
-    repo.link(j.id, "node", 1);
+    repo.link(j.id, "node", makeNode("s1"));
     expect(repo.update(j.id, { progress: 1.5 })!.progress).toBe(1); // clamped
     expect(repo.remove(j.id)).toBe(true);
     expect(repo.get(j.id)).toBeNull();

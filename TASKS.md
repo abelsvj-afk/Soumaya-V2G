@@ -2,6 +2,11 @@
 
 Last audited: 2026-06-20. Tracks all open work, each item tagged with its zone and current state.
 
+> **⚠️ STALE (flagged 2026-08-25):** this board hasn't been re-audited since 2026-06-20, predating
+> roughly two months of active commits. Items below may already be done, superseded, or no longer
+> relevant. For current state, see **[CLAUDE.md](./CLAUDE.md)**'s top-of-file STATUS line and
+> **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)** (newest-first change log, both kept live).
+
 **Zone key:**
 - 🟢 Green — `agy` can build freely
 - 🔴 Red — Claude only (shared types, DB schema, provider seams, route contracts, multi-tenancy)

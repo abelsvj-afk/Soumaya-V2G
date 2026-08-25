@@ -72,7 +72,9 @@ export function journeysRoutes(ctx: AppContext): Router {
     const p = LinkBody.safeParse(req.body);
     if (!p.success) return bad(res, "Body must be { kind, refId }", p.error.issues);
     const link = repo(res).link(id, p.data.kind, p.data.refId);
-    return link ? res.json(link) : res.status(404).json({ error: "Journey not found" });
+    // link() returns null for either an unknown journey or a refId that doesn't exist in
+    // this space (see JourneysRepo.refExists) — a single generic message covers both.
+    return link ? res.json(link) : res.status(404).json({ error: "Journey or linked item not found" });
   });
   r.post("/:id/unlink", (req, res) => {
     const id = Number(req.params.id);

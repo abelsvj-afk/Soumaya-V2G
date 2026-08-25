@@ -10,8 +10,12 @@ import { buildEvolutionLinks } from "../../analysis/temporalChains.js";
 import { buildLifeAreaCounts } from "../../analysis/lifeAreas.js";
 import { buildSelfReview } from "../../analysis/selfReview.js";
 import { buildAwayDigest, markSeen } from "../../analysis/awayDigest.js";
-import { spaceOf } from "../middleware.js";
+import { spaceOf, rateLimit } from "../middleware.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
+
+// Most of this router is cheap reads, but /run and /contradictions call the LLM —
+// give just those two a tighter ceiling than the generic /api limit.
+const llmLimiter = rateLimit({ max: Number(process.env.LLM_RATE_LIMIT_MAX ?? 20) });
 
 export function digestRoutes(ctx: AppContext): Router {
   const r = Router();
@@ -79,7 +83,7 @@ export function digestRoutes(ctx: AppContext): Router {
   });
 
   // POST /api/digest/run -> scan for latent connections and synthesize new insights
-  r.post("/run", async (_req, res) => {
+  r.post("/run", llmLimiter, async (_req, res) => {
     const created = await runSynthesis(ctx.handle, ctx.llm, DEFAULT_SYNTHESIS, spaceOf(res));
     res.json(created);
   });
@@ -87,7 +91,7 @@ export function digestRoutes(ctx: AppContext): Router {
   // POST /api/digest/contradictions -> scan same-topic memories for conflicts
   // (changed beliefs / reversed goals / shifting identity). Offline-safe — the
   // similarity gate adapts to the embeddings provider (hash cosines run lower).
-  r.post("/contradictions", async (_req, res) => {
+  r.post("/contradictions", llmLimiter, async (_req, res) => {
     const created = await runContradictionScan(
       ctx.handle,
       ctx.llm,

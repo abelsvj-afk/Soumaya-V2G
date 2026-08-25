@@ -44,7 +44,7 @@ describe("telegram multi-brain routing", () => {
   });
 
   it("/link creates a new brain and binds the chat to it", async () => {
-    await handleTelegramUpdate(ctx, update(1, "/link soumaya hunter2"), send);
+    await handleTelegramUpdate(ctx, update(1, "/link soumaya hunter222"), send);
     expect(outbox.at(-1)!.text).toMatch(/Created and linked/i);
 
     const link = new TelegramLinksRepo(handle).get(1);
@@ -55,15 +55,15 @@ describe("telegram multi-brain routing", () => {
   });
 
   it("rejects /link with a wrong passcode for an existing brain", async () => {
-    new SpacesRepo(handle).authOrCreate("soumaya", "correct");
+    new SpacesRepo(handle).authOrCreate("soumaya", "correctpass");
     await handleTelegramUpdate(ctx, update(1, "/link soumaya wrong"), send);
     expect(outbox.at(-1)!.text).toMatch(/passcode is wrong/i);
     expect(new TelegramLinksRepo(handle).get(1)).toBeUndefined();
   });
 
   it("routes /log to the linked brain and keeps two chats isolated", async () => {
-    await handleTelegramUpdate(ctx, update(1, "/link alice a"), send);
-    await handleTelegramUpdate(ctx, update(2, "/link bob b"), send);
+    await handleTelegramUpdate(ctx, update(1, "/link alice alicepass"), send);
+    await handleTelegramUpdate(ctx, update(2, "/link bob bobpassword"), send);
 
     await handleTelegramUpdate(ctx, update(1, "/log alice secret about sailing"), send);
     expect(outbox.at(-1)!.text).toMatch(/Logged/i);
@@ -84,7 +84,7 @@ describe("telegram multi-brain routing", () => {
   });
 
   it("/unlink disconnects the chat", async () => {
-    await handleTelegramUpdate(ctx, update(1, "/link soumaya x"), send);
+    await handleTelegramUpdate(ctx, update(1, "/link soumaya xpassword"), send);
     await handleTelegramUpdate(ctx, update(1, "/unlink"), send);
     expect(outbox.at(-1)!.text).toMatch(/Unlinked/i);
     expect(new TelegramLinksRepo(handle).get(1)).toBeUndefined();
@@ -93,7 +93,7 @@ describe("telegram multi-brain routing", () => {
 
 describe("telegram proactive digest sweep", () => {
   it("pushes one digest per linked chat and is idempotent within the day", async () => {
-    await handleTelegramUpdate(ctx, update(1, "/link alice a"), send);
+    await handleTelegramUpdate(ctx, update(1, "/link alice alicepass"), send);
     await handleTelegramUpdate(ctx, update(1, "/log alice went for a long run today"), send);
     outbox = [];
 

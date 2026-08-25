@@ -3,6 +3,12 @@
 > Living status snapshot, per [docs/AI_ENGINEERING_WORKFLOW.md](./docs/AI_ENGINEERING_WORKFLOW.md).
 > Update whenever project status changes.
 
+> **⚠️ STALE (flagged 2026-08-25):** this snapshot is dated 2026-06-30 and predates roughly two
+> months of active commits (feature-growth work, Vision 2.0/Journeys, and a full-project review/fix
+> pass). Treat the "Current Sprint" and "Completed" sections below as historical, not current status.
+> For current state, see **[CLAUDE.md](./CLAUDE.md)**'s top-of-file STATUS line and
+> **[GEMINI_CHANGES.md](./GEMINI_CHANGES.md)** (newest-first change log, both kept live).
+
 **Current Phase:** Feature growth + hardening on a shipped product (Soumaya · Second Brain is live on Fly.io).
 
 **Current Sprint (2026-06-30):** Hardening pass — full-project bug/pitfall sweep fixed (server

@@ -137,7 +137,7 @@ describe("REST API", () => {
     const other = await fetch(`${base}/api/space/auth`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ gamerTag: "takenTag", passcode: "pw1234", name: "Other" }),
+      body: JSON.stringify({ gamerTag: "takenTag", passcode: "pw123456", name: "Other" }),
     });
     expect(((await other.json()) as { id: string }).id).toBeTruthy();
     const conflict = await patch(spaceId, { gamerTag: "takenTag" });

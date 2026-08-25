@@ -10,8 +10,13 @@ import { NodesRepo } from "../../repositories/nodes.repo.js";
 import { AttachmentsRepo } from "../../repositories/attachments.repo.js";
 import { EconomyRepo, EARN_ACTION_DONE } from "../../economy.js";
 import { requestMaintenance } from "../../maintenance/agent.js";
-import { spaceOf } from "../middleware.js";
+import { spaceOf, rateLimit } from "../middleware.js";
 import { researchSteer } from "../../analysis/researchType.js";
+
+// Most of this router is cheap CRUD, but synthesize/answer-research call the LLM —
+// give just those two a tighter ceiling than the generic /api limit (see server.ts's
+// llmLimiter for the same reasoning on the wholly-LLM-backed routers).
+const llmLimiter = rateLimit({ max: Number(process.env.LLM_RATE_LIMIT_MAX ?? 20) });
 
 // importance: 0..1 to set manually, or null to reset to the auto (heuristic) weight.
 const PatchBody = z.object({ importance: z.number().min(0).max(1).nullable() });
@@ -147,7 +152,7 @@ export function nodesRoutes(ctx: AppContext): Router {
 
   // POST /api/nodes/:id/synthesize -> AI pieces this memory + its connections into
   // a fresh insight (the "connect the dots for me" action).
-  r.post("/:id/synthesize", async (req, res) => {
+  r.post("/:id/synthesize", llmLimiter, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
       res.status(400).json({ error: "Invalid id" });
@@ -310,7 +315,7 @@ export function nodesRoutes(ctx: AppContext): Router {
   });
 
   // POST /api/nodes/:id/answer-research -> finalize research using user answers
-  r.post("/:id/answer-research", async (req, res) => {
+  r.post("/:id/answer-research", llmLimiter, async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
       res.status(400).json({ error: "Invalid id" });

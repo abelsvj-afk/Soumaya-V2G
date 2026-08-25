@@ -99,6 +99,16 @@ export class SpacesRepo {
     const isFirst = this.count() === 0;
 
     // New registration validations:
+    // The space id doubles as the account's bearer credential, and this route's zod
+    // schema only floors passcode length at 4 (kept there so EXISTING accounts created
+    // under that older floor can still log in — tightening it there would lock them out
+    // with no recovery flow). A 4-character passcode is brute-forceable from a handful of
+    // IPs even under the auth rate limit, so new accounts are held to a stronger floor
+    // here, in the registration-only branch, without touching login for anyone already
+    // holding a shorter one.
+    if (passcode.length < 8) {
+      throw new Error("Passcode must be at least 8 characters for a new brain.");
+    }
     // Reject if gamerTag is case-insensitively "soumaya" (unless it is the first brain)
     if (!isFirst) {
       if (trimmedGamerTag.toLowerCase() === "soumaya") {

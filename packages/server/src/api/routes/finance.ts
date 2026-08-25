@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
-import { spaceOf } from "../middleware.js";
+import { spaceOf, rateLimit } from "../middleware.js";
 import { FinAccountRepo } from "../../repositories/finAccount.repo.js";
 import { FinIncomeRepo } from "../../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../../repositories/finExpense.repo.js";
@@ -199,7 +199,11 @@ export function financeRoutes(ctx: AppContext): Router {
     // Cap under the global 1mb JSON body limit; the client downsizes before upload.
     .object({ dataUrl: z.string().min(16).startsWith("data:").max(950_000), mime: z.string().max(60) })
     .strict();
-  r.post("/ingest/image", async (req, res) => {
+  // Unlike /ingest/paste (purely the offline HeuristicOcrProvider, no cloud call),
+  // this is the one route in this file that actually calls the vision LLM — give it
+  // a tighter ceiling than the generic /api limit.
+  const llmLimiter = rateLimit({ max: Number(process.env.LLM_RATE_LIMIT_MAX ?? 20) });
+  r.post("/ingest/image", llmLimiter, async (req, res) => {
     const p = ImageBody.safeParse(req.body);
     if (!p.success) return bad(res, "Body must be { dataUrl, mime }", p.error.issues);
     const out = await ingestImage(ctx.handle, ctx.llm, spaceOf(res), { dataUrl: p.data.dataUrl, mime: p.data.mime });

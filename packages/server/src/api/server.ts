@@ -82,15 +82,22 @@ export function createApp(ctx: AppContext): Express {
   // Every per-brain data route requires a valid x-space-id (set after login).
   const guard = requireSpace(ctx.handle);
 
+  // LLM-backed routes previously shared the generic 120/min ceiling with cheap reads —
+  // a single space could burn the deployment-wide LLM budget (usage.ts) fast. `/api/chat`
+  // and `/api/ingest` are entirely LLM-backed, so tightened at the whole-router mount;
+  // digest.ts/nodes.ts/finance.ts mix cheap reads with a few expensive endpoints, so
+  // those get the tighter limiter applied per-route inside their own files instead.
+  const llmLimiter = rateLimit({ max: Number(process.env.LLM_RATE_LIMIT_MAX ?? 20) });
+
   // Usage/budget is deployment-wide (shared API budget). Guarded so it can't be
   // tampered with anonymously; the mutating routes additionally honor ADMIN_TOKEN.
   app.use("/api/usage", guard, usageRoutes(ctx));
-  app.use("/api/ingest", guard, ingestRoutes(ctx));
+  app.use("/api/ingest", guard, llmLimiter, ingestRoutes(ctx));
   app.use("/api/graph", guard, graphRoutes(ctx));
   app.use("/api/nodes", guard, nodesRoutes(ctx));
   app.use("/api/search", guard, searchRoutes(ctx));
   app.use("/api/digest", guard, digestRoutes(ctx));
-  app.use("/api/chat", guard, chatRoutes(ctx));
+  app.use("/api/chat", guard, llmLimiter, chatRoutes(ctx));
   app.use("/api/maintenance", guard, maintenanceRoutes(ctx));
   app.use("/api/constellations", guard, constellationRoutes(ctx));
   app.use("/api/lore", guard, loreRoutes(ctx));

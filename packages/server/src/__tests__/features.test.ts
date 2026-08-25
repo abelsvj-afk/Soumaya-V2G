@@ -320,7 +320,7 @@ describe("telegram bridge (chat + log, no network)", () => {
 
   // Multi-brain: a chat must /link to a brain before it can log or ask anything.
   const link = async (handleTelegramUpdate: typeof import("../telegram/bot.js").handleTelegramUpdate) => {
-    await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "/link tester pass" } }, async () => {});
+    await handleTelegramUpdate(ctxOf(), { message: { chat: { id: 1 }, text: "/link tester password" } }, async () => {});
   };
 
   it("/log ingests a memory and confirms with fuel", async () => {

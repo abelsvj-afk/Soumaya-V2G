@@ -63,8 +63,33 @@ export class JourneysRepo {
     return { id: r.id, journeyId: r.journey_id, kind: r.kind as JourneyLinkKind, refId: r.ref_id, createdAt: r.created_at };
   }
 
+  // Kinds with a direct, single-table mapping we can cheaply verify exist in this space
+  // before linking. "task"/"chat"/"achievement" have no dedicated table of their own in
+  // this schema (yet) so are left unvalidated rather than risk guessing wrong.
+  private static REF_TABLE: Partial<Record<JourneyLinkKind, { table: string; extra?: string }>> = {
+    node: { table: "nodes", extra: "AND deleted_at IS NULL" },
+    income: { table: "fin_income" },
+    expense: { table: "fin_expense" },
+    bill: { table: "fin_bill" },
+    insight: { table: "insights" },
+    doc: { table: "knowledge_docs" },
+  };
+
+  private refExists(kind: JourneyLinkKind, refId: number): boolean {
+    const spec = JourneysRepo.REF_TABLE[kind];
+    if (!spec) return true; // no known table for this kind — can't validate, don't block it
+    const row = this.handle.sqlite
+      .prepare(`SELECT 1 FROM ${spec.table} WHERE id = ? AND space_id = ? ${spec.extra ?? ""}`)
+      .get(refId, this.spaceId);
+    return row != null;
+  }
+
   link(journeyId: number, kind: JourneyLinkKind, refId: number): JourneyLink | null {
     if (!this.get(journeyId)) return null; // journey must exist + be in this space
+    // Prevents journey_link from accumulating dangling rows pointing at a ref that was
+    // never real (or already belongs to/was deleted from a different space) — this is
+    // the write-time guard; readers that hydrate a link still re-check ownership too.
+    if (!this.refExists(kind, refId)) return null;
     this.handle.sqlite
       .prepare(`INSERT OR IGNORE INTO journey_link (space_id, journey_id, kind, ref_id) VALUES (?, ?, ?, ?)`)
       .run(this.spaceId, journeyId, kind, refId);

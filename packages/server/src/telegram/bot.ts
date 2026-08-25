@@ -141,7 +141,16 @@ export async function handleTelegramUpdate(
       return;
     }
     const [, name, passcode] = m;
-    const result = new SpacesRepo(ctx.handle).authOrCreate(name!.trim(), passcode!.trim());
+    let result;
+    try {
+      result = new SpacesRepo(ctx.handle).authOrCreate(name!.trim(), passcode!.trim());
+    } catch (err) {
+      // e.g. passcode too short for a NEW brain, or a reserved name — authOrCreate throws
+      // for registration-only validation failures; surface it instead of a silent/generic
+      // failure (this path isn't behind the HTTP route's zod validation).
+      await send(chatId, (err as Error).message);
+      return;
+    }
     if (!result) {
       await send(chatId, `A brain named "${name}" exists but that passcode is wrong.`);
       return;

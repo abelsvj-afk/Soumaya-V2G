@@ -2,32 +2,43 @@
 
 ## How this app ships (the important part)
 
-**Deploys happen automatically when you push to the deploy branch.** Fly.io's
-GitHub integration watches the repo, builds the `Dockerfile` on Fly's own
-infrastructure, and rolls out a new machine. You do **not** need a terminal, an
-IDE, or `flyctl` — committing from the phone/GitHub web is enough.
+**STATUS (verified 2026-06-20, still current — see CLAUDE.md's Deployment
+section for the authoritative, actively-maintained account): pushing to the
+deploy branch alone does NOT deploy.** GitHub Actions is blocked on this
+account (`startup_failure`, 0 jobs — an account/runner-availability issue, not
+a code problem), so `.github/workflows/fly-deploy.yml` never ships anything
+even if it exists. The working path right now is a **manual `fly deploy
+--remote-only`**, run by `agy` (Antigravity CLI) from Termux — that sandbox has
+the `FLY_API_TOKEN` and flyctl/Fly network access this sandbox doesn't.
 
 The flow:
 
 1. You commit + push to `claude/soumaya-second-brain-v1-m4z4hc`.
-2. Fly builds the image (web build + server) and deploys it to app
-   `brain-soumaya-v1` (region `iad`), using the `/data` volume for the SQLite DB.
+2. Someone with flyctl access (currently `agy`) runs
+   `fly deploy --remote-only`, which builds the image (web build + server)
+   and deploys it to app `brain-soumaya-v1` (region `iad`), using the `/data`
+   volume for the SQLite DB.
 3. The new machine must pass the health check (`GET /api/health`) before it
    serves traffic. If the new build is broken, the previous machine keeps
    running.
+
+The durable fix is to **reconnect Fly's native GitHub auto-deploy** (Fly
+dashboard → app → GitHub) — that builds the `Dockerfile` on push without going
+through GitHub Actions at all. Until that's reconnected, treat every push as
+needing a manual `fly deploy` afterward if you want it live.
 
 If the app ever shows **"Suspended"** after a string of crashes, open the Fly
 app, find the machine, and tap **Start/Resume** once — a healthy deploy normally
 clears this on its own.
 
-## Why there's no GitHub Actions workflow
+## Why `.github/workflows/fly-deploy.yml` doesn't ship anything
 
-There used to be `.github/workflows/fly-deploy.yml` (test → deploy). It was
-**removed** because GitHub Actions could not run on this account — every run
-failed within ~3 seconds because no runner was ever assigned (an account/billing
-setting, not a code problem). A workflow that can never run only produces red
-"failed" marks on every push and protects nothing, so it was pure noise. Deploys
-were already being handled by Fly's push integration described above.
+The workflow file is still present, but GitHub Actions cannot run on this
+account — every run fails as `startup_failure` with 0 jobs within seconds
+because no runner is ever assigned (an account/runner-availability setting,
+not a code problem). A workflow that can never run only produces red "failed"
+marks on every push and protects nothing. It's left in place as a marker for
+whenever Actions is unblocked (see below), rather than actively relied on.
 
 ## Restoring CI later (recommended once Actions works)
 
@@ -60,11 +71,13 @@ jobs:
       - run: npm run build # web static build
 ```
 
-This version intentionally **does not deploy** — Fly already deploys on push, so
-CI's only job is to be a green/red signal on code health. (If you ever want CI to
-own the deploy instead of Fly's integration, add a second job that runs
-`flyctl deploy --remote-only` with a `FLY_API_TOKEN` repo secret, and turn off
-the Fly GitHub integration so the two don't race.)
+This version intentionally **does not deploy** — right now nothing auto-deploys
+on push (see above), so CI's only job would be a green/red signal on code
+health. Once Fly's native GitHub auto-deploy is reconnected (the durable fix
+described above), that alone handles deploys and this CI stays a pure check.
+(If you'd rather have CI own the deploy instead, add a second job that runs
+`flyctl deploy --remote-only` with a `FLY_API_TOKEN` repo secret — but don't
+run that alongside a reconnected Fly GitHub integration, or the two will race.)
 
 ## Verifying a deploy locally (optional, for a developer)
 
