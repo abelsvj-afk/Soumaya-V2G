@@ -1156,7 +1156,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // up-to-date positions this frame. Under reduced-motion the drift slows to a
       // gentle crawl (never fully frozen, so the galaxy still feels alive) (#3b).
       const motionDt = calmMotionRef.current ? dt * 0.12 : dt;
-      orbitsRef.current.update(motionDt, dataRef.current.nodes as any[]);
+      // Orbit LOD (Stage 5): passing the camera position lets far bodies update less
+      // often (see orbits.ts) — omitting it (as every call before this stage did) would
+      // fall back to updating every node every frame.
+      orbitsRef.current.update(motionDt, dataRef.current.nodes as any[], camera.position);
 
       // First frame with real positions → open zoomed-out (not inside the sun).
       if (!cinematicStartedRef.current) {
@@ -1492,6 +1495,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const isCulled = !isFocused && !frustum.current.intersectsSphere(sphere.current);
 
           if (!cell.isVisible && !isFocused) {
+            o.visible = false;
+            return;
+          }
+          // Performance Program Stage 5: a frustum-culled body skips its ENTIRE per-
+          // child update (spin/label-distance/LOD-swap/pulse/corona) here, not just the
+          // pulse/corona tail the old inner `if (isCulled) continue` reached — three.js
+          // was never drawing it either way (Object3D.frustumCulled already skips the
+          // GPU submission), so all that per-child work was pure CPU waste on anything
+          // off-screen. The one exception: a body with a sector title, whose sprite
+          // scales up and can read on screen well past its own body's small culling
+          // sphere — those still need the full per-child pass (the inner isCulled check
+          // further down still gates their non-title children).
+          if (isCulled && !o.userData?.hasSectorTitle) {
             o.visible = false;
             return;
           }

@@ -537,7 +537,8 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
   const macro = makeMacroBody(color, size, isStarLike);
 
   // 3. Sector Title — every hub gets a name at macro/zoomed-out view
-  if (mass >= 0.44) {
+  const hasSectorTitle = mass >= 0.44;
+  if (hasSectorTitle) {
     const sectorLabel = makeLabel((node.celestialTitle ?? node.label).toUpperCase());
     sectorLabel.scale.multiplyScalar(2.5); // Giant sector name
     sectorLabel.userData.baseScale = { x: sectorLabel.scale.x, y: sectorLabel.scale.y };
@@ -550,6 +551,13 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
   nodeGroup.add(makeLabel(node.label));
   nodeGroup.add(macro);
   nodeGroup.userData.nodeId = node.id;
+  // Performance Program Stage 5: lets Graph3D's tick loop skip the ENTIRE per-child
+  // update (spin/label/pulse/corona) for a frustum-culled body in one early return —
+  // except a sector-title body, whose big, distance-boosted title sprite can still be
+  // on screen even when the body's own (small, fixed-radius) culling sphere isn't
+  // intersecting the frustum. Read directly off the group rather than traversing
+  // children every frame to check for one.
+  nodeGroup.userData.hasSectorTitle = hasSectorTitle;
   return nodeGroup;
 }
 

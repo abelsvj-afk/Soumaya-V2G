@@ -33,7 +33,10 @@ interface OrbitParams {
 
 export interface OrbitSystem {
   rebuild: (nodes: any[], links: any[]) => void;
-  update: (dt: number, nodes: any[]) => void;
+  /** `cameraPos` is optional and purely an LOD hint (see NEAR_DIST/FAR_DIST below) —
+   *  omitting it (e.g. tests, or a caller with no camera) updates every node every
+   *  frame exactly as before this existed. */
+  update: (dt: number, nodes: any[], cameraPos?: { x: number; y: number; z: number }) => void;
   /** Node id + every body that (transitively) orbits it — its "system". */
   getDescendants: (id: number) => Set<number>;
   /** Current extent of the galaxy from the origin (camera + starfield enclosure). */
@@ -100,11 +103,61 @@ export function makeOrbitSystem(): OrbitSystem {
   const currentById = new Map<number, any>();
   let mapSourceRef: any[] | null = null;
 
+  // Orbit LOD (Performance Program Stage 5): every node's angle/position used to be
+  // recomputed every single frame regardless of how far it sits from the camera — real
+  // cost (a handful of transcendentals per node) that a body sitting off in the distance,
+  // moving a fraction of a screen pixel per frame, doesn't need. Bodies far from the
+  // camera get updated less often; SKIPPED frames leave the position exactly where it
+  // was (held, not recomputed) rather than approximated, and the elapsed time is banked
+  // in `pendingDt` so the next update advances the angle by the FULL real elapsed time —
+  // "stepped but phase-continuous": a body catches up to exactly where continuous
+  // simulation would have put it, it just does so in less-frequent, larger jumps. This is
+  // NOT the same as freezing (which would permanently lag the phase) or naive fixed-step
+  // interpolation (which would need to guess intermediate positions).
+  // These thresholds are NOT arbitrary — they're picked from a direct measurement
+  // (scratch/orbit-lod-measure.ts: run every-frame vs. LOD-throttled side by side over
+  // 600 frames of a representative galaxy, take the max positional divergence, convert
+  // to screen pixels via the standard perspective projection at that exact distance) so
+  // the promise "sub-pixel error" is verified, not assumed. An earlier attempt reused
+  // Graph3D's existing MACRO_DIST (2600) / spatial-grid cutoff (4000) — those distances
+  // are meaningful for THEIR purposes (fidelity swap, visibility) but measured out to
+  // 1.3-4px of real screen error here, well past sub-pixel. Measured instead: rate 2's
+  // max world error is ~1.7 units (bounded by up to 1 frame's worth of linear motion
+  // banked as pendingDt), which only reads as sub-pixel from ~4000+ units out — so
+  // NEAR_DIST is set past that with margin. Rate 4's max world error is ~5.1 units
+  // (up to 3 frames banked), sub-pixel only from ~12000+ units out — FAR_DIST is set
+  // past that with margin. Bonus: because the galaxy's own radius is in the same
+  // ballpark, a camera framing the WHOLE galaxy (by far the most bodies on screen at
+  // once) puts most bodies past FAR_DIST already — the biggest CPU win lands exactly
+  // where the most nodes need updating.
+  const NEAR_DIST = 5000;
+  const FAR_DIST = 14000;
+  let localFrame = 0;
+  const pendingDt = new Map<number, number>();
+  const lodRate = new Map<number, number>();
+  // A node's very FIRST update after appearing (a fresh rebuild, or a brand-new node)
+  // must never be deferred by its stagger slot — before that first update its x/y/z are
+  // whatever placeholder the caller/force-sim gave it, not a real orbit position, so
+  // "holding" that placeholder for up to `rate-1` frames would show it in the wrong
+  // place, not just a stale-but-valid one. Measured via `orbit-lod-measure.ts`: this was
+  // a real, if narrow, gap — a fresh galaxy's throttled bodies sat at their pre-orbit
+  // placeholder for a frame or more while every-frame bodies had already moved.
+  const everUpdated = new Set<number>();
+  let lastLodRefreshFrame = -999;
+  const lastLodCameraPos = new THREE.Vector3(Infinity, Infinity, Infinity);
+
   const rebuild = (nodes: any[], links: any[]) => {
     params.clear();
     order = [];
     childIds.clear();
     held.clear(); // never carry a stale hold across a data reload
+    // A rebuild recomputes EVERY node's orbit params from scratch (sibling counts/
+    // indices can shift even for untouched nodes) — clearing these means every node
+    // gets one guaranteed immediate, accurate position on the next update() rather than
+    // some sitting on a stale LOD rate/pending-time from before the structure changed.
+    pendingDt.clear();
+    lodRate.clear();
+    everUpdated.clear();
     if (nodes.length === 0) return;
 
     const byId = new Map<number, any>(nodes.map((n) => [n.id, n]));
@@ -260,7 +313,7 @@ export function makeOrbitSystem(): OrbitSystem {
     }
   };
 
-  const update = (dt: number, nodes: any[]) => {
+  const update = (dt: number, nodes: any[], cameraPos?: { x: number; y: number; z: number }) => {
     if (params.size === 0) return;
     // Identity-cached id→node map: Graph3D passes the SAME array every frame
     // until the data actually changes, so rebuilding this map 60×/s was pure
@@ -270,18 +323,65 @@ export function makeOrbitSystem(): OrbitSystem {
       currentById.clear();
       for (const n of nodes) currentById.set(n.id, n);
     }
-    for (const orderNode of order) {
+    localFrame++;
+
+    // Refresh LOD bands on a throttle, not every frame — a full distance-to-camera pass
+    // over every node every frame would eat into the very budget this exists to save.
+    // Uses each node's LAST computed position (one frame stale at most going into this),
+    // which is harmless: staleness in the BAND assignment just means a body takes up to
+    // one extra refresh cycle to notice the camera got close — staleness in the position
+    // itself (the thing being throttled below) is the only thing that must stay bounded.
+    if (
+      cameraPos &&
+      (localFrame - lastLodRefreshFrame >= 30 ||
+        lastLodCameraPos.distanceToSquared(cameraPos as THREE.Vector3) > 500 * 500)
+    ) {
+      lastLodRefreshFrame = localFrame;
+      lastLodCameraPos.set(cameraPos.x, cameraPos.y, cameraPos.z);
+      for (const n of order) {
+        const cur = currentById.get(n.id);
+        const dx = (cur?.x ?? 0) - cameraPos.x;
+        const dy = (cur?.y ?? 0) - cameraPos.y;
+        const dz = (cur?.z ?? 0) - cameraPos.z;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        lodRate.set(n.id, d2 < NEAR_DIST * NEAR_DIST ? 1 : d2 < FAR_DIST * FAR_DIST ? 2 : 4);
+      }
+    }
+
+    for (let idx = 0; idx < order.length; idx++) {
+      const orderNode = order[idx];
       const n = currentById.get(orderNode.id);
       if (!n) continue;
       const p = params.get(n.id);
       if (!p) continue;
       if (held.has(n.id)) continue; // being ferried by Soumaya — she controls it
+
+      // Without a camera hint every node is rate 1 (this stage's default-off path) —
+      // identical behavior to before this stage existed. Stagger which nodes are
+      // eligible on a rate>1 frame by (index + frame), so the skipped/caught-up work
+      // spreads evenly across frames instead of every throttled node landing on the
+      // same frame (a flat cost instead of a periodic spike). A node's first-ever
+      // update is ALWAYS eligible regardless of stagger (see `everUpdated`) — before
+      // that it's sitting at a placeholder position, not a stale-but-valid one.
+      const rate = cameraPos ? (lodRate.get(n.id) ?? 1) : 1;
+      let stepDt = dt;
+      if (rate > 1 && everUpdated.has(n.id)) {
+        const pending = (pendingDt.get(n.id) ?? 0) + dt;
+        if ((idx + localFrame) % rate !== 0) {
+          pendingDt.set(n.id, pending); // bank the elapsed time; position holds as-is
+          continue;
+        }
+        pendingDt.set(n.id, 0);
+        stepDt = pending; // catch up by the FULL banked time, not just this frame's dt
+      }
+      everUpdated.add(n.id);
+
       if (p.top) {
         // The whole cluster revolves around the Sun (origin), breathing OUTWARD only
         // (comets swing wide, then return to baseRadius — never inward toward the Sun,
         // so a cluster can't pull itself into the star).
-        p.angle += p.speed * dt;
-        p.radialPhase = (p.radialPhase ?? 0) + (p.radialSpeed ?? 0) * dt;
+        p.angle += p.speed * stepDt;
+        p.radialPhase = (p.radialPhase ?? 0) + (p.radialSpeed ?? 0) * stepDt;
         const r = (p.baseRadius ?? p.radius) * (1 + (p.radialAmp ?? 0) * Math.max(0, Math.sin(p.radialPhase)));
         const c = Math.cos(p.angle);
         const s = Math.sin(p.angle);
@@ -290,7 +390,7 @@ export function makeOrbitSystem(): OrbitSystem {
         n.z = SUN.z + (p.u.z * c + p.v.z * s) * r;
       } else {
         // Deeper body: orbit its (now-moving) parent, so the cluster sweeps along.
-        p.angle += p.speed * dt;
+        p.angle += p.speed * stepDt;
         const c = Math.cos(p.angle);
         const s = Math.sin(p.angle);
         const currParent = p.parent ? currentById.get(p.parent.id) : null;
