@@ -76,7 +76,9 @@ export function LibraryPanel({
   const [showArchived, setShowArchived] = useState(false);
   const [archived, setArchived] = useState<GraphNode[] | null>(null);
   useEffect(() => {
-    if (showArchived && archived === null) void getArchivedNodes().then(setArchived);
+    // Falls back to an empty list on failure so the panel doesn't get stuck on "Loading…"
+    // forever (and stops retrying on every re-render, since archived is no longer null).
+    if (showArchived && archived === null) void getArchivedNodes().then(setArchived).catch(() => setArchived([]));
   }, [showArchived, archived]);
   const restore = async (id: number) => {
     if (await archiveNode(id, false)) {

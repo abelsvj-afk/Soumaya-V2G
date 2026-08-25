@@ -248,7 +248,12 @@ const REINFORCE_SATURATION = 5;
 /** Days for survival alone to contribute "half" its growth (~8 months). */
 const AGE_SUSTAIN_DAYS = 240;
 
-const clamp01 = (x: number): number => (x < 0 ? 0 : x > 1 ? 1 : x);
+// `x < 0`/`x > 1` are both false for NaN, so a NaN input would otherwise pass through
+// unclamped — deriveMass would return NaN, which the graph service stores directly into
+// the `mass`/`val` sent to the client, and a NaN `val` is known to freeze/corrupt the
+// force-graph layout for the whole galaxy. No caller currently produces NaN inputs (all
+// are zod-validated upstream), but this keeps the function safe regardless.
+const clamp01 = (x: number): number => (Number.isFinite(x) ? (x < 0 ? 0 : x > 1 ? 1 : x) : 0);
 
 /**
  * Blend the signals into a single 0..1 mass — but a memory is BORN SMALL (an

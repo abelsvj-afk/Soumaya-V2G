@@ -46,7 +46,11 @@ export interface OrbitSystem {
   release: (id: number) => void;
 }
 
-const massOf = (n: any): number => n.mass ?? 0.3;
+// `?? 0.3` doesn't catch NaN (only null/undefined) — a NaN mass would silently propagate
+// into every position/sort computation below and NaN out that node's whole orbit. Server-
+// side `deriveMass` is now guaranteed never to return NaN, but this is the one place in the
+// kinematic orbit system that consumes mass directly, so it's guarded independently too.
+const massOf = (n: any): number => (Number.isFinite(n.mass) ? n.mass : 0.3);
 /**
  * Spacing proxy for orbit layout (NOT the rendered size — that's set in
  * nodeObject). A generous floor keeps the galaxy spread out even when most

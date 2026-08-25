@@ -96,18 +96,20 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
   };
 
   useEffect(() => {
-    const load = () => getVisitorActivity().then(setVisited);
+    const load = () => getVisitorActivity().then(setVisited).catch(() => {});
     load();
     const iv = window.setInterval(load, 15000);
     return () => window.clearInterval(iv);
   }, []);
 
   useEffect(() => {
-    getConstellations().then((cs) => {
-      const map = new Map<number, string>();
-      for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
-      setConstellationMap(map);
-    });
+    getConstellations()
+      .then((cs) => {
+        const map = new Map<number, string>();
+        for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
+        setConstellationMap(map);
+      })
+      .catch(() => {});
   }, []);
 
   const visitorMap = useMemo(() => {

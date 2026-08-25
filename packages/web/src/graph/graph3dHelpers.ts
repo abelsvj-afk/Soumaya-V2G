@@ -200,8 +200,11 @@ export function updateFigurine(
   gltfLoader().load(
     modelPath,
     (gltf) => {
-      // Remove fallback
+      // Remove fallback and free its GPU resources — it's no longer a child of `group`
+      // once removed, so the generic disposal pass on a later re-equip would never reach
+      // it otherwise, leaking one geometry+material per successful figurine load.
       group.remove(fallbackMesh);
+      disposeObject3D(fallbackMesh);
       const model = gltf.scene;
 
       // Compute bounding box to normalize scale
@@ -246,12 +249,19 @@ export function updateFigurine(
  */
 export function disposeObject3D(obj: THREE.Object3D): void {
   obj.traverse((o: any) => {
-    o.geometry?.dispose?.();
+    // Several node builders (nodeObject.ts) intentionally cache + share geometries/textures
+    // across MANY bodies (moon surface, glow/corona sprites, macro-body surface, label text,
+    // asteroid geometry) — those are tagged `userData.shared = true` at creation. Disposing
+    // one node's object must never destroy a resource every other node is still using; only
+    // per-object-unique resources (unmarked) get disposed here. The MATERIAL instance itself
+    // is always unique per object even when it references a shared texture, so it's always
+    // safe to dispose.
+    if (o.geometry && !o.geometry.userData?.shared) o.geometry.dispose?.();
     const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
     for (const m of mats) {
       for (const k in m) {
         const v = (m as any)[k];
-        if (v && v.isTexture) v.dispose?.();
+        if (v && v.isTexture && !v.userData?.shared) v.dispose?.();
       }
       m.dispose?.();
     }

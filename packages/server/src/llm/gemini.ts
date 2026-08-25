@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -41,7 +41,11 @@ const extractionSchema = {
         properties: {
           label: { type: Type.STRING },
           celestialTitle: { type: Type.STRING },
-          type: { type: Type.STRING, enum: [...NODE_TYPES] },
+          // EXTRACTABLE_NODE_TYPES (excludes "moc"), NOT the full NODE_TYPES — the response is
+          // validated against ExtractionResultSchema's NodeTypeSchema, which also excludes
+          // "moc". Offering it here let the model pick a type the parser would then reject,
+          // silently downgrading that whole ingest to the heuristic extractor.
+          type: { type: Type.STRING, enum: [...EXTRACTABLE_NODE_TYPES] },
           content: { type: Type.STRING },
           emotionalWeight: { type: Type.NUMBER },
           importance: { type: Type.NUMBER },

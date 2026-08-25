@@ -82,7 +82,9 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
   const labelOf = (id: number) => nodes.find((n) => n.id === id)?.label ?? `Memory #${id}`;
 
   useEffect(() => {
-    void getTimeline().then(setChapters);
+    // Falls back to an empty list on failure rather than leaving `chapters` null forever
+    // (an unhandled rejection here left the panel stuck on its loading state).
+    void getTimeline().then(setChapters).catch(() => setChapters([]));
   }, []);
 
   const reload = async () => {
@@ -323,8 +325,14 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
     };
   }, [chapters]);
 
-  // Revoke object URLs on unmount.
-  useEffect(() => () => Object.values(images).forEach((u) => URL.revokeObjectURL(u)), []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Revoke object URLs on unmount. Goes through a ref (kept in sync below) rather than
+  // closing over `images` directly — an effect with `[]` deps only ever sees the render
+  // it was defined on, so its cleanup was permanently closing over the INITIAL empty
+  // `images` object and revoking nothing, no matter how many blob URLs had accumulated
+  // by the time the component actually unmounted.
+  const imagesRef = useRef(images);
+  imagesRef.current = images;
+  useEffect(() => () => Object.values(imagesRef.current).forEach((u) => URL.revokeObjectURL(u)), []);
 
   const sel = selected != null && selected >= 0 && chapters ? chapters[selected] : null;
 

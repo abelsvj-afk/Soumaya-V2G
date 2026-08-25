@@ -83,13 +83,17 @@ export function listCandidates(h: DbHandle, spaceId: string = DEFAULT_SPACE, lim
     )
     .all(spaceId, limit) as Omit<CandidateView, "aLabel" | "bLabel">[];
   const nodes = new NodesRepo(h, spaceId);
+  // Batched lookup instead of one getById() per row — listCandidates is on the hot path
+  // for every load of the candidate-review UI and previously issued up to 2*limit
+  // individual SELECTs.
+  const byId = new Map(nodes.byIds([...new Set(rows.flatMap((r) => [r.a, r.b]))]).map((n) => [n.id, n]));
   const out: CandidateView[] = [];
-  const drop = h.sqlite.prepare(`UPDATE candidate_links SET status = 'dismissed' WHERE id = ?`);
+  const drop = h.sqlite.prepare(`UPDATE candidate_links SET status = 'dismissed' WHERE id = ? AND space_id = ?`);
   for (const r of rows) {
-    const na = nodes.getById(r.a);
-    const nb = nodes.getById(r.b);
+    const na = byId.get(r.a);
+    const nb = byId.get(r.b);
     if (!na || !nb) {
-      drop.run(r.id); // an endpoint was deleted → the suggestion is moot
+      drop.run(r.id, spaceId); // an endpoint was deleted → the suggestion is moot
       continue;
     }
     out.push({ ...r, aLabel: na.label, bLabel: nb.label });
@@ -116,7 +120,7 @@ export function acceptCandidate(h: DbHandle, spaceId: string, id: number): { a: 
   if (!edges.exists(row.a, row.b) && !edges.exists(row.b, row.a)) {
     edges.create({ source: row.a, target: row.b, relationship: "relates_to", weight: 0.85 });
   }
-  h.sqlite.prepare(`UPDATE candidate_links SET status = 'accepted' WHERE id = ?`).run(id);
+  h.sqlite.prepare(`UPDATE candidate_links SET status = 'accepted' WHERE id = ? AND space_id = ?`).run(id, spaceId);
   return { a: row.a, b: row.b };
 }
 
@@ -126,7 +130,7 @@ export function dismissCandidate(h: DbHandle, spaceId: string, id: number): bool
     .prepare(`SELECT a, b FROM candidate_links WHERE id = ? AND space_id = ?`)
     .get(id, spaceId) as { a: number; b: number } | undefined;
   if (!row) return false;
-  h.sqlite.prepare(`UPDATE candidate_links SET status = 'dismissed' WHERE id = ?`).run(id);
+  h.sqlite.prepare(`UPDATE candidate_links SET status = 'dismissed' WHERE id = ? AND space_id = ?`).run(id, spaceId);
   const [x, y] = pair(row.a, row.b);
   h.sqlite
     .prepare(`INSERT OR IGNORE INTO link_rejections (space_id, a, b) VALUES (?, ?, ?)`)

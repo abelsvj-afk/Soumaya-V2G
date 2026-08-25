@@ -55,15 +55,17 @@ export function CodexPanel({
     seenRef.current = seen;
     const fresh = entries.filter((e) => e.discovered && !seen.has(e.id));
     if (fresh.length === 0) return;
-    let credited = false;
     for (const e of fresh.slice(0, 4)) {
       seen.add(e.id);
       pushToast(`Codex: discovered “${e.title}”`, "📖", 6000, "high");
       claimCodexReward(e.id)
         .then((r) => {
+          // `claimCodexReward` is async, so the chime has to fire from inside this
+          // callback — checking a flag synchronously after the loop (as before) always
+          // read it as false, since none of these promises can have resolved yet.
           if (r?.awarded) {
-            credited = true;
             onReward?.();
+            playSfx("achievement");
           }
         })
         .catch(() => {});
@@ -74,7 +76,6 @@ export function CodexPanel({
     } catch {
       /* ignore */
     }
-    if (credited) playSfx("achievement");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, spaceId]);
 

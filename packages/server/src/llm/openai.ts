@@ -1,4 +1,4 @@
-import { NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -159,7 +159,10 @@ export class OpenAiProvider implements LlmProvider {
             properties: {
               label: { type: "string" },
               celestialTitle: { type: ["string", "null"] },
-              type: { type: "string", enum: [...NODE_TYPES] },
+              // EXTRACTABLE_NODE_TYPES (excludes "moc") — see gemini.ts for why the full
+              // NODE_TYPES enum here would let the model pick a type the response validator
+              // (NodeTypeSchema) rejects, silently downgrading the ingest to the heuristic path.
+              type: { type: "string", enum: [...EXTRACTABLE_NODE_TYPES] },
               content: { type: "string" },
               emotionalWeight: { type: ["number", "null"] },
               importance: { type: ["number", "null"] },

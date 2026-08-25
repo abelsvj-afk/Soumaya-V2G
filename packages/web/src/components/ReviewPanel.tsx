@@ -34,7 +34,10 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
     const already = doneToday();
     if (already >= DAILY_CAP) { setCappedForToday(true); setDue([]); return; }
     const room = Math.min(SESSION_SIZE, DAILY_CAP - already);
-    void getDueReviews().then((d) => setDue(d.slice(0, room)));
+    // Falls back to an empty list on failure (renders the existing "nothing due" state)
+    // rather than leaving `due` null forever — an unhandled rejection here previously left
+    // the panel stuck on "Finding memories ready to revisit…" indefinitely.
+    void getDueReviews().then((d) => setDue(d.slice(0, room))).catch(() => setDue([]));
   }, []);
 
   const current = due && idx < due.length ? due[idx] : null;

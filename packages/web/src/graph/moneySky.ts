@@ -34,7 +34,9 @@ function starTexture(): THREE.CanvasTexture {
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
+  const t = new THREE.CanvasTexture(c);
+  t.userData.shared = true; // one instance reused by every star sprite — never dispose per-rebuild
+  return t;
 }
 const STAR_TEX = starTexture();
 

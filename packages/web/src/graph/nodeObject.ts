@@ -39,6 +39,10 @@ function makeLabel(rawText: string): THREE.Sprite {
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
+    // Shared across every sprite built from this same text — see disposeObject3D
+    // (graph3dHelpers.ts), which must skip textures flagged `shared` rather than
+    // destroying them the moment any ONE sprite using them is evicted/replaced.
+    texture.userData.shared = true;
     cached = { map: texture, width: canvas.width, height: canvas.height };
     labelTexCache.set(cacheKey, cached);
   }
@@ -71,6 +75,10 @@ function makeLabel(rawText: string): THREE.Sprite {
     // scroll state is exclusively its own.
     const marqueeMap = map.clone();
     marqueeMap.needsUpdate = true;
+    // Texture.clone() deep-copies userData, so this clone would otherwise inherit
+    // `shared: true` from the cached source above — it must NOT, since this clone
+    // belongs exclusively to this one sprite and has to be individually disposable.
+    marqueeMap.userData.shared = false;
     marqueeMap.wrapS = THREE.ClampToEdgeWrapping;
     marqueeMap.repeat.x = WINDOW_PX / width;
     material.map = marqueeMap;
@@ -101,6 +109,7 @@ function makeGlow(color: string, size: number): THREE.Sprite {
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, 128, 128);
     texture = new THREE.CanvasTexture(c);
+    texture.userData.shared = true; // shared across every glow sprite of this color+size
     glowTexCache.set(cacheKey, texture);
   }
   
@@ -122,6 +131,8 @@ function getGeometry(type: "sphere" | "icosahedron" | "octahedron", size: number
     if (type === "sphere") geom = new THREE.SphereGeometry(size, detail, detail);
     else if (type === "icosahedron") geom = new THREE.IcosahedronGeometry(size, detail);
     else geom = new THREE.OctahedronGeometry(size, detail);
+    // Shared across every body with this exact type/size/detail combination.
+    geom.userData.shared = true;
     geometryCache.set(cacheKey, geom);
   }
   return geom;
@@ -166,6 +177,9 @@ function toMap(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  // Both current callers (macroTexture, makeMoonSurface) cache the result and share it
+  // across every body of the same colour/type — must survive any single consumer's disposal.
+  t.userData.shared = true;
   return t;
 }
 

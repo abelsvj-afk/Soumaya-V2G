@@ -308,7 +308,9 @@ function insertChapter(
       JSON.stringify(a.threads),
       origin,
     );
-  const row = ctx.handle.sqlite.prepare(`SELECT * FROM timeline_chapters WHERE id = ?`).get(info.lastInsertRowid) as Record<string, unknown>;
+  const row = ctx.handle.sqlite
+    .prepare(`SELECT * FROM timeline_chapters WHERE id = ? AND space_id = ?`)
+    .get(info.lastInsertRowid, spaceId) as Record<string, unknown>;
   return rowToChapter(row);
 }
 

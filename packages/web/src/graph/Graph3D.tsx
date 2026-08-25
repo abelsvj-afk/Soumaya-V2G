@@ -614,6 +614,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const isLit = (id: number): boolean =>
     activeId === null || id === activeId || (adjacency.get(activeId)?.has(id) ?? false);
 
+  // Pending defer() handles, tracked so a fast unmount (route change, logout) inside the
+  // ~2s idle-callback window can cancel them — otherwise scenery gets added to an already
+  // torn-down scene, and the money-sky/journey-hub blocks register their window event
+  // listeners with no matching removal (those refs are only set INSIDE the deferred
+  // callback, after cleanup has already run).
+  const pendingDeferIdsRef = useRef<{ id: number; idle: boolean }[]>([]);
   // One-time imperative scene setup: lights, starfield, bloom, spin loop. A `timeout` is
   // REQUIRED here — this app runs a continuous requestAnimationFrame render loop, so the
   // main thread is rarely ever truly "idle" and an untimed requestIdleCallback can be
@@ -622,9 +628,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // timeout guarantees each deferred block still runs within ~2s even under sustained load.
   const defer = (fn: () => void) => {
     if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(fn, { timeout: 2000 });
+      const id = requestIdleCallback(fn, { timeout: 2000 });
+      pendingDeferIdsRef.current.push({ id, idle: true });
     } else {
-      setTimeout(fn, 1);
+      const id = window.setTimeout(fn, 1);
+      pendingDeferIdsRef.current.push({ id, idle: false });
     }
   };
 
@@ -723,8 +731,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
     // server (state → colour/glyph/pulse; cooling=blue, urgent=red pulse) and rebuilt whenever
     // finances change. Skipped in the demo galaxy (no backend).
+    // Skips textures flagged `userData.shared` (moneySky's STAR_TEX, journeyHubs' HALO) — those
+    // are module-level singletons reused by every star/hub sprite; disposing one here would
+    // blank out every OTHER money-sky/journey-hub sprite for the rest of the session the first
+    // time a rebuild runs (same bug class as disposeObject3D in graph3dHelpers.ts).
     const disposeGroup = (g: THREE.Object3D) => g.traverse((o: any) => {
-      if (o.material) { const m = o.material; (Array.isArray(m) ? m : [m]).forEach((x: any) => { x.map?.dispose?.(); x.dispose?.(); }); }
+      if (o.material) {
+        const m = o.material;
+        (Array.isArray(m) ? m : [m]).forEach((x: any) => {
+          if (!x.map?.userData?.shared) x.map?.dispose?.();
+          x.dispose?.();
+        });
+      }
       o.geometry?.dispose?.();
     });
     defer(() => {
@@ -892,6 +910,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const SECTOR_LABEL_BOOST = isNarrowScreen ? 1.4 : 1;
 
     const MACRO_DIST = 2600; // swap fidelity for points-of-light beyond this
+    const MACRO_HYST = 150; // buffer band around MACRO_DIST so hovering near it doesn't flicker
     // (raised so bodies resolve into full 3D as you fly toward a cluster, not only
     // when you're right on top of them — dots are for genuinely distant bodies).
 
@@ -1346,7 +1365,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const dist = tmp.distanceTo(camera.position);
           const bf = brightness(dist);
           const isSelected = id === activeId;
-          const isMacroView = dist > MACRO_DIST && !isSelected;
+          // Hysteresis around MACRO_DIST — same fix pattern as the link-LOD flicker fix
+          // (linkLodZoomedInRef): a hard cutoff re-evaluated every frame flips a body
+          // between its full-detail and macro (low-poly) representation every single
+          // frame while it drifts/orbits near that exact distance. State is kept on the
+          // object itself (persists across frames for this node) rather than a separate
+          // ref map, since `o` is the same Object3D instance while the node stays mounted.
+          const wasMacroView = o.userData.isMacroView ?? false;
+          const isMacroView =
+            !isSelected && (wasMacroView ? dist > MACRO_DIST - MACRO_HYST : dist > MACRO_DIST + MACRO_HYST);
+          o.userData.isMacroView = isMacroView;
 
           const processing = isNodeProcessing(id);
           if (processing) {
@@ -1398,7 +1426,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               }
               const mq = child.userData.marquee;
               if (mq) {
-                mq.t += dt * 0.36;
+                // motionDt (not raw dt) — same reduced-motion slowdown orbit motion already
+                // gets (calmMotionRef ? dt*0.12 : dt); this marquee scroll previously ran at
+                // full speed regardless of prefers-reduced-motion.
+                mq.t += motionDt * 0.36;
                 mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
               }
             }
@@ -1436,7 +1467,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
                 mat.opacity = labelVis * 0.95;
                 const mq = child.userData.marquee;
                 if (mq) {
-                  mq.t += dt * 0.36;
+                  // motionDt (not raw dt) — same reduced-motion slowdown orbit motion already
+                // gets (calmMotionRef ? dt*0.12 : dt); this marquee scroll previously ran at
+                // full speed regardless of prefers-reduced-motion.
+                mq.t += motionDt * 0.36;
                   mat.map!.offset.x = (Math.sin(mq.t) * 0.5 + 0.5) * mq.range;
                 }
               }
@@ -1698,6 +1732,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Cancel any deferred FX timers so they don't fire into the torn-down scene.
       for (const id of pendingTimersRef.current) clearTimeout(id);
       pendingTimersRef.current.clear();
+      // Cancel any pending defer() scenery/init blocks (see pendingDeferIdsRef above).
+      for (const { id, idle } of pendingDeferIdsRef.current) {
+        if (idle && typeof cancelIdleCallback !== "undefined") cancelIdleCallback(id);
+        else clearTimeout(id);
+      }
+      pendingDeferIdsRef.current.length = 0;
       // Free the VRAM held by every cached node object on unmount (e.g. logout →
       // remount), so a new session doesn't start atop the old scene's leaked buffers.
       for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
@@ -1710,12 +1750,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const scn = fg.scene?.();
         if (scn) {
           scn.traverse((o: any) => {
-            o.geometry?.dispose?.();
+            // Same shared-resource guard as disposeObject3D (graph3dHelpers.ts): several
+            // caches in nodeObject.ts/moneySky.ts/journeyHubs.ts are intentional MODULE-
+            // level singletons meant to live for the page's whole lifetime, reused across
+            // remounts (e.g. logout → remount). Disposing them here would leave the cache
+            // holding a reference to an already-disposed GPU texture/geometry, so the next
+            // mount renders every moon/glow/macro-body/label/money-star/journey-hub with a
+            // dead resource until a full page reload.
+            if (o.geometry && !o.geometry.userData?.shared) o.geometry.dispose?.();
             const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
             for (const m of mats) {
               for (const k in m) {
                 const v = (m as any)[k];
-                if (v && v.isTexture) v.dispose?.();
+                if (v && v.isTexture && !v.userData?.shared) v.dispose?.();
               }
               m.dispose?.();
             }
