@@ -382,6 +382,12 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let isFetching = false;
   let lastMaintenanceRefresh = 0;
   let demoMode = false; // demo galaxy: local patrols only, no real backend jobs
+  // Throttles the idle-mode "clean taskOrder + pick next task" scan below (a Set +
+  // several array builds) to 5Hz. She's idle a lot, and none of that bookkeeping needs
+  // to re-run 60x/sec — the queues it reconciles only change when something enqueues a
+  // job elsewhere, and a ~200ms delay before she notices is imperceptible for an ambient
+  // background agent (the existing maintenance-queue refresh throttle above is 1000ms).
+  let pickTaskT = 0;
 
   // Beacons she needs to dispatch (fly to target memory and deploy)
   const beaconQueue: number[] = [];
@@ -810,14 +816,19 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
           return;
         }
 
-        // Clean taskOrder to remove IDs that are no longer in any queue
+        // Clean taskOrder to remove IDs that are no longer in any queue, then pick the
+        // next one — throttled (see pickTaskT above); skips straight to the fallthrough
+        // idle behavior (replay / patrol, below) on ticks where it isn't due yet.
+        pickTaskT -= dt;
+        if (pickTaskT <= 0) {
+        pickTaskT = 0.2; // 5Hz
         const validIds = new Set<string>();
         for (const r of removalQueue) if (r.id) validIds.add(r.id);
         for (const id of placeQueue) validIds.add(`place-${id}`);
         for (const l of linkQueue) validIds.add(l.id || `link-${l.key}`);
         for (const id of beaconQueue) validIds.add(`beacon-${id}`);
         for (const j of plannedMaintenance) validIds.add(`planned-maint-${j.targets[0]}`);
-        
+
         const currentPlannedOrder = taskOrder.filter(id => validIds.has(id));
 
         if (currentPlannedOrder.length > 0) {
@@ -895,6 +906,7 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
             }
           }
         }
+        } // end pickTaskT throttle
       }
 
       if (mode === "idle") {

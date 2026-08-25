@@ -133,6 +133,12 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
     slots.push({ craft, phase: "idle", targetId: null, loiter: 0, angle: 0, exit: new THREE.Vector3(), variant: NEUTRAL });
   }
   let spawnTimer = 8; // first visitor a few seconds in
+  // Per-slot target lookup used to be a full `nodes.find()` linear scan every frame for
+  // every slot. Node identities are stable and mutated in place by the orbit system, so
+  // caching id->node here stays positionally fresh even though the Map itself is only
+  // rebuilt at 5Hz rather than every frame.
+  let idMapT = 0;
+  let idMap = new Map<number, any>();
 
   const spawn = (nodes: any[], hazard?: VisitorHazard) => {
     const slot = slots.find((s) => s.phase === "idle");
@@ -223,6 +229,11 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
         spawn(nodes, hazard);
         spawnTimer = 25 + Math.random() * 45; // next visitor in 25–70s
       }
+      idMapT -= dt;
+      if (idMapT <= 0) {
+        idMapT = 0.2; // 5Hz
+        idMap = new Map(nodes.map((n) => [n.id, n]));
+      }
       for (const s of slots) {
         if (s.phase === "idle") continue;
         const g = s.craft.group;
@@ -239,7 +250,7 @@ export function makeVisitors(maxConcurrent = 3, onVisit?: OnVisit): VisitorSyste
           }
         }
 
-        const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
+        const target = s.targetId != null ? idMap.get(s.targetId) ?? null : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 
         if (s.phase === "leave" || !tp) {

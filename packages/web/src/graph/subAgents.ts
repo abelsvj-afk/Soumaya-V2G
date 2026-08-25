@@ -203,6 +203,17 @@ export function makeSubAgents(): SubAgentSystem {
 
   const angle: Record<SubAgentId, number> = { scout: Math.random() * 6.28, defender: Math.random() * 6.28, tender: 0, escort: 0 };
 
+  // `memories` (a full filter of every node) and `cooling` (a full sort of `memories`) used
+  // to be rebuilt every single frame even though nothing that reads them — target selection
+  // (already on its own 4-6s per-unit timer) or the tender count/coldest-label — actually
+  // needs sub-second freshness. Throttled to 5Hz: the node OBJECTS the cache holds references
+  // to are still mutated in place every frame by the orbit system, so cached entries never go
+  // stale positionally — only the membership/ordering of the two arrays is allowed to lag by
+  // up to 200ms, which is imperceptible for "who's the frontier" / "who's coldest".
+  let memRefreshT = 0;
+  let cachedMemories: any[] = [];
+  let cachedCooling: any[] = [];
+
   const chooseTarget = (id: SubAgentId, memories: any[]): any | null => {
     if (memories.length === 0) return null;
     if (id === "scout") {
@@ -232,7 +243,13 @@ export function makeSubAgents(): SubAgentSystem {
         escort.position.addScaledVector(dir.normalize(), Math.min(dist, 320 * dt));
         if (dist > 0.01) escort.lookAt(leaderPos); // keep her nose-to-nose with the flagship
       }
-      const memories = nodes.filter((n) => n.kind !== "action" && n.x != null);
+      memRefreshT -= dt;
+      if (memRefreshT <= 0) {
+        memRefreshT = 0.2; // 5Hz
+        cachedMemories = nodes.filter((n) => n.kind !== "action" && n.x != null);
+        cachedCooling = [...cachedMemories].sort((a, b) => entropyOf(b) - entropyOf(a));
+      }
+      const memories = cachedMemories;
       for (const u of units) {
         u.retarget -= dt;
         if (u.retarget <= 0) {
@@ -288,9 +305,11 @@ export function makeSubAgents(): SubAgentSystem {
       }
 
       // Tender squadron: the fleet grows with the galaxy (1 per ~30 memories, capped),
-      // each warming a DISTINCT cooling memory. The coldest first.
+      // each warming a DISTINCT cooling memory. The coldest first. `cachedCooling` is the
+      // same 5Hz-refreshed sort computed above — re-sorting every frame bought nothing,
+      // since tender assignment only needs to react on the order of seconds anyway.
       tendersActive = Math.min(MAX_TENDERS, Math.floor(memories.length / 30));
-      const cooling = [...memories].sort((a, b) => entropyOf(b) - entropyOf(a));
+      const cooling = cachedCooling;
       coldestLabel = tendersActive > 0 ? cooling[0]?.label ?? null : null;
       for (let i = 0; i < tenders.length; i++) {
         const craft = tenders[i]!;

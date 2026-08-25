@@ -1003,6 +1003,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const followAnchor = new THREE.Vector3();
     let followAnchorId: number | null = null;
     const followPos = new THREE.Vector3();
+    // Scratch for the station/Soumaya world-position handed to satellites/subAgents each
+    // frame — both consumers only read .x/.y/.z synchronously within the same call (they
+    // .copy() into their own owned vectors), never retain the reference, so reusing one
+    // scratch instead of allocating a fresh Vector3 every frame is safe.
+    const stationWorldScratch = new THREE.Vector3();
+    const soumayaPosScratch = new THREE.Vector3();
+    // Separate scratch for the later-in-frame station lookup passed to soumaya.update()
+    // (not reused from stationWorldScratch above — different point in the frame, and
+    // getWorldPosition() re-reads the current world matrix each time regardless).
+    const stationWorldScratch2 = new THREE.Vector3();
     const tick = () => {
       raf = requestAnimationFrame(tick); // keep the loop alive even on capped frames
       // FPS cap (adaptive graphics): on Performance / battery-saver, skip this frame's
@@ -1131,10 +1141,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // Beacons launch from the station/ship, so hand the satellites their world positions.
       const stationWorld = stationObjRef.current
-        ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+        ? stationObjRef.current.getWorldPosition(stationWorldScratch)
         : null;
       const soumayaPos = soumayaObjRef.current
-        ? soumayaObjRef.current.position.clone()
+        ? soumayaPosScratch.copy(soumayaObjRef.current.position)
         : null;
       satellites?.update(dt, workNodes, stationWorld, soumayaPos);
       if (satellites && soumayaHandleRef.current) {
@@ -1219,7 +1229,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // Follow-lock: keep the jumped-to body centered as it orbits/drifts.
       const fid = followRef.current;
       if (fid != null && controls) {
-        const fn = (dataRef.current.nodes as any[]).find((n) => n.id === fid);
+        // O(1) via the existing id->node map instead of an O(N) scan every frame this
+        // camera is follow-locked (a common, often long-lived state).
+        const fn = nodeByIdRef.current.get(fid);
         if (fn && fn.x != null) {
           followPos.set(fn.x, fn.y, fn.z ?? 0);
           if (followAnchorId === fid) {
@@ -1507,7 +1519,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       if (soumaya) {
         const d = dataRef.current;
         const stationP = stationObjRef.current
-          ? stationObjRef.current.getWorldPosition(new THREE.Vector3())
+          ? stationObjRef.current.getWorldPosition(stationWorldScratch2)
           : null;
         soumaya.update(
           dt,
@@ -1677,14 +1689,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
 
       // Sync computed coordinates from dataRef.current.nodes back to the active simulated nodes
-      // in react-force-graph-3d.
+      // in react-force-graph-3d. Looks up via the EXISTING nodeByIdRef (id -> dataRef.current's
+      // own node objects, which orbits.update() already wrote this frame's x/y/z/fx/fy/fz onto
+      // in place, above) instead of allocating a fresh id->node Map here every frame — that
+      // Map + its N two-element entries was the single largest per-frame GC source in the
+      // whole tick loop at a few hundred nodes. `liveNodes` itself is already a live reference
+      // handed to us by the library, so this loop now allocates nothing.
       const fg = fgRef.current;
       const liveNodes = fg?.graphData?.()?.nodes as any[];
       if (liveNodes && liveNodes.length > 0) {
-        const liveById = new Map<number, any>(liveNodes.map((n) => [n.id, n]));
-        for (const n of dataRef.current.nodes as any[]) {
-          const live = liveById.get(n.id);
-          if (live) {
+        for (const live of liveNodes) {
+          const n = nodeByIdRef.current.get(live.id);
+          if (n) {
             live.x = n.x;
             live.y = n.y;
             live.z = n.z;

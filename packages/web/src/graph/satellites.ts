@@ -241,6 +241,12 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
   }
 
   let retarget = 0;
+  // Per-slot target lookup used to be a full `nodes.find()` linear scan every frame for
+  // every slot. Node identities are stable and mutated in place by the orbit system, so
+  // caching id->node here stays positionally fresh even though the Map itself is only
+  // rebuilt at 5Hz rather than every frame.
+  let idMapT = 0;
+  let idMap = new Map<number, any>();
 
   const reassign = (nodes: any[]) => {
     const memories = nodes.filter((n) => n.kind !== "action" && n.x != null);
@@ -300,9 +306,14 @@ export function makeSatellites(maxCount = 3): SatelliteSystem {
         reassign(nodes);
         retarget = 2.5; // re-evaluate the cold list a few times a minute
       }
+      idMapT -= dt;
+      if (idMapT <= 0) {
+        idMapT = 0.2; // 5Hz
+        idMap = new Map(nodes.map((n) => [n.id, n]));
+      }
       for (const s of slots) {
         const g = s.probe.group;
-        const target = s.targetId != null ? nodes.find((n) => n.id === s.targetId) : null;
+        const target = s.targetId != null ? idMap.get(s.targetId) ?? null : null;
         const tp = target && target.x != null ? vecOf(target) : null;
 
         if (s.targetId != null && !s.released) {
