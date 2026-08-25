@@ -1,3 +1,43 @@
+### 2026-08-25 (Claude): Full-project review + fix pass (22 findings)
+- [x] Verified by Claude
+- User asked for a deep review of the whole monorepo. Ran 7 parallel review agents across
+  shared/DB, API/security, repositories/services, LLM/chat, graph rendering, web app/
+  components, and repo hygiene (deps/test-coverage/dead-code). Fixed all 22 confirmed
+  findings across 4 commits (`dbae76f`, `a78eb85`, `61706d4`, `1552b48`):
+  - **Highest impact**: shared-texture disposal corruption — nodeObject.ts/moneySky.ts/
+    journeyHubs.ts cache several textures/geometries across MANY bodies, but every
+    disposal path (per-node cache eviction, money-sky/journey-hub rebuilds, full-unmount
+    teardown) disposed ANY texture/geometry it found, including the shared ones — the
+    first entropy/degree change on any single moon/asteroid killed the shared moon
+    texture for the whole galaxy for the rest of the session. Tagged shared resources
+    `userData.shared = true` and made all three disposal paths skip them.
+  - Security: 4-char passcodes were brute-forceable (space id = bearer credential) — new
+    registrations now require 8+ chars (existing shorter passcodes still log in, no
+    lockout risk); LLM-backed routes (chat/ingest/digest-run/synthesize/vision-ingest) now
+    have their own tighter rate limit instead of sharing the generic 120/min.
+  - Correctness: NaN guard on deriveMass/classify + orbits.ts massOf (measured via
+    npx tsx); extraction schema enum mismatch ("moc") that silently downgraded ingests to
+    the heuristic extractor on a rare model choice; N+1 query + missing space_id clauses
+    in candidates.ts/timeline.ts; JourneysRepo.link() didn't validate refId existed;
+    CodexPanel's reward chime never played (sync check before the async claim resolved).
+  - Perf/leaks: isMacroView LOD swap had no hysteresis (same flicker class as the earlier
+    link-LOD fix); updateFigurine leaked its fallback mesh; defer()'s idle-callback
+    handles weren't tracked/cancelled (leak + listener-orphan risk on fast unmount);
+    TimelineView's "revoke object URLs on unmount" effect had a stale-closure bug that
+    made it revoke nothing, ever; several `.then()`-with-no-`.catch()` left panels stuck
+    on their loading state on a fetch failure.
+  - Dependencies: `npm audit fix` for pdfjs-dist/postcss/protobufjs/nanoid (non-breaking;
+    pdfjs-dist was the one genuinely reachable finding — parses uploaded PDFs).
+  - Dead code: finished the incomplete "Stage A demo-mode removal" — `demo` was
+    provably always `false` (never set `true` anywhere) but still gated ~25 branches in
+    App.tsx plus stub branches in 4 more components; removed all of it plus the now-fully-
+    dead `demoGalaxy.ts`. Zero behavioral change (every removed branch was unreachable).
+  - Docs: DEPLOYMENT.md contradicted CLAUDE.md's current (verified) deploy process —
+    rewrote it to match; flagged PROJECT_STATE.md/TASKS.md as stale at the top.
+- Gate: `npm run typecheck && npm test && npm run build -w @brain/web` green after every
+  commit (416 tests). Visual/perf fixes still need a live device check after the next
+  `fly deploy` — this sandbox can't reach the deployed site.
+
 ### 2026-08-25 (Claude): Pitfall fix — isFidelity/isStarLight LOD conflict
 - [x] Verified by Claude
 - Self-caught regression in the isFidelity fix below: tagging EVERY child of a star's
