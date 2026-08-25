@@ -34,12 +34,17 @@ export interface ResolvedGraphics {
   bloom: boolean;
   bloomStrength: number;
   starCount: number;
-  /** 0..1 multipliers the scene systems can scale their work by. */
+  /** 0..1 multipliers the scene systems can scale their work by. Consumed today only by
+   *  TimelineView's river-of-memories effect (packet count / twinkle gating) — NOT the
+   *  galaxy itself. Kept for that consumer; don't expect these to affect Graph3D. */
   particleScale: number;
   animationScale: number;
   pixelRatio: number;
   fpsCap: number;
-  /** Render the heavy background scenery (nebulae/galaxies/comets)? Top tier only. */
+  /** Render the deep-space backdrop (nebula clouds / distant galaxies / dust)? On by
+   *  default on every tier — see Performance Program Stage 3, which will replace this
+   *  live-composited backdrop with a one-time baked cubemap; until then this is purely
+   *  a perf-testing/battery-saver lever, not a "cheap phones get less" switch. */
   heavyScenery: boolean;
   /** The tier that was detected (for diagnostics + the Settings label). */
   tier: "performance" | "balanced" | "quality";
@@ -169,15 +174,18 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
     animationScale: ANIM[eff.animationQuality],
     pixelRatio,
     fpsCap,
-    // Nebulae + galaxy sprites + comets are extra draw calls; only render them on the
-    // top tier so a mid/low phone isn't asked to build them on the first frame — unless
-    // you've explicitly forced scenery on/off (perf-testing lever).
+    // On by default for EVERY tier, not just "quality" — the deep-space backdrop is
+    // procedural and already tier-scaled internally (makeDeepSpace's own density knob),
+    // and per-tier gating here previously did nothing at all (this knob had zero
+    // consumers until now — see GEMINI_CHANGES.md). Wiring it to actually gate the
+    // backdrop must not, on its own, remove scenery from mid/low-tier phones that were
+    // already rendering it; only an explicit override or Battery Saver turns it off.
     heavyScenery:
       s.sceneryOverride === "on"
         ? true
         : s.sceneryOverride === "off"
           ? false
-          : tier === "quality" && !eff.batterySaver,
+          : !eff.batterySaver,
     tier,
   };
 }

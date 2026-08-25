@@ -701,17 +701,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         scaleSceneryRef.current(); // Ensure scale is applied after addition
     });
     
-    // Heavy background scenery (skybox, nebulae, galaxy sprites, comets) is a pile of
-    // extra draw calls + textures that can stall a mid/low phone on the first frame —
-    // render it only on the top graphics tier. The starfield alone still reads as space.
     // Deep-space ambience — nebula clouds / dust / distant galaxies / asteroid belt.
-    // Procedural (no assets) + cheap, so it runs on mid-range mobile too (not just the
-    // top graphics tier like the legacy heavy scenery). Count scales with the tier.
-    defer(() => {
-        const deepspace = makeDeepSpace(gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
-        sceneryRef.current.deepspace = deepspace;
-        scene.add(deepspace);
-    });
+    // Procedural (no assets), tier-scaled internally (density, not presence) via
+    // makeDeepSpace's own quality argument. Gated on `heavyScenery` (Settings ->
+    // "Background scenery") — on by default for every tier; only Battery Saver or an
+    // explicit override turns it off (see graphicsConfig.ts). This is currently the
+    // single biggest fill-rate cost in the scene (many overlapping additive, non-depth-
+    // writing sprites) — Performance Program Stage 3 replaces it with a one-time baked
+    // backdrop, at which point it can afford to be on unconditionally everywhere.
+    if (gfx.heavyScenery) {
+      defer(() => {
+          const deepspace = makeDeepSpace(gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+          sceneryRef.current.deepspace = deepspace;
+          scene.add(deepspace);
+      });
+    }
     // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
     // server (state → colour/glyph/pulse; cooling=blue, urgent=red pulse) and rebuilt whenever
     // finances change.
