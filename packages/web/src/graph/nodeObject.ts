@@ -495,8 +495,13 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   // nodeGroup, so a flag on nodeGroup itself is never seen — that mismatch previously left
   // the full-detail body always rendered even at macro range, double-drawing on top of the
   // cheap macro body. Must run BEFORE the sector title / label / macro body are added below
-  // — those toggle visibility by their own LOD tags and must not inherit this one.
-  for (const c of nodeGroup.children) c.userData.isFidelity = true;
+  // — those toggle visibility by their own LOD tags and must not inherit this one. The point
+  // light (isStarLight) is EXCLUDED: the tick loop checks isStarLight (cutoff 2200) BEFORE
+  // isFidelity (cutoff MACRO_DIST=2600) and unconditionally overwrites `child.visible` each
+  // time — tagging the light too would let isFidelity's looser cutoff re-enable the single
+  // most expensive object here (a real-time PointLight) inside the 2200-2600 band where
+  // isStarLight's tighter cutoff meant to keep it off.
+  for (const c of nodeGroup.children) if (!c.userData.isStarLight) c.userData.isFidelity = true;
 
   // 2. The Macro Body (low-poly self-lit sphere; spins so it never looks frozen)
   const macro = makeMacroBody(color, size, isStarLike);
