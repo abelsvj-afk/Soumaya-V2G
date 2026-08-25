@@ -1,3 +1,17 @@
+### 2026-08-25 (Claude): Pitfall fix — isFidelity/isStarLight LOD conflict
+- [x] Verified by Claude
+- Self-caught regression in the isFidelity fix below: tagging EVERY child of a star's
+  nodeGroup as `isFidelity` also tagged its `THREE.PointLight` (`isStarLight`). The tick
+  loop checks `isStarLight` (cutoff 2200 units) before `isFidelity` (cutoff MACRO_DIST=2600)
+  and both unconditionally overwrite `child.visible` — so between 2200-2600 units,
+  `isFidelity`'s looser cutoff was re-enabling the single most expensive per-body object
+  (a real-time point light) right where `isStarLight`'s tighter cutoff meant to keep it off.
+  Excluded `isStarLight` children from the `isFidelity` tag.
+- File: `packages/web/src/graph/nodeObject.ts`.
+- Gate: `npm run typecheck && npm test && npm run build -w @brain/web` all green (380
+  server tests, 36 web tests). Same live-verification caveat as below — needs a `fly deploy`
+  + a look on the actual device before calling any of this pass visually confirmed.
+
 ### 2026-08-24 (Claude): Galaxy scenery / label / sun / LOD / mobile-CSS fix pass
 - [x] Verified by Claude
 - Root-cause fix: `defer()`'s `requestIdleCallback(fn)` had no `timeout`, so under this
