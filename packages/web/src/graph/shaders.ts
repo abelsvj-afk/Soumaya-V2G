@@ -13,7 +13,24 @@ import * as THREE from "three";
  * textured MeshStandardMaterial, so bodies never vanish.
  */
 
-const NOISE = /* glsl */ `
+/** Matches ResolvedGraphics["tier"] (graphicsConfig.ts) without importing it — shaders.ts
+ * has no reason to depend on the rest of the graphics config surface. */
+export type ShaderTier = "performance" | "balanced" | "quality";
+
+// fbm's octave count is the single biggest per-pixel cost in both materials below (each
+// octave is a full vnoise() call: 8 hash()es + several mix()es). A planet or star that's
+// 12px on screen can't resolve a 5th octave of detail anyway, so weaker tiers get fewer —
+// same "don't pay for detail nobody can see" principle as the label-distance system.
+// Star gets one more octave than planet at every tier: its granule/flare detail reads at
+// a glance (it's usually the biggest, closest body — the sun), while a planet's extra
+// octaves mostly refine texture nobody is that close to.
+const STAR_OCTAVES: Record<ShaderTier, number> = { performance: 3, balanced: 4, quality: 5 };
+const PLANET_OCTAVES: Record<ShaderTier, number> = { performance: 2, balanced: 3, quality: 4 };
+
+// GLSL `for` loop bounds must be compile-time constants, so the octave count is baked into
+// the shader source string (effectively a #define) rather than passed as a uniform.
+function noiseSource(octaves: number): string {
+  return `
   float hash(vec3 p){ p = fract(p*0.3183099+0.1); p *= 17.0; return fract(p.x*p.y*p.z*(p.x+p.y+p.z)); }
   float vnoise(vec3 x){
     vec3 i = floor(x); vec3 f = fract(x); f = f*f*(3.0-2.0*f);
@@ -24,10 +41,11 @@ const NOISE = /* glsl */ `
   }
   float fbm(vec3 p){
     float v = 0.0, a = 0.5;
-    for(int i=0;i<5;i++){ v += a*vnoise(p); p *= 2.0; a *= 0.5; }
+    for(int i=0;i<${octaves};i++){ v += a*vnoise(p); p *= 2.0; a *= 0.5; }
     return v;
   }
 `;
+}
 
 const VERT = /* glsl */ `
   varying vec3 vPos;
@@ -48,7 +66,7 @@ const baseUniforms = () => ({
 });
 
 /** A sun: animated convective granules + sunspots over a hot color ramp. */
-export function makeStarMaterial(hex: string): THREE.ShaderMaterial {
+export function makeStarMaterial(hex: string, tier: ShaderTier = "quality"): THREE.ShaderMaterial {
   const c = new THREE.Color(hex);
   const hot = c.clone().lerp(new THREE.Color("#ffffff"), 0.5);
   const cool = c.clone().lerp(new THREE.Color("#ff5a1e"), 0.5);
@@ -60,7 +78,7 @@ export function makeStarMaterial(hex: string): THREE.ShaderMaterial {
     },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
-      ${NOISE}
+      ${noiseSource(STAR_OCTAVES[tier])}
       uniform float uTime; uniform float uBrightness;
       uniform vec3 uHot; uniform vec3 uCool;
       varying vec3 vPos; varying vec3 vNormal; varying vec3 vView;
@@ -80,11 +98,11 @@ export function makeStarMaterial(hex: string): THREE.ShaderMaterial {
 }
 
 /** A world: FBM land/ocean + drifting clouds + a Fresnel atmospheric rim. */
-export function makePlanetMaterial(hex: string): THREE.ShaderMaterial {
+export function makePlanetMaterial(hex: string, tier: ShaderTier = "quality"): THREE.ShaderMaterial {
   const land = new THREE.Color(hex);
   const ocean = land.clone().lerp(new THREE.Color("#0a1a3a"), 0.6);
   const atmo = land.clone().lerp(new THREE.Color("#9fd0ff"), 0.7);
-  return new THREE.ShaderMaterial({
+  const mat = new THREE.ShaderMaterial({
     uniforms: {
       ...baseUniforms(),
       uLand: { value: new THREE.Vector3(land.r, land.g, land.b) },
@@ -93,7 +111,7 @@ export function makePlanetMaterial(hex: string): THREE.ShaderMaterial {
     },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
-      ${NOISE}
+      ${noiseSource(PLANET_OCTAVES[tier])}
       uniform float uTime; uniform float uBrightness;
       uniform vec3 uLand; uniform vec3 uOcean; uniform vec3 uAtmo;
       varying vec3 vPos; varying vec3 vNormal; varying vec3 vView;
@@ -111,4 +129,10 @@ export function makePlanetMaterial(hex: string): THREE.ShaderMaterial {
       }
     `,
   });
+  // Land/ocean/cloud color mixing has none of the sharp color-ramp gradients that make
+  // banding visible (unlike the star's hot/cool blackbody ramp, left at the renderer's
+  // default precision) — mediump trades a per-pixel precision nobody can see for real ALU
+  // savings on mobile GPUs, where mediump math is often meaningfully cheaper than highp.
+  mat.precision = "mediump";
+  return mat;
 }

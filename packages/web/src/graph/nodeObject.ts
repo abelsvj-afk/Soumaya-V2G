@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { type GraphNode, classify, deriveMass } from "@brain/shared";
 import { bodyColor } from "./theme.js";
-import { makeStarMaterial, makePlanetMaterial } from "./shaders.js";
+import { makeStarMaterial, makePlanetMaterial, type ShaderTier } from "./shaders.js";
 
 const FONT_SIZE = 44;
 const PADDING = 14;
@@ -124,14 +124,19 @@ function makeGlow(color: string, size: number): THREE.Sprite {
   return sprite;
 }
 
-function getGeometry(type: "sphere" | "icosahedron" | "octahedron", size: number, detail: number): THREE.BufferGeometry {
-  const cacheKey = `${type}-${size}-${detail}`;
+function getGeometry(
+  type: "sphere" | "icosahedron" | "octahedron",
+  size: number,
+  widthSegments: number,
+  heightSegments: number = widthSegments,
+): THREE.BufferGeometry {
+  const cacheKey = `${type}-${size}-${widthSegments}-${heightSegments}`;
   let geom = geometryCache.get(cacheKey);
   if (!geom) {
-    if (type === "sphere") geom = new THREE.SphereGeometry(size, detail, detail);
-    else if (type === "icosahedron") geom = new THREE.IcosahedronGeometry(size, detail);
-    else geom = new THREE.OctahedronGeometry(size, detail);
-    // Shared across every body with this exact type/size/detail combination.
+    if (type === "sphere") geom = new THREE.SphereGeometry(size, widthSegments, heightSegments);
+    else if (type === "icosahedron") geom = new THREE.IcosahedronGeometry(size, widthSegments);
+    else geom = new THREE.OctahedronGeometry(size, widthSegments);
+    // Shared across every body with this exact type/size/segment combination.
     geom.userData.shared = true;
     geometryCache.set(cacheKey, geom);
   }
@@ -290,7 +295,7 @@ function getMoonTexture(): THREE.CanvasTexture {
  * are stashed in userData for the Graph3D tick loop (which also dims emissive up
  * close so labels stay readable and surface detail shows).
  */
-export function makeNodeObject(node: GraphNode): THREE.Object3D {
+export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): THREE.Object3D {
   // Action items are urgent little satellites (amber/red), not celestial bodies:
   // small jagged core, a fast-pulsing alert glow, and a warning ring.
   if (node.kind === "action") {
@@ -399,10 +404,10 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
   let baseBrightness: number;
   try {
     if (isStarLike) {
-      material = makeStarMaterial(color);
+      material = makeStarMaterial(color, tier);
       baseBrightness = cls === "supergiant" ? 1.65 : 1.45; // suns read a touch brighter
     } else if (isPlanetLike) {
-      material = makePlanetMaterial(color);
+      material = makePlanetMaterial(color, tier);
       baseBrightness = 1.0;
     } else {
       const m = new THREE.MeshStandardMaterial({
@@ -429,11 +434,19 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     baseBrightness = 0.8;
   }
 
-  // Asteroids are jagged rocks; everything else is a sphere.
+  // Asteroids are jagged rocks; everything else is a sphere. Segment counts follow the
+  // same material split above — a star's granule shader reads at a glance and is usually
+  // the biggest/closest body (worth 32x24), a planet's terrain rarely needs more than
+  // 24x16, and moons/asteroids were already conservative at 24. Down from a flat 48x48
+  // for every star/planet (~4600 tris) regardless of how many screen pixels it covers.
   const geom =
     cls === "asteroid"
       ? getGeometry("icosahedron", size, 0)
-      : getGeometry("sphere", size, isRocky ? 24 : 48);
+      : isRocky
+        ? getGeometry("sphere", size, 24)
+        : isStarLike
+          ? getGeometry("sphere", size, 32, 24)
+          : getGeometry("sphere", size, 24, 16);
   const mesh = new THREE.Mesh(geom, material);
   mesh.userData.pulse = {
     base: baseBrightness,
@@ -480,14 +493,20 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
       phase: (node.id % 7) * 0.7,
     };
     nodeGroup.add(glow);
-    const light = new THREE.PointLight(
-      new THREE.Color(color),
-      cls === "supergiant" ? 3.0 + mass * 3.5 : 1.6 + mass * 3,
-      size * (cls === "supergiant" ? 60 : 45),
-      2,
-    );
-    light.userData.isStarLight = true;
-    nodeGroup.add(light);
+    // Performance Program Stage 4: stars used to each carry their own THREE.PointLight,
+    // toggled `.visible` by distance in Graph3D's tick loop. An invisible Light is STILL
+    // counted toward NUM_POINT_LIGHTS unless removed from the scene graph, so a galaxy
+    // with many stars kept changing that count as stars crossed the visibility distance
+    // — a real shader-recompile stall on every lit material, not just wasted per-pixel
+    // light math. Replaced with a fixed small pool of shared lights (Graph3D.tsx) that
+    // gets repositioned/recoloured onto the nearest few stars on a throttle — the number
+    // of lights in the scene never changes, so nothing ever recompiles. This nodeGroup
+    // just publishes what its light SHOULD look like; it no longer creates one itself.
+    nodeGroup.userData.starLight = {
+      color: new THREE.Color(color),
+      intensity: cls === "supergiant" ? 3.0 + mass * 3.5 : 1.6 + mass * 3,
+      distance: size * (cls === "supergiant" ? 60 : 45),
+    };
     // A faint asteroid belt orbiting the sun.
     nodeGroup.add(makeAsteroidBelt(size * 2.6, size * 3.8));
   } else if (isPlanetLike) {
@@ -501,21 +520,18 @@ export function makeNodeObject(node: GraphNode): THREE.Object3D {
     nodeGroup.add(glow);
   }
 
-  // Tag every full-detail child added so far (mesh, rings, glow/corona, point light,
-  // asteroid belt) as "isFidelity" so Graph3D's tick loop can hide them all at macro
-  // distance (see makeMacroBody's comment below — that was the whole point of the macro
-  // LOD swap). This must be set on the CHILDREN, not on nodeGroup itself: the tick loop's
-  // LOD check reads `child.userData.isFidelity` while iterating `o.children` where `o` IS
-  // nodeGroup, so a flag on nodeGroup itself is never seen — that mismatch previously left
-  // the full-detail body always rendered even at macro range, double-drawing on top of the
-  // cheap macro body. Must run BEFORE the sector title / label / macro body are added below
-  // — those toggle visibility by their own LOD tags and must not inherit this one. The point
-  // light (isStarLight) is EXCLUDED: the tick loop checks isStarLight (cutoff 2200) BEFORE
-  // isFidelity (cutoff MACRO_DIST=2600) and unconditionally overwrites `child.visible` each
-  // time — tagging the light too would let isFidelity's looser cutoff re-enable the single
-  // most expensive object here (a real-time PointLight) inside the 2200-2600 band where
-  // isStarLight's tighter cutoff meant to keep it off.
-  for (const c of nodeGroup.children) if (!c.userData.isStarLight) c.userData.isFidelity = true;
+  // Tag every full-detail child added so far (mesh, rings, glow/corona, asteroid belt) as
+  // "isFidelity" so Graph3D's tick loop can hide them all at macro distance (see
+  // makeMacroBody's comment below — that was the whole point of the macro LOD swap). This
+  // must be set on the CHILDREN, not on nodeGroup itself: the tick loop's LOD check reads
+  // `child.userData.isFidelity` while iterating `o.children` where `o` IS nodeGroup, so a
+  // flag on nodeGroup itself is never seen — that mismatch previously left the full-detail
+  // body always rendered even at macro range, double-drawing on top of the cheap macro
+  // body. Must run BEFORE the sector title / label / macro body are added below — those
+  // toggle visibility by their own LOD tags and must not inherit this one. (No longer
+  // needs to exclude a point-light child — stars don't carry one anymore, see
+  // `starLight` above.)
+  for (const c of nodeGroup.children) c.userData.isFidelity = true;
 
   // 2. The Macro Body (low-poly self-lit sphere; spins so it never looks frozen)
   const macro = makeMacroBody(color, size, isStarLike);

@@ -492,6 +492,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
   const bloomRef = useRef<{ strength: number } | null>(null);
   const gfxRef = useRef<ResolvedGraphics | null>(null);
+  // Stage 4 light pool: a FIXED-size set of PointLights reassigned to the nearest stars
+  // on a throttle, instead of one Light per star toggled by `.visible` (see the pool's
+  // creation site for why a fixed count matters).
+  const starLightPoolRef = useRef<THREE.PointLight[]>([]);
+  const lastStarLightScanFrameRef = useRef(-999);
   const initialFramedRef = useRef(false);
   const cinematicStartedRef = useRef(false);
   // Link keys we've already seen, so only NEW connections get drawn by Soumaya.
@@ -686,6 +691,24 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       /* renderer not ready yet — the effect below re-applies it */
     }
     scene.background = new THREE.Color(BG);
+
+    // Light pool (Stage 4): stars used to each own a PointLight, hidden via
+    // `.visible = dist < 2200` — but an invisible Light is STILL counted toward
+    // `NUM_POINT_LIGHTS` unless removed from the scene graph, so the count of
+    // currently-visible stars fluctuated every frame and recompiled every lit
+    // shader on nearly every camera move. A fixed-size pool, reassigned to the N
+    // nearest stars on a throttle instead of created/destroyed, keeps the light
+    // count perfectly constant — zero shader recompiles regardless of how the
+    // camera flies. Unused slots get `intensity = 0` (never removed/hidden).
+    const starLightPoolSize = gfx.tier === "quality" ? 6 : gfx.tier === "balanced" ? 4 : 3;
+    const starLightPool: THREE.PointLight[] = [];
+    for (let i = 0; i < starLightPoolSize; i++) {
+      const l = new THREE.PointLight(0xffffff, 0, 100, 2);
+      scene.add(l);
+      starLightPool.push(l);
+    }
+    starLightPoolRef.current = starLightPool;
+
     defer(() => {
         const starfield = makeStarfield(gfx.starCount);
         sceneryRef.current.starfield = starfield;
@@ -897,6 +920,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // reads as points of light instead of a wall of text (Obsidian-style LOD).
     const camera: THREE.Camera = fg.camera();
     const tmp = new THREE.Vector3();
+    // Stage 4 light-pool scratch: reused every scan instead of allocated, same pattern as
+    // labelCandidatesRef but plain (this is per-effect-instance, not read outside tick()).
+    const starLightCandidates: { x: number; y: number; z: number; d: number; starLight: { color: THREE.Color; intensity: number; distance: number } }[] = [];
     const FADE_NEAR = 170; // labels fully visible at/under this camera distance
     // Labels are transparent canvas sprites (extra draw calls + overdraw) — the cost that makes
     // a big galaxy heavy on a weak phone (you feel it lift when a lens/isolate hides bodies). So
@@ -1382,6 +1408,43 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           for (let i = 0; i < Math.min(MAX_VISIBLE_LABELS, candidates.length); i++) visible.add(candidates[i]!.id);
         }
 
+        // Reassign the fixed star-light pool (Stage 4) to the nearest N stars, same
+        // throttle as the label cap above — a light this far away doesn't need to react
+        // faster than every 6 frames, and it keeps the scan/sort off the hot per-frame path.
+        if (frameCount - lastStarLightScanFrameRef.current >= 6) {
+          lastStarLightScanFrameRef.current = frameCount;
+          const pool = starLightPoolRef.current;
+          if (pool.length) {
+            starLightCandidates.length = 0;
+            for (const o of graphGroup.children as any[]) {
+              const starLight = o.userData?.starLight;
+              if (!starLight) continue;
+              const id = o.userData?.nodeId;
+              const n = nodeByIdRef.current.get(id);
+              if (!n || n.x == null || isNaN(n.x)) continue;
+              tmp.set(n.x, n.y, n.z ?? 0);
+              const d = tmp.distanceTo(camera.position);
+              if (d < 2200) starLightCandidates.push({ x: n.x, y: n.y, z: n.z ?? 0, d, starLight });
+            }
+            starLightCandidates.sort((a, b) => a.d - b.d);
+            for (let i = 0; i < pool.length; i++) {
+              const light = pool[i]!;
+              const c = starLightCandidates[i];
+              if (c) {
+                light.position.set(c.x, c.y, c.z);
+                light.color.copy(c.starLight.color);
+                light.intensity = c.starLight.intensity;
+                light.distance = c.starLight.distance;
+              } else {
+                // Never removed/hidden — that would change NUM_POINT_LIGHTS, the exact
+                // shader-recompile problem this pool exists to avoid. Zero intensity
+                // makes it contribute nothing while keeping the light count constant.
+                light.intensity = 0;
+              }
+            }
+          }
+        }
+
         graphGroup.children.forEach((o: any) => {
           if (o.userData?.nodeId == null) return;
           const id = o.userData.nodeId;
@@ -1471,11 +1534,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           // Optimization: throttle updates for distant/insignificant labels
           if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
             continue;
-          }
-
-          // Point Light Management
-          if (child.userData?.isStarLight) {
-            child.visible = dist < 2200;
           }
 
           // LOD Swapping
@@ -1774,6 +1832,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         else clearTimeout(id);
       }
       pendingDeferIdsRef.current.length = 0;
+      // The star-light pool (Stage 4) holds no GPU resources — PointLight has no
+      // dispose() — so clearing the ref (rather than disposing) is all a remount needs;
+      // the old lights are freed with the rest of the torn-down scene.
+      starLightPoolRef.current = [];
       // Free the VRAM held by every cached node object on unmount (e.g. logout →
       // remount), so a new session doesn't start atop the old scene's leaked buffers.
       for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
@@ -2554,7 +2616,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           obj = cached.obj;
         } else {
           if (cached) disposeObject3D(cached.obj); // free the superseded build's VRAM
-          obj = makeNodeObject(node);
+          obj = makeNodeObject(node, gfxRef.current?.tier ?? "quality");
           nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
         }
         return obj;
