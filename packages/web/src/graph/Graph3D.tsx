@@ -17,8 +17,9 @@ import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject } from "./nodeObject.js";
 import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
-import { makeDeepSpace, DEEP_SPACE_BASE } from "./deepSpace.js";
-import { beginTick, endTick, attachRenderer, markMoved } from "./perfStats.js";
+import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
+import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
+import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
@@ -518,6 +519,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
   // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
   const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D; nebulae?: THREE.Object3D; comets?: THREE.Object3D }>({});
+  // The baked backdrop cubemap (Performance Program Stage 3) — set once the bake completes,
+  // used both to keep it slowly rotating in the tick loop and to dispose the render target
+  // (real GPU memory, distinct from a plain Texture) on unmount.
+  const bakedBackdropRef = useRef<BakedBackdrop | null>(null);
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -701,19 +706,34 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         scaleSceneryRef.current(); // Ensure scale is applied after addition
     });
     
-    // Deep-space ambience — nebula clouds / dust / distant galaxies / asteroid belt.
-    // Procedural (no assets), tier-scaled internally (density, not presence) via
-    // makeDeepSpace's own quality argument. Gated on `heavyScenery` (Settings ->
-    // "Background scenery") — on by default for every tier; only Battery Saver or an
-    // explicit override turns it off (see graphicsConfig.ts). This is currently the
-    // single biggest fill-rate cost in the scene (many overlapping additive, non-depth-
-    // writing sprites) — Performance Program Stage 3 replaces it with a one-time baked
-    // backdrop, at which point it can afford to be on unconditionally everywhere.
+    // Deep-space ambience. Split (Performance Program Stage 3):
+    //  - dust: a cheap live Points cloud, animated + added to the scene as before.
+    //  - the nebula-cloud / distant-galaxy SPRITES: the actual fill-rate cost (large
+    //    additive, depthWrite:false quads re-blended every frame for no reason, since
+    //    they never change shape frame-to-frame in any way that matters) — baked ONCE
+    //    into a cubemap and installed as scene.background instead of added live. The
+    //    starfield's own spiral galaxies / stars / milky way / constellations are
+    //    untouched Points-based effects and were never this cost (see backdropBake.ts).
+    // Gated on `heavyScenery` (Settings -> "Background scenery") — on by default for
+    // every tier; only Battery Saver or an explicit override turns it off. Baking means
+    // this can affordably stay on unconditionally, everywhere, even at higher fidelity
+    // than before, since the bake cost is one-time rather than paid every frame.
     if (gfx.heavyScenery) {
+      const level = gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low";
       defer(() => {
-          const deepspace = makeDeepSpace(gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
+          const deepspace = makeDeepSpace(level);
           sceneryRef.current.deepspace = deepspace;
           scene.add(deepspace);
+      });
+      defer(() => {
+          const renderer = fg.renderer() as THREE.WebGLRenderer;
+          const faceSize = gfx.tier === "quality" ? 1024 : gfx.tier === "balanced" ? 768 : 512;
+          const sources = makeBackdropBakeSources(level);
+          bakedBackdropRef.current = bakeBackdrop(renderer, scene, sources, faceSize);
+          // The bake does 6 sub-renders through the SAME instrumented renderer.render()
+          // (Stage 0) — clear the rolling window so those atypical one-off samples don't
+          // sit in the perf HUD's percentiles alongside real per-frame numbers.
+          resetPerfStats();
       });
     }
     // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
@@ -1294,6 +1314,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       s.galaxies?.children.forEach((o: any) => o.userData?.update?.(now));
       s.equirect?.userData?.update?.(now);
       s.deepspace?.children.forEach((o: any) => o.userData?.update?.(now));
+      // Keep the baked backdrop (Stage 3) drifting instead of frozen — a cheap Euler
+      // rotation on scene.background, not a re-render, so this costs nothing like the
+      // per-frame blending it replaced. Scaled by motionDt (same reduced-motion slowdown
+      // as orbits/marquee) rather than a fixed per-call amount, unlike the pre-existing
+      // per-sprite rotations above, which are frame-rate-dependent and don't currently
+      // honor prefers-reduced-motion — not replicating that gap in new code.
+      if (bakedBackdropRef.current) scene.backgroundRotation.y += motionDt * 0.006;
       s.moneysky?.children.forEach((o: any) => o.userData?.update?.(now));
       s.journeyhubs?.children.forEach((o: any) => o.userData?.update?.(now));
       s.nebulae?.children.forEach((o: any) => o.userData?.update?.(now));
@@ -1778,6 +1805,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           });
           (scn.environment as any)?.dispose?.();
           scn.environment = null;
+          // The baked backdrop (Stage 3) is a WebGLCubeRenderTarget, not a plain Texture
+          // like the solid-colour background it replaces — disposing the render target
+          // (not just `.texture`) is what actually frees the render-target's GPU memory.
+          if (bakedBackdropRef.current) {
+            disposeBakedBackdrop(bakedBackdropRef.current);
+            bakedBackdropRef.current = null;
+          }
+          scn.background = new THREE.Color(BG);
         }
       } catch {
         /* teardown is best-effort */

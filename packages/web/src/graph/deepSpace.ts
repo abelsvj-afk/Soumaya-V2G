@@ -142,16 +142,34 @@ function makeDistantGalaxy(): THREE.Sprite {
   return s;
 }
 
+// Split in two (Performance Program Stage 3):
+//  - makeDeepSpace() — just the dust. A `Points` cloud is cheap fill-rate (each point
+//    covers a few pixels), so it stays live/animated like the starfield and spiral
+//    galaxies (see makeGalaxies in starfield.ts) — none of THOSE were ever the overdraw
+//    problem.
+//  - makeBackdropBakeSources() — the nebula clouds + distant-galaxy GLOW SPRITES. These
+//    are the actual cost: large (1400-5400 world-unit) additive, depthWrite:false quads
+//    that the GPU must re-blend every frame with zero early-Z rejection. They're rendered
+//    once into a cubemap by backdropBake.ts and never added to the live scene — see
+//    Graph3D.tsx's deepspace defer() block.
 export function makeDeepSpace(level: Level): THREE.Group {
   const group = new THREE.Group();
-  const clouds = byLevel(level, 3, 5, 8);
   const dust = byLevel(level, 350, 800, 1500);
-  const galaxies = byLevel(level, 2, 3, 5);
-
-  for (let i = 0; i < clouds; i++) group.add(makeNebulaCloud());
   group.add(makeDust(dust));
-  for (let i = 0; i < galaxies; i++) group.add(makeDistantGalaxy());
   return group;
+}
+
+/**
+ * The expensive additive sprite layers, built fresh for a one-time bake — NOT added to
+ * the live scene graph. Caller (backdropBake.ts) disposes these once the bake completes.
+ */
+export function makeBackdropBakeSources(level: Level): THREE.Object3D[] {
+  const clouds = byLevel(level, 3, 5, 8);
+  const galaxies = byLevel(level, 2, 3, 5);
+  const items: THREE.Object3D[] = [];
+  for (let i = 0; i < clouds; i++) items.push(makeNebulaCloud());
+  for (let i = 0; i < galaxies; i++) items.push(makeDistantGalaxy());
+  return items;
 }
 
 /** The base radius the group is authored at (Graph3D scales relative to this). */
