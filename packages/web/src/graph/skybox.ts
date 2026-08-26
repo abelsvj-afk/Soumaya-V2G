@@ -1,45 +1,4 @@
 import * as THREE from "three";
-import { gltfLoader } from "./gltf.js";
-
-/**
- * Load the uploaded nebula skybox glb and wrap it around the whole scene as a
- * giant inward-facing sphere. The gradient `scene.background` stays as the base
- * (and the fallback if the 16K texture fails on a device). Our starfield, comets
- * and constellations live INSIDE this sphere so they stay visible against it.
- */
-export function loadNebulaSkybox(scene: THREE.Scene, radius = 12000, onReady?: (sky: THREE.Object3D) => void): void {
-  // The 16K texture (18MB) exceeds most mobile GPU limits (renders black) and can
-  // OOM the decoder — so only attempt it on larger screens. Phones keep the rich
-  // procedural nebula background, which always works.
-  if (typeof window !== "undefined" && window.innerWidth < 1100) return;
-  gltfLoader().load(
-    "/nebula-skybox.glb",
-    (gltf) => {
-      const sky = gltf.scene;
-      const sphere = new THREE.Box3().setFromObject(sky).getBoundingSphere(new THREE.Sphere());
-      const k = sphere.radius > 0 ? radius / sphere.radius : 1;
-      sky.scale.setScalar(k);
-      sky.position.copy(sphere.center.multiplyScalar(-k)); // center on origin
-      sky.traverse((o: any) => {
-        if (o.isMesh && o.material) {
-          for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-            m.side = THREE.BackSide; // visible from the inside
-            m.depthWrite = false;
-            m.toneMapped = false;
-            if ("fog" in m) m.fog = false;
-          }
-          o.renderOrder = -10; // draw behind everything
-          o.frustumCulled = false;
-        }
-      });
-      scene.add(sky);
-      onReady?.(sky); // let the caller scale it out as the galaxy grows
-    },
-    undefined,
-    (err) => console.warn("[skybox] nebula glb failed to load; using gradient", err),
-  );
-}
-
 
 /**
  * OPTIONAL photographic Milky Way backdrop — an equirectangular (2:1) panorama wrapped on a

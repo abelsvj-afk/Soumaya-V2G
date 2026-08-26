@@ -128,13 +128,20 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     }
     
     // Determine path based on skin
-    let modelPath = "/soumaya-ship.glb";
+    let modelPath: string | null = "/soumaya-ship.glb";
     if (skin === "organic") {
       modelPath = "/organic-spaceship.glb";
     } else if (skin === "fusion_core") {
-      modelPath = "/spaceship_with_fusion_core.glb";
+      // No real GLB has ever been shipped for this skin (it 404s every single time it's
+      // selected) — the procedural tinted hull styled just below IS the design for this
+      // skin today, not a load-failure fallback. `modelPath = null` skips the always-
+      // failing network request + console warning entirely rather than silently eating
+      // a 404 on every selection; the visible result is identical either way (the hull
+      // stays visible with its fusion_core tint/sheen, exactly as the old failure path
+      // already produced).
+      modelPath = null;
     }
-    
+
     // Procedural fallback styling
     const mat = hull.material as THREE.MeshStandardMaterial;
     if (skin === "holographic") {
@@ -160,6 +167,8 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
     
     // Show the procedural fallback first in case GLB fails or while loading
     hull.visible = true;
+
+    if (!modelPath) return; // fusion_core: procedural hull IS the design, nothing to fetch
 
     gltfLoader().load(
       modelPath,
