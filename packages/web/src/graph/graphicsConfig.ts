@@ -10,6 +10,11 @@
  * pilot never reconfigures. An FPS monitor can suggest Performance Mode if it's rough.
  */
 
+// Type-only — adaptiveController.ts imports GraphicsMode/etc back from this module, but
+// both directions are `import type`, so they're erased at compile time and never form a
+// real runtime circular dependency.
+import type { RungSettings } from "./adaptiveController.js";
+
 export type GraphicsMode = "auto" | "performance" | "balanced" | "quality";
 export type Level = "low" | "medium" | "high";
 export type RenderQuality = "auto" | Level;
@@ -46,8 +51,19 @@ export interface ResolvedGraphics {
    *  live-composited backdrop with a one-time baked cubemap; until then this is purely
    *  a perf-testing/battery-saver lever, not a "cheap phones get less" switch. */
   heavyScenery: boolean;
-  /** The tier that was detected (for diagnostics + the Settings label). */
+  /** The tier that was detected (for diagnostics + the Settings label) — a one-shot
+   *  guess made before any real measurement exists. */
   tier: "performance" | "balanced" | "quality";
+  /** Performance Program Stage 6: the tier ACTUALLY used for star-light-pool size,
+   *  baked-backdrop resolution, and shader (octave/geometry) detail — in "auto" mode
+   *  this is driven by the adaptive controller's measured rung and can differ from
+   *  `tier` once it climbs or descends; in an explicit mode it just equals `tier`
+   *  (an explicit pick is a stated preference, left untouched by the controller for
+   *  now). Deliberately narrow: only these three consumers key off it — starCount,
+   *  particles, animation, label-fade distances, and TimelineView's own scene stay on
+   *  the coarse `tier` exactly as before, since the controller's rung ladder was never
+   *  meant to touch them. */
+  detailTier: "performance" | "balanced" | "quality";
 }
 
 const KEY = "brain.graphics";
@@ -62,16 +78,24 @@ const PRESETS: Record<"performance" | "balanced" | "quality", Omit<GraphicsSetti
 };
 
 /**
- * Detect a rough capability tier (cheap, synchronous, best-effort). Deliberately
- * CONSERVATIVE: "quality" (bloom + heavy scenery) only for clearly high-end devices,
- * because guessing high on a mid phone freezes it on the first galaxy render. When
- * unknown, assume "performance" (iOS hides deviceMemory → treat as low, not mid).
+ * Detect a rough capability tier (cheap, synchronous, best-effort) — used only as the
+ * FIRST-FRAME SEED before any real measurement exists. Performance Program Stage 6's
+ * adaptive controller (adaptiveController.ts) takes over within seconds of the first
+ * render and climbs or descends from here based on actually-measured frame cost, so
+ * this heuristic no longer needs to be the last word — it only has to get a fresh
+ * session started somewhere reasonable. Still deliberately conservative (better to
+ * start low and climb than stall the first frame), but the old `dpr >= 3` penalty was
+ * removed: it scored a SHARP screen down, which is backwards — a high-DPI phone is
+ * usually a capable one, and penalizing it is exactly the "cheap phones get the same
+ * app, better phones get punished for looking good" outcome this whole program exists
+ * to avoid. Screen sharpness is a rendering COST, not a capability signal; DPR is
+ * already capped elsewhere (`pixelRatio`) by tier/battery-saver, which is where a real
+ * cost concern belongs.
  */
 export function detectTier(): "performance" | "balanced" | "quality" {
   try {
     const mem = (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? 3; // GB; unknown → low-ish
     const cores = navigator.hardwareConcurrency ?? 4;
-    const dpr = window.devicePixelRatio || 1;
     const minSide = Math.min(window.screen?.width ?? 1024, window.screen?.height ?? 768);
     let score = 0;
     if (mem <= 3) score -= 2;
@@ -80,9 +104,8 @@ export function detectTier(): "performance" | "balanced" | "quality" {
     if (cores <= 4) score -= 1;
     else if (cores >= 8) score += 1;
     if (minSide <= 480) score -= 1; // small phone screen
-    if (dpr >= 3) score -= 1; // very high-DPI is expensive to fill
-    if (score <= 1) return "performance"; // bias low: most phones/mid-range (like A37 5G) land here (no bloom)
-    if (score >= 3) return "quality"; // bloom only for genuinely powerful devices
+    if (score <= 1) return "performance"; // bias low — a seed, not a verdict
+    if (score >= 3) return "quality";
     return "balanced";
   } catch {
     return "performance";
@@ -141,15 +164,24 @@ const STAR = { low: 1200, medium: 3500, high: 6500 } as const;
 const PARTICLE = { low: 0.35, medium: 0.7, high: 1 } as const;
 const ANIM = { low: 0.5, medium: 0.8, high: 1 } as const;
 
-/** Translate the stored settings into the concrete numbers Graph3D consumes. */
-export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGraphics {
+/** Translate the stored settings into the concrete numbers Graph3D consumes.
+ *
+ * `rung` (Performance Program Stage 6, auto mode only): the adaptive controller's
+ * currently-learned rung, when the caller has one — overrides `pixelRatio`/`bloom`/
+ * `bloomStrength`/`detailTier` with measurement-driven values instead of the static
+ * per-tier preset. An explicit Performance/Balanced/Quality pick is a stated
+ * preference and is intentionally left on its fixed preset (untouched by `rung`) — see
+ * `ResolvedGraphics.detailTier`'s doc comment for why this is scoped narrowly. */
+export function resolveGraphics(s: GraphicsSettings = getGraphics(), rung?: RungSettings): ResolvedGraphics {
   const detected = detectTier();
   const tier = s.mode === "auto" ? detected : s.mode;
   // In auto mode the device decides; otherwise honor the stored (possibly custom) fields.
   const eff: Omit<GraphicsSettings, "mode"> = s.mode === "auto" ? { ...PRESETS[tier] } : s;
   const dpr = window.devicePixelRatio || 1;
+  const useRung = s.mode === "auto" && rung != null;
+  const detailTier = useRung ? rung!.detailTier : tier;
 
-  const tierCap = tier === "performance" ? 1 : tier === "balanced" ? 1.5 : 2;
+  const tierCap = useRung ? rung!.pixelRatioCap : tier === "performance" ? 1 : tier === "balanced" ? 1.5 : 2;
   let pixelRatio: number;
   switch (eff.renderQuality) {
     case "low": pixelRatio = 1; break;
@@ -158,7 +190,7 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
     default: pixelRatio = Math.min(dpr, tierCap); // "auto"
   }
 
-  let bloom = eff.bloom;
+  let bloom = useRung ? rung!.bloom : eff.bloom;
   let fpsCap: number = eff.fpsCap;
   if (eff.batterySaver) {
     bloom = false;
@@ -168,7 +200,7 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
 
   return {
     bloom,
-    bloomStrength: bloom ? (eff.animationQuality === "high" ? 0.4 : 0.3) : 0,
+    bloomStrength: bloom ? (useRung ? rung!.bloomStrength : eff.animationQuality === "high" ? 0.4 : 0.3) : 0,
     starCount: STAR[eff.starDensity],
     particleScale: PARTICLE[eff.particles],
     animationScale: ANIM[eff.animationQuality],
@@ -187,6 +219,7 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics()): ResolvedGr
           ? false
           : !eff.batterySaver,
     tier,
+    detailTier,
   };
 }
 

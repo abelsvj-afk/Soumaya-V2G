@@ -22,6 +22,7 @@ import {
   type Level,
 } from "../graph/graphicsConfig.js";
 import { perfHudEnabled, setPerfHudEnabled } from "./PerfHUD.js";
+import { loadPersistedRung, RUNG_TABLE, ADAPTIVE_MODEL_VERSION } from "../graph/adaptiveController.js";
 
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
@@ -53,7 +54,13 @@ export function SettingsPanel({
   const [perfHudOn, setPerfHudOn] = useState(perfHudEnabled());
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const voiceSupported = isVoiceSupported();
-  const resolved = resolveGraphics(gfx);
+  // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
+  // resolveGraphics ignores it otherwise) so this label shows what's actually
+  // rendering, not just the one-shot detectTier() guess. Re-read on every render; the
+  // FPS sampler below already re-renders this panel ~2x/sec while it's open, so this
+  // stays reasonably live without any extra event wiring.
+  const persistedRung = loadPersistedRung(ADAPTIVE_MODEL_VERSION);
+  const resolved = resolveGraphics(gfx, persistedRung ? RUNG_TABLE[persistedRung.rung] : undefined);
 
   // Live FPS while this panel is open, so a graphics change visibly bites (the galaxy
   // keeps rendering behind the overlay). Sampled every 500ms.
@@ -287,7 +294,12 @@ export function SettingsPanel({
           </label>
           <div className="gfx-live">
             <span className={`gfx-fps ${fpsClass}`}>{fps == null ? "…" : fps} FPS</span>
-            <span className="gfx-tier">tier: <b>{resolved.tier}</b></span>
+            <span className="gfx-tier">
+              tier: <b>{resolved.tier}</b>
+              {resolved.detailTier !== resolved.tier && (
+                <> → <b>{resolved.detailTier}</b> (learned)</>
+              )}
+            </span>
             <span className="gfx-live-hint">live — watch it change as you tune below</span>
           </div>
           <p className="settings-note" style={{ fontSize: "12px", opacity: 0.75, margin: "0 0 10px" }}>

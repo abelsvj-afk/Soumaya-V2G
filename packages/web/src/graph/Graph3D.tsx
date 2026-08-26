@@ -19,13 +19,24 @@ import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
-import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats } from "./perfStats.js";
+import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
 import { getJourneys } from "../api/journeys.js";
 import { addBloom } from "./bloom.js";
-import { resolveGraphics, type ResolvedGraphics } from "./graphicsConfig.js";
+import { resolveGraphics, getGraphics, detectTier, type ResolvedGraphics } from "./graphicsConfig.js";
+import {
+  RUNG_TABLE,
+  MAX_RUNG,
+  initialState as initialAdaptiveState,
+  step as adaptiveStep,
+  seedRungFromTier,
+  loadPersistedRung,
+  savePersistedRung,
+  ADAPTIVE_MODEL_VERSION,
+  type AdaptiveState,
+} from "./adaptiveController.js";
 import { makeCollisionBursts, makeLinkForming } from "./effects.js";
 import { shouldCalmMotion } from "./motion.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
@@ -492,6 +503,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
   const bloomRef = useRef<{ strength: number } | null>(null);
   const gfxRef = useRef<ResolvedGraphics | null>(null);
+  // Stage 6: the adaptive controller's live state (rung, streaks, ceiling). Lives in a
+  // plain ref, not React state — it's sampled/updated on a 2s cadence inside the tick
+  // loop, not something the render tree needs to react to.
+  const adaptiveStateRef = useRef<AdaptiveState | null>(null);
   // Stage 4 light pool: a FIXED-size set of PointLights reassigned to the nearest stars
   // on a throttle, instead of one Light per star toggled by `.visible` (see the pool's
   // creation site for why a fixed count matters).
@@ -676,7 +691,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // never decides itself). Weak devices get fewer stars, no bloom, a capped pixel
   // ratio and FPS — the SAME app, optimized. Held in a ref so live setting changes
   // can retune the cheap knobs (pixel ratio, FPS) without a reload.
-  const gfx: ResolvedGraphics = resolveGraphics();
+  //
+  // Stage 6: seed the adaptive controller from whatever it learned last session
+  // (falling back to the one-shot detectTier() guess for a brand-new device), so a
+  // returning visitor starts at their settled quality instead of re-climbing from
+  // scratch every load. Only actually DRIVES rendering in "auto" mode (see
+  // resolveGraphics' `rung` param) — an explicit Performance/Balanced/Quality pick
+  // stays on its own fixed preset, so the seed is harmless to compute either way.
+  const initialSettings = getGraphics();
+  const persistedRung = loadPersistedRung(ADAPTIVE_MODEL_VERSION);
+  const seedRung = persistedRung?.rung ?? seedRungFromTier(detectTier());
+  const adaptive = initialAdaptiveState(seedRung, [0, MAX_RUNG]);
+  if (persistedRung) adaptive.ceilingRung = Math.min(adaptive.ceilingRung, persistedRung.ceilingRung);
+  adaptiveStateRef.current = adaptive;
+  const gfx: ResolvedGraphics = resolveGraphics(initialSettings, RUNG_TABLE[adaptive.rung]);
   gfxRef.current = gfx;
   try {
     // Cap the renderer's pixel ratio FIRST — the single biggest GPU cost on mobile
@@ -700,7 +728,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // nearest stars on a throttle instead of created/destroyed, keeps the light
     // count perfectly constant — zero shader recompiles regardless of how the
     // camera flies. Unused slots get `intensity = 0` (never removed/hidden).
-    const starLightPoolSize = gfx.tier === "quality" ? 6 : gfx.tier === "balanced" ? 4 : 3;
+    // detailTier, not tier: Stage 6's adaptive controller (auto mode) can move this
+    // independently of the coarse detected tier once it measures real headroom.
+    const starLightPoolSize = gfx.detailTier === "quality" ? 6 : gfx.detailTier === "balanced" ? 4 : 3;
     const starLightPool: THREE.PointLight[] = [];
     for (let i = 0; i < starLightPoolSize; i++) {
       const l = new THREE.PointLight(0xffffff, 0, 100, 2);
@@ -750,7 +780,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       });
       defer(() => {
           const renderer = fg.renderer() as THREE.WebGLRenderer;
-          const faceSize = gfx.tier === "quality" ? 1024 : gfx.tier === "balanced" ? 768 : 512;
+          // detailTier, not tier — the adaptive controller's rung (auto mode) is what
+          // decides bake resolution; `level` above (visible cloud/galaxy COUNT) stays on
+          // the coarse tier by design (Stage 3: bake at high content density regardless
+          // of device, only resolution scales).
+          const faceSize = gfx.detailTier === "quality" ? 1024 : gfx.detailTier === "balanced" ? 768 : 512;
           const sources = makeBackdropBakeSources(level);
           bakedBackdropRef.current = bakeBackdrop(renderer, scene, sources, faceSize);
           // The bake does 6 sub-renders through the SAME instrumented renderer.render()
@@ -1009,6 +1043,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let visitFlushT = 20;
     // Phase 3: how often to scan for decayed links to send Soumaya to repair.
     let repairScanT = 18;
+    // Stage 6 adaptive controller: how often to sample perfStats and let the rung
+    // ladder climb/descend. 2s is frequent enough that a real stall gets reacted to
+    // quickly (the controller's OWN hysteresis — 2 bad windows to descend, 5 good + 8s
+    // to ascend — is what actually prevents flapping, not a slow sample rate).
+    let adaptiveSampleT = 2;
     // Ship-task → React sync cadence (see the throttle note in the tick).
     let taskSyncT = 0;
     let fuelBurnT = 0;
@@ -1045,6 +1084,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let lastRefreshTime = 0;
     let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
     let starBlur = 0;
+    // Stage 6: a DEDICATED (not perfStats') "did the camera move" flag for the adaptive
+    // sampler. perfStats.snapshot()'s own `movedRecently` is consume-once and already
+    // has a consumer (PerfHUD's poll) — sharing it here would mean the HUD silently
+    // stealing the "moved" evidence out from under the controller whenever it's open,
+    // making ascends nearly impossible to observe. Own flag, own consume-on-sample.
+    let movedSinceAdaptiveSample = false;
     let frameCount = 0;
     const followAnchor = new THREE.Vector3();
     let followAnchorId: number | null = null;
@@ -1149,6 +1194,49 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         visitFlushT = 20;
         if (visitBufRef.current.length > 0) {
           logVisits(visitBufRef.current.splice(0, visitBufRef.current.length));
+        }
+      }
+
+      // Stage 6 — adaptive controller: sample real measured cost and let the rung
+      // ladder climb or descend. Only the current adaptive state's OWN hysteresis
+      // (2 bad windows to descend; 5 good + 8s + camera motion to ascend) prevents
+      // flapping — this is just the sampling cadence, not a rate limit on reactions.
+      adaptiveSampleT -= dt;
+      if (adaptiveSampleT <= 0 && adaptiveStateRef.current) {
+        adaptiveSampleT = 2;
+        const settings = getGraphics();
+        // The controller only DRIVES anything in auto mode (see resolveGraphics); an
+        // explicit Performance/Balanced/Quality pick is a stated preference and its
+        // fixed preset is left alone. Still worth sampling in the background even
+        // then, cheaply, so if the user switches back to auto it's already warm.
+        const snap = perfSnapshot();
+        const workMs = snap.tick.p95 + snap.render.p95;
+        const targetMs = (1000 / gfxRef.current!.fpsCap) * 0.8; // 20% safety margin
+        const cameraMoved = movedSinceAdaptiveSample;
+        movedSinceAdaptiveSample = false;
+        const prevRung = adaptiveStateRef.current.rung;
+        adaptiveStateRef.current = adaptiveStep(
+          adaptiveStateRef.current,
+          { workMs, targetMs, cameraMoved, now: performance.now() },
+          [0, MAX_RUNG],
+        );
+        if (adaptiveStateRef.current.rung !== prevRung) {
+          const rungSettings = RUNG_TABLE[adaptiveStateRef.current.rung]!;
+          const g = resolveGraphics(settings, rungSettings);
+          gfxRef.current = g;
+          if (settings.mode === "auto") {
+            // pixelRatio is the only rung-driven knob that's safe to hot-apply — shader
+            // octave/geometry tier, light-pool size, and backdrop resolution are all
+            // one-time scene construction (same "needs a reload" precedent as star
+            // count/bloom elsewhere in this file). Persisting means next launch at
+            // least starts on the learned detailTier instead of re-climbing from zero.
+            try {
+              fgRef.current?.renderer?.().setPixelRatio(g.pixelRatio);
+            } catch {
+              /* renderer mid-teardown */
+            }
+          }
+          savePersistedRung(adaptiveStateRef.current, ADAPTIVE_MODEL_VERSION);
         }
       }
 
@@ -1326,7 +1414,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             // Reuse this existing camera-speed signal to flag "the window contained real
             // motion". Idle frames are cheap and would lie to the adaptive controller about
             // how much headroom the device actually has (Stage 6).
-            if (move > 0.5) markMoved();
+            if (move > 0.5) {
+              markMoved();
+              movedSinceAdaptiveSample = true;
+            }
             prevCamPos.copy(cam.position);
           } else {
             prevCamPos = cam.position.clone();
@@ -1904,7 +1995,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // panel says so), since they're one-time scene construction.
   useEffect(() => {
     const apply = () => {
-      const g = resolveGraphics();
+      const s = getGraphics();
+      // Keep whatever rung the controller has settled on (ignored by resolveGraphics
+      // outside auto mode anyway) — a Settings change elsewhere (e.g. toggling a
+      // different knob) shouldn't reset the learned quality.
+      const rung = RUNG_TABLE[adaptiveStateRef.current?.rung ?? 0];
+      const g = resolveGraphics(s, rung);
       gfxRef.current = g;
       try {
         (fgRef.current as any)?.renderer?.().setPixelRatio(g.pixelRatio);
@@ -2632,7 +2728,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           obj = cached.obj;
         } else {
           if (cached) disposeObject3D(cached.obj); // free the superseded build's VRAM
-          obj = makeNodeObject(node, gfxRef.current?.tier ?? "quality");
+          obj = makeNodeObject(node, gfxRef.current?.detailTier ?? "quality");
           nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
         }
         return obj;
