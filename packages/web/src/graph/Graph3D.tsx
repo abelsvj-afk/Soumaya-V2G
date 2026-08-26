@@ -14,7 +14,7 @@ import * as THREE from "three";
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D } from "./graph3dHelpers.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
-import { makeNodeObject } from "./nodeObject.js";
+import { makeNodeObject, releaseNodeTextures } from "./nodeObject.js";
 import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
@@ -329,6 +329,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const liveIds = new Set((data.nodes as any[]).map((n) => n.id));
     for (const [id, entry] of nodeThreeObjCacheRef.current) {
       if (!liveIds.has(id)) {
+        // Stage 7: release this node's claim on any shared label/glow textures BEFORE
+        // disposeObject3D runs (order doesn't matter functionally — they touch disjoint
+        // resources — but releasing first keeps the "this object is going away, account
+        // for everything it referenced" intent in one clear place).
+        releaseNodeTextures(entry.obj);
         disposeObject3D(entry.obj); // free VRAM for deleted nodes
         nodeThreeObjCacheRef.current.delete(id);
       }
@@ -1945,7 +1950,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       starLightPoolRef.current = [];
       // Free the VRAM held by every cached node object on unmount (e.g. logout →
       // remount), so a new session doesn't start atop the old scene's leaked buffers.
-      for (const entry of nodeThreeObjCacheRef.current.values()) disposeObject3D(entry.obj);
+      // releaseNodeTextures matters MOST here: labelTexCache/glowTexCache (nodeObject.ts)
+      // are module-level singletons that survive a remount — without releasing here, a
+      // fresh session's refcounts would just keep incrementing on top of the torn-down
+      // session's stale counts, forever preventing the ORIGINAL entries from reaching
+      // zero and ever being freed.
+      for (const entry of nodeThreeObjCacheRef.current.values()) {
+        releaseNodeTextures(entry.obj);
+        disposeObject3D(entry.obj);
+      }
       nodeThreeObjCacheRef.current.clear();
       // Full scene teardown: dispose every imperatively-added object's geometry/
       // materials/textures (starfield, nebulae, skybox, ship, station, satellites,
@@ -2727,7 +2740,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (cached && cached.key === cacheKey) {
           obj = cached.obj;
         } else {
-          if (cached) disposeObject3D(cached.obj); // free the superseded build's VRAM
+          if (cached) {
+            releaseNodeTextures(cached.obj); // Stage 7: release the superseded build's label/glow claims
+            disposeObject3D(cached.obj); // free the superseded build's VRAM
+          }
           obj = makeNodeObject(node, gfxRef.current?.detailTier ?? "quality");
           nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
         }

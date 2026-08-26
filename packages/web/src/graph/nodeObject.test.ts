@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import * as THREE from "three";
-import { makeNodeObject } from "./nodeObject.js";
+import { makeNodeObject, releaseNodeTextures } from "./nodeObject.js";
 import type { GraphNode } from "@brain/shared";
 
 /**
@@ -95,5 +95,66 @@ describe("nodeObject — Stage 4 geometry segment diet", () => {
       if (o.isMesh && o.userData?.isFidelity) isIco = o.geometry?.type === "IcosahedronGeometry";
     });
     expect(isIco).toBe(true);
+  });
+});
+
+/**
+ * Performance Program Stage 7: labelTexCache/glowTexCache never evicted anything —
+ * one canvas texture per unique label string (or glow color+size) forever, real VRAM
+ * that only ever grew. Fixed with reference counting rather than a blind size-capped
+ * LRU (which risks disposing a texture a still-live sprite's material.map is actively
+ * pointing at) — these tests pin that a shared texture is reused across sprites with
+ * the same cache key, and only actually disposed once EVERY referencing sprite has
+ * been released, never before.
+ */
+function findLabelSprite(obj: THREE.Object3D): THREE.Sprite {
+  let found: THREE.Sprite | undefined;
+  obj.traverse((o: any) => {
+    if (o.isSprite && o.userData?.labelCacheKey != null && !found) found = o;
+  });
+  if (!found) throw new Error("no label sprite found");
+  return found;
+}
+
+describe("nodeObject — Stage 7 label/glow texture refcounting", () => {
+  it("two sprites built with the same label text share ONE texture instance", () => {
+    const label = `shared-label-${Math.random()}`;
+    const a = findLabelSprite(makeNodeObject(node("star", { label, id: 301 })));
+    const b = findLabelSprite(makeNodeObject(node("star", { label, id: 302 })));
+    expect((a.material as THREE.SpriteMaterial).map).toBe((b.material as THREE.SpriteMaterial).map);
+  });
+
+  it("a shared label texture is only disposed once every referencing sprite is released", () => {
+    const label = `release-label-${Math.random()}`;
+    const a = makeNodeObject(node("star", { label, id: 401 }));
+    const b = makeNodeObject(node("star", { label, id: 402 }));
+    const map = (findLabelSprite(a).material as THREE.SpriteMaterial).map as THREE.Texture;
+    const disposeSpy = vi.spyOn(map, "dispose");
+
+    releaseNodeTextures(a);
+    expect(disposeSpy).not.toHaveBeenCalled(); // b's sprite still references the same cache entry
+
+    releaseNodeTextures(b);
+    expect(disposeSpy).toHaveBeenCalledTimes(1); // nothing left referencing it
+  });
+
+  it("releasing a node whose label text is unique to it disposes immediately", () => {
+    const label = `solo-label-${Math.random()}`;
+    const obj = makeNodeObject(node("star", { label, id: 501 }));
+    const map = (findLabelSprite(obj).material as THREE.SpriteMaterial).map as THREE.Texture;
+    const disposeSpy = vi.spyOn(map, "dispose");
+
+    releaseNodeTextures(obj);
+    expect(disposeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("releasing a node with no tagged children (or twice) is a safe no-op", () => {
+    const g = new THREE.Group(); // nothing tagged
+    expect(() => releaseNodeTextures(g)).not.toThrow();
+
+    const label = `double-release-${Math.random()}`;
+    const obj = makeNodeObject(node("planet", { label, id: 601 }));
+    releaseNodeTextures(obj);
+    expect(() => releaseNodeTextures(obj)).not.toThrow(); // refcount floor, no negative underflow
   });
 });

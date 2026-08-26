@@ -12,6 +12,17 @@ const MAX_CHARS = 80; // cap canvas width for very long entries
 const labelTexCache = new Map<string, { map: THREE.CanvasTexture; width: number; height: number }>();
 const glowTexCache = new Map<string, THREE.CanvasTexture>();
 const geometryCache = new Map<string, THREE.BufferGeometry>();
+// Performance Program Stage 7: labelTexCache/glowTexCache never evicted anything — one
+// canvas texture per unique label string (or glow color+size) forever, ~150KB each,
+// 40-75MB VRAM at 500 nodes. A blind size-capped LRU risks disposing a texture a still-
+// LIVE sprite's material.map is actively pointing at (the exact risk called out when
+// this cache's `userData.shared` disposal guard was added) — so this is reference-
+// counted instead: every `makeLabel`/`makeGlow` call increments the count for its cache
+// key, and `releaseNodeTextures` (called by Graph3D wherever it permanently discards a
+// node's cached Object3D — real deletion, a cache-key rebuild, or full teardown)
+// decrements it, disposing + evicting only once nothing live references it anymore.
+const labelRefCount = new Map<string, number>();
+const glowRefCount = new Map<string, number>();
 
 /**
  * Build a floating text label as a lightweight sprite (no polygons).
@@ -46,6 +57,7 @@ function makeLabel(rawText: string): THREE.Sprite {
     cached = { map: texture, width: canvas.width, height: canvas.height };
     labelTexCache.set(cacheKey, cached);
   }
+  labelRefCount.set(cacheKey, (labelRefCount.get(cacheKey) ?? 0) + 1);
 
   const { map, width, height } = cached;
   const material = new THREE.SpriteMaterial({
@@ -63,6 +75,13 @@ function makeLabel(rawText: string): THREE.Sprite {
   sprite.position.set(0, 9, 0);
 
   sprite.userData.isLabel = true;
+  // Tags which cache entry this sprite holds a reference against, so
+  // `releaseNodeTextures` can decrement it correctly when this sprite is discarded —
+  // regardless of whether the sprite ends up rendering the shared `map` directly or its
+  // own exclusive marquee clone below (the clone is a SEPARATE, already-disposable
+  // resource; this tag is about the underlying cache entry, not which texture object
+  // the material currently points at).
+  sprite.userData.labelCacheKey = cacheKey;
   if (tooWide) {
     // `map` is the CACHED texture (labelTexCache), shared by every sprite built from the
     // same text — e.g. two different bodies that happen to share a name, or a sector title
@@ -112,7 +131,8 @@ function makeGlow(color: string, size: number): THREE.Sprite {
     texture.userData.shared = true; // shared across every glow sprite of this color+size
     glowTexCache.set(cacheKey, texture);
   }
-  
+  glowRefCount.set(cacheKey, (glowRefCount.get(cacheKey) ?? 0) + 1);
+
   const mat = new THREE.SpriteMaterial({
     map: texture,
     transparent: true,
@@ -121,7 +141,46 @@ function makeGlow(color: string, size: number): THREE.Sprite {
   });
   const sprite = new THREE.Sprite(mat);
   sprite.scale.set(size, size, 1);
+  sprite.userData.glowCacheKey = cacheKey; // see releaseNodeTextures
   return sprite;
+}
+
+/**
+ * Performance Program Stage 7: release this (now-discarded) node object's claim on
+ * any shared label/glow textures — call this for every `makeNodeObject()` result
+ * Graph3D is about to permanently drop (a real node deletion, a cache-key-triggered
+ * rebuild replacing the old object, or full unmount teardown). Decrements the
+ * reference count for each `labelCacheKey`/`glowCacheKey` tag found among `obj`'s
+ * descendants, and only once a cache entry's count reaches zero — meaning nothing
+ * live references it anymore — disposes its texture and removes it from the cache.
+ * Safe to call on an object with no tagged children (a no-op).
+ */
+export function releaseNodeTextures(obj: THREE.Object3D): void {
+  obj.traverse((child: any) => {
+    const labelKey = child.userData?.labelCacheKey;
+    if (labelKey != null) {
+      const next = (labelRefCount.get(labelKey) ?? 1) - 1;
+      if (next <= 0) {
+        labelRefCount.delete(labelKey);
+        const entry = labelTexCache.get(labelKey);
+        entry?.map.dispose();
+        labelTexCache.delete(labelKey);
+      } else {
+        labelRefCount.set(labelKey, next);
+      }
+    }
+    const glowKey = child.userData?.glowCacheKey;
+    if (glowKey != null) {
+      const next = (glowRefCount.get(glowKey) ?? 1) - 1;
+      if (next <= 0) {
+        glowRefCount.delete(glowKey);
+        glowTexCache.get(glowKey)?.dispose();
+        glowTexCache.delete(glowKey);
+      } else {
+        glowRefCount.set(glowKey, next);
+      }
+    }
+  });
 }
 
 function getGeometry(
