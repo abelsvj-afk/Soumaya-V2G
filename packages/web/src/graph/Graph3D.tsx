@@ -42,7 +42,7 @@ import { shouldCalmMotion } from "./motion.js";
 import { makeSoumaya, type SoumayaHandle, type LinkTask, type RemovalTask } from "./soumaya.js";
 import { makeEngineAudio } from "./engineAudio.js";
 import { makeSpaceStation } from "./spaceStation.js";
-import { gltfLoader } from "./gltf.js";
+import { gltfLoader, ensureKtx2Support } from "./gltf.js";
 import { makeSun, SUN_RADIUS_MAX } from "./sun.js";
 import { makeOrbitSystem } from "./orbits.js";
 import { makeVisitors, type VisitorSystem } from "./visitors.js";
@@ -720,6 +720,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // true present cadence and draw-submission cost. react-force-graph owns the render
       // loop, so this is the only place a frame's completion is observable to us.
       attachRenderer(fg.renderer() as THREE.WebGLRenderer);
+      // KTX2/Basis Universal support (see gltf.ts) — must run before ANY of the
+      // model-loading modules below (sun/satellites/soumaya/etc., several behind
+      // defer()) get a chance to call gltfLoader().load() on a KTX2-textured model.
+      // This is the earliest point in Graph3D's own init that the renderer exists.
+      ensureKtx2Support(fg.renderer() as THREE.WebGLRenderer);
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
     }
