@@ -5,105 +5,159 @@
 > Journey?" suggestion never got built) and pulls forward the additive, independent half of Stage 4
 > (financial/task linkage) ahead of Stages 2-3 (Mission Control, Living Galaxy hubs), since it
 > doesn't depend on either and closes the most concrete gap found in a full tab audit. Status:
-> **proposed — not yet implemented.**
+> **proposed — not yet implemented.** Revised after user review to add hybrid auto-suggest/
+> auto-link (see "Suggested Journeys" below) — the original manual-only version is superseded.
 
 ## 🎯 Objective
 
 `journey_link` (the join that lets a Journey connect to any memory/task/transaction) is fully
 built and validated server-side, but the ONLY place in the entire app that uses it is a private
-`JourneyChips` component buried in `NodeInspector.tsx` — and it's explicitly disabled for action
-items. Money, the capture flow, and the Journeys tab's own detail view have zero linking UI
-despite the backend already supporting `income`/`expense`/`bill` link kinds. This spec wires the
-existing mechanism into the three places it's missing and gives a Journey a real detail view, so
-opening one visibly shows the memories, tasks, and money connected to it — the first tangible
-proof that "everything belongs to a Journey" is real, not just a doc.
+`JourneyChips` component buried in `NodeInspector.tsx` — and it's explicitly (and, confirmed with
+the user, *unintentionally*) disabled for action items. Money, the capture flow, and the Journeys
+tab's own detail view have zero linking UI despite the backend already supporting
+`income`/`expense`/`bill` link kinds. This spec wires the existing mechanism into the three places
+it's missing, makes linking **smart** (relevant Journeys are suggested, not just manually
+searched), and gives a Journey a real detail view — so opening one visibly shows the memories,
+tasks, and money connected to it, and connecting something new takes one tap instead of a search.
+
+## Suggested Journeys — the hybrid design
+
+The user asked for "autonomous linking... or hybrid relevant things to link showing in those
+sections" rather than a plain manual picker. There's real precedent for autonomous linking already
+in this codebase: `ingestion/associativeLink.ts` silently auto-links a new memory to existing
+memories above **0.72 cosine similarity**, no confirmation needed. Journeys reuses that same
+pattern, split by data source:
+
+- **Nodes (memories + tasks) — embedding-based, three tiers.** Every node already has a stored
+  embedding (`getEmbedding`, `db/vec.ts`) from ingestion — free to reuse, no new computation. Each
+  Journey gets its own embedding (title + description, computed on create/update) stored in a new
+  `vec_journeys` table, mirroring the existing `vec_profiles`/`vec_docs` tables exactly (same
+  `upsert*`/`delete*`/`knn*` shape as `db/vec.ts` already has for profiles).
+  - **≥ 0.72 similarity → auto-link silently**, same threshold and same "just do it" confidence
+    bar as the existing memory-to-memory auto-linking. A small toast ("🧭 Linked to Nursing
+    School") makes it visible and unlink is always one tap away in the chips — nothing is
+    irreversible.
+  - **0.40–0.72 → surface as a "✨ Suggested" chip**, one tap to confirm. Not auto-linked; shown
+    above the regular "＋ Add" list in `JourneyChips`.
+  - **< 0.40 → not shown.**
+  - This is a genuinely *local* embedding model (`embeddings/local.ts`, transformers.js, no cloud
+    key, already running for every ingested memory) — adding this does not introduce a new AI/cost
+    dependency, it reuses one that's already warm.
+- **Finance rows (income/expense/bill) — heuristic only, suggest-only, no auto-link.**
+  `FinancePanel.tsx` documents itself as "Zero-AI: manual entry + bills" — a deliberate design
+  choice to keep Money deterministic and never AI-guessed. This spec respects that: finance
+  suggestions are a plain keyword/word-overlap match between the transaction's description and
+  each Journey's title + description (no embeddings, no ML). A match only ever shows as a "✨
+  Suggested" chip requiring a tap — **finance rows are never auto-linked**, regardless of how
+  strong the keyword match is.
+
+This means "hybrid" both across the feature (embeddings where already free, heuristics where AI
+would conflict with an existing design promise) and within the node path (auto-link vs. suggest
+vs. nothing, by confidence).
 
 ## 📐 Architecture / blast radius
 
 | Layer | Change | Zone |
 |-------|--------|------|
-| `web/api/journeys.ts` | Add `journeysFor(kind, refId)` — thin generic wrapper for the already-generic `GET /for/:kind/:refId` route. Replace the one existing call site (`journeysForNode`) rather than keep both — the current name is actively misleading once used for non-node kinds. | 🟢 |
-| `web/components/JourneyChips.tsx` (NEW — extracted from `NodeInspector.tsx`) | Generalize the private `JourneyChips({ nodeId })` into an exported `JourneyChips({ kind, refId })`. `NodeInspector` imports it back and passes `kind="node"` — zero visible/behavioral change for existing memory linking. | 🟢 |
-| `web/components/NodeInspector.tsx` | Remove the `node.kind !== "action"` exclusion — actions are `nodes` rows too (`kind:"node"`, already validated by `refExists`), so they get the same chips for free once the exclusion is gone. | 🟢 |
-| `web/components/FinancePanel.tsx` | Add a `JourneyChips` chip row (kind `income`, `expense`, or `bill` depending on the row) into each income/expense/bill row's existing expanded-detail area. | 🟢 |
-| `web/components/IngestPanel.tsx` | After a successful submit returns the new node's id, show a small, dismissible "🧭 Add to a Journey?" chip-row (same component, `kind="node"`) below the "saved" confirmation. Auto-dismisses after ~8s untouched or on the next capture; never blocks. | 🟢 |
-| `web/components/JourneysPanel.tsx` | Each journey card, on expand, fetches its hydrated links and renders three groups: Memories & Tasks (label, fly-to via existing `onFocus`), Transactions (description + amount, split "+earned" vs "-spent"), and a bold running $ total. Empty state: "Nothing linked yet — connect a memory, task, or transaction from where you're already working." | 🟡 (new read path, additive) |
-| `server/api/routes/journeys.ts` | Add `GET /:id/links` — hydrates the repo's raw `{kind, refId}` rows into `{kind, refId, label, amount?, occurredAt?}` by joining each kind's own table (`nodes.label`; `fin_income`/`fin_expense`/`fin_bill`'s description+amount). Cap at the 20 most recent links (detail view, not a hot path, but must stay bounded). | 🟡 |
-| `shared/types.ts` | Add `JourneyLinkSummary` (the hydrated shape above) for the new route's response. | 🟢 |
+| `server/db/vec.ts` | Add a `vec_journeys` virtual table + `upsertJourneyEmbedding`/`deleteJourneyEmbedding`/`knnJourneys`, mirroring the existing `vec_profiles` functions exactly (same shape, same file). | 🔴 (new vec table, additive/safe) |
+| `server/repositories/journeys.repo.ts` | On `create`/`update` (when title or description changes), embed `title + ". " + description` via the shared `EmbeddingProvider` and upsert into `vec_journeys`. On `remove`, delete the embedding too. | 🟡 |
+| `server/api/routes/journeys.ts` | Add `GET /suggest?kind=&refId=` → for `kind="node"`: `knnJourneys` against the node's existing embedding, split into `autoLink` (≥0.72) and `suggested` (0.40–0.72) buckets. For `kind="income"\|"expense"\|"bill"`: fetch the row's description, do the keyword-overlap heuristic against each Journey's title+description, return matches as `suggested` only (`autoLink` always empty for finance kinds). Add `GET /:id/links` (hydrated link list — `label`/`amount` per kind, capped at 20 most recent, joining `nodes`/`fin_income`/`fin_expense`/`fin_bill`). | 🟡 |
+| `web/api/journeys.ts` | Add `journeysFor(kind, refId)` (generic replacement for the node-only `journeysForNode`) and `suggestJourneys(kind, refId)`. | 🟢 |
+| `web/components/JourneyChips.tsx` (NEW — extracted from `NodeInspector.tsx`) | Generalize `JourneyChips({ nodeId })` → `JourneyChips({ kind, refId })`. On mount: fetch `journeysFor` (already-linked) + `suggestJourneys` (candidates). If `autoLink` candidates exist and aren't already linked, call `linkToJourney` for each immediately + fire a toast; render `suggested` candidates as a distinct "✨ Suggested" row above the existing "＋ Add" (full list) flow. `NodeInspector` passes `kind="node"` — the auto-link/suggest logic is new, but the already-shipped manual add/remove chips are visually and behaviorally unchanged. | 🟢 |
+| `web/components/NodeInspector.tsx` | Remove the `node.kind !== "action"` exclusion (confirmed unintentional) — actions are `nodes` rows, already validated by `refExists`, get chips (and suggestions) for free. | 🟢 |
+| `web/components/FinancePanel.tsx` | Add `JourneyChips` (kind `income`/`expense`/`bill`) into each row's existing expand/detail area. | 🟢 |
+| `web/components/IngestPanel.tsx` | After a successful submit, show `JourneyChips` (`kind="node"`) below the "saved" confirmation — auto-link fires immediately if confident, otherwise a skippable suggestion row appears; auto-dismisses after ~8s untouched or on next capture. Per open question #2 below: TBD whether this shows for `kind==="action"` captures too. | 🟢 |
+| `web/components/JourneysPanel.tsx` | Each journey card, on expand, fetches `GET /:id/links` and renders Memories & Tasks (fly-to) · Transactions (description + amount, "+earned"/"-spent" split) · a bold running $ total. Empty state copy per the original spec. | 🟡 (new read path, additive) |
+| `shared/types.ts` | Add `JourneyLinkSummary` (hydrated link shape) and `JourneySuggestion` (`{ journey: Journey; score: number; tier: "auto" \| "suggested" }`). | 🟢 |
 
-No DB migration. No changes to `journeys.repo.ts` itself (its generic `link/unlink/links/journeysFor`
-already do everything needed — this spec is entirely about USING what's already built). Offline-safe
-throughout — nothing here calls an LLM.
+No DB migration in the relational schema — `vec_journeys` is a new sqlite-vec virtual table
+(additive, same pattern `bootstrapVec` already uses for 3 others). No changes to
+`journeys.repo.ts`'s existing `link/unlink/links/journeysFor` methods. Fully offline-safe: the
+node path's embeddings are local/free (already running); the finance path is pure string
+matching, no AI at all.
 
 ## Logic
 
-- Reuse, never duplicate: the repo's existing `REF_TABLE`-validated `link()`/`unlink()` already
-  covers every kind this spec touches (`node`, `income`, `expense`, `bill`). No new kind, no new
-  validation logic.
-- Hydration (`GET /:id/links`) is a straightforward per-kind join: `node` → `nodes.label`;
-  `income`/`expense` → their own table's description + amount; `bill` → name + amount. Unknown/
-  dangling refs (deleted since linking) are silently skipped, not shown as broken rows.
-- Capture-time prompt is opt-in and skippable everywhere it appears — matches the vision doc's own
-  "never blocking; a thing can belong to no Journey."
-- Deliberately NOT building the "smart suggested Journey" (embedding-similarity) from the vision
-  doc's architecture notes in this pass — the picker just lists existing Journeys + could support
-  a quick inline "+ New Journey" later. Flagged as a follow-up, not attempted here.
+- Reuse, never duplicate: linking itself still goes through the existing `link()`/`unlink()` —
+  suggestion/auto-link only decides *what to propose or pre-link*, never bypasses validation.
+- Journey embeddings are computed lazily/idempotently — if `create`/`update` embedding fails
+  (e.g. provider cold-start), the Journey still saves; embedding just backfills next time it's
+  touched, exactly like nodes already tolerate embedding failures elsewhere in the pipeline.
+- Auto-link is bounded and undoable: it only ever adds a link (never removes one the user set
+  manually), and every auto-link is immediately visible as a normal, removable chip — there is no
+  hidden state.
+- Keyword-overlap heuristic for finance: lowercase, strip stopwords, compare significant-word
+  overlap between the transaction description and each Journey's title+description; a Journey
+  needs ≥1 shared significant word to be suggested at all. No score tuning beyond that — it's
+  meant to catch obvious cases ("Rent" → a Journey titled "Buy My First Home"), not be clever.
 
 ## UX (Phase 4.5)
 
-- `JourneyChips` visual is UNCHANGED from what's shipped today (users already know this pattern
-  from memories) — reused verbatim in three more places rather than inventing a new pattern.
-- FinancePanel: chips slot into each row's already-existing expand/detail area; the collapsed row
-  (the common case) looks exactly as it does today.
-- IngestPanel: prompt appears only after the existing "saved!" confirmation, small and skippable,
-  auto-dismisses after ~8s or on the next capture — never adds a required step to quick capture.
-- JourneysPanel card, expanded: "🧭 Memories & Tasks" list (fly-to icon) · "💵 Transactions" list ·
-  a bold "**+$X earned · -$Y spent**" summary line when there's ≥1 money link. Loading: existing
-  skeleton pattern already used elsewhere in this panel. Empty: the copy above, not a bare blank.
+- `JourneyChips`: existing "already linked" chips + "＋ Add" flow look exactly as they do today.
+  NEW: a "✨ Suggested" row (when candidates exist) sits between them — one tap links, matching
+  the existing chip visual style (no new component language to learn). An auto-linked Journey
+  simply appears as an already-linked chip the next time you look, with a toast having announced
+  it when it happened.
+- FinancePanel / IngestPanel / JourneysPanel: unchanged from the original spec version (see below)
+  other than JourneyChips itself now being smarter.
+- Toast copy for auto-link: "🧭 Linked to {Journey title}" — short, dismissible, consistent with
+  existing toast patterns in the app.
 
 ## 🧪 Test plan
 
-- Server: `GET /:id/links` returns correctly hydrated `label`/`amount` for one linked row of each
-  kind (node/income/expense/bill); empty array for a journey with no links; never returns another
-  space's links (space-scoping regression test, same discipline as the rest of this codebase).
-- Web: the generalized `JourneyChips` component links/unlinks correctly for a non-`"node"` kind
-  (e.g. `"expense"`) against a mocked API — this is the one new piece of client logic worth a real
-  test, not just manual QA.
-- **Regression, must not break**: NodeInspector's existing memory-linking behavior is byte-for-byte
-  the same after the `JourneyChips` extraction — this is a refactor of the one part of this feature
-  users already rely on, not a behavior change, and needs to be verified as such.
+- Server: `vec_journeys` upsert/delete/knn round-trip (mirrors existing `vec_profiles` tests).
+  `GET /suggest` for `kind="node"` correctly buckets a synthetic ≥0.72 match into `autoLink` and a
+  0.4–0.72 match into `suggested`; a finance kind never returns anything in `autoLink` regardless
+  of score. `GET /:id/links` hydration test (as in the original spec). All space-scoped.
+- Web: `JourneyChips` calls `linkToJourney` automatically for an `autoLink` suggestion and does
+  NOT for a `suggested` one (waits for the tap) — the one behavior this spec must get right.
+- **Regression, must not break**: existing manual add/remove chip behavior for memories is
+  unchanged; a node with zero suggestions above either threshold behaves exactly like today's
+  manual-only flow.
 - Full gate green (`npm run typecheck && npm test && npm run build -w @brain/web`).
 
 ## Risks
 
-- The hydration join in `GET /:id/links` touches multiple tables per link — must stay a cheap,
-  read-only detail-view fetch (capped at 20 most recent), never a hot path.
-- Actions were explicitly excluded from Journey chips today and there's no comment explaining why
-  — before just deleting that exclusion, worth confirming it wasn't deliberate (e.g. "actions are
-  short-lived, a Journey link would outlive and clutter it"). Listed as an open question below
-  rather than assumed safe.
-- A capture-time prompt risks feeling like friction on a fast thought-dump if it's not genuinely
-  skippable — mitigated by auto-dismiss + never blocking the save itself (the memory is already
-  saved by the time the prompt appears).
+- **False-positive auto-links** are the one real risk of the whole feature — an incorrect silent
+  link is confusing even though it's one tap to undo. Mitigation: reuse the EXACT threshold
+  (0.72) already proven in production for memory-to-memory linking rather than inventing a new
+  number; the toast makes every auto-link visible, not silent-silent.
+- Journey embedding staleness: if a Journey's title/description changes significantly, its
+  embedding must be recomputed (handled: `update()` re-embeds on title/description change) or
+  suggestions will drift toward what the Journey used to be about.
+- The hydration join in `GET /:id/links` touches multiple tables per link — capped at 20 most
+  recent, read-only, detail-view only (not a hot path).
+- A capture-time prompt risks feeling like friction if not genuinely skippable — mitigated by
+  auto-dismiss + never blocking the save itself.
 
 ## ✅ Acceptance criteria
 
-1. An income/expense/bill row can be linked/unlinked to a Journey from Money, same interaction as
-   memories today.
-2. An action/task can be linked/unlinked to a Journey from Details.
-3. A fresh capture in the ingest flow offers an optional, dismissible Journey link.
+1. An income/expense/bill row can be linked/unlinked to a Journey from Money; matching Journeys
+   are suggested (never auto-linked) based on keyword overlap.
+2. An action/task can be linked/unlinked to a Journey from Details, including receiving the same
+   embedding-based auto-link/suggestion treatment as memories.
+3. A new memory with a strongly-matching Journey (≥0.72) is linked automatically with a visible
+   toast; a moderately-matching one (0.40–0.72) is offered as a one-tap suggestion; nothing forces
+   a decision before the capture is considered done.
 4. Opening a Journey shows everything linked to it — memories/tasks with working fly-to, and
    transactions with a running $ total.
-5. Existing memory-linking behavior in Details is unchanged after the refactor.
-6. Gate green; no schema migration; offline-safe (nothing here depends on an LLM/API key).
+5. Existing manual memory-linking behavior in Details is unchanged for nodes with no strong
+   suggestion.
+6. Gate green; no relational-schema migration (a new additive vec table only); offline-safe
+   throughout (local embeddings + pure string matching, no cloud key anywhere in this spec).
 
 ## Open questions for review
 
-1. Was excluding actions from Journey chips deliberate, or just not-yet-done? No comment explains
-   it either way — worth an explicit confirm before removing it.
-2. Should the ingest-flow prompt appear after every capture, or only for kinds more "durable" than
-   a quick action/reminder (skip it for `kind==="action"`, only offer it for real memories)?
-3. Confirmed plan: replace `journeysForNode` with the generic `journeysFor` rather than keep both
-   (only 1-2 call sites) — flag if there's a reason to keep the old name around instead.
-4. JourneysPanel's money total — split "+earned / -spent" (recommended, matches how Money itself
-   already frames things) or one combined "activity" number?
+1. ~~Was excluding actions from Journey chips deliberate?~~ **Resolved — confirmed unintentional;
+   removing it.**
+2. Should the ingest-flow `JourneyChips` (with its auto-link/suggest behavior) appear for
+   `kind==="action"` captures too, or only for regular memories? (Actions themselves get chips in
+   Details either way per #2 above — this question is only about whether the *capture-time*
+   prompt shows immediately for a freshly-created action.)
+3. Confirmed plan: replace `journeysForNode` with the generic `journeysFor` (only 1-2 call sites).
+4. JourneysPanel's money total — split "+earned / -spent" (recommended) or one combined number?
+5. **New**: is silent auto-link at 0.72 the right call for Journeys specifically, or would you
+   rather EVERY Journey link start as a tap-to-confirm suggestion (no silent tier at all) until
+   you've seen how the suggestions perform in practice? Recommendation is to keep the auto-link
+   tier (it reuses a threshold this codebase already trusts elsewhere), but this is the one
+   genuine trust/UX call in the spec and worth your explicit sign-off rather than assuming it.
