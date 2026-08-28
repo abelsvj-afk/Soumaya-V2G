@@ -64,6 +64,26 @@ describe("financial snapshot (Stage 2)", () => {
     expect(text).toContain("Weekly bill load");
     expect(text).toMatch(/Safe to spend/);
   });
+
+  // The Money tab is more than the near-term "reserved" bills and a safe-to-spend
+  // number — the FULL recurring-bill roster and where spending actually goes both
+  // live there too, and weren't reaching chat before.
+  it("includes the full recurring-bill roster (not just near-term reserved) and top spending categories", () => {
+    new FinAccountRepo(handle, "s").setBalance(100000);
+    new FinIncomeRepo(handle, "s").create({ date: "2026-01-03", netCents: 30000 });
+    // Far out — past the reserved horizon, so it wouldn't appear in the "reserved" line.
+    new FinBillRepo(handle, "s").create({ name: "Car Insurance", amountCents: 45000, frequency: "monthly", anchorDate: "2026-06-15" });
+    new FinExpenseRepo(handle, "s").create({ date: "2026-01-05", amountCents: 8000, category: "groceries" });
+    new FinExpenseRepo(handle, "s").create({ date: "2026-01-06", amountCents: 3000, category: "groceries" });
+    new FinExpenseRepo(handle, "s").create({ date: "2026-01-07", amountCents: 2500, category: "transport" });
+
+    const text = financialSnapshotText(handle, "s", new Date("2026-01-10T00:00:00Z"))!;
+    expect(text).toContain("All recurring bills");
+    expect(text).toContain("Car Insurance $450.00/monthly");
+    expect(text).toContain("Top spending categories");
+    expect(text).toContain("groceries $110.00");
+    expect(text).toContain("transport $25.00");
+  });
 });
 
 describe("getBudgetSummary — avgWeeklyIncomeCents (computed once, shared by snapshot + /afford)", () => {
