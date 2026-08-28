@@ -162,6 +162,70 @@ describe("ingestion pipeline", () => {
     expect(await kindOf("The definition of compound interest, for reference")).toBe("knowledge");
     expect(await kindOf("Slept okay, walked the dog, quiet day")).toBe("daily");
   });
+
+  describe("auto-linking mentions of tracked people (Mind tab CRM)", () => {
+    async function addPerson(label: string): Promise<number> {
+      const repo = new NodesRepo(handle);
+      const vec = await embeddings.embed(label);
+      return repo.create({ label, type: "person", kind: "person_entity", content: label }, vec).id;
+    }
+
+    it("links a new memory to an existing person it mentions, via a 'supports' edge", async () => {
+      const personId = await addPerson("Shaqavia");
+      const res = await ingest(
+        handle,
+        { embeddings, llm: new FakeLlm() },
+        "Grabbed lunch with Shaqavia and caught up on her new job",
+      );
+      expect(res.nodes).toHaveLength(1);
+      const edge = res.associativeEdges.find((e) => e.target === personId);
+      expect(edge).toBeDefined();
+      expect(edge!.source).toBe(res.nodes[0]!.id);
+      expect(edge!.relationship).toBe("supports");
+
+      // This is what the Mind tab's person profile count actually reads.
+      const count = handle.sqlite
+        .prepare(`SELECT COUNT(*) AS c FROM edges WHERE target = ? AND relationship = 'supports'`)
+        .get(personId) as { c: number };
+      expect(count.c).toBe(1);
+    });
+
+    it("does not link a memory that never mentions the person", async () => {
+      const personId = await addPerson("Danny");
+      const res = await ingest(handle, { embeddings, llm: new FakeLlm() }, "Quiet morning, no plans yet");
+      expect(res.associativeEdges.find((e) => e.target === personId)).toBeUndefined();
+    });
+
+    it("checks each extracted node's OWN content, not the whole raw dump", async () => {
+      const personId = await addPerson("Marcus");
+      const extraction: ExtractionResult = {
+        nodes: [
+          { label: "Called Marcus", type: "person", content: "Caught up with Marcus about the move" },
+          { label: "Grocery run", type: "daily", content: "Picked up groceries for the week" },
+        ],
+        edges: [],
+      };
+      const res = await ingest(handle, { embeddings, llm: new FakeLlm(extraction) }, "raw dump mentions Marcus once");
+      const marcusNode = res.nodes.find((n) => n.label === "Called Marcus")!;
+      const groceryNode = res.nodes.find((n) => n.label === "Grocery run")!;
+      const linkedSources = res.associativeEdges.filter((e) => e.target === personId).map((e) => e.source);
+      expect(linkedSources).toContain(marcusNode.id);
+      expect(linkedSources).not.toContain(groceryNode.id);
+    });
+
+    it("gives every independent mention its own edge, so the count keeps growing", async () => {
+      const personId = await addPerson("Riley");
+      await ingest(handle, { embeddings, llm: new FakeLlm() }, "Talked to Riley about weekend plans");
+      await ingest(handle, { embeddings, llm: new FakeLlm() }, "Riley texted back, we're on for Saturday");
+      const count = handle.sqlite
+        .prepare(`SELECT COUNT(*) AS c FROM edges WHERE target = ? AND relationship = 'supports'`)
+        .get(personId) as { c: number };
+      // Two SEPARATE new memories, each mentioning Riley once -> two edges, one per
+      // memory -> personProfile().count grows with every real mention, which is
+      // exactly the behavior that was silently broken before this fix.
+      expect(count.c).toBe(2);
+    });
+  });
 });
 
 describe("embedding provider factory", () => {

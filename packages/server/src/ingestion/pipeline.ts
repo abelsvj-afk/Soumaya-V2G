@@ -28,13 +28,18 @@ export interface IngestMeta {
   tags?: string[];
 }
 
-// Need to detect mentions of existing person entities
-function getMentionedPeople(s: any, spaceId: string, text: string): string[] {
+// Detect mentions of existing person entities in a piece of text, so a new memory
+// that names someone already tracked gets linked to them automatically — this is
+// what actually grows a person's interaction count in the Mind tab. Deliberately a
+// plain substring match (not embeddings): it must catch an exact name/alias mention
+// every time, which a similarity score can't guarantee.
+function getMentionedPeople(s: any, spaceId: string, text: string): { id: number; label: string }[] {
   const people = s
-    .prepare(`SELECT label, aliases FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity'`)
-    .all(spaceId) as { label: string; aliases: string | null }[];
-    
-  const mentioned: string[] = [];
+    .prepare(`SELECT id, label, aliases FROM nodes WHERE space_id = ? AND deleted_at IS NULL AND kind = 'person_entity'`)
+    .all(spaceId) as { id: number; label: string; aliases: string | null }[];
+
+  const lower = text.toLowerCase();
+  const mentioned: { id: number; label: string }[] = [];
   for (const p of people) {
     const tokens = [p.label.toLowerCase()];
     if (p.aliases) {
@@ -42,9 +47,9 @@ function getMentionedPeople(s: any, spaceId: string, text: string): string[] {
             tokens.push(...(JSON.parse(p.aliases) as string[]).map(a => a.toLowerCase()));
         } catch {}
     }
-    
-    if (tokens.some(t => text.toLowerCase().includes(t))) {
-        mentioned.push(p.label);
+
+    if (tokens.some(t => lower.includes(t))) {
+        mentioned.push({ id: p.id, label: p.label });
     }
   }
   return mentioned;
@@ -56,8 +61,6 @@ export interface IngestResult {
   extractedEdges: GraphEdge[];
   /** Edges auto-discovered against existing memory (associative linking). */
   associativeEdges: GraphEdge[];
-  /** Proactive suggestions for tagging */
-  suggestedTags?: string[];
 }
 
 // Internal shared implementation
@@ -80,9 +83,6 @@ async function ingestCore(
     content: n.content,
   }));
   const extraction = await deps.llm.extract(rawText, context);
-
-  // Proactive Tagging
-  const suggestedTags = getMentionedPeople(h.sqlite, spaceId, rawText);
 
   // 2 + 3. Embed each new node and store it (relational + vector).
   const contents = extraction.nodes.map((n) => n.content);
@@ -129,7 +129,22 @@ async function ingestCore(
     associativeEdges.push(...links);
   }
 
-  return { nodes: createdNodes, extractedEdges, associativeEdges, suggestedTags };
+  // 4c. Auto-link mentions of already-tracked people (Mind tab CRM). Checked per
+  // CREATED NODE's own content, not the whole raw dump — a multi-node capture
+  // shouldn't link every resulting node to someone only ONE of them actually
+  // mentions. This is what grows `personProfile().count`; without it a person's
+  // interaction count never advances past however many mentions they had when
+  // added, however many new memories name them afterward.
+  for (let i = 0; i < createdNodes.length; i++) {
+    const node = createdNodes[i]!;
+    const mentioned = getMentionedPeople(h.sqlite, spaceId, `${node.label}. ${extraction.nodes[i]!.content}`);
+    for (const person of mentioned) {
+      if (edgesRepo.exists(node.id, person.id)) continue;
+      associativeEdges.push(edgesRepo.create({ source: node.id, target: person.id, relationship: "supports" }));
+    }
+  }
+
+  return { nodes: createdNodes, extractedEdges, associativeEdges };
 }
 
 export async function ingest(
