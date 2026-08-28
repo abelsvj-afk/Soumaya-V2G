@@ -366,10 +366,6 @@ export function linkCognitiveAnchor(
   // 1) Name / keyword / ALIAS match — so "my girlfriend did X" links to the person
   //    you've told her that alias belongs to, even without her actual name.
   const tokens = anchorMatchTokens(label, anchorRow?.aliases ?? null);
-  
-  // LOGGING: Debugging token generation
-  console.log(`[Cognitive] Linking anchor "${label}" (ID: ${anchorId}). Tokens:`, tokens);
-  
   if (tokens.length > 0) {
     const likeClause = tokens.map(() => `lower(content) LIKE ? OR lower(label) LIKE ?`).join(" OR ");
     const params: string[] = [];
@@ -385,13 +381,7 @@ export function linkCognitiveAnchor(
     for (const r of rows) {
       if (made >= MAX_KEYWORD || formed >= remaining) break;
       const hay = `${r.label}\n${r.content}`;
-      
-      // LOGGING: Detailed check
-      const results = tokens.map(t => ({ token: t, mentioned: mentions(hay, t) }));
-      const isMentioned = results.some(res => res.mentioned);
-      console.log(`[Cognitive] Checking node ${r.id} (${r.label}). Mentions results:`, results);
-
-      if (!isMentioned) continue; // enforce whole-word match
+      if (!tokens.some((t) => mentions(hay, t))) continue; // enforce whole-word match
       if (link(r.id)) made++;
     }
   }

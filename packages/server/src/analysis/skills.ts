@@ -1,5 +1,6 @@
 import { COGNITIVE_META, skillTier } from "@brain/shared";
 import type { AppContext } from "../context.js";
+import { trimAnchorLinks } from "./cognitive.js";
 
 /**
  * Skills leveling (Cognitive Layer Phase 4, docs/COGNITIVE_LAYER.md). A `skill` is a
@@ -18,11 +19,18 @@ import type { AppContext } from "../context.js";
 const SKILL = COGNITIVE_META.skill;
 /** Supporting memories for auto-practice to reach its CEILING. High on purpose: auto-
  *  linked memories are loose evidence, not deliberate practice, so they should nudge a
- *  skill up slowly, never crown you an Expert for merely mentioning a topic a few times. */
-const PRACTICE_TARGET = 30;
+ *  skill up slowly, never crown you an Expert for merely mentioning a topic a few times.
+ *  Raised 30 -> 60: `linkCognitiveAnchor` caps a skill at MAX_ANCHOR_LINKS (12) real
+ *  supporters, so 12/30 let a skill reach "Practiced" (40%) the moment it hit that cap —
+ *  often within days for a skill whose name is an ordinary word ("Guitar", "Coding")
+ *  that shows up in unrelated memories too. 12/60 lands at "Beginner" (20%) instead,
+ *  which actually reads as earned. */
+const PRACTICE_TARGET = 60;
 /** Auto-linking alone can't push a skill past "Practiced" — real mastery (Advanced/
  *  Expert) must be set deliberately in the Mind tab. This is why a skill no longer
- *  shoots to 100% just because similar memories piled onto it. */
+ *  shoots to 100% just because similar memories piled onto it. (With PRACTICE_TARGET=60
+ *  this ceiling is no longer reachable via auto-linking alone — MAX_ANCHOR_LINKS caps
+ *  that path at 20% — but it stays as a defensive ceiling if that cap is ever raised.) */
 const AUTO_CAP = 0.5;
 /** Importance gained from Novice → Expert (0.60 → 0.78), so mastered skills shine. */
 const BRIGHT_STEP = 0.18;
@@ -57,6 +65,12 @@ export function stepSkills(ctx: AppContext, spaceId: string): SkillLevelUp[] {
 
   const levelUps: SkillLevelUp[] = [];
   for (const sk of skills) {
+    // Self-healing: trim any skill that's accumulated more supporters than
+    // linkCognitiveAnchor would ever ADD on its own (e.g. from before that cap
+    // existed, or a burst that landed right at it) down to MAX_ANCHOR_LINKS, keeping
+    // the strongest links — otherwise an over-linked skill reads its inflated
+    // historical count on every run forever, no matter how the cap is tuned.
+    trimAnchorLinks(ctx, spaceId, sk.id);
     const count = practiceCount(ctx, spaceId, sk.id);
     // Auto-practice is capped at AUTO_CAP so piled-on similar memories can't crown a
     // skill. Because the auto contribution is now low, a manual DOWN-adjust in the Mind
