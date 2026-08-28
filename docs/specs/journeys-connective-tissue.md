@@ -5,8 +5,9 @@
 > Journey?" suggestion never got built) and pulls forward the additive, independent half of Stage 4
 > (financial/task linkage) ahead of Stages 2-3 (Mission Control, Living Galaxy hubs), since it
 > doesn't depend on either and closes the most concrete gap found in a full tab audit. Status:
-> **proposed — not yet implemented.** Revised after user review to add hybrid auto-suggest/
+> **approved, not yet implemented.** Revised after user review to add hybrid auto-suggest/
 > auto-link (see "Suggested Journeys" below) — the original manual-only version is superseded.
+> All open questions resolved (see "Decisions" at the bottom) — ready for Phase B (execution).
 
 ## 🎯 Objective
 
@@ -146,18 +147,28 @@ matching, no AI at all.
 6. Gate green; no relational-schema migration (a new additive vec table only); offline-safe
    throughout (local embeddings + pure string matching, no cloud key anywhere in this spec).
 
-## Open questions for review
+## Decisions (user said "go with your recommendation on all of it")
 
 1. ~~Was excluding actions from Journey chips deliberate?~~ **Resolved — confirmed unintentional;
-   removing it.**
-2. Should the ingest-flow `JourneyChips` (with its auto-link/suggest behavior) appear for
-   `kind==="action"` captures too, or only for regular memories? (Actions themselves get chips in
-   Details either way per #2 above — this question is only about whether the *capture-time*
-   prompt shows immediately for a freshly-created action.)
-3. Confirmed plan: replace `journeysForNode` with the generic `journeysFor` (only 1-2 call sites).
-4. JourneysPanel's money total — split "+earned / -spent" (recommended) or one combined number?
-5. **New**: is silent auto-link at 0.72 the right call for Journeys specifically, or would you
-   rather EVERY Journey link start as a tap-to-confirm suggestion (no silent tier at all) until
-   you've seen how the suggestions perform in practice? Recommendation is to keep the auto-link
-   tier (it reuses a threshold this codebase already trusts elsewhere), but this is the one
-   genuine trust/UX call in the spec and worth your explicit sign-off rather than assuming it.
+   removed.**
+2. **Ingest-flow `JourneyChips` shows for every capture, including actions** — it's always
+   skippable and auto-link never blocks anything, so there's no real cost to showing it uniformly,
+   and it avoids a special case in the capture flow for what should feel like one consistent step.
+3. **`journeysForNode` is replaced by the generic `journeysFor`** (only 1-2 call sites).
+4. **JourneysPanel's money total is split "+earned / -spent"**, matching how Money already frames
+   itself elsewhere in the app.
+5. **Keep the silent auto-link tier at 0.72.** While reviewing this, a related but SEPARATE bug
+   turned up and was fixed independently (not part of this spec, already shipped): the Mind tab's
+   person-mention detection (`getMentionedPeople` in `ingestion/pipeline.ts`) correctly detected
+   when a new memory named an already-tracked person, but its result was wired into a dead
+   `suggestedTags` field nobody ever read — so a person's interaction count never grew from new
+   mentions, only from however many they had when first added. This is now fixed (mentions create
+   a real `supports` edge, per-node not per-raw-dump, tested in `pipeline.test.ts`). The lesson
+   from that bug wasn't "autonomous linking doesn't work" — the ACTUAL embedding-based auto-link
+   path (`associativeLink.ts`, the one this spec's 0.72 threshold is borrowed from) was never the
+   broken part; a *different*, purely deterministic mention-detector was built but never connected
+   to anything. If anything this strengthens confidence in reusing the embedding-based threshold
+   here, and argues for being extra careful that THIS spec's new suggestion/auto-link code path
+   actually gets wired end-to-end (route → client → component), not just implemented and left
+   dangling the way that one was.
+
