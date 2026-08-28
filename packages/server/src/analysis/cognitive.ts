@@ -1,5 +1,6 @@
-import { COGNITIVE_META, COGNITIVE_KINDS, type CognitiveKind } from "@brain/shared";
+import { COGNITIVE_META, COGNITIVE_KINDS, skillTier, type CognitiveKind } from "@brain/shared";
 import type { AppContext } from "../context.js";
+import type { DbHandle } from "../db/client.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { knn, getEmbedding, upsertEmbedding } from "../db/vec.js";
@@ -157,6 +158,48 @@ export function listCognitive(
     }
     return { ...r, kind: r.kind as CognitiveKind, aliases };
   });
+}
+
+/**
+ * Aggregated, deterministic summary of the Mind tab's cognitive objects OTHER than
+ * people — goals, ideas, skills, identity, mental models, intentions, future events,
+ * motivations. Grouped by kind (matching how the Mind tab itself renders them), with
+ * progress% (and skill tier) for the kinds that track it. Same "null when there's
+ * nothing to say" contract as `financialSnapshotText`/`peopleSnapshotText` (people get
+ * their own richer interaction/tone treatment in analysis/people.ts — this covers
+ * everything else the Mind tab tracks, since it's more than just tracked people).
+ *
+ * Takes a raw `DbHandle` (not `AppContext`) — matching `financialSnapshotText`/
+ * `peopleSnapshotText`'s own signatures, since all three are called from `chat()`,
+ * which only has a handle. `listCognitive` only ever reads `ctx.handle.sqlite`
+ * internally, so a minimal shim is safe here.
+ */
+export function cognitiveSnapshotText(handle: DbHandle, spaceId: string): string | null {
+  const items = listCognitive({ handle } as AppContext, spaceId).filter((it) => it.kind !== "person_entity");
+  if (items.length === 0) return null;
+
+  const byKind = new Map<CognitiveKind, CognitiveItem[]>();
+  for (const it of items) {
+    if (!byKind.has(it.kind)) byKind.set(it.kind, []);
+    byKind.get(it.kind)!.push(it);
+  }
+
+  const lines: string[] = [];
+  for (const kind of COGNITIVE_KINDS) {
+    const group = byKind.get(kind);
+    if (!group || group.length === 0) continue;
+    const meta = COGNITIVE_META[kind];
+    const parts = group.slice(0, 10).map((it) => {
+      if (!meta.hasProgress) return it.label;
+      const pct = Math.round((it.progress ?? 0) * 100);
+      const tier = kind === "skill" ? ` (${skillTier(it.progress ?? 0)})` : "";
+      return `${it.label} ${pct}%${tier}`;
+    });
+    lines.push(`${meta.icon} ${meta.label}s: ${parts.join(", ")}`);
+  }
+  if (lines.length === 0) return null;
+
+  return ["MIND TAB — other tracked cognitive objects (aggregated, cite naturally):", lines.join("\n")].join("\n");
 }
 
 /**

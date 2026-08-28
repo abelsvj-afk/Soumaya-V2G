@@ -13,6 +13,7 @@ import { deriveBehavior } from "../persona/behavior.js";
 import { soulTextFor, getGroundedInsight } from "../identity.js";
 import { financialSnapshotText } from "../finance/snapshot.js";
 import { peopleSnapshotText } from "../analysis/people.js";
+import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -211,6 +212,14 @@ Use this telemetry to guide the user! For example:
     if (people) systemExtra += `\n\n${people}`;
   } catch {
     /* people context is best-effort; never break chat */
+  }
+  // The Mind tab is more than tracked people — goals, ideas, skills, identity, mental
+  // models, intentions, future events, motivations all live there too.
+  try {
+    const cognitive = cognitiveSnapshotText(h, spaceId);
+    if (cognitive) systemExtra += `\n\n${cognitive}`;
+  } catch {
+    /* cognitive context is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's

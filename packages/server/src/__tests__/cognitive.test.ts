@@ -14,9 +14,12 @@ import {
   setCognitiveProgress,
   applyCognitiveGravity,
   updateCognitive,
+  cognitiveSnapshotText,
 } from "../analysis/cognitive.js";
 import { recordRejection } from "../analysis/rejections.js";
 import { COGNITIVE_META } from "@brain/shared";
+import { chat, DEFAULT_CHAT } from "../chat/graphrag.js";
+import type { AnswerOptions, ContextNode } from "../llm/adapter.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -168,5 +171,59 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     // entropy 0 → the celestial enrichment keeps full importance-driven mass.
     expect(node?.celestial).toBeTruthy();
     expect(node?.entropy ?? 0).toBe(0);
+  });
+});
+
+describe("cognitiveSnapshotText — the rest of the Mind tab, for chat context", () => {
+  it("is null when nothing is tracked", () => {
+    expect(cognitiveSnapshotText(handle, "legacy")).toBeNull();
+  });
+
+  it("is null when the ONLY cognitive object is a person (their own snapshot covers that)", async () => {
+    await createCognitive(ctx, "legacy", "person_entity", "Maya", "");
+    expect(cognitiveSnapshotText(handle, "legacy")).toBeNull();
+  });
+
+  it("groups by kind and shows progress% + tier for goals/skills", async () => {
+    const goalId = await createCognitive(ctx, "legacy", "goal", "Ship Soumaya", "");
+    setCognitiveProgress(ctx, "legacy", goalId, 0.5);
+    const skillId = await createCognitive(ctx, "legacy", "skill", "Guitar", "");
+    setCognitiveProgress(ctx, "legacy", skillId, 0.85);
+    await createCognitive(ctx, "legacy", "idea", "Start a podcast", "");
+
+    const text = cognitiveSnapshotText(handle, "legacy")!;
+    expect(text).toContain("Goals: Ship Soumaya 50%");
+    expect(text).toContain("Skills: Guitar 85% (Advanced)");
+    expect(text).toContain("Ideas: Start a podcast");
+    expect(text).not.toContain("%)"); // idea has no progress — no stray percentage
+  });
+
+  it("excludes person_entity from this summary (covered by peopleSnapshotText instead)", async () => {
+    await createCognitive(ctx, "legacy", "person_entity", "Maya", "");
+    await createCognitive(ctx, "legacy", "goal", "Learn Japanese", "");
+    const text = cognitiveSnapshotText(handle, "legacy")!;
+    expect(text).not.toContain("Maya");
+    expect(text).toContain("Learn Japanese");
+  });
+
+  it("is space-scoped", async () => {
+    await createCognitive(ctx, "alice", "goal", "Alice's goal", "");
+    expect(cognitiveSnapshotText(handle, "bob")).toBeNull();
+    expect(cognitiveSnapshotText(handle, "alice")).not.toBeNull();
+  });
+
+  it("is injected into chat's systemExtra, same as finance/people", async () => {
+    class CapturingLlm extends HeuristicProvider {
+      lastOpts: AnswerOptions | undefined;
+      async answer(question: string, context: ContextNode[], opts?: AnswerOptions) {
+        this.lastOpts = opts;
+        return super.answer(question, context, opts);
+      }
+    }
+    await createCognitive(ctx, "legacy", "goal", "Buy a house", "");
+    const llm = new CapturingLlm();
+    await chat(handle, { embeddings, llm }, "how am I doing", DEFAULT_CHAT, "legacy");
+    expect(llm.lastOpts?.systemExtra ?? "").toContain("MIND TAB");
+    expect(llm.lastOpts?.systemExtra ?? "").toContain("Buy a house");
   });
 });
