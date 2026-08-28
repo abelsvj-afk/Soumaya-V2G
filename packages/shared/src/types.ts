@@ -418,7 +418,7 @@ export interface ChapterThread {
   trend: ChapterTrend;
 }
 
-/** A chapter of your life on the 3D flowing-river timeline. Written by Soumaya when
+/** A chapter of your life on the chronological Chronicle timeline. Written by Soumaya when
  *  there's real change (~1–3×/month) or added by you. See docs/TIMELINE_DESIGN.md. */
 export interface TimelineChapter {
   id: number;
@@ -430,9 +430,9 @@ export interface TimelineChapter {
   score: number;
   periodStart: string;
   periodEnd: string;
-  /** Driving memory ids (photo-bearing preferred) — glow as bubbles on the ribbon. */
+  /** Driving memory ids (photo-bearing preferred) — listed in the chapter's detail card. */
   memoryIds: number[];
-  /** The subset of memoryIds that carry a photo — rendered as whitish glowing bubbles. */
+  /** The subset of memoryIds that carry a photo — shown as thumbnails in the detail card. */
   photoIds: number[];
   threads: ChapterThread[];
   origin: "auto" | "user";
