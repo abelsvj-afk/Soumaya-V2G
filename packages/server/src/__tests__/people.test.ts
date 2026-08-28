@@ -8,7 +8,9 @@ import { UsageTracker } from "../usage.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
 import { createCognitive } from "../analysis/cognitive.js";
-import { personProfile, mergeDuplicatePeople, suggestPeople, dismissPersonSuggestion } from "../analysis/people.js";
+import { personProfile, mergeDuplicatePeople, suggestPeople, dismissPersonSuggestion, peopleSnapshotText } from "../analysis/people.js";
+import { chat, DEFAULT_CHAT } from "../chat/graphrag.js";
+import type { AnswerOptions, ContextNode } from "../llm/adapter.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -142,5 +144,58 @@ describe("people as entities (Cognitive Layer Phase 6)", () => {
     const names = suggestPeople(ctx, "legacy").map((s) => s.name);
     expect(names).toContain("Blake");
     expect(names).not.toContain("Running");
+  });
+});
+
+describe("peopleSnapshotText — aggregated Mind-tab summary for chat context", () => {
+  it("is null when nobody is tracked", () => {
+    expect(peopleSnapshotText(handle, "legacy")).toBeNull();
+  });
+
+  it("summarizes count, recency, and tone for each tracked person, in ONE query", async () => {
+    const id = await createCognitive(ctx, "legacy", "person_entity", "Maya", "");
+    const edges = new EdgesRepo(handle, "legacy");
+    const a = await mem("m1", "great coffee with Maya", 0.6);
+    const b = await mem("m2", "Maya cheered me up", 0.5);
+    edges.create({ source: a.id, target: id, relationship: "supports", weight: 0.7 });
+    edges.create({ source: b.id, target: id, relationship: "supports", weight: 0.7 });
+
+    const text = peopleSnapshotText(handle, "legacy")!;
+    expect(text).toContain("Maya");
+    expect(text).toContain("2 interactions");
+    expect(text).toContain("tone: warm");
+  });
+
+  it("reports zero interactions honestly (not NaN/undefined) for a person with none", async () => {
+    await createCognitive(ctx, "legacy", "person_entity", "Nobody Yet", "");
+    const text = peopleSnapshotText(handle, "legacy")!;
+    expect(text).toContain("Nobody Yet");
+    expect(text).toContain("0 interactions");
+    expect(text).toContain("tone: neutral");
+  });
+
+  it("is space-scoped", async () => {
+    await createCognitive(ctx, "alice", "person_entity", "Alice's Friend", "");
+    expect(peopleSnapshotText(handle, "bob")).toBeNull();
+    expect(peopleSnapshotText(handle, "alice")).not.toBeNull();
+  });
+
+  it("is injected into chat's systemExtra, same as the finance snapshot", async () => {
+    class CapturingLlm extends HeuristicProvider {
+      lastOpts: AnswerOptions | undefined;
+      async answer(question: string, context: ContextNode[], opts?: AnswerOptions) {
+        this.lastOpts = opts;
+        return super.answer(question, context, opts);
+      }
+    }
+    const id = await createCognitive(ctx, "legacy", "person_entity", "Priya", "");
+    const edges = new EdgesRepo(handle, "legacy");
+    const a = await mem("m1", "lunch with Priya", 0.5);
+    edges.create({ source: a.id, target: id, relationship: "supports", weight: 0.7 });
+
+    const llm = new CapturingLlm();
+    await chat(handle, { embeddings, llm }, "how's it going", DEFAULT_CHAT, "legacy");
+    expect(llm.lastOpts?.systemExtra ?? "").toContain("PEOPLE YOU TRACK");
+    expect(llm.lastOpts?.systemExtra ?? "").toContain("Priya");
   });
 });

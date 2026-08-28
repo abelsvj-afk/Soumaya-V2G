@@ -3687,6 +3687,8 @@ button {
 .chatdock-tool.on { color: #5bd6ff; }
 .chatdock-msgs { flex: 1 1 auto; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .chatdock-empty { color: #8fa3c4; font-size: 0.84rem; text-align: center; margin: auto 8px; line-height: 1.4; }
+.chatdock-quick-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin: 0 12px 12px; }
+.chatdock-tool-chip { border-left-width: 1px; }
 .chatdock-msg { display: flex; flex-direction: column; gap: 5px; max-width: 88%; }
 .chatdock-msg.you { align-self: flex-end; align-items: flex-end; }
 .chatdock-msg.soumaya { align-self: flex-start; align-items: flex-start; }

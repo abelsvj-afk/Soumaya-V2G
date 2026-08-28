@@ -1,4 +1,5 @@
 import type { AppContext } from "../context.js";
+import type { DbHandle } from "../db/client.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { labelTokens } from "./cognitive.js";
 
@@ -51,6 +52,15 @@ const PERSON_POST = new Set([
 
 export type Tone = "warm" | "heavy" | "mixed" | "neutral";
 
+/** Shared with `peopleSnapshotText` below — same warm/heavy/mixed/neutral logic
+ *  `personProfile` has always used, factored out so both read it identically. */
+function deriveTone(pos: number, neg: number): Tone {
+  if (pos > 0 && neg > 0) return "mixed";
+  if (pos > neg) return "warm";
+  if (neg > pos) return "heavy";
+  return "neutral";
+}
+
 export interface PersonProfile {
   count: number;
   lastAt: string | null;
@@ -82,15 +92,11 @@ export function personProfile(ctx: AppContext, spaceId: string, id: number): Per
     if (w > 0.2) pos++;
     else if (w < -0.2) neg++;
   }
-  let tone: Tone = "neutral";
-  if (pos > 0 && neg > 0) tone = "mixed";
-  else if (pos > neg) tone = "warm";
-  else if (neg > pos) tone = "heavy";
 
   return {
     count: interactions.length,
     lastAt: interactions[0]?.createdAt ?? null,
-    tone,
+    tone: deriveTone(pos, neg),
     interactions,
   };
 }
@@ -280,4 +286,49 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
     .map(([key, ids]) => ({ name: display.get(key)!, count: ids.size }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 6);
+}
+
+/**
+ * Aggregated, deterministic summary of everyone the user tracks in the Mind tab — for
+ * chat context, mirroring finance/snapshot.ts's `financialSnapshotText` exactly: null
+ * when there's nothing to say, so chat stays silent about people for users who don't
+ * use that tab. ONE query (not personProfile-per-person) so cost never scales with how
+ * many people are tracked — the same N+1 shape this codebase has hit and fixed before.
+ * Capped at the 20 most recently-interacted-with people, same reasoning as
+ * journeyLinking.ts's link hydration: a context-building read, not a hot path.
+ *
+ * Takes a raw `DbHandle` (not `AppContext`) — matching `financialSnapshotText`'s own
+ * signature exactly, since both are called from `chat()`, which only has a handle,
+ * not a full app context. This function needs nothing else anyway.
+ */
+export function peopleSnapshotText(handle: DbHandle, spaceId: string): string | null {
+  const s = handle.sqlite;
+  const rows = s
+    .prepare(
+      `SELECT n.label AS label,
+              COUNT(e.source) AS cnt,
+              MAX(m.created_at) AS lastAt,
+              SUM(CASE WHEN m.emotional_weight > 0.2 THEN 1 ELSE 0 END) AS pos,
+              SUM(CASE WHEN m.emotional_weight < -0.2 THEN 1 ELSE 0 END) AS neg
+       FROM nodes n
+       LEFT JOIN edges e ON e.target = n.id AND e.relationship = 'supports' AND e.space_id = n.space_id
+       LEFT JOIN nodes m ON m.id = e.source AND m.deleted_at IS NULL
+       WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.kind = 'person_entity'
+       GROUP BY n.id
+       ORDER BY lastAt DESC
+       LIMIT 20`,
+    )
+    .all(spaceId) as { label: string; cnt: number; lastAt: string | null; pos: number; neg: number }[];
+  if (rows.length === 0) return null;
+
+  const line = (r: (typeof rows)[number]) => {
+    const tone = deriveTone(r.pos, r.neg);
+    const when = r.lastAt ? `, last ${r.lastAt.slice(0, 10)}` : "";
+    return `${r.label} (${r.cnt} interaction${r.cnt === 1 ? "" : "s"}${when}, tone: ${tone})`;
+  };
+
+  return [
+    "PEOPLE YOU TRACK (Mind tab, aggregated — cite naturally, don't just recite the list):",
+    rows.map(line).join("; "),
+  ].join("\n");
 }

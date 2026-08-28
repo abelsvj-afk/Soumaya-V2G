@@ -29,6 +29,23 @@ function getRecognition(): any {
 
 const chatKey = (): string => `brain.chat.${getSpaceId() ?? "default"}`;
 
+/** A few tools people don't discover on their own — surfaced as one-tap chips on a
+ *  fresh chat rather than requiring the user to already know the dock exists. Reuses
+ *  the same window-event navigation a toast action button already uses (App.tsx's
+ *  "brain-toast-action" listener), so no new plumbing/props are needed here. */
+const QUICK_TOOLS: { tab: string; icon: string; label: string }[] = [
+  { tab: "mind", icon: "🧠", label: "Mind" },
+  { tab: "money", icon: "💵", label: "Money" },
+  { tab: "journeys", icon: "🧭", label: "Journeys" },
+  { tab: "actions", icon: "✅", label: "Agenda" },
+  { tab: "insights", icon: "✨", label: "Insights" },
+  { tab: "awards", icon: "🏆", label: "Progress" },
+  { tab: "hangar", icon: "🛠️", label: "Hangar" },
+];
+function openQuickTool(tab: string): void {
+  window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "tab", value: tab } }));
+}
+
 /** How long she waits after you stop talking before sending (ms). The browser's
  *  own end-of-speech was cutting people off mid-thought. */
 const MIC_SILENCE_MS = 2800;
@@ -349,12 +366,27 @@ export function ChatDock({
       ) : (
         <div className="chatdock-msgs" ref={listRef}>
           {messages.length === 0 && (
-            <p className="chatdock-empty">
-              {spaceName} has read your whole galaxy. Think out loud with her — "help me decide…",
-              "what am I missing about…", "what have you noticed lately?" — and she'll connect it to
-              what you've logged, name patterns, and push back when it helps. Tap ＋ to keep anything
-              worth saving. (🎭 shapes who she is to you.)
-            </p>
+            <>
+              <p className="chatdock-empty">
+                {spaceName} has read your whole galaxy. Think out loud with her — "help me decide…",
+                "what am I missing about…", "what have you noticed lately?" — and she'll connect it to
+                what you've logged, name patterns, and push back when it helps. Tap ＋ to keep anything
+                worth saving. (🎭 shapes who she is to you.)
+              </p>
+              <div className="chatdock-quick-tools" role="list" aria-label="Explore Soumaya's tools">
+                {QUICK_TOOLS.map((t) => (
+                  <button
+                    key={t.tab}
+                    className="pill chatdock-tool-chip"
+                    role="listitem"
+                    onClick={() => openQuickTool(t.tab)}
+                    title={`Open ${t.label}`}
+                  >
+                    {t.icon} {t.label}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
           {messages.map((m, i) => (
             <div key={i} className={`chatdock-msg ${m.role}`}>

@@ -12,6 +12,7 @@ import { refreshPersona } from "../persona/derive.js";
 import { deriveBehavior } from "../persona/behavior.js";
 import { soulTextFor, getGroundedInsight } from "../identity.js";
 import { financialSnapshotText } from "../finance/snapshot.js";
+import { peopleSnapshotText } from "../analysis/people.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -199,6 +200,17 @@ Use this telemetry to guide the user! For example:
     if (finance) systemExtra += `\n\n${finance}`;
   } catch {
     /* finance context is best-effort; never break chat */
+  }
+
+  // Mind tab (Cognitive Layer): same treatment as Finance above — an AGGREGATED summary
+  // of who the user tracks, so she can answer "how are things with X" or "who have I
+  // been distant from" from real counts/tone instead of relying on generic top-K
+  // retrieval to happen to surface the right person_entity node.
+  try {
+    const people = peopleSnapshotText(h, spaceId);
+    if (people) systemExtra += `\n\n${people}`;
+  } catch {
+    /* people context is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's
