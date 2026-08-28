@@ -93,5 +93,8 @@ describe("bill_risk detect()", () => {
     expect(res.ok).toBe(true);
     expect(sent).toMatch(/Car/);
     expect(sent).toMatch(/\$42/);
+    // `message` carries the SAME text `notify` received — so the in-app event bridge
+    // (App.tsx) can toast it verbatim for a user with no Telegram channel linked.
+    expect(res.message).toBe(sent);
   });
 });

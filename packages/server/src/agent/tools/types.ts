@@ -32,6 +32,11 @@ export interface ToolResult {
   summary: string;
   /** True if it reached the user's external channel (not just logged). */
   delivered?: boolean;
+  /** The actual user-facing text (Soumaya's voice), when it differs from `summary` —
+   *  e.g. a nudge with no galaxy body to attach to. When set, the router logs THIS
+   *  (verbatim) instead of `summary`, so the web app's in-app event bridge can surface
+   *  it as a toast even for a user with no external delivery channel linked. */
+  message?: string;
 }
 
 export interface Tool {

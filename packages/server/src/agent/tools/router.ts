@@ -22,13 +22,17 @@ export interface RouterOptions {
   now?: number;
 }
 
-function logAction(ctx: AppContext, spaceId: string, tool: string, reason: string, summary: string, now: number): void {
+function logAction(ctx: AppContext, spaceId: string, tool: string, reason: string, result: ToolResult, now: number): void {
   try {
     // Stamp with the tick's clock so per-day tool guards (which compare against `now`)
     // stay consistent with the log — and so tests with an injected clock behave.
+    // A tool with no galaxy body to attach to (e.g. bill_risk) sets `message` — the
+    // real user-facing text — and that's logged verbatim so the web app's in-app event
+    // bridge (App.tsx) can toast it even for a user with no external channel linked.
+    const description = result.message ?? `${result.summary} — ${reason}`;
     ctx.handle.sqlite
       .prepare(`INSERT INTO agent_logs (space_id, action, description, targets, created_at) VALUES (?, ?, ?, '[]', ?)`)
-      .run(spaceId, `tool:${tool}`, `${summary} — ${reason}`, new Date(now).toISOString());
+      .run(spaceId, `tool:${tool}`, description, new Date(now).toISOString());
   } catch {
     /* best-effort logging */
   }
@@ -88,7 +92,7 @@ export async function runToolRouter(ctx: AppContext, spaceId: string, opts: Rout
   for (const { tool, inv } of chosen) {
     try {
       const r = await tool.run(tc, inv.args);
-      logAction(ctx, spaceId, tool.name, inv.reason, r.summary, now);
+      logAction(ctx, spaceId, tool.name, inv.reason, r, now);
       results.push(r);
     } catch (e) {
       console.error(`[tools] ${tool.name} run failed:`, e);

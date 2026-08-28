@@ -66,6 +66,6 @@ export const billRiskTool: Tool = {
 
     let delivered = false;
     try { await tc.notify(msg); delivered = true; } catch { /* router logs it regardless */ }
-    return { ok: true, summary: `bill-risk nudge for "${bill.name}" (${mode})`, delivered };
+    return { ok: true, summary: `bill-risk nudge for "${bill.name}" (${mode})`, delivered, message: msg };
   },
 };

@@ -6,6 +6,9 @@ import { EMBED_DIM } from "../db/vec.js";
 import type { AppContext } from "../context.js";
 import { UsageTracker } from "../usage.js";
 import { runToolRouter } from "../agent/tools/router.js";
+import { FinAccountRepo } from "../repositories/finAccount.repo.js";
+import { FinBillRepo } from "../repositories/finBill.repo.js";
+import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 
 let handle: DbHandle;
 let ctx: AppContext;
@@ -83,6 +86,27 @@ describe("Soumaya's tool-router — firing reminders", () => {
       .prepare(`SELECT action FROM agent_logs WHERE space_id = 'legacy' AND action = 'tool:fire_reminder'`)
       .all() as { action: string }[];
     expect(logs.length).toBe(1);
+  });
+});
+
+describe("Soumaya's tool-router — a tool's `message` logs verbatim", () => {
+  it("stores bill_risk's full user-facing text, not the internal summary/reason", async () => {
+    const now = Date.parse("2026-01-10T00:00:00Z");
+    new FinAccountRepo(handle, "legacy").setBalance(10000);
+    const inc = new FinIncomeRepo(handle, "legacy");
+    inc.create({ date: "2026-01-01", netCents: 1000 });
+    inc.create({ date: "2026-01-10", netCents: 1000 });
+    new FinBillRepo(handle, "legacy").create({ name: "Rent", amountCents: 25000, frequency: "monthly", anchorDate: "2026-01-18" });
+
+    await runToolRouter(ctx, "legacy", { now });
+    const row = handle.sqlite
+      .prepare(`SELECT description FROM agent_logs WHERE space_id = 'legacy' AND action = 'tool:bill_risk'`)
+      .get() as { description: string } | undefined;
+
+    expect(row?.description).toMatch(/Rent/);
+    expect(row?.description).toMatch(/\$/);
+    // NOT the old "summary — reason" shape — the real nudge text Soumaya would say.
+    expect(row?.description).not.toMatch(/bill-risk nudge for/);
   });
 });
 

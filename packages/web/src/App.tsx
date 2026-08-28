@@ -962,6 +962,14 @@ export default function App() {
         /* storage unavailable */
       }
       if (!lastSeen) return; // first visit ever — set the baseline silently
+
+      // Bill-risk nudges have no galaxy body to fly to (they're about a bill, not a
+      // memory), so they don't fit the VERBS/replay pattern below — surface them as a
+      // direct toast instead, on arrival or while staying, so a user with no Telegram
+      // linked (billRiskTool's only other delivery channel) still sees the warning.
+      const billRisk = logs.filter((l) => l.id > lastSeen && l.action === "tool:bill_risk").reverse();
+      for (const l of billRisk.slice(-2)) pushToast(l.description, "💸", 9000, "high");
+
       const fresh = logs
         .filter((l) => l.id > lastSeen && VERBS[l.action])
         .reverse(); // oldest first, so the story reads forward
