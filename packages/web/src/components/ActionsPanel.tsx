@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { GraphNode } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -61,12 +62,13 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
   const done = (id: number) => {
     deleteNode(id)
       .then(() => onChanged?.())
-      .catch(() => {});
+      .catch(() => pushToast("Couldn't clear that — try again.", "⚠️", 3500));
   };
 
   const ack = (id: number) => {
-    setAcked((s) => new Set(s).add(id));
-    void ackReminder(id);
+    ackReminder(id)
+      .then(() => setAcked((s) => new Set(s).add(id)))
+      .catch(() => pushToast("Couldn't acknowledge that reminder — try again.", "⚠️", 3500));
   };
 
   if (actions.length === 0 && reminders.length === 0 && dueReminders.length === 0) {

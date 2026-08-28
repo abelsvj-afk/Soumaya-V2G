@@ -1087,19 +1087,26 @@ export default function App() {
   }, [focus]);
 
   // Smart Lens open/exit — shared by the Lenses panel and the on-galaxy pinned chips.
+  // Lens/Views and the "system view" isolate (below) share ONE underlying cluster state
+  // in Graph3D (isolateSet/isolateLayer/isolateSystem all call the same setCluster), so
+  // each entry point must clear the OTHER's exit-UI flag or both exit controls (the
+  // "⧉ Lens" banner and "✕ Exit system view" button) can show at once.
   const openLens = useCallback((ids: number[], name: string) => {
     graphRef.current?.isolateSet(ids);
     setActiveLens(name);
+    setClustered(false);
     setSelected(null);
   }, []);
   const exitLens = useCallback(() => {
     graphRef.current?.exitCluster();
     setActiveLens(null);
+    setClustered(false);
   }, []);
   // View only an overlay layer (money-sky / journey hubs) — their own category view.
   const openLayer = useCallback((layer: "money" | "journeys", name: string) => {
     graphRef.current?.isolateLayer(layer);
     setActiveLens(name);
+    setClustered(false);
     setSelected(null);
   }, []);
 
@@ -1607,6 +1614,7 @@ export default function App() {
           onClick={() => {
             graphRef.current?.exitCluster();
             setClustered(false);
+            setActiveLens(null);
           }}
         >
           ✕ Exit system view
@@ -1643,6 +1651,7 @@ export default function App() {
               setFollowFig2(false);
               setFocusMenuOpen(false);
               setClustered(false);
+              setActiveLens(null);
             }}
             onZoomIn={() => graphRef.current?.zoomBy(0.8)}
             onZoomOut={() => graphRef.current?.zoomBy(1.25)}
@@ -1969,6 +1978,7 @@ export default function App() {
           onIsolate={(id) => {
             graphRef.current?.isolateSystem(id);
             setClustered(true);
+            setActiveLens(null);
             setPanel(null);
           }}
           onClose={() => setPanel(null)}
@@ -1977,7 +1987,6 @@ export default function App() {
           getFleetStatus={() => graphRef.current?.getFleetStatus()}
           showShipTask={showShipTask}
           setShowShipTask={setShowShipTask}
-          onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           shipViewMode={shipViewMode}
           setShipViewMode={setShipViewMode}
           tasks={tasks}

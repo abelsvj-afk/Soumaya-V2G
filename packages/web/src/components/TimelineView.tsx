@@ -69,22 +69,42 @@ interface Props {
   onFocus?: (id: number) => void;
 }
 
+/** Normalize a naive SQLite timestamp ("YYYY-MM-DD HH:MM:SS", no zone) to UTC before
+ *  parsing — the server (analysis/timeline.ts) already does this internally; without
+ *  it here too, `new Date(...)` parses the same string as LOCAL time and a chapter's
+ *  displayed date can be off by a day depending on the viewer's timezone. Same
+ *  pattern already used for `remindAt`/`expiresAt` elsewhere in the app. */
+export function normalizeDate(raw: string): Date {
+  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
+  return new Date(iso);
+}
+
 export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
   const mountRef = useRef<HTMLDivElement>(null);
   const [chapters, setChapters] = useState<TimelineChapter[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
   const [images, setImages] = useState<Record<number, string>>({});
+  // Photo ids currently held in `images` for whichever chapter is open — lets a
+  // chapter switch revoke the PREVIOUS chapter's blob URLs instead of only doing so
+  // on unmount (they'd otherwise accumulate for the whole session).
+  const loadedPhotoIdsRef = useRef<number[]>([]);
   // The click handler inside the THREE loop needs a live setter without re-mounting.
   const selectRef = useRef<(i: number) => void>(() => {});
   selectRef.current = (i: number) => setSelected(i);
 
   const labelOf = (id: number) => nodes.find((n) => n.id === id)?.label ?? `Memory #${id}`;
 
+  const loadChapters = () => {
+    setLoadError(false);
+    void getTimeline()
+      .then(setChapters)
+      .catch(() => setLoadError(true));
+  };
+
   useEffect(() => {
-    // Falls back to an empty list on failure rather than leaving `chapters` null forever
-    // (an unhandled rejection here left the panel stuck on its loading state).
-    void getTimeline().then(setChapters).catch(() => setChapters([]));
+    loadChapters();
   }, []);
 
   const reload = async () => {
@@ -109,24 +129,38 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
 
   // Load photo thumbnails for the selected chapter (lazy — only what's on screen).
   useEffect(() => {
-    if (selected == null || selected < 0 || !chapters) return;
-    const ch = chapters[selected];
-    if (!ch) return;
+    // Revoke whatever the PREVIOUS chapter (or a since-closed card) was holding —
+    // ids that also belong to the newly-selected chapter are left alone, everything
+    // else is freed instead of living until the whole view unmounts.
+    const nowOpen = selected != null && selected >= 0 && chapters ? chapters[selected] : null;
+    const keep = new Set(nowOpen?.photoIds ?? []);
+    const stale = loadedPhotoIdsRef.current.filter((id) => !keep.has(id));
+    if (stale.length > 0) {
+      setImages((m) => {
+        const next = { ...m };
+        for (const id of stale) {
+          if (next[id]) URL.revokeObjectURL(next[id]);
+          delete next[id];
+        }
+        return next;
+      });
+    }
+    if (!nowOpen) {
+      loadedPhotoIdsRef.current = [];
+      return;
+    }
+    loadedPhotoIdsRef.current = nowOpen.photoIds;
     let cancelled = false;
-    const urls: string[] = [];
-    (async () => {
-      for (const id of ch.photoIds) {
-        if (images[id]) continue;
+    const toFetch = nowOpen.photoIds.filter((id) => !images[id]);
+    void Promise.all(
+      toFetch.map(async (id) => {
         const atts = await listAttachments(id);
         const img = atts.find((a) => a.mime.startsWith("image/"));
-        if (!img) continue;
+        if (!img) return;
         const url = await attachmentObjectUrl(img);
-        if (url && !cancelled) {
-          urls.push(url);
-          setImages((m) => ({ ...m, [id]: url }));
-        }
-      }
-    })();
+        if (url && !cancelled) setImages((m) => ({ ...m, [id]: url }));
+      }),
+    );
     return () => {
       cancelled = true;
     };
@@ -363,7 +397,13 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
           <button className="tl-add" onClick={() => void addNow()} disabled={adding}>✍️ Write my first chapter</button>
         </div>
       )}
-      {chapters === null && <div className="timeline-empty"><p>Unspooling your timeline…</p></div>}
+      {chapters === null && loadError && (
+        <div className="timeline-empty">
+          <p>Couldn't load your timeline.</p>
+          <button className="tl-add" onClick={loadChapters}>↻ Try again</button>
+        </div>
+      )}
+      {chapters === null && !loadError && <div className="timeline-empty"><p>Unspooling your timeline…</p></div>}
 
       {sel && (
         <div className="timeline-card" style={{ borderColor: TREND_COLOR[sel.trend] }}>
@@ -371,7 +411,7 @@ export function TimelineView({ spaceName, nodes, onClose, onFocus }: Props) {
           <div className="tl-card-trend" style={{ color: TREND_COLOR[sel.trend] }}>{TREND_LABEL[sel.trend]}</div>
           <h3>{sel.title}</h3>
           <div className="tl-card-when">
-            {new Date(sel.periodStart).toLocaleDateString()} → {new Date(sel.periodEnd).toLocaleDateString()}
+            {normalizeDate(sel.periodStart).toLocaleDateString()} → {normalizeDate(sel.periodEnd).toLocaleDateString()}
             {sel.origin === "user" && <span className="tl-origin"> · you marked this</span>}
           </div>
           <p className="tl-card-summary">{sel.summary}</p>

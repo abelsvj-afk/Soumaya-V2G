@@ -54,7 +54,6 @@ interface Props {
   /** Floating ship-task label preference + setter (Soumaya tab toggle). */
   showShipTask?: boolean;
   setShowShipTask?: (v: boolean) => void;
-  onRecall?: (ids: number[]) => void;
   shipViewMode?: "orbit" | "cockpit";
   setShipViewMode?: (v: "orbit" | "cockpit") => void;
   tasks?: any[];
@@ -105,7 +104,6 @@ export function RightDock({
   getFleetStatus,
   showShipTask,
   setShowShipTask,
-  onRecall,
   shipViewMode,
   setShipViewMode,
   tasks,
@@ -295,7 +293,6 @@ export function RightDock({
             <SoumayaPanel
               spaceName={spaceName}
               onFocus={onFocus}
-              onRecall={onRecall}
               showShipTask={showShipTask}
               setShowShipTask={setShowShipTask}
               shipViewMode={shipViewMode}

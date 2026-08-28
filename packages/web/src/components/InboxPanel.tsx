@@ -122,6 +122,21 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
       {/* Filter Tabs */}
       <div style={{ display: "flex", gap: "6px", borderBottom: "1px solid var(--glass-border)", paddingBottom: "8px" }}>
         <button
+          onClick={() => setFilter("all")}
+          style={{
+            background: filter === "all" ? "var(--accent-dim, rgba(168, 85, 247, 0.2))" : "transparent",
+            color: filter === "all" ? "var(--text)" : "var(--muted)",
+            border: "1px solid " + (filter === "all" ? "var(--accent)" : "var(--glass-border)"),
+            borderRadius: "4px",
+            padding: "4px 10px",
+            fontSize: "0.8rem",
+            cursor: "pointer",
+            fontWeight: 500
+          }}
+        >
+          All ({notifications.length})
+        </button>
+        <button
           onClick={() => setFilter("unseen")}
           style={{
             background: filter === "unseen" ? "var(--accent-dim, rgba(168, 85, 247, 0.2))" : "transparent",
@@ -165,7 +180,11 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "4px" }}>
         {sortedList.length === 0 ? (
           <div style={{ textAlign: "center", padding: "32px 16px", color: "var(--muted)", fontSize: "0.85rem" }}>
-            {filter === "unseen" ? "Your inbox is completely clear! 🚀" : "No dismissed notifications in history."}
+            {filter === "unseen"
+              ? "Your inbox is completely clear! 🚀"
+              : filter === "seen"
+                ? "No dismissed notifications in history."
+                : "No notifications yet."}
           </div>
         ) : (
           sortedList.map((item) => {

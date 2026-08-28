@@ -28,7 +28,6 @@ import { pushToast } from "./Toasts.js";
 export function SoumayaPanel({
   spaceName = "Soumaya",
   onFocus,
-  onRecall,
   showShipTask,
   setShowShipTask,
   shipViewMode,
@@ -38,7 +37,6 @@ export function SoumayaPanel({
 }: {
   spaceName?: string;
   onFocus: (id: number) => void;
-  onRecall?: (ids: number[]) => void;
   showShipTask?: boolean;
   setShowShipTask?: (v: boolean) => void;
   shipViewMode?: "orbit" | "cockpit";

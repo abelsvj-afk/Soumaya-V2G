@@ -102,7 +102,7 @@ export function GalaxyViews({
           {onLayer && moneyCount > 0 && (() => {
             const name = "💵 Money sky"; const on = activeView === name;
             return <button className={`gv-chip ${on ? "on" : ""}`} onClick={() => (on ? onExit() : onLayer("money", name))} aria-pressed={on} title="View only your money stars">
-              <span>💵 Money</span><span className="gv-count">{on ? "✕" : moneyCount}</span></button>;
+              <span>{name}</span><span className="gv-count">{on ? "✕" : moneyCount}</span></button>;
           })()}
           {onLayer && journeyCount > 0 && (() => {
             const name = "🧭 Journeys"; const on = activeView === name;
