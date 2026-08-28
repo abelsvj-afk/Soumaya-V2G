@@ -66,6 +66,7 @@ export function createApp(ctx: AppContext): Express {
         model: ctx.llm.model,
         available: ctx.llm.available,
         degraded: ctx.llm.degraded ?? false,
+        degradedReason: ctx.llm.degradedReason ?? null,
       },
     });
   });

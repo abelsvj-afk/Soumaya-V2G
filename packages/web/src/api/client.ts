@@ -89,11 +89,41 @@ export interface SearchHit extends GraphNode {
   similarity: number;
 }
 
+/** Mirrors server/llm/adapter.ts's DegradeReason — kept as a plain string union here
+ *  rather than a shared import since this is the only web-side consumer. */
+export type LlmDegradeReason = "auth" | "quota" | "timeout" | "budget";
+
 export interface Health {
   ok: boolean;
   embeddings: { model: string; dim: number };
-  llm: { model: string; available: boolean; degraded?: boolean };
+  llm: { model: string; available: boolean; degraded?: boolean; degradedReason?: LlmDegradeReason | null };
   nodes: number;
+}
+
+/** One place that turns raw `Health` into a human status — shared by the alert bar
+ *  and the Soumaya tab's diagnostics readout, so "why is the cloud AI degraded" never
+ *  says two different things depending on which surface you're looking at. */
+export function describeLlmStatus(health: Health | null): { icon: string; tone: "ok" | "warning" | "error"; text: string } {
+  if (!health?.llm) return { icon: "❔", tone: "warning", text: "Status unknown (couldn't reach the server)." };
+  const { model, available, degraded, degradedReason } = health.llm;
+  const provider = model.startsWith("gpt") ? "OpenAI" : model.startsWith("gemini") ? "Gemini" : null;
+  if (degraded) {
+    const reasonText: Record<LlmDegradeReason, string> = {
+      auth: `Your ${provider ?? "cloud"} API key looks invalid or was rejected.`,
+      quota: `Your ${provider ?? "cloud"} account is out of credit/quota.`,
+      timeout: `${provider ?? "The cloud provider"} is responding too slowly right now.`,
+      budget: "This app's own spend cap was reached (Soumaya tab → Advanced to raise it).",
+    };
+    return {
+      icon: "⚠️",
+      tone: "error",
+      text: `${degradedReason ? reasonText[degradedReason] : "Cloud AI limit exceeded."} Running in offline fallback.`,
+    };
+  }
+  if (!available) {
+    return { icon: "🔌", tone: "warning", text: "No cloud AI key configured — running in offline fallback mode." };
+  }
+  return { icon: "✅", tone: "ok", text: `Connected — ${provider ?? model} (${model}).` };
 }
 
 export async function getGraph(limit = 300): Promise<GraphData> {

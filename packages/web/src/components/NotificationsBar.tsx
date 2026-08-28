@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { type GraphNode, type Fuel } from "@brain/shared";
-import { type Health } from "../api/client.js";
+import { type Health, describeLlmStatus } from "../api/client.js";
 import { type DockTab } from "./RightDock.js";
 
 interface NotificationsBarProps {
@@ -44,15 +44,17 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
     });
   }
 
-  // 2. LLM Degraded/Offline Alert
+  // 2. LLM Degraded/Offline Alert — same wording the Soumaya tab's diagnostics box
+  // uses (describeLlmStatus), so the two surfaces never say different things about
+  // the same underlying state. Specific to WHY, not one generic line, so "it's not
+  // working" has an actual answer (see resilient.ts's DegradeReason).
   if (health && health.llm && (health.llm.degraded || !health.llm.available)) {
+    const status = describeLlmStatus(health);
     alerts.push({
       id: "llm-degraded",
       type: "error",
-      icon: "⚠️",
-      text: health.llm.degraded 
-        ? "Cloud LLM limit exceeded. Running in offline fallback." 
-        : "Cloud LLM offline. Running in offline fallback.",
+      icon: status.icon,
+      text: status.text,
       actionText: "Diagnostics",
       onClick: () => {
         onOpenTab("soumaya");

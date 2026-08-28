@@ -78,6 +78,8 @@ export interface LlmProvider {
   readonly model: string;
   /** True when a cloud provider has fallen back to offline heuristic (credit/quota). */
   readonly degraded?: boolean;
+  /** WHY it's degraded, when `degraded` is true — null/undefined otherwise. */
+  readonly degradedReason?: DegradeReason | null;
   /** Parse raw text into typed nodes + edges, grounded in existing context. */
   extract(text: string, context: ContextNode[]): Promise<ExtractionResult>;
   /** Decide whether a semantic neighbour should become a formal graph edge. */
@@ -145,6 +147,12 @@ export interface WebLookupResult {
 }
 
 export type LlmProviderKind = "gemini" | "openai" | "heuristic";
+
+/** Why a cloud provider is currently degraded (see `ResilientLlmProvider.degradedReason`
+ *  in resilient.ts) — `"budget"` is this app's own spend cap, distinct from the cloud
+ *  provider's own quota/billing/auth state. Surfaced through `/api/health` so "it's not
+ *  working" has an actual, actionable answer instead of one generic message. */
+export type DegradeReason = "auth" | "quota" | "timeout" | "budget";
 
 export interface LlmProviderOptions {
   kind?: LlmProviderKind;

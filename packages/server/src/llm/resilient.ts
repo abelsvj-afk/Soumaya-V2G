@@ -1,13 +1,22 @@
 import type { ExtractionResult } from "@brain/shared";
-import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, DegradeReason, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
-/** Out-of-credit / quota / auth / hang errors — retrying just wastes time. */
-function isFatalKeyError(err: unknown): boolean {
+/**
+ * Out-of-credit / quota / auth / hang errors — retrying just wastes time. Categorized
+ * (not just a boolean) so the UI can tell "your API key is wrong" (auth — a
+ * configuration problem, fix the key) apart from "you're out of credit" (quota — a
+ * billing problem, same fix either way just recharge) apart from "the API is slow
+ * right now" (timeout — often transient, no action needed). Order matters: check
+ * auth before the broader 401/403 status-code check groups them under, since an
+ * invalid-key message should win over a generic "unauthorized" status match.
+ */
+function classifyFatalError(err: unknown): DegradeReason | null {
   const s = (err instanceof Error ? err.message : String(err)).toLowerCase();
-  return /(quota|insufficient|exceeded|billing|payment|credit|unauthor|invalid api key|401|403|429|timed out)/.test(
-    s,
-  );
+  if (/unauthor|invalid api key|401|403/.test(s)) return "auth";
+  if (/quota|insufficient|exceeded|billing|payment|credit|429/.test(s)) return "quota";
+  if (/timed out/.test(s)) return "timeout";
+  return null;
 }
 
 /** Reject if a promise doesn't settle in time — stops a hung API call from freezing ingest. */
@@ -30,6 +39,10 @@ export class ResilientLlmProvider implements LlmProvider {
   readonly model: string;
   private readonly fallback = new HeuristicProvider();
   private disabledUntil = 0;
+  /** The category from the LAST caught error that tripped the cooldown — stale once
+   *  a new cooldown period starts, cleared implicitly since `degradedReason` only
+   *  reads it while `disabledUntil` is still in the future. */
+  private lastFatalReason: DegradeReason | null = null;
 
   constructor(
     private readonly primary: LlmProvider,
@@ -55,11 +68,22 @@ export class ResilientLlmProvider implements LlmProvider {
     return this.primary.available && this.blocked;
   }
 
+  /** WHY it's degraded, when it is — this app's own spend cap takes precedence in the
+   *  read since it's checked live (not a one-time cooldown), so it always reflects the
+   *  CURRENT cause rather than whatever tripped the cooldown earlier. */
+  get degradedReason(): DegradeReason | null {
+    if (!this.degraded) return null;
+    if (this.isOverBudget?.()) return "budget";
+    return this.lastFatalReason;
+  }
+
   private note(err: unknown, op: string): void {
-    if (isFatalKeyError(err)) {
+    const reason = classifyFatalError(err);
+    if (reason) {
       this.disabledUntil = Date.now() + this.cooldownMs;
+      this.lastFatalReason = reason;
       console.warn(
-        `[llm] ${op}: credit/quota/auth error — using offline heuristic for ${Math.round(
+        `[llm] ${op}: ${reason} error — using offline heuristic for ${Math.round(
           this.cooldownMs / 60000,
         )}m`,
       );

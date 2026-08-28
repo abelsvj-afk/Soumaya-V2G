@@ -12,10 +12,13 @@ import {
   getAdminToken,
   setAdminToken,
   getSpaceId,
+  getHealth,
+  describeLlmStatus,
   type AgentLog,
   type JobRationale,
   type Usage,
   type Undertaking,
+  type Health,
   commissionWarm,
 } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
@@ -47,6 +50,7 @@ export function SoumayaPanel({
   const [logs, setLogs] = useState<AgentLog[]>([]);
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
   const [undertaking, setUndertaking] = useState<Undertaking | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [commissioning, setCommissioning] = useState(false);
@@ -90,18 +94,20 @@ export function SoumayaPanel({
   // Fetch telemetry/logs
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData, fuelData, arc] = await Promise.all([
+      const [logsData, settings, usageData, fuelData, arc, healthData] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
         getFuel(),
         getUndertaking(),
+        getHealth().catch(() => null), // diagnostics-only — never block the rest of the panel
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
       if (usageData) setUsage(usageData);
       if (fuelData) setFuel(fuelData);
       setUndertaking(arc);
+      setHealth(healthData);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
     } finally {
@@ -436,6 +442,23 @@ export function SoumayaPanel({
               </p>
             </div>
           )}
+
+          {health && (() => {
+            const status = describeLlmStatus(health);
+            return (
+              <div className="budget-box" style={{ marginBottom: "14px" }}>
+                <div className="budget-head">
+                  <span>🔌 Cloud AI connection</span>
+                </div>
+                <p
+                  className={`budget-note ${status.tone === "error" ? "budget-over" : status.tone === "warning" ? "budget-low" : ""}`}
+                  style={{ fontSize: "11px" }}
+                >
+                  {status.icon} {status.text}
+                </p>
+              </div>
+            );
+          })()}
 
           {usage && (
             <div className="budget-box">
