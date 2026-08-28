@@ -4605,7 +4605,8 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .fin-bill-occ, .fin-bill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .fin-bill-occ li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
 .fin-bill-due { color: var(--muted); font-size: 0.78rem; }
-.fin-bill-list li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
+.fin-bill-list li { display: flex; flex-direction: column; gap: 4px; }
+.fin-bill-row { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }
 .fin-bill-manager { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
 
 /* Financial OS — paste import + draft confirm */
@@ -4642,6 +4643,11 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .fin-txn { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.18); font-size: 0.9rem; }
 .fin-txn.edit { background: rgba(122,249,255,0.08); }
 .fin-txn-lbl { flex: 1 1 80px; min-width: 60px; }
+.fin-txn-lbl-btn {
+  background: none; border: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  padding: 0; text-decoration: underline dotted rgba(255,255,255,0.25); text-underline-offset: 3px;
+}
+.fin-row-detail { flex-basis: 100%; margin-top: 4px; }
 .fin-txn-date { color: var(--muted); font-size: 0.76rem; }
 .fin-txn strong { margin-left: auto; }
 .fin-txn.edit strong { margin-left: 0; }
@@ -4681,6 +4687,20 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .jn-progress-row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; }
 .jn-progress-row input[type="range"] { flex: 1; }
 .jn-hint { color: var(--muted); font-size: 0.78rem; }
+.jn-links { display: flex; flex-direction: column; gap: 10px; }
+.jn-links-group { display: flex; flex-direction: column; gap: 4px; }
+.jn-links-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.jn-link-row {
+  display: block; width: 100%; text-align: left; background: rgba(255,255,255,0.03);
+  border: 1px solid var(--glass-border); border-radius: 8px; padding: 6px 10px; color: var(--text);
+  font-size: 0.85rem; cursor: pointer;
+}
+button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
+.jn-link-txn { display: flex; justify-content: space-between; gap: 8px; cursor: default; }
+.jn-links-total { font-size: 0.85rem; padding-top: 2px; }
+.jn-earn { color: #46f58c; }
+.jn-spend { color: #ff9eb0; }
+.jn-links-note { color: var(--muted); font-size: 0.78rem; }
 .jn-form { display: flex; flex-direction: column; gap: 8px; background: var(--glass); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px; }
 .jn-form-row { display: flex; gap: 8px; }
 .jn-icon-in { width: 52px; text-align: center; }
@@ -4703,6 +4723,12 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .jn-chip.add { background: var(--glass); border-style: dashed; }
 .jn-chip-x { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 1rem; margin-left: 4px; padding: 0 2px; }
 .jn-chip-x:hover { color: #ff8a8a; }
+/* A suggested-but-unconfirmed Journey match (capture-time hybrid auto-link/suggest) —
+   same chip shape, accented so it reads as "worth a look", not yet a real link. */
+.jn-chip.suggest { background: rgba(255, 205, 70, 0.1); border-color: rgba(255, 205, 70, 0.4); color: #ffe9a8; }
+.jn-chip.suggest:hover { background: rgba(255, 205, 70, 0.2); }
+.ni-journeys-suggested { margin-top: 6px; }
+.ingest-journey-prompt { margin-top: 4px; }
 
 /* ---- Observatory → Mission Control: premium polish + staggered entrance ---- */
 @media (prefers-reduced-motion: no-preference) {

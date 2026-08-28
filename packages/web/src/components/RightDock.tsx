@@ -314,7 +314,7 @@ export function RightDock({
         )}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
         {tab === "money" && <FinancePanel />}
-        {tab === "journeys" && <JourneysPanel />}
+        {tab === "journeys" && <JourneysPanel onFocus={onFocus} />}
         {tab === "awards" && (
           <div className="subtab-wrap">
             <div className="subtabs" role="tablist" aria-label="Progress view">

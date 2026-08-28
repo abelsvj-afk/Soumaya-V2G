@@ -3,6 +3,8 @@ import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { spaceOf } from "../middleware.js";
 import { JourneysRepo } from "../../repositories/journeys.repo.js";
+import { upsertJourneyEmbedding, deleteJourneyEmbedding } from "../../db/vec.js";
+import { suggestJourneys, hydrateJourneyLinks } from "../../analysis/journeyLinking.js";
 
 /**
  * Journeys (Vision 2.0) routes. Thin: validate with zod → delegate to JourneysRepo → json.
@@ -35,12 +37,28 @@ export function journeysRoutes(ctx: AppContext): Router {
   const r = Router();
   const repo = (res: any) => new JourneysRepo(ctx.handle, spaceOf(res));
 
+  // Vector embeddings live OUTSIDE the repo, same split already established for
+  // instruction profiles (instructions.repo.ts's own doc comment: "managed by the
+  // route... this repo owns only the relational rows") — fire-and-forget so a
+  // Journey always saves even if embedding fails; it just won't be suggestible
+  // until the next title/description edit re-embeds it.
+  const embed = async (id: number, title: string, description: string) => {
+    try {
+      const vec = await ctx.embeddings.embed(`${title}. ${description}`);
+      upsertJourneyEmbedding(ctx.handle.sqlite, id, vec);
+    } catch (err) {
+      console.error("[journeys] embed failed:", err);
+    }
+  };
+
   r.get("/", (_req, res) => res.json(repo(res).list()));
 
-  r.post("/", (req, res) => {
+  r.post("/", async (req, res) => {
     const p = CreateBody.safeParse(req.body);
     if (!p.success) return bad(res, "Invalid journey", p.error.issues);
-    res.json(repo(res).create(p.data));
+    const journey = repo(res).create(p.data);
+    await embed(journey.id, journey.title, journey.description);
+    res.json(journey);
   });
 
   r.get("/:id", (req, res) => {
@@ -50,19 +68,25 @@ export function journeysRoutes(ctx: AppContext): Router {
     return j ? res.json({ ...j, links: repo(res).links(id) }) : res.status(404).json({ error: "Not found" });
   });
 
-  r.patch("/:id", (req, res) => {
+  r.patch("/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return bad(res, "Invalid id");
     const p = PatchBody.safeParse(req.body);
     if (!p.success) return bad(res, "Invalid patch", p.error.issues);
     const j = repo(res).update(id, p.data);
-    return j ? res.json(j) : res.status(404).json({ error: "Not found" });
+    if (!j) return res.status(404).json({ error: "Not found" });
+    if (p.data.title !== undefined || p.data.description !== undefined) {
+      await embed(j.id, j.title, j.description);
+    }
+    res.json(j);
   });
 
   r.delete("/:id", (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return bad(res, "Invalid id");
-    return repo(res).remove(id) ? res.json({ ok: true }) : res.status(404).json({ error: "Not found" });
+    const ok = repo(res).remove(id);
+    if (ok) deleteJourneyEmbedding(ctx.handle.sqlite, id);
+    return ok ? res.json({ ok: true }) : res.status(404).json({ error: "Not found" });
   });
 
   // Attach / detach any object.
@@ -90,6 +114,25 @@ export function journeysRoutes(ctx: AppContext): Router {
     const refId = Number(req.params.refId);
     if (!LINK_KINDS.includes(kind) || !Number.isInteger(refId)) return bad(res, "Invalid kind/refId");
     res.json(repo(res).journeysFor(kind, refId));
+  });
+
+  // Candidate journeys for a captured/edited object — auto-link (>=0.72 similarity,
+  // silent) vs. suggested (0.40-0.72, one tap). Path-param shape matches /for/:kind/:refId
+  // above rather than a query string, for consistency with this router's own convention.
+  r.get("/suggest/:kind/:refId", (req, res) => {
+    const kind = req.params.kind as (typeof LINK_KINDS)[number];
+    const refId = Number(req.params.refId);
+    if (!LINK_KINDS.includes(kind) || !Number.isInteger(refId)) return bad(res, "Invalid kind/refId");
+    res.json(suggestJourneys(ctx, spaceOf(res), kind, refId));
+  });
+
+  // Hydrated links for a journey's detail view (label + amount, not just kind/refId).
+  r.get("/:id/links", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const spaceId = spaceOf(res);
+    if (!repo(res).get(id)) return res.status(404).json({ error: "Not found" });
+    res.json(hydrateJourneyLinks(ctx, spaceId, repo(res).links(id).slice(0, 20)));
   });
 
   return r;

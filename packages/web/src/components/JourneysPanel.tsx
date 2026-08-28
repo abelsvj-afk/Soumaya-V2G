@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Journey } from "@brain/shared";
-import { getJourneys, createJourney, patchJourney, deleteJourney } from "../api/journeys.js";
+import type { Journey, JourneyLinkSummary } from "@brain/shared";
+import { getJourneys, createJourney, patchJourney, deleteJourney, journeyLinks } from "../api/journeys.js";
 
 /**
  * Journeys (Vision 2.0) — the highest-level organizer: a life chapter everything can belong to
@@ -16,7 +16,7 @@ const SUGGESTED = [
   { title: "Learn Something New", icon: "📚" },
 ];
 
-export function JourneysPanel() {
+export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
@@ -56,7 +56,7 @@ export function JourneysPanel() {
         </div>
       )}
 
-      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} />)}
+      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} />)}
 
       {adding ? (
         <div className="jn-form">
@@ -76,16 +76,21 @@ export function JourneysPanel() {
       {done.length > 0 && (
         <details className="jn-done">
           <summary>Completed ({done.length})</summary>
-          {done.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} />)}
+          {done.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} />)}
         </details>
       )}
     </div>
   );
 }
 
-function JourneyCard({ j, onChanged }: { j: Journey; onChanged: () => void }) {
+function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => void; onFocus?: (id: number) => void }) {
   const [open, setOpen] = useState(false);
+  const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
   const pct = Math.round((j.progress ?? 0) * 100);
+
+  useEffect(() => {
+    if (open) void journeyLinks(j.id).then(setLinks);
+  }, [open, j.id]);
 
   const setProgress = async (p: number) => { await patchJourney(j.id, { progress: Math.max(0, Math.min(1, p)) }); onChanged(); };
   const setStatus = async (status: "active" | "paused" | "done") => { await patchJourney(j.id, { status }); onChanged(); };
@@ -119,8 +124,60 @@ function JourneyCard({ j, onChanged }: { j: Journey; onChanged: () => void }) {
             ) : null}
             <button className="jn-danger" onClick={async () => { if (confirm(`Delete "${j.title}"? Its links are removed (the memories/items stay).`)) { await deleteJourney(j.id); onChanged(); } }}>Delete</button>
           </div>
-          <p className="jn-hint">Link memories, money, and tasks to this journey from their own cards — this is where the chapter comes together.</p>
+          <JourneyLinksSection links={links} onFocus={onFocus} />
         </div>
+      )}
+    </div>
+  );
+}
+
+const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
+
+/** Everything linked to a Journey — memories/tasks with fly-to, transactions with a
+ *  running +earned/-spent total. A linked bill shows as a separate note rather than
+ *  folding into the total: it's a recurring schedule, not a dated transaction. */
+function JourneyLinksSection({ links, onFocus }: { links: JourneyLinkSummary[] | null; onFocus?: (id: number) => void }) {
+  if (links === null) return <p className="jn-hint">Loading what's linked…</p>;
+  if (links.length === 0) {
+    return <p className="jn-hint">Nothing linked yet — connect a memory, task, or transaction from where you're already working.</p>;
+  }
+  const memories = links.filter((l) => l.kind === "node" || l.kind === "insight" || l.kind === "doc");
+  const income = links.filter((l) => l.kind === "income");
+  const expense = links.filter((l) => l.kind === "expense");
+  const bills = links.filter((l) => l.kind === "bill");
+  const earned = income.reduce((sum, l) => sum + (l.amount ?? 0), 0);
+  const spent = expense.reduce((sum, l) => sum + (l.amount ?? 0), 0);
+
+  return (
+    <div className="jn-links">
+      {memories.length > 0 && (
+        <div className="jn-links-group">
+          <div className="jn-links-label">🧭 Memories &amp; Tasks</div>
+          {memories.map((l) => (
+            <button key={`${l.kind}-${l.refId}`} className="jn-link-row" onClick={() => onFocus?.(l.refId)} title="Find it in the galaxy">
+              {l.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {(income.length > 0 || expense.length > 0) && (
+        <div className="jn-links-group">
+          <div className="jn-links-label">💵 Transactions</div>
+          {[...income, ...expense].map((l) => (
+            <div key={`${l.kind}-${l.refId}`} className="jn-link-row jn-link-txn">
+              <span>{l.label}</span>
+              <strong className={l.kind === "income" ? "jn-earn" : "jn-spend"}>
+                {l.kind === "income" ? "+" : "-"}{fmt(l.amount ?? 0)}
+              </strong>
+            </div>
+          ))}
+          <div className="jn-links-total">
+            <strong className="jn-earn">+{fmt(earned)} earned</strong> · <strong className="jn-spend">-{fmt(spent)} spent</strong>
+          </div>
+        </div>
+      )}
+      {bills.length > 0 && (
+        <div className="jn-links-note">📅 {bills.length} recurring bill{bills.length !== 1 ? "s" : ""} linked</div>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import {
   listIncome, listExpense, editIncome, deleteIncome, editExpense, deleteExpense,
   type FinanceSummary,
 } from "../api/finance.js";
+import { JourneyChips } from "./JourneyChips.js";
 
 /** A dollar amount that DIALS to its value (never snaps) — respects reduced-motion. */
 function Money({ cents, className }: { cents: number; className?: string }) {
@@ -137,6 +138,7 @@ function History({ onChanged }: { onChanged: () => void }) {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<TxnRow[]>([]);
   const [editing, setEditing] = useState<TxnRow | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const load = async () => {
     const [inc, exp] = await Promise.all([listIncome(), listExpense()]);
@@ -173,11 +175,22 @@ function History({ onChanged }: { onChanged: () => void }) {
           ) : (
             <li key={`${row.kind}-${row.id}`} className="fin-txn">
               <span className={row.kind === "income" ? "fin-tag-in" : "fin-tag-out"}>{row.kind === "income" ? "IN" : "OUT"}</span>
-              <span className="fin-txn-lbl">{row.label || (row.category ?? "—")}</span>
+              <button
+                className="fin-txn-lbl fin-txn-lbl-btn"
+                onClick={() => setExpandedKey((k) => (k === `${row.kind}-${row.id}` ? null : `${row.kind}-${row.id}`))}
+                aria-expanded={expandedKey === `${row.kind}-${row.id}`}
+              >
+                {row.label || (row.category ?? "—")}
+              </button>
               <span className="fin-txn-date">{row.date}</span>
               <strong>{fmt(row.cents)}</strong>
               <button className="fin-mini" onClick={() => setEditing(row)} aria-label="Edit">✏️</button>
               <button className="fin-mini" onClick={() => del(row)} aria-label="Delete">🗑️</button>
+              {expandedKey === `${row.kind}-${row.id}` && (
+                <div className="fin-row-detail">
+                  <JourneyChips kind={row.kind} refId={row.id} />
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -450,8 +463,11 @@ function BillManager({ onChanged }: { onChanged: () => void }) {
           <ul className="fin-bill-list">
             {bills.map((bl) => (
               <li key={bl.id}>
-                <span>{bl.name}</span><span className="fin-muted">{bl.frequency}</span><strong>{fmt(bl.amountCents)}</strong>
-                <button className="fin-secondary" onClick={async () => { await deleteBill(bl.id); await load(); onChanged(); }}>Remove</button>
+                <div className="fin-bill-row">
+                  <span>{bl.name}</span><span className="fin-muted">{bl.frequency}</span><strong>{fmt(bl.amountCents)}</strong>
+                  <button className="fin-secondary" onClick={async () => { await deleteBill(bl.id); await load(); onChanged(); }}>Remove</button>
+                </div>
+                <JourneyChips kind="bill" refId={bl.id} />
               </li>
             ))}
           </ul>

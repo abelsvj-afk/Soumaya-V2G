@@ -55,6 +55,14 @@ export function bootstrapVec(db: RawDb): void {
       embedding float[${EMBED_DIM}] distance_metric=cosine
     );`,
   );
+  // Vision 2.0 Journeys: title+description embeddings power capture-time auto-link/
+  // suggestion of related Journeys. Same vec0 shape/rules as the tables above.
+  db.exec(
+    `CREATE VIRTUAL TABLE IF NOT EXISTS vec_journeys USING vec0(
+      journey_id INTEGER PRIMARY KEY,
+      embedding float[${EMBED_DIM}] distance_metric=cosine
+    );`,
+  );
 }
 
 /** Serialize a Float32Array as the raw little-endian byte BLOB sqlite-vec expects. */
@@ -269,6 +277,47 @@ export function knnProfiles(db: RawDb, queryVec: Float32Array, k: number, spaceI
     const lookup = db.prepare(`SELECT space_id AS s FROM instruction_profiles WHERE id = ?`);
     hits = hits
       .filter((h) => (lookup.get(h.profileId) as { s: string } | undefined)?.s === spaceId)
+      .slice(0, k);
+  }
+  return hits;
+}
+
+export function upsertJourneyEmbedding(db: RawDb, journeyId: number, vec: Float32Array): void {
+  upsertVec(db, "vec_journeys", "journey_id", journeyId, vec);
+}
+export function deleteJourneyEmbedding(db: RawDb, journeyId: number): void {
+  if (!isVectorEnabled(db)) {
+    return;
+  }
+  db.prepare(`DELETE FROM vec_journeys WHERE journey_id = ?`).run(BigInt(journeyId));
+}
+
+export interface JourneyKnnHit {
+  journeyId: number;
+  distance: number;
+  similarity: number;
+}
+
+/** KNN over Journey title+description vectors (capture-time auto-link/suggestion), space-filtered. */
+export function knnJourneys(db: RawDb, queryVec: Float32Array, k: number, spaceId?: string): JourneyKnnHit[] {
+  if (!isVectorEnabled(db)) {
+    return [];
+  }
+  if (queryVec.length !== EMBED_DIM) {
+    throw new Error(`Query dim mismatch: got ${queryVec.length}, expected ${EMBED_DIM}.`);
+  }
+  const want = spaceId ? Math.min(200, Math.max(k * 6, k + 20)) : k;
+  const rows = db
+    .prepare(
+      `SELECT journey_id AS journeyId, distance FROM vec_journeys
+       WHERE embedding MATCH ? AND k = ? ORDER BY distance`,
+    )
+    .all(vecToBlob(queryVec), want) as { journeyId: number; distance: number }[];
+  let hits = rows.map((r) => ({ journeyId: r.journeyId, distance: r.distance, similarity: cosineSimilarity(r.distance) }));
+  if (spaceId) {
+    const lookup = db.prepare(`SELECT space_id AS s FROM journeys WHERE id = ?`);
+    hits = hits
+      .filter((h) => (lookup.get(h.journeyId) as { s: string } | undefined)?.s === spaceId)
       .slice(0, k);
   }
   return hits;

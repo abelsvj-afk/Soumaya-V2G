@@ -627,6 +627,31 @@ export interface JourneyLink {
   createdAt: string;
 }
 
+/** A journey_link row, hydrated with enough of the linked object's own data to render it
+ *  (label, and an amount for money kinds) without the client joining anything itself. */
+export interface JourneyLinkSummary {
+  kind: JourneyLinkKind;
+  refId: number;
+  label: string;
+  /** Cents, for income/expense/bill links only. */
+  amount?: number;
+  /** Absent for a bill link (a recurring schedule, not a dated transaction). */
+  occurredAt?: string;
+}
+
+/** One candidate Journey to link a captured object to, with the confidence tier that
+ *  decides whether it's silently auto-linked or offered as a one-tap suggestion. */
+export interface JourneySuggestion {
+  journey: Journey;
+  score: number;
+  tier: "auto" | "suggested";
+}
+
+export interface JourneySuggestions {
+  autoLink: JourneySuggestion[];
+  suggested: JourneySuggestion[];
+}
+
 // ---- Financial OS (Stage 1a) ----------------------------------------------------------
 // All money is stored + computed in INTEGER MINOR UNITS (cents) to avoid float drift.
 // See docs/financial-os/ for the design. These are the domain types shared by the

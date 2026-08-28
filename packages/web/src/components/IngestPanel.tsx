@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SUGGESTED_TAGS } from "@brain/shared";
 import { ingestText } from "../api/client.js";
+import { JourneyChips } from "./JourneyChips.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const SpeechRec =
@@ -37,6 +38,12 @@ export function IngestPanel({
   const [occurred, setOccurred] = useState(""); // datetime-local
   const [remind, setRemind] = useState(""); // datetime-local
   const recRef = useRef<any>(null);
+  // The most recently saved capture's node id — shown as an optional, skippable
+  // "add to a Journey?" prompt below the confirmation. Cleared on the next submit or
+  // after ~8s untouched (docs/specs/journeys-connective-tissue.md).
+  const [savedNodeId, setSavedNodeId] = useState<number | null>(null);
+  const savedNodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (savedNodeTimerRef.current) clearTimeout(savedNodeTimerRef.current); }, []);
 
   const toggleTag = (t: string) =>
     setTags((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -53,6 +60,8 @@ export function IngestPanel({
     recRef.current?.stop();
     setBusy(true);
     setMsg("");
+    if (savedNodeTimerRef.current) clearTimeout(savedNodeTimerRef.current);
+    setSavedNodeId(null);
     try {
       const r = await ingestText(body, {
         ...(action ? { kind: "action" as const, ttlHours: ttl } : {}),
@@ -79,6 +88,11 @@ export function IngestPanel({
       setOccurred("");
       setRemind("");
       setShowWhen(false);
+      const firstId = r.nodes[0]?.id ?? null;
+      setSavedNodeId(firstId);
+      if (firstId != null) {
+        savedNodeTimerRef.current = setTimeout(() => setSavedNodeId(null), 8000);
+      }
       onIngested(r.nodes.map((x: any) => x.id), r.fuelEarned, e);
     } catch (err) {
       setMsg((err as Error).message);
@@ -234,6 +248,11 @@ export function IngestPanel({
         )}
         <span className="msg">{msg}</span>
       </div>
+      {savedNodeId != null && (
+        <div className="ingest-journey-prompt">
+          <JourneyChips kind="node" refId={savedNodeId} />
+        </div>
+      )}
     </div>
   );
 }
