@@ -6,6 +6,7 @@ import {
   getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid,
   ingestPaste, ingestImage, confirmIngest,
   listIncome, listExpense, editIncome, deleteIncome, editExpense, deleteExpense,
+  getAfford,
   type FinanceSummary,
 } from "../api/finance.js";
 import { JourneyChips } from "./JourneyChips.js";
@@ -124,6 +125,9 @@ export function FinancePanel() {
         </ul>
         <BillManager onChanged={refresh} />
       </section>
+
+      {/* ---- What can I afford? (Stage 3 Forecast Engine, Zero-AI) ---- */}
+      <AffordCalculator />
 
       {/* ---- History: everything you added, editable + deletable ---- */}
       <History onChanged={refresh} />
@@ -487,5 +491,52 @@ function BillManager({ onChanged }: { onChanged: () => void }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ---- "What can I afford?" — Zero-AI scenario calculator (Stage 3 Forecast Engine) ----
+function AffordCalculator() {
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [extra, setExtra] = useState("");
+  const [result, setResult] = useState<{ weeks: number | null } | "error" | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const check = async () => {
+    const targetCents = toCents(amount);
+    if (targetCents == null || targetCents <= 0) return;
+    const extraCents = extra ? toCents(extra) : 0;
+    setBusy(true);
+    const r = await getAfford(targetCents, extraCents && extraCents > 0 ? extraCents : 0);
+    setResult(r ? { weeks: r.weeks } : "error");
+    setBusy(false);
+  };
+
+  return (
+    <section className="fin-afford">
+      <button className="fin-secondary" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        {open ? "Hide" : "🧮 What can I afford?"}
+      </button>
+      {open && (
+        <div className="fin-afford-body">
+          <div className="fin-inline-form">
+            <input inputMode="decimal" placeholder="Amount (e.g. 400)" value={amount} onChange={(e) => setAmount(e.target.value)} aria-label="Target amount in dollars" />
+            <input inputMode="decimal" placeholder="Extra $/week (optional)" value={extra} onChange={(e) => setExtra(e.target.value)} aria-label="Extra income per week in dollars" />
+            <button className="fin-primary" onClick={check} disabled={busy || !amount}>{busy ? "…" : "Check"}</button>
+          </div>
+          {result === "error" && <p className="fin-muted">Couldn't reach the budget (offline?). Try again.</p>}
+          {result && result !== "error" && (
+            result.weeks == null ? (
+              <p className="fin-muted">You're not currently saving toward this — earning more or cutting a bill would change that.</p>
+            ) : (
+              <p className="fin-afford-result">
+                <strong>~{result.weeks} week{result.weeks === 1 ? "" : "s"}</strong>
+                {result.weeks >= 5 && ` (about ${Math.round(result.weeks / 4.345)} month${Math.round(result.weeks / 4.345) === 1 ? "" : "s"})`} at your current pace.
+              </p>
+            )
+          )}
+        </div>
+      )}
+    </section>
   );
 }

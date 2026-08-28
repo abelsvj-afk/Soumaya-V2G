@@ -80,7 +80,7 @@ describe("computeBudget — Safe to Spend", () => {
   it("reserves bills due before the next income and leaves the rest as safe to spend", () => {
     const b = computeBudget({
       balanceCents: 114000, bufferCents: 0, occurrences: occ,
-      incomeDates: ["2026-01-10"], weekEarnedCents: 74300, now, cadenceDays: 30, // horizon 2026-02-09
+      incomeDates: ["2026-01-10"], weekEarnedCents: 74300, avgWeeklyIncomeCents: 0, now, cadenceDays: 30, // horizon 2026-02-09
     });
     expect(b.reservedCents).toBe(113000);
     expect(b.reserved.map((r) => r.name)).toEqual(["Phone", "Insurance", "Rent", "Car"]); // sorted by due date
@@ -93,7 +93,7 @@ describe("computeBudget — Safe to Spend", () => {
     // Tight horizon: cadence 5 days from last income 2026-01-10 → next 2026-01-15.
     const b = computeBudget({
       balanceCents: 114000, bufferCents: 0, occurrences: occ,
-      incomeDates: ["2026-01-10"], weekEarnedCents: 0, now, cadenceDays: 5,
+      incomeDates: ["2026-01-10"], weekEarnedCents: 0, avgWeeklyIncomeCents: 0, now, cadenceDays: 5,
     });
     expect(b.nextIncomeDate).toBe("2026-01-15");
     expect(b.reserved).toHaveLength(0); // all bills due after the 15th
@@ -104,7 +104,7 @@ describe("computeBudget — Safe to Spend", () => {
     const b = computeBudget({
       balanceCents: 10000, bufferCents: 5000,
       occurrences: [{ billId: 1, name: "Rent", amountCents: 8000, dueDate: "2026-01-12" }],
-      incomeDates: ["2026-01-10"], weekEarnedCents: 0, now, cadenceDays: 30,
+      incomeDates: ["2026-01-10"], weekEarnedCents: 0, avgWeeklyIncomeCents: 0, now, cadenceDays: 30,
     });
     expect(b.reservedCents).toBe(8000);
     expect(b.safeToSpendCents).toBe(0); // 10000 - 8000 - 5000 = -3000, floored to 0

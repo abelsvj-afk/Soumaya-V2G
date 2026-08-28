@@ -91,3 +91,59 @@ describe("finance routes", () => {
     expect((dup.body as { duplicate: boolean }).duplicate).toBe(true);
   });
 });
+
+describe("GET /api/finance/afford", () => {
+  // Its own space — order-independent from the accumulating "drives a full budget" state above.
+  let space: string;
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+
+  beforeAll(async () => {
+    const auth = await fetch(`${base}/api/space/auth`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gamerTag: "afford", passcode: "secret123", name: "afford" }),
+    });
+    space = ((await auth.json()) as { id: string }).id;
+    const H2 = { "Content-Type": "application/json", "x-space-id": space };
+    // Comfortably inside the 4-week trailing window regardless of when the suite runs.
+    await fetch(`${base}/api/finance/income`, { method: "POST", headers: H2, body: JSON.stringify({ date: daysAgo(7), netCents: 20000 }) });
+    await fetch(`${base}/api/finance/income`, { method: "POST", headers: H2, body: JSON.stringify({ date: daysAgo(14), netCents: 20000 }) });
+  });
+
+  const afford = async (qs: string) => {
+    const res = await fetch(`${base}/api/finance/afford${qs}`, { headers: { "x-space-id": space } });
+    return { status: res.status, body: await res.json() };
+  };
+
+  it("400s on a missing or non-positive targetCents", async () => {
+    expect((await afford("")).status).toBe(400);
+    expect((await afford("?targetCents=-5")).status).toBe(400);
+  });
+
+  it("computes a numeric surplus + weekly bill load for a real scenario", async () => {
+    const r = await afford("?targetCents=30000");
+    expect(r.status).toBe(200);
+    const body = r.body as { weeks: number | null; surplusCents: number; weeklyBillLoadCents: number };
+    expect(typeof body.surplusCents).toBe("number");
+    expect(typeof body.weeklyBillLoadCents).toBe("number");
+    expect(body.weeks === null || typeof body.weeks === "number").toBe(true);
+  });
+
+  it("returns weeks: null (never Infinity/NaN over the wire) when the pace can't get there", async () => {
+    const auth = await fetch(`${base}/api/space/auth`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gamerTag: "afford-broke", passcode: "secret123", name: "afford-broke" }),
+    });
+    const brokeSpace = ((await auth.json()) as { id: string }).id;
+    const res = await fetch(`${base}/api/finance/afford?targetCents=10000`, { headers: { "x-space-id": brokeSpace } });
+    const body = (await res.json()) as { weeks: number | null };
+    expect(body.weeks).toBeNull();
+  });
+
+  it("a bigger extraPerWeekCents never makes the wait longer", async () => {
+    const without = (await afford("?targetCents=1000000")).body as { weeks: number | null };
+    const withExtra = (await afford("?targetCents=1000000&extraPerWeekCents=50000")).body as { weeks: number | null };
+    if (without.weeks != null && withExtra.weeks != null) {
+      expect(withExtra.weeks).toBeLessThanOrEqual(without.weeks);
+    }
+  });
+});

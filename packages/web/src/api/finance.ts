@@ -39,6 +39,15 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T 
 
 export const getFinanceSummary = () => getJson<FinanceSummary>("/summary");
 export const getMoneySky = () => getJson<MoneyStar[]>("/sky");
+
+export interface AffordResult {
+  /** Whole weeks at the current pace, or null when the pace never gets there. */
+  weeks: number | null;
+  surplusCents: number;
+  weeklyBillLoadCents: number;
+}
+export const getAfford = (targetCents: number, extraPerWeekCents = 0) =>
+  getJson<AffordResult>(`/afford?targetCents=${targetCents}&extraPerWeekCents=${extraPerWeekCents}`);
 export const setBalance = (cents: number) => send<FinAccount>("/account/balance", "PUT", { cents });
 export const setBuffer = (cents: number) => send<FinAccount>("/account/buffer", "PUT", { cents });
 

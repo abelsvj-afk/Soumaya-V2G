@@ -10,6 +10,7 @@ import { getBudgetSummary } from "../../finance/summary.js";
 import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js";
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../../finance/mutations.js";
 import { moneySky } from "../../finance/sky.js";
+import { weeklyBillLoadCents, weeklySurplusCents, weeksToAfford } from "../../finance/forecast.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -78,6 +79,26 @@ export function financeRoutes(ctx: AppContext): Router {
 
   // ---- Money-sky: bills as stars with a state (Stage 4) ----
   r.get("/sky", (_req, res) => res.json(moneySky(ctx.handle, spaceOf(res))));
+
+  // ---- Forecast (Stage 3): "how many weeks to afford $X at my current pace" ----
+  // Zero-AI — pure math already covered by finance/forecast.ts's own unit tests; this
+  // route just wires it up. `weeks: null` (not Infinity — JSON can't carry that) means
+  // the current pace never gets there.
+  const AffordQuery = z.object({
+    targetCents: z.coerce.number().int().positive(),
+    extraPerWeekCents: z.coerce.number().int().nonnegative().optional(),
+  });
+  r.get("/afford", (req, res) => {
+    const p = AffordQuery.safeParse(req.query);
+    if (!p.success) return bad(res, "Query must include a positive integer targetCents", p.error.issues);
+    const spaceId = spaceOf(res);
+    const budget = getBudgetSummary(ctx.handle, spaceId);
+    const bills = new FinBillRepo(ctx.handle, spaceId).list();
+    const weeklyBillLoad = weeklyBillLoadCents(bills);
+    const surplusCents = weeklySurplusCents(budget.avgWeeklyIncomeCents, weeklyBillLoad);
+    const weeks = weeksToAfford(p.data.targetCents, surplusCents, p.data.extraPerWeekCents ?? 0);
+    res.json({ weeks: Number.isFinite(weeks) ? weeks : null, surplusCents, weeklyBillLoadCents: weeklyBillLoad });
+  });
 
   // ---- Account (balance / buffer / meta) ----
   r.get("/account", (_req, res) => res.json(new FinAccountRepo(ctx.handle, spaceOf(res)).getOrCreate()));

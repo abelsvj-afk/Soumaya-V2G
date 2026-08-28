@@ -6,6 +6,7 @@ import { FinExpenseRepo } from "../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../finance/mutations.js";
 import { financialSnapshotText } from "../finance/snapshot.js";
+import { getBudgetSummary } from "../finance/summary.js";
 import { billWeeklyCents, weeklyBillLoadCents, weeklySurplusCents, weeksToAfford } from "../finance/forecast.js";
 
 /** Stage 2/3 — balance-aware edit/delete, the chat snapshot, and the forecast helpers. */
@@ -62,6 +63,25 @@ describe("financial snapshot (Stage 2)", () => {
     expect(text).toContain("Balance: $1140.00");
     expect(text).toContain("Weekly bill load");
     expect(text).toMatch(/Safe to spend/);
+  });
+});
+
+describe("getBudgetSummary — avgWeeklyIncomeCents (computed once, shared by snapshot + /afford)", () => {
+  it("matches a hand-computed 4-week trailing average", () => {
+    const now = new Date("2026-01-29T00:00:00Z"); // so all 4 income rows sit inside the window
+    new FinAccountRepo(handle, "s").setBalance(0);
+    const inc = new FinIncomeRepo(handle, "s");
+    inc.create({ date: "2026-01-05", netCents: 10000 });
+    inc.create({ date: "2026-01-12", netCents: 20000 });
+    inc.create({ date: "2026-01-19", netCents: 30000 });
+    inc.create({ date: "2026-01-26", netCents: 40000 });
+    const budget = getBudgetSummary(handle, "s", now);
+    expect(budget.avgWeeklyIncomeCents).toBe(Math.round((10000 + 20000 + 30000 + 40000) / 4));
+  });
+
+  it("is 0 (not NaN/undefined) with no income", () => {
+    const budget = getBudgetSummary(handle, "s2", new Date("2026-01-29T00:00:00Z"));
+    expect(budget.avgWeeklyIncomeCents).toBe(0);
   });
 });
 

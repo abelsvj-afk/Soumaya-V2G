@@ -35,6 +35,11 @@ export function getBudgetSummary(
   }));
 
   const weekEarnedCents = income.sumNetBetween(weekStart(now), today);
+  // Rough 4-week trailing average — what scenario questions ("how many weeks to afford
+  // X") are computed from. Computed once here so every consumer (chat snapshot, the
+  // /afford route) reads the same number instead of each re-deriving it independently.
+  const fourWeeksAgo = toDay(new Date(now.getTime() - 28 * 86_400_000));
+  const avgWeeklyIncomeCents = Math.round(income.sumNetBetween(fourWeeksAgo, today) / 4);
 
   return computeBudget({
     balanceCents: account.balanceCents,
@@ -42,6 +47,7 @@ export function getBudgetSummary(
     occurrences,
     incomeDates,
     weekEarnedCents,
+    avgWeeklyIncomeCents,
     now,
     cadenceDays,
   });

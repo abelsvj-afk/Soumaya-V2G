@@ -4601,6 +4601,9 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .fin-form input, .fin-form select, .fin-inline-form input { background: rgba(0,0,0,0.25); color: var(--text);
   border: 1px solid var(--glass-border); border-radius: 10px; padding: 10px; min-height: 44px; font-size: 1rem; width: 100%; }
 .fin-msg { color: var(--accent); font-size: 0.9rem; }
+.fin-afford { margin-top: 8px; }
+.fin-afford-body { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.fin-afford-result { font-size: 0.92rem; }
 .fin-bills h4 { margin: 8px 0 6px; }
 .fin-bill-occ, .fin-bill-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .fin-bill-occ li { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; font-size: 0.9rem; }

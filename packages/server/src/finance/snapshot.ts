@@ -4,7 +4,6 @@ import { getBudgetSummary } from "./summary.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 import { weekStart } from "./budget.js";
-import { toDay } from "./bills.js";
 import { weeklyBillLoadCents, weeklySurplusCents } from "./forecast.js";
 
 /**
@@ -21,12 +20,8 @@ export function financialSnapshotText(handle: DbHandle, spaceId: string = DEFAUL
 
   const b = getBudgetSummary(handle, spaceId, now);
   const d = (c: number) => `$${(c / 100).toFixed(2)}`;
-  const today = toDay(now);
   const weekEarned = b.weekEarnedCents;
-  // A rough 4-week average weekly earning (for "how much to earn this week" reasoning).
-  const fourWeeksAgo = toDay(new Date(now.getTime() - 28 * 86_400_000));
-  const last4wNet = income.sumNetBetween(fourWeeksAgo, today);
-  const avgWeekly = Math.round(last4wNet / 4);
+  const avgWeekly = b.avgWeeklyIncomeCents;
 
   const reserved = b.reserved.map((r) => `${r.name} ${d(r.amountCents)} (due ${r.dueDate})`).join(", ") || "none";
 

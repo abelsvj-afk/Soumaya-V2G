@@ -70,6 +70,10 @@ export interface BudgetInput {
   incomeDates: string[];
   /** Net income already recorded this week (Mon-anchored), in cents. */
   weekEarnedCents: number;
+  /** Rough 4-week trailing average of net income per week (see finance/summary.ts) —
+   *  computed by the caller from the income repo, echoed straight through here so the
+   *  Budget Engine itself stays a pure function of its inputs. */
+  avgWeeklyIncomeCents: number;
   /** "now" — injected so the engine is deterministic under test. */
   now: Date;
   /** Optional explicit pay cadence (days) from settings. */
@@ -105,6 +109,7 @@ export function computeBudget(input: BudgetInput): BudgetSummary {
     shortfallCents: raw < 0 ? -raw : 0,
     weekEarnedCents: input.weekEarnedCents,
     nextIncomeDate,
+    avgWeeklyIncomeCents: input.avgWeeklyIncomeCents,
   };
 }
 

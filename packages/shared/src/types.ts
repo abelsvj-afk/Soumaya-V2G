@@ -803,4 +803,7 @@ export interface BudgetSummary {
   weekEarnedCents: number;
   /** The date used as the "next income" horizon for Reserved. */
   nextIncomeDate: string;
+  /** Rough 4-week trailing average of net income per week — the pace scenario
+   *  questions ("how many weeks to afford X") are computed from. */
+  avgWeeklyIncomeCents: number;
 }
