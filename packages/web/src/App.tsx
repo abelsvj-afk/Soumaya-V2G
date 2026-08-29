@@ -963,12 +963,19 @@ export default function App() {
       }
       if (!lastSeen) return; // first visit ever — set the baseline silently
 
-      // Bill-risk nudges have no galaxy body to fly to (they're about a bill, not a
-      // memory), so they don't fit the VERBS/replay pattern below — surface them as a
-      // direct toast instead, on arrival or while staying, so a user with no Telegram
-      // linked (billRiskTool's only other delivery channel) still sees the warning.
-      const billRisk = logs.filter((l) => l.id > lastSeen && l.action === "tool:bill_risk").reverse();
-      for (const l of billRisk.slice(-2)) pushToast(l.description, "💸", 9000, "high");
+      // Every autonomous tool (fire_reminder, create_task, surface_orphan, review_nudge,
+      // check_in, web_lookup, weekly_review, chart_discovery, bill_risk) logs its exact
+      // user-facing text as `description` (router.ts's logAction — a tool's `message`
+      // when it set one). Most have no galaxy body to fly to (a bill, a reminder, a
+      // digest), so they don't fit the VERBS/replay pattern below — surface ANY tool:*
+      // action as a direct toast instead, so a user with no Telegram linked (every
+      // tool's only other delivery channel) still sees it, not just bill_risk (the
+      // first instance of this exact bug that got fixed, generalized here to the rest).
+      const toolLogs = logs.filter((l) => l.id > lastSeen && l.action.startsWith("tool:")).reverse();
+      for (const l of toolLogs.slice(-2)) {
+        const icon = l.description.match(/^\p{Extended_Pictographic}+/u)?.[0] ?? "🛰️";
+        pushToast(l.description, icon, 9000, l.action === "tool:bill_risk" ? "high" : "normal");
+      }
 
       const fresh = logs
         .filter((l) => l.id > lastSeen && VERBS[l.action])

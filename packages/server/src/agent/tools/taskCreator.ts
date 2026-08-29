@@ -98,13 +98,14 @@ export const taskCreatorTool: Tool = {
     );
     new EdgesRepo(tc.ctx.handle, tc.spaceId).create({ source: action.id, target: nodeId, relationship: "relates_to", weight: 0.6 });
 
+    const msg = `✅ I made you an action: "${label}"`;
     let delivered = false;
     try {
-      await tc.notify(`✅ I made you an action: "${label}"`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* logged by the router regardless */
     }
-    return { ok: true, summary: `created action "${label}" from memory ${nodeId}`, delivered };
+    return { ok: true, summary: `created action "${label}" from memory ${nodeId}`, delivered, message: msg };
   },
 };

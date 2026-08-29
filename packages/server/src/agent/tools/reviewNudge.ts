@@ -36,13 +36,14 @@ export const reviewNudgeTool: Tool = {
     // Snooze so an un-graded nudge doesn't re-ask tomorrow (grading via /api/review resets it).
     snoozeReview(tc.ctx, tc.spaceId, nodeId, tc.now);
 
+    const msg = `🧠 Do you still remember what you noted about "${row.label}"? Take a moment to recall it — then open it to refresh.`;
     let delivered = false;
     try {
-      await tc.notify(`🧠 Do you still remember what you noted about "${row.label}"? Take a moment to recall it — then open it to refresh.`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* router logs it regardless */
     }
-    return { ok: true, summary: `nudged recall of "${row.label}"`, delivered };
+    return { ok: true, summary: `nudged recall of "${row.label}"`, delivered, message: msg };
   },
 };

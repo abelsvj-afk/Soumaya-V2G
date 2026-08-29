@@ -93,13 +93,14 @@ export const webLookupTool: Tool = {
     );
     new EdgesRepo(tc.ctx.handle, tc.spaceId).create({ source: note.id, target: nodeId, relationship: "relates_to", weight: 0.7 });
 
+    const msg = `🔎 I looked that up: ${result.text.slice(0, 240)}${result.text.length > 240 ? "…" : ""}`;
     let delivered = false;
     try {
-      await tc.notify(`🔎 I looked that up: ${result.text.slice(0, 240)}${result.text.length > 240 ? "…" : ""}`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* router logs it regardless */
     }
-    return { ok: true, summary: `looked up "${short}" (${result.sources.length} source(s))`, delivered };
+    return { ok: true, summary: `looked up "${short}" (${result.sources.length} source(s))`, delivered, message: msg };
   },
 };

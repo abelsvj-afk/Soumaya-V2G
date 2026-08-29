@@ -74,6 +74,6 @@ export const checkinTool: Tool = {
     } catch {
       /* router logs it regardless */
     }
-    return { ok: true, summary: `checked in (${kind})`, delivered };
+    return { ok: true, summary: `checked in (${kind})`, delivered, message: msg };
   },
 };

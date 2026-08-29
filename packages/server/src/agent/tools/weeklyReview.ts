@@ -114,8 +114,9 @@ export const weeklyReviewTool: Tool = {
     } catch {
       /* the router still logs the digest in-app regardless of Telegram */
     }
-    // The full digest rides in the summary so it lands in agent_logs (the in-app
-    // activity record / Night Replay), delivering it in-app as well as via Telegram.
-    return { ok: true, summary: digest, delivered };
+    // The full digest rides in `message` (logged verbatim, no "— reason" suffix) so it
+    // lands in agent_logs (the in-app activity record / Night Replay) exactly as sent,
+    // delivering it in-app as well as via Telegram.
+    return { ok: true, summary: digest, delivered, message: digest };
   },
 };

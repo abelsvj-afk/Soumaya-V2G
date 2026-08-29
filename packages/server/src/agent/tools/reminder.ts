@@ -70,13 +70,14 @@ export const reminderTool: Tool = {
       return { ok: true, summary: `retired stale reminder "${row.label}" (${Math.round(overdueMs / 86_400_000)}d overdue)` };
     }
 
+    const msg = `⏰ Reminder: "${row.label}"`;
     let delivered = false;
     try {
-      await tc.notify(`⏰ Reminder: "${row.label}"`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* logged below regardless; the in-app bar still surfaces it */
     }
-    return { ok: true, summary: `fired reminder "${row.label}"`, delivered };
+    return { ok: true, summary: `fired reminder "${row.label}"`, delivered, message: msg };
   },
 };

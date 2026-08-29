@@ -108,6 +108,21 @@ describe("Soumaya's tool-router — a tool's `message` logs verbatim", () => {
     // NOT the old "summary — reason" shape — the real nudge text Soumaya would say.
     expect(row?.description).not.toMatch(/bill-risk nudge for/);
   });
+
+  // bill_risk was the FIRST instance of this bug fixed; the same fix generalizes to
+  // every other tool sharing the shape (see agent/tools/{reminder,taskCreator,orphan,
+  // reviewNudge,checkin,webLookup,weeklyReview,chartDiscovery}.ts). Spot-check one more
+  // (already has good fixtures in this file) to confirm the generalization actually
+  // stuck, not just the one tool it was first found on.
+  it("generalizes to fire_reminder too — the exact toast text, not an internal summary", async () => {
+    const now = Date.UTC(2026, 2, 1, 12, 0, 0);
+    reminder("call the landlord", iso(now - 60_000));
+    await runToolRouter(ctx, "legacy", { now });
+    const row = handle.sqlite
+      .prepare(`SELECT description FROM agent_logs WHERE space_id = 'legacy' AND action = 'tool:fire_reminder'`)
+      .get() as { description: string } | undefined;
+    expect(row?.description).toBe('⏰ Reminder: "call the landlord"');
+  });
 });
 
 /** A plain memory with content + timestamp (for the task / orphan tools). */

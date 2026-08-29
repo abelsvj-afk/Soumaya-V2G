@@ -120,13 +120,14 @@ export const chartDiscoveryTool: Tool = {
       focusId: typeof args.focusId === "number" ? args.focusId : null,
     });
     if (!added) return { ok: false, summary: `already charted ${key}` };
+    const msg = `✦ Charted a new Codex entry: ${String(args.title)}. Take a look.`;
     let delivered = false;
     try {
-      await tc.notify(`✦ Charted a new Codex entry: ${String(args.title)}. Take a look.`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* logged regardless */
     }
-    return { ok: true, summary: `charted "${String(args.title)}"`, delivered };
+    return { ok: true, summary: `charted "${String(args.title)}"`, delivered, message: msg };
   },
 };

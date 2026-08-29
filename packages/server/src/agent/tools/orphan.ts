@@ -55,13 +55,14 @@ export const orphanTool: Tool = {
       .get(tc.spaceId, nodeId, nodeId);
     if (linked) return { ok: false, summary: `"${row.label}" got linked; skipping` };
 
+    const msg = `🌟 One memory is drifting unconnected: "${row.label}". Want to link it into your galaxy?`;
     let delivered = false;
     try {
-      await tc.notify(`🌟 One memory is drifting unconnected: "${row.label}". Want to link it into your galaxy?`);
+      await tc.notify(msg);
       delivered = true;
     } catch {
       /* router logs it regardless */
     }
-    return { ok: true, summary: `surfaced orphan "${row.label}"`, delivered };
+    return { ok: true, summary: `surfaced orphan "${row.label}"`, delivered, message: msg };
   },
 };

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { LoreEntry, LoreSubjectType } from "@brain/shared";
 import { getLore, evolveLore } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * An object's evolving, versioned lore. Shows the latest chapter, lets you expand
@@ -37,7 +38,7 @@ export function Chronicle({
     setBusy(true);
     evolveLore(subjectType, subjectId)
       .then(setHistory)
-      .catch(() => {})
+      .catch(() => pushToast("Couldn't write the next chapter — try again.", "⚠️", 3500))
       .finally(() => setBusy(false));
   };
 

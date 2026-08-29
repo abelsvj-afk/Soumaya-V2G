@@ -147,7 +147,7 @@ export function MemoryAttachments({
           )}
           <div className="att-lb-actions" onClick={(e) => e.stopPropagation()}>
             <span>{viewer + 1} / {images.length}</span>
-            <button className="mini" onClick={() => downloadAttachment(images[viewer]!).catch(() => {})}>⬇ Download</button>
+            <button className="mini" onClick={() => downloadAttachment(images[viewer]!).catch(() => pushToast("Download failed", "⚠️", 3500))}>⬇ Download</button>
             <button className="mini ghost" onClick={() => void onRemove(images[viewer]!)}>✕ Remove</button>
           </div>
         </div>

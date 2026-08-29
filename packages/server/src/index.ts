@@ -77,7 +77,8 @@ if (tgToken && tgSecret && publicUrl) {
 // Soumaya background heartbeat: light, server-side upkeep so the brain stays tidy
 // even when no client is open. STRICTLY FREE work — it never calls the LLM, so it
 // can never drain the API key (all token-spending jobs stay client + Research Mode
-// gated). For now it prunes the single weakest associative link, if any.
+// gated). For now it expires due action items across every space (see
+// expireActionItems below).
 const HEARTBEAT_MS = Number(process.env.HEARTBEAT_MS ?? 1000 * 60 * 15);
 function expireActionItems() {
   // Sweep every brain: find due action items across all spaces, then expire each

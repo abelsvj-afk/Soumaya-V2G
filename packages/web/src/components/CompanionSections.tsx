@@ -248,8 +248,10 @@ export function Instructions() {
       setMsg((err as Error).message);
     }
   };
-  const toggle = (p: InstructionProfile) => updateInstruction(p.id, { enabled: !p.enabled }).then(refresh);
-  const remove = (p: InstructionProfile) => deleteInstruction(p.id).then(refresh);
+  const toggle = (p: InstructionProfile) =>
+    updateInstruction(p.id, { enabled: !p.enabled }).then(refresh).catch(() => setMsg("Couldn't update that — try again."));
+  const remove = (p: InstructionProfile) =>
+    deleteInstruction(p.id).then(refresh).catch(() => setMsg("Couldn't remove that — try again."));
 
   const useTemplate = (t: { name: string; body: string }) => {
     setName(t.name);
