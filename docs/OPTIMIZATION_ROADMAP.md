@@ -138,9 +138,13 @@ work happening in sessions like this one.
    due-reminder predicate across `ActionsPanel`/`NotificationsBar`/`Observatory` into one shared
    `web/utils/dueReminders.ts`, and surfaced up to 3 AI observations instead of 1 — the single
    highest-leverage item on this list for Problem 1.
-4. **Then:** Progressive Discovery pass (unlock tabs by relevance instead of showing all 11 on
-   day one) — deliberately sequenced AFTER Mission Control exists, since Mission Control is what a
-   day-1 user lands on instead of an empty dock.
+4. **Done:** Progressive Discovery pass (`RightDock.tsx`'s `visibleTabIds`) — a brand-new brain
+   sees Details/Browse/Mind/Agenda/Soumaya/Inbox/Money from the start; Insights/Progress/Hangar
+   unlock once there's real data behind them (a synthesized insight; a real memory, for both
+   Progress and Hangar, since Codex entries — the earlier of Progress's two halves — unlock from
+   the very first memory). Journeys is deliberately NOT gated: its own empty-state UI reads
+   "Create a journey in the 🧭 tab first," so hiding that tab would be an unbreakable
+   chicken-and-egg lock — a real trap this phase caught before shipping it, not a theoretical one.
 5. **Ops, any time, independent of the above:** reconnect Fly's GitHub auto-deploy.
 
 ## How to know it worked

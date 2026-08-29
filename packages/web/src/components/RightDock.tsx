@@ -15,6 +15,7 @@ import { CodexPanel } from "./CodexPanel.js";
 import { MindPanel } from "./MindPanel.js";
 import { FinancePanel } from "./FinancePanel.js";
 import { JourneysPanel } from "./JourneysPanel.js";
+import { getDigest } from "../api/client.js";
 import type { FleetStatus } from "../graph/Graph3D.js";
 import type { Fuel, Streak } from "@brain/shared";
 
@@ -24,6 +25,18 @@ import type { Fuel, Streak } from "@brain/shared";
 // Soumaya tab as a section, and the Companion controls live inside the chat
 // (💬 → 🎭) where they configure who you're talking to. 8 tabs fit a 360px
 // dock without scrolling.
+//
+// Progressive Discovery (OPTIMIZATION_ROADMAP.md Problem 1 / VISION_2_JOURNEYS.md):
+// a brand-new brain sees the core loop (Details/Browse/Mind/Agenda/Soumaya/Inbox/
+// Money) without also being handed Insights/Progress/Hangar before there's
+// anything in them — same tabs, same code, just not all 11 thrown at a day-1
+// user at once. Deliberately NOT gating Journeys, despite the roadmap's own
+// illustrative wording naming it: JourneyChips' own empty state says "Create a
+// journey in the 🧭 tab first" — hiding that tab until a journey exists would be
+// an unbreakable chicken-and-egg lock, since nothing else in the app can create
+// one. Gates are checked once per dock mount (not live-reactive) — a newly
+// earned tab appears the next time the dock opens, which is an acceptable
+// cadence for a reveal, not a correctness-critical path.
 export type DockTab =
   | "details"
   | "list"
@@ -70,6 +83,26 @@ interface Props {
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
 // debuggable and screen-reader friendly; `name` also maps 1:1 to the tab id/code.
 // The tab name text is responsive (hidden on narrow screens, displayed side-by-side on wide screens).
+/**
+ * Progressive Discovery (OPTIMIZATION_ROADMAP.md Problem 1): which tabs a
+ * brain-in-its-current-state has earned. Pure + exported so the gating rules
+ * are unit-testable without rendering the whole dock. `activeTab` is always
+ * included — switching data should never yank the tab you're looking at.
+ * Journeys is deliberately NOT gated — see the file-header comment.
+ */
+export function visibleTabIds(
+  allTabs: readonly { id: DockTab }[],
+  activeTab: DockTab,
+  signals: { hasInsights: boolean; hasRealMemory: boolean },
+): DockTab[] {
+  const gated: Partial<Record<DockTab, boolean>> = {
+    insights: signals.hasInsights,
+    awards: signals.hasRealMemory,
+    hangar: signals.hasRealMemory,
+  };
+  return allTabs.filter((t) => t.id === activeTab || gated[t.id] !== false).map((t) => t.id);
+}
+
 const TABS: { id: DockTab; label: string; name: string }[] = [
   { id: "details", label: "ⓘ", name: "Details" },
   { id: "list", label: "📚", name: "Browse" },
@@ -115,6 +148,12 @@ export function RightDock({
   onPromoted,
 }: Props) {
   const [unseenCount, setUnseenCount] = useState(0);
+  // Progressive Discovery: Insights needs its own check (a server-side fetch —
+  // whether ANY insight has ever been synthesized). Progress/Hangar don't need a
+  // fetch: Codex entries (Progress's other half) unlock from the first real
+  // memory, well before any Achievement, so "at least one real memory exists" —
+  // already available via `graph` below — is the earlier, correct signal for both.
+  const [hasInsights, setHasInsights] = useState(false);
   const [browseView, setBrowseView] = useState<BrowseView>("all");
   const [progressView, setProgressView] = useState<ProgressView>("codex");
   const [fleetOpen, setFleetOpen] = useState(false);
@@ -167,7 +206,16 @@ export function RightDock({
     return () => window.removeEventListener("brain-notifications-updated", updateCount);
   }, [spaceId]);
 
-  const dynamicTabs = TABS.map((t) => {
+  // Checked once per mount, not live-reactive — see the file-header comment.
+  useEffect(() => {
+    getDigest()
+      .then((items) => setHasInsights(items.length > 0))
+      .catch(() => {});
+  }, [spaceId]);
+
+  const hasRealMemory = graph.nodes.some((n) => n.kind !== "action");
+  const shownIds = new Set(visibleTabIds(TABS, tab, { hasInsights, hasRealMemory }));
+  const dynamicTabs = TABS.filter((t) => shownIds.has(t.id)).map((t) => {
     if (t.id === "soumaya") return { ...t, name: spaceName, badge: 0 };
     if (t.id === "inbox") return { ...t, badge: unseenCount };
     return { ...t, badge: 0 };
