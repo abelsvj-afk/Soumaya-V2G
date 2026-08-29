@@ -14,14 +14,46 @@ import {
   getSpaceId,
   getHealth,
   describeLlmStatus,
+  getToolHealth,
   type AgentLog,
   type JobRationale,
   type Usage,
   type Undertaking,
   type Health,
+  type ToolHealth,
   commissionWarm,
 } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+
+/** Naive SQLite timestamps ("YYYY-MM-DD HH:MM:SS", no zone) must be read as UTC — same
+ *  bug class already fixed for remindAt/expiresAt/Timeline chapters elsewhere in the app. */
+function normalizeDate(raw: string): Date {
+  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
+  return new Date(iso);
+}
+function timeAgo(iso: string | null): string {
+  if (!iso) return "never yet";
+  const ms = Date.now() - normalizeDate(iso).getTime();
+  if (ms < 60_000) return "just now";
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+/** Friendly icon/label per tool — an unlisted future tool still renders (🛰️ + its raw
+ *  name) rather than being silently dropped. */
+const TOOL_LABELS: Record<string, { icon: string; label: string }> = {
+  fire_reminder: { icon: "⏰", label: "Reminders" },
+  create_task: { icon: "✅", label: "Task creation" },
+  surface_orphan: { icon: "🌟", label: "Orphan surfacing" },
+  review_nudge: { icon: "🧠", label: "Recall nudges" },
+  check_in: { icon: "💙", label: "Check-ins" },
+  web_lookup: { icon: "🔎", label: "Web lookups" },
+  weekly_review: { icon: "🗓️", label: "Weekly review" },
+  chart_discovery: { icon: "✦", label: "Codex charting" },
+  bill_risk: { icon: "💸", label: "Bill-risk warnings" },
+};
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -49,6 +81,7 @@ export function SoumayaPanel({
   const [researchEnabled, setResearchEnabled] = useState(false);
   const [usage, setUsage] = useState<Usage | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
+  const [toolHealth, setToolHealth] = useState<ToolHealth[]>([]);
   const [undertaking, setUndertaking] = useState<Undertaking | null>(null);
   const [fuel, setFuel] = useState<Fuel | null>(null);
   const [commissioning, setCommissioning] = useState(false);
@@ -92,13 +125,14 @@ export function SoumayaPanel({
   // Fetch telemetry/logs
   const fetchData = async () => {
     try {
-      const [logsData, settings, usageData, fuelData, arc, healthData] = await Promise.all([
+      const [logsData, settings, usageData, fuelData, arc, healthData, toolHealthData] = await Promise.all([
         getAgentLogs(),
         getSettings(),
         getUsage(),
         getFuel(),
         getUndertaking(),
         getHealth().catch(() => null), // diagnostics-only — never block the rest of the panel
+        getToolHealth().catch(() => []), // diagnostics-only — never block the rest of the panel
       ]);
       setLogs(logsData);
       setResearchEnabled(settings.research_enabled === "true");
@@ -106,6 +140,7 @@ export function SoumayaPanel({
       if (fuelData) setFuel(fuelData);
       setUndertaking(arc);
       setHealth(healthData);
+      setToolHealth(toolHealthData);
     } catch (err) {
       console.error("Failed to fetch Soumaya data", err);
     } finally {
@@ -457,6 +492,28 @@ export function SoumayaPanel({
               </div>
             );
           })()}
+
+          {toolHealth.length > 0 && (
+            <div className="budget-box" style={{ marginBottom: "14px" }}>
+              <div className="budget-head">
+                <span>🔧 Autonomous systems</span>
+              </div>
+              <p className="budget-note" style={{ fontSize: "11px", marginBottom: "6px" }}>
+                When each of my background tools last actually ran — a real fact, not a guess.
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                {toolHealth.map((t) => {
+                  const meta = TOOL_LABELS[t.tool] ?? { icon: "🛰️", label: t.tool };
+                  return (
+                    <div key={t.tool} style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", opacity: 0.85 }}>
+                      <span>{meta.icon} {meta.label}</span>
+                      <span style={{ opacity: 0.6 }}>{timeAgo(t.lastRanAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {usage && (
             <div className="budget-box">

@@ -61,6 +61,21 @@ export async function getAgentLogs(): Promise<AgentLog[]> {
   }
 }
 
+export interface ToolHealth {
+  tool: string;
+  lastRanAt: string | null;
+}
+
+export async function getToolHealth(): Promise<ToolHealth[]> {
+  try {
+    const res = await afetch(`${API}/maintenance/tool-health`);
+    const d = await res.json().catch(() => []);
+    return Array.isArray(d) ? d : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface DailyLog {
   id: number;
   content: string;

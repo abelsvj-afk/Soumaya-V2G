@@ -10,6 +10,7 @@ import { spaceOf } from "../middleware.js";
 import { eq, desc } from "drizzle-orm";
 import { selectJob, executeJob, researchEnabled, setResearchEnabled } from "../../maintenance/agent.js";
 import { activeUndertaking } from "../../analysis/undertakings.js";
+import { toolHealthSummary } from "../../agent/tools/health.js";
 
 const CompleteJobSchema = z.object({
   type: z.enum(["synthesis", "calibration", "patrol", "pruning", "harmonization", "research", "merging", "sector_vibe", "daily_log"]),
@@ -99,6 +100,12 @@ export function maintenanceRoutes(ctx: AppContext): Router {
       .limit(50)
       .all();
     res.json(logs);
+  });
+
+  // Last-fired timestamp per autonomous tool — the Soumaya tab's "Autonomous systems"
+  // diagnostics box, so a silently-dormant tool is a visible fact, not a surprise.
+  r.get("/tool-health", (_req, res) => {
+    res.json(toolHealthSummary(ctx.handle, spaceOf(res)));
   });
 
   /**

@@ -6,6 +6,8 @@ import { EMBED_DIM } from "../db/vec.js";
 import type { AppContext } from "../context.js";
 import { UsageTracker } from "../usage.js";
 import { runToolRouter } from "../agent/tools/router.js";
+import { toolHealthSummary } from "../agent/tools/health.js";
+import { TOOLS } from "../agent/tools/registry.js";
 import { FinAccountRepo } from "../repositories/finAccount.repo.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
@@ -279,5 +281,33 @@ describe("Soumaya's tool-router — weekly review", () => {
     memory("only one", "a single note", iso(now - 86_400_000));
     const r = await runToolRouter(ctx, "legacy", { now });
     expect(r.some((x) => x.summary.includes("Looking back on your week"))).toBe(false);
+  });
+});
+
+describe("toolHealthSummary — the Soumaya tab's 'Autonomous systems' diagnostics", () => {
+  it("lists every registered tool, 'never run' by default", () => {
+    const summary = toolHealthSummary(handle, "legacy");
+    expect(summary).toHaveLength(TOOLS.length);
+    expect(summary.every((s) => s.lastRanAt === null)).toBe(true);
+    expect(summary.map((s) => s.tool)).toEqual(expect.arrayContaining(TOOLS.map((t) => t.name)));
+  });
+
+  it("reflects a tool's last real run once it fires", async () => {
+    const now = Date.UTC(2026, 2, 1, 12, 0, 0);
+    reminder("call the landlord", iso(now - 60_000));
+    await runToolRouter(ctx, "legacy", { now });
+    const summary = toolHealthSummary(handle, "legacy");
+    const fired = summary.find((s) => s.tool === "fire_reminder");
+    expect(fired?.lastRanAt).not.toBeNull();
+    // Every other tool still reads as never-run.
+    expect(summary.filter((s) => s.tool !== "fire_reminder").every((s) => s.lastRanAt === null)).toBe(true);
+  });
+
+  it("is space-scoped", async () => {
+    const now = Date.UTC(2026, 2, 1, 12, 0, 0);
+    handle.sqlite.prepare(`INSERT INTO nodes (space_id, label, type, content, remind_at) VALUES ('alice', 'x', 'daily', '', ?)`).run(iso(now - 60_000));
+    await runToolRouter(ctx, "alice", { now });
+    expect(toolHealthSummary(handle, "alice").find((s) => s.tool === "fire_reminder")?.lastRanAt).not.toBeNull();
+    expect(toolHealthSummary(handle, "bob").find((s) => s.tool === "fire_reminder")?.lastRanAt).toBeNull();
   });
 });
