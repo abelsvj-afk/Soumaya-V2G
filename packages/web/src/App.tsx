@@ -1974,6 +1974,10 @@ export default function App() {
             setTab(t as any);
             setPanel("dock");
           }}
+          onSearch={() => {
+            dismissObs();
+            setPanel("search");
+          }}
         />
       )}
 

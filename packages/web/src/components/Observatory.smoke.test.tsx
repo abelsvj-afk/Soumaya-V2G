@@ -34,6 +34,45 @@ function memory(over: Partial<GraphNode>): GraphNode {
   } as GraphNode;
 }
 
+describe("Observatory — search entry point (OPTIMIZATION_ROADMAP.md Problem 4)", () => {
+  it("offers a search button when onSearch is passed, and calls it on tap", async () => {
+    const onSearch = vi.fn();
+    render(
+      <Observatory
+        spaceName="You"
+        memories={[memory({ id: 1, label: "a memory" })]}
+        streak={0}
+        fedToday={false}
+        onCapture={vi.fn()}
+        onFocus={vi.fn()}
+        onOpenInsights={vi.fn()}
+        onEnter={vi.fn()}
+        onSearch={onSearch}
+      />,
+    );
+    const btn = await screen.findByLabelText("Search your memories");
+    btn.click();
+    expect(onSearch).toHaveBeenCalled();
+  });
+
+  it("omits the search button when onSearch isn't passed", async () => {
+    render(
+      <Observatory
+        spaceName="You"
+        memories={[memory({ id: 1, label: "a memory" })]}
+        streak={0}
+        fedToday={false}
+        onCapture={vi.fn()}
+        onFocus={vi.fn()}
+        onOpenInsights={vi.fn()}
+        onEnter={vi.fn()}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText("a memory")).toBeTruthy());
+    expect(screen.queryByLabelText("Search your memories")).toBeNull();
+  });
+});
+
 describe("Observatory — Today's agenda / Worth a moment cards", () => {
   it("shows nothing agenda-related when there are no due reminders and no open actions", async () => {
     render(

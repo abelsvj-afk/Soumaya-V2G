@@ -58,6 +58,7 @@ export function Observatory({
   onOpenInsights,
   onEnter,
   onOpenTab,
+  onSearch,
   actionCount = 0,
 }: {
   spaceName: string;
@@ -72,6 +73,10 @@ export function Observatory({
   onEnter: () => void;
   /** Open a dock tab (Mission Control cards route here — money, journeys, …). */
   onOpenTab?: (tab: string) => void;
+  /** Open the search box — the floating 🔍 tool sits behind this full-screen
+   *  overlay (z-index), so without this, search is unreachable from the very
+   *  first screen a returning user sees (OPTIMIZATION_ROADMAP.md Problem 4). */
+  onSearch?: () => void;
   /** Open "action item" count — actions aren't in `memories`, so it's passed separately. */
   actionCount?: number;
 }) {
@@ -169,6 +174,11 @@ export function Observatory({
             {streak > 0 ? ` · 🔥 ${streak}-day streak` : ""}
             {away ? ` · away ${humanAway(away.awayMs)}` : ""}
           </span>
+          {onSearch && (
+            <button className="obs-search" onClick={onSearch} aria-label="Search your memories" title="Search">
+              🔍
+            </button>
+          )}
           <button className="obs-close" onClick={onEnter} aria-label="Close and enter the galaxy">
             ×
           </button>

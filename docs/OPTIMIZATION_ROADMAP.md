@@ -44,6 +44,13 @@ feel like one coherent app instead of 11 separate destinations.
    ingest box shouldn't require picking one up front. Suggest a kind after auto-extraction (already
    heuristic-classified today) and let the user confirm/change it, rather than making the decision
    a precondition of dumping a thought.
+   - **Verified, closed — the concern this describes doesn't exist today.** Checked the actual
+     ingest flow (`IngestPanel.tsx`) and pipeline (`ingestion/pipeline.ts`): a raw capture never
+     requires picking a cognitive kind up front (the only pre-save choice is the plain "📌 action
+     item" checkbox) — Mind-layer kinds (goal/idea/skill/person_entity/…) aren't auto-classified
+     from free text at all; they're created deliberately through the Mind tab's own per-kind forms,
+     which is the correct place for that decision to live (a goal and a skill need genuinely
+     different fields, not a label swap on the same row). There's no forced picklist to remove.
 
 *Needs its own spec before building* (per this repo's mandatory workflow) — Mission Control
 composes several existing subsystems and deserves a proper design pass, not an ad-hoc build.
@@ -103,6 +110,16 @@ search box, especially on a phone, especially under time pressure.
 1. **Elevate search as the fast path, not a replacement for the galaxy.** Confirm the existing
    search entry point is never more than one tap away from anywhere in the app (it already exists —
    `SearchBox`/the 🔍 tool — this is a discoverability/placement check, not new functionality).
+   - **Checked, and this claim didn't hold — found and fixed.** The floating 🔍 tool
+     (`ToolsMenu`, `App.tsx`) only renders while `panel === null`; the Observatory home screen is a
+     separate, full-screen `z-index: 55` overlay that isn't part of that panel state machine, so it
+     sat visually on top of the (still-mounted but covered) tool row — meaning search was
+     unreachable on the very first screen a returning user sees, exactly the "slower than a search
+     box, especially under time pressure" complaint this section is about. Every OTHER overlay
+     (chat, settings, ingest…) is fine — the user opened those deliberately and can dismiss them
+     back to the FAB row; Observatory is the one screen that appears on its own. Fixed with a small
+     🔍 button in Observatory's own header (dismisses Observatory, opens search), not a z-index
+     hack — same `dismissObs()`-then-navigate pattern its other cards already use.
 2. **Mission Control (Problem 1's fix) doubles as a retrieval shortcut** — "one memory worth
    revisiting" and Journey/task lists surfaced there mean a user often doesn't need to fly anywhere
    to find what they came for.
