@@ -38,6 +38,13 @@ instead of "where do I save this?", the daily loop lands in **Mission Control**,
 Journeys. **Consider every new feature against this doc — where it can serve a Journey, it should.**
 Large pieces get their own spec first (per the workflow), but this governs *what* we build toward.
 
+**MANDATORY — read before proposing new feature growth.** [`HONEST_ASSESSMENT.md`](./HONEST_ASSESSMENT.md)
+is a dated, honest outside read on whether this product is actually worth using long-term (not a
+status log — a frozen verdict, re-run periodically, entries appended not overwritten).
+[`docs/OPTIMIZATION_ROADMAP.md`](./docs/OPTIMIZATION_ROADMAP.md) is the non-destructive fix plan for
+what it found — **no tab removal, no rebuild; fix/consolidate/surface what's already built.** Weigh
+any new feature idea against closing the roadmap's open problems before adding more surface area.
+
 **MANDATORY**: Refer to [GEMINI_CHANGES.md](./GEMINI_CHANGES.md) for all modifications, asset additions, and infrastructure changes made by the second agent (Antigravity CLI / `agy`), to ensure continuity between agents. The second agent's own mandates + green/red zones live in [AGENTS.md](./AGENTS.md) (the file `agy` auto-loads).
 
 Guidance for working in this repo. Read this before making changes.
