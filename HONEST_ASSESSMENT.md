@@ -80,5 +80,65 @@ five reasons still hold.
 
 ---
 
+## ENTRY 2026-08-29 (same day) — re-asked after shipping Mission Control + Progressive Discovery
+
+**THE VERDICT: STILL WOULDN'T CALL IT SOLVED — BUT I'D PUSH MY OWN TIMELINE FROM TWO WEEKS TO
+ROUGHLY A MONTH, WITH ONE HONEST ASTERISK: NONE OF THIS IS LIVE YET.**
+
+That asterisk matters more than it sounds — every fix below shipped to a branch tonight. The actual
+app on my phone, right now, is byte-for-byte what it was this morning. So this re-read is a
+prediction about a build I haven't actually lived with, not a report from having used it. Worth
+saying plainly instead of letting the excitement of "we shipped it" imply more than it should.
+
+Going through the original five, honestly, one at a time:
+
+**1. TAXONOMY TAX — genuinely reduced for day one, not eliminated.** A brand-new brain now opens to
+7 tabs instead of 11, and a real Mission Control screen (agenda, safe-to-spend, journey progress,
+one thing worth revisiting) instead of an empty dock asking you to pick a destination. That's a real
+smoother on-ramp. But it's front-loaded: the moment you log your first memory, Progress and Hangar
+are already back (Codex entries unlock that fast), and Insights reappears the first time you connect
+two memories. So this buys you the first few captures, not the first few weeks — the full 11-tab,
+9-kind surface is still exactly as complex as it always was once you're actually using the thing.
+Softer landing, same mountain.
+
+**2. TRUST IN THE AUTOMATION — infrastructure exists now; trust itself hasn't been earned yet, and
+can't be, by a commit.** The specific bugs (bill-risk, skill overlinking, the dead onRecall wire) are
+fixed, and there's now a real "last time each tool actually fired" systems-check panel instead of
+silence. That's the right kind of fix — visibility instead of hoping. But trust is a property of
+lived experience, not of code existing: I'd need to actually watch the automation behave correctly
+for a few weeks, with the diagnostics panel confirming it rather than me finding a new dead wire by
+accident, before my guard would actually come down. Necessary, not sufficient, and time can't be
+compressed by writing more code in one sitting.
+
+**3. THE OWNER'S MENTAL MODEL — the specific evidence (stale Help menu, an unnoticed skill bug) is
+now fixed, but that's a symptom, not the disease.** Better docs help you look something up once
+you're already confused. They don't reduce how often a project this large produces confusion in the
+first place — that's downstream of #1, and #1 only moved for day one.
+
+**4. RETRIEVAL SPEED — one real, concrete win, plus one structural thing that can't change without
+changing what the galaxy is.** Search being physically unreachable from the very first screen a
+returning user sees was a genuine, embarrassing bug (found by actually checking, not assumed) — now
+fixed, and Mission Control's "one memory worth revisiting" plus reminder/agenda surfacing means a lot
+of what I'd have gone hunting for is just sitting on the landing screen already. But for the "I need
+that specific thing from six weeks ago" case, it's still type-into-a-box vs. fly-a-camera, and that
+trade-off is what the galaxy IS — no amount of surrounding polish removes it, nor should it.
+
+**5. DEPLOY FRAGILITY — completely untouched, and the most important line in this whole entry.**
+Still manual `fly deploy`, still no working CI, still ops work outside what a coding session can fix
+on its own. Every improvement above is theoretical to an actual user until that changes. A second
+brain habit needs to be *current* to be trusted daily, and tonight didn't move that at all.
+
+### Net honest read
+
+The two changes that would genuinely hit me on day one — a real landing screen instead of a blank
+dock, and search actually being reachable — are the kind of fix that extends how long the initial
+hook lasts, which is a fair, non-cosmetic reason to push my estimate out. But the underlying bet from
+the first entry hasn't changed: this is still a *complexity and trust* problem more than a *missing
+feature* problem, and neither of those resolves in one session, however well-executed. The measure
+that actually matters — reading this entry again in a month, after the app has actually been lived
+in — is still ahead, not behind.
+
+---
+
 <!-- Next entry: copy the "## ENTRY <date>" pattern above and append below this line. Do not
      overwrite prior entries — the comparison over time is the entire point of this file. -->
