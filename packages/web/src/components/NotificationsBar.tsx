@@ -2,6 +2,7 @@ import { useState } from "react";
 import { type GraphNode, type Fuel } from "@brain/shared";
 import { type Health, describeLlmStatus } from "../api/client.js";
 import { type DockTab } from "./RightDock.js";
+import { isReminderDue } from "../utils/dueReminders.js";
 
 interface NotificationsBarProps {
   fuel: Fuel | null;
@@ -80,11 +81,7 @@ export function NotificationsBar({ fuel, nodes, health, onFocusNode, onOpenTab, 
   // 4. Due reminders — the one moment a reminder matters. (The Agenda used to be
   // the only surface and it HID reminders once due; nothing else ever alerted.)
   const nowMs = Date.now();
-  const dueReminders = nodes.filter((n) => {
-    if (n.kind === "action" || !n.remindAt) return false;
-    const iso = n.remindAt.includes("Z") || n.remindAt.includes("+") ? n.remindAt : n.remindAt.replace(" ", "T") + "Z";
-    return Date.parse(iso) <= nowMs;
-  });
+  const dueReminders = nodes.filter((n) => isReminderDue(n, nowMs));
   if (dueReminders.length > 0) {
     alerts.push({
       id: "due-reminders",

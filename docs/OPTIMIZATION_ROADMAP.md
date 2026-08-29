@@ -131,9 +131,13 @@ work happening in sessions like this one.
 1. **Now / already done this session:** Help menu accuracy pass; this document pair.
 2. **Next, small/contained (no spec needed):** the "computed but never consumed" sweep; the
    systems-check diagnostics surface.
-3. **Then, needs its own spec first:** Mission Control (composes Daily Contact + bill-risk +
-   Journey progress + one dormant memory into a real landing view) — the single highest-leverage
-   item on this list for Problem 1.
+3. **Done:** Mission Control (`docs/specs/mission-control.md`) — Observatory already composed
+   Daily Contact, Safe-to-Spend, Journey progress, a resurfaced dormant memory, and recent
+   activity; this phase added the two missing pieces (a "Today's agenda" card for due reminders +
+   open action count, and a "Worth a moment" spaced-repetition card), de-duplicated the
+   due-reminder predicate across `ActionsPanel`/`NotificationsBar`/`Observatory` into one shared
+   `web/utils/dueReminders.ts`, and surfaced up to 3 AI observations instead of 1 — the single
+   highest-leverage item on this list for Problem 1.
 4. **Then:** Progressive Discovery pass (unlock tabs by relevance instead of showing all 11 on
    day one) — deliberately sequenced AFTER Mission Control exists, since Mission Control is what a
    day-1 user lands on instead of an empty dock.

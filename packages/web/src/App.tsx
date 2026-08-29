@@ -1951,6 +1951,7 @@ export default function App() {
         <Observatory
           spaceName={space.name}
           memories={(data.nodes as GraphNode[]).filter((n) => n.kind !== "action")}
+          actionCount={(data.nodes as GraphNode[]).filter((n) => n.kind === "action").length}
           streak={streak?.current ?? 0}
           fedToday={!!streak?.today}
           away={awayDigest}

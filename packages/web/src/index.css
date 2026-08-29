@@ -3129,6 +3129,18 @@ button {
   white-space: nowrap;
 }
 .obs-chip:hover { background: rgba(91, 214, 255, 0.26); }
+.obs-observation-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.obs-observation-row:hover .obs-line { color: #eaf6ff; }
 .obs-enter {
   margin-top: 6px;
   align-self: center;
@@ -4772,6 +4784,19 @@ button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
 .obs-jn-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .obs-jn-fill { display: block; height: 100%; background: linear-gradient(90deg, #5bd6ff, #b98bff); transition: width 0.8s cubic-bezier(0.2,0.9,0.3,1); }
 .obs-journeys { border-color: rgba(150,200,255,0.26); }
+
+/* Today's agenda (due reminders + open actions) + Worth a moment (spaced-repetition) */
+.obs-agenda { border-color: rgba(255,205,122,0.28); }
+.obs-recall { border-color: rgba(150,255,190,0.24); }
+.obs-chip-static {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.78rem;
+  color: #dbe6ff;
+  white-space: nowrap;
+}
 
 /* ---- Galaxy Views (mobile perf: render one category at a time) ---- */
 /* bottom: 150px used to sit squarely inside .fab-music's footprint (bottom:130px, 46px

@@ -3,8 +3,13 @@
 > Design per [AI_ENGINEERING_WORKFLOW.md](../AI_ENGINEERING_WORKFLOW.md) / [WORKFLOW.md](../../WORKFLOW.md).
 > Parent: [VISION_2_JOURNEYS.md](../VISION_2_JOURNEYS.md) (Mission Control, Stage 2) and
 > [OPTIMIZATION_ROADMAP.md](../OPTIMIZATION_ROADMAP.md) Problem 1 (no single coherent entry point
-> across 11 tabs). Status: **approved, ready for implementation** (see Decisions below — resolved
-> without a review round-trip per this session's standing delegation).
+> across 11 tabs). Status: **implemented and shipped** (see Decisions below — resolved without a
+> review round-trip per this session's standing delegation). All 4 acceptance criteria met: the
+> due-reminder helper (`web/utils/dueReminders.ts`) is the one shared predicate used by
+> `ActionsPanel`, `NotificationsBar`, and `Observatory`; Observatory gained a "Today's agenda" card
+> (due reminders + open action count) and a "Worth a moment" card (`getDueReviews()`); the AI
+> observations card now shows up to 3 instead of 1 (no server change needed — `InsightsRepo.recent()`
+> already returned up to 30). Gate green: 425 server + 128 web tests, typecheck, build.
 
 ## 🎯 Objective
 

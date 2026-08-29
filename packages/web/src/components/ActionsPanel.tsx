@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import type { GraphNode } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+import { isReminderDue } from "../utils/dueReminders.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -56,7 +57,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
   );
   // DUE reminders used to silently VANISH here (the list filtered to future-only)
   // — the one moment a reminder mattered was the moment it disappeared.
-  const dueReminders = allReminders.filter(({ n, at }) => at <= Date.now() && !acked.has(n.id));
+  const dueReminders = allReminders.filter(({ n }) => isReminderDue(n, Date.now()) && !acked.has(n.id));
   const reminders = allReminders.filter(({ at }) => at > Date.now());
 
   const done = (id: number) => {

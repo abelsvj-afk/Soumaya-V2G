@@ -5,7 +5,9 @@ import {
   getDigest,
   getDailyContact,
   answerDailyContact,
+  getDueReviews,
   type DailyContact,
+  type DueReview,
 } from "../api/client.js";
 import { dailyQuests } from "./quests.js";
 import { playSfx } from "../graph/sfx.js";
@@ -14,6 +16,7 @@ import { SoumayaEye } from "./SoumayaEye.js";
 import type { Journey } from "@brain/shared";
 import { getFinanceSummary, type FinanceSummary } from "../api/finance.js";
 import { getJourneys } from "../api/journeys.js";
+import { isReminderDue } from "../utils/dueReminders.js";
 
 /** Why she's asking — the icon that frames her daily question. */
 const CONTACT_ICON: Record<string, string> = {
@@ -55,6 +58,7 @@ export function Observatory({
   onOpenInsights,
   onEnter,
   onOpenTab,
+  actionCount = 0,
 }: {
   spaceName: string;
   memories: GraphNode[]; // non-action nodes
@@ -68,8 +72,10 @@ export function Observatory({
   onEnter: () => void;
   /** Open a dock tab (Mission Control cards route here — money, journeys, …). */
   onOpenTab?: (tab: string) => void;
+  /** Open "action item" count — actions aren't in `memories`, so it's passed separately. */
+  actionCount?: number;
 }) {
-  const [insight, setInsight] = useState<Insight | null>(null);
+  const [insights, setInsights] = useState<Insight[]>([]);
   const [constellations, setConstellations] = useState<Constellation[]>([]);
   // The Daily Contact — she initiates; answering right here feeds the brain.
   const [contact, setContact] = useState<DailyContact | null>(null);
@@ -78,10 +84,14 @@ export function Observatory({
   // Mission Control daily-loop data: the money glance + active journeys.
   const [finance, setFinance] = useState<FinanceSummary | null>(null);
   const [journeys, setJourneys] = useState<Journey[]>([]);
+  // "Worth a moment" — the spaced-repetition system's pick, distinct from the
+  // dormant-list resurfacing above (`away.resurfaced`): one answers "what have
+  // you used to care about and stopped," the other "what's due for active recall."
+  const [dueReview, setDueReview] = useState<DueReview | null>(null);
 
   useEffect(() => {
     getDigest()
-      .then((items) => setInsight(items[0] ?? null))
+      .then((items) => setInsights(items.slice(0, 3)))
       .catch(() => {});
     getConstellations()
       .then((c) => setConstellations(c.slice(0, 3)))
@@ -91,6 +101,7 @@ export function Observatory({
       .catch(() => {});
     getFinanceSummary().then((f) => setFinance(f)).catch(() => {});
     getJourneys().then((j) => setJourneys((j ?? []).filter((x) => x.status === "active").slice(0, 3))).catch(() => {});
+    getDueReviews().then((d) => setDueReview(d[0] ?? null)).catch(() => {});
   }, []);
   // The welcome-home motif used to play from the separate away card.
   useEffect(() => {
@@ -125,6 +136,10 @@ export function Observatory({
   const recent = [...memories]
     .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
     .slice(0, 3);
+  // Today's agenda — due reminders (memories carry remind_at; actions never do,
+  // isReminderDue already excludes them) plus the open action-item count passed
+  // in separately, since actions aren't part of `memories`.
+  const dueReminders = memories.filter((n) => isReminderDue(n));
 
   // New brain: a single calm hero, not an empty card grid.
   if (count === 0) {
@@ -204,6 +219,48 @@ export function Observatory({
               )}
             </span>
           </div>
+        )}
+
+        {(dueReminders.length > 0 || actionCount > 0) && (
+          <button
+            className="obs-card obs-agenda"
+            onClick={() => (onOpenTab ? onOpenTab("actions") : onEnter())}
+            title="Open Agenda"
+          >
+            <span className="obs-ic">📌</span>
+            <span className="obs-body">
+              <span className="obs-title">Today's agenda</span>
+              <span className="obs-line">
+                {[
+                  dueReminders.length > 0
+                    ? `🔔 ${dueReminders.length} reminder${dueReminders.length === 1 ? "" : "s"} due`
+                    : null,
+                  actionCount > 0 ? `📌 ${actionCount} open action${actionCount === 1 ? "" : "s"}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              {dueReminders.length > 0 && (
+                <span className="obs-chips">
+                  {dueReminders.slice(0, 2).map((n) => (
+                    <span key={n.id} className="obs-chip-static">
+                      {n.label.length > 24 ? `${n.label.slice(0, 24)}…` : n.label}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
+
+        {dueReview && (
+          <button className="obs-card obs-recall" onClick={() => onFocus(dueReview.id)} title="Worth a moment — active recall">
+            <span className="obs-ic">🌱</span>
+            <span className="obs-body">
+              <span className="obs-title">Worth a moment</span>
+              <span className="obs-line obs-clamp">{dueReview.label}</span>
+            </span>
+          </button>
         )}
 
         {/* Her Daily Contact — the reason to come back: SHE has something for you. */}
@@ -342,19 +399,25 @@ export function Observatory({
         })()}
 
         {/* (The old "surfaced a connection" card merged into "Her discovery of the
-            day" above — same data, one card.) */}
-        {!contact?.discovery && insight && (
-          <button
-            className="obs-card"
-            onClick={() => (insight.nodes[0] ? onFocus(insight.nodes[0].id) : onOpenInsights())}
-            title="See the connection"
-          >
+            day" above — same data.) Shows up to 3 — previously only ever the first,
+            even though the digest already had more to say. */}
+        {!contact?.discovery && insights.length > 0 && (
+          <div className="obs-card obs-observations">
             <span className="obs-ic">🔭</span>
             <span className="obs-body">
-              <span className="obs-title">Her discovery of the day</span>
-              <span className="obs-line obs-clamp">{insight.text}</span>
+              <span className="obs-title">{insights.length > 1 ? "AI observations" : "Her discovery of the day"}</span>
+              {insights.map((ins) => (
+                <button
+                  key={ins.id}
+                  className="obs-observation-row"
+                  onClick={() => (ins.nodes[0] ? onFocus(ins.nodes[0].id) : onOpenInsights())}
+                  title="See the connection"
+                >
+                  <span className="obs-line obs-clamp">{ins.text}</span>
+                </button>
+              ))}
             </span>
-          </button>
+          </div>
         )}
 
         {constellations.length > 0 && (
