@@ -38,4 +38,28 @@ describe("reduced-motion signal (#3b)", () => {
     setReducedMotionOverride(null);
     expect(reducedMotionOverride()).toBeNull();
   });
+
+  it("mirrors the effective state onto <html> so CSS can see the in-app override", () => {
+    // Regression: the Settings toggle only wrote localStorage, while every CSS
+    // animation keyed off the OS media query — so asking for calm in-app did nothing
+    // to the DOM. The attribute is what index.css's second reduced-motion reset reads.
+    const root = document.documentElement;
+    setReducedMotionOverride(true);
+    expect(root.getAttribute("data-reduced-motion")).toBe("1");
+
+    setReducedMotionOverride(false);
+    expect(root.hasAttribute("data-reduced-motion")).toBe(false);
+
+    setReducedMotionOverride(null); // back to following the OS (false under happy-dom)
+    expect(root.hasAttribute("data-reduced-motion")).toBe(false);
+  });
+
+  it("keeps sound in step with the same reduced-motion signal", async () => {
+    const { sfxEnabled } = await import("./sfx.js");
+    localStorage.removeItem("brain.sfx"); // no explicit sound preference → follow a11y
+    setReducedMotionOverride(true);
+    expect(sfxEnabled()).toBe(false);
+    setReducedMotionOverride(false);
+    expect(sfxEnabled()).toBe(true);
+  });
 });

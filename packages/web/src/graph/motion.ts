@@ -35,6 +35,38 @@ export function reducedMotionOverride(): boolean | null {
   return null;
 }
 
+/**
+ * Mirror the EFFECTIVE reduced-motion state onto `<html data-reduced-motion="1">`.
+ *
+ * Why this exists: the in-app Settings toggle only wrote localStorage, while every
+ * CSS animation block in the app keys off `@media (prefers-reduced-motion: reduce)`
+ * — the OS setting. So a user who explicitly asked for calm in Settings still got
+ * the toast slide, rank-up pop, streak flicker, fuel burn and song-dot spin. Nothing
+ * in the app ever touched `documentElement`, so CSS had no way to see the override.
+ *
+ * The attribute drives one global rule in index.css. Deliberately mirrors only the
+ * ACCESSIBILITY state, not `focusCalm` — focus mode calms the galaxy for a reading
+ * session, but freezing every UI transition mid-session would read as broken.
+ */
+function syncReducedMotionAttr(): void {
+  try {
+    const root = document?.documentElement;
+    if (!root) return;
+    if (prefersReducedMotion()) root.setAttribute("data-reduced-motion", "1");
+    else root.removeAttribute("data-reduced-motion");
+  } catch {
+    /* non-DOM environment (tests/SSR) — nothing to mirror */
+  }
+}
+
+// Apply at module load, and keep it correct if the OS setting changes at runtime.
+syncReducedMotionAttr();
+try {
+  window.matchMedia?.("(prefers-reduced-motion: reduce)").addEventListener?.("change", syncReducedMotionAttr);
+} catch {
+  /* ignore */
+}
+
 /** Set (or clear, with null) the override and notify listeners. */
 export function setReducedMotionOverride(v: boolean | null): void {
   try {
@@ -43,6 +75,7 @@ export function setReducedMotionOverride(v: boolean | null): void {
   } catch {
     /* ignore */
   }
+  syncReducedMotionAttr();
   window.dispatchEvent(new Event("brain-motion-change"));
 }
 

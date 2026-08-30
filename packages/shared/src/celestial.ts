@@ -221,6 +221,23 @@ export function skillTier(progress: number): SkillTier {
   return "Novice";
 }
 
+/**
+ * Entropy at/above which a memory reads as "cooling" — the ❄️ badge, the Browse
+ * cooling filter, the daily "warm a cooling memory" quest, Soumaya's lore, and the
+ * satellite beacons all mean the SAME thing by it. It was a naked 0.45 restated at
+ * seven separate call sites across web + server, so retuning "cold" meant finding
+ * every one of them.
+ */
+export const COOLING_ENTROPY = 0.45;
+
+/**
+ * Mass at/above which a body anchors a "sector" — it earns a rendered sector title
+ * in the galaxy AND a card in Browse → Hubs. Those two were independent 0.44
+ * literals (graph/nodeObject.ts and components/SectorView.tsx), so changing one made
+ * the galaxy's labels disagree with the list that's supposed to describe them.
+ */
+export const SECTOR_MASS = 0.44;
+
 export const COGNITIVE_KINDS = Object.keys(COGNITIVE_META) as CognitiveKind[];
 /** Durable cognitive kinds never "cool" (entropy-exempt, like hubs + beliefs). */
 export const DURABLE_COGNITIVE_KINDS = new Set(

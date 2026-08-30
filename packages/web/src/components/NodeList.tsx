@@ -8,6 +8,7 @@ import {
   CELESTIAL_CLASSES,
   NODE_TYPE_LABEL,
   normalizeNodeType,
+  COOLING_ENTROPY,
 } from "@brain/shared";
 import { colorForType, TYPE_COLORS } from "../graph/theme.js";
 import { getConstellations, getVisitorActivity, useProcessingNodes, type VisitedMemory } from "../api/client.js";
@@ -142,7 +143,7 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
       if (tier !== "all" && (n.celestial ?? "moon") !== tier) return false;
       if (type !== "all" && normalizeNodeType(n.type) !== type) return false;
       if (emotion !== "all" && emotionBucket(n.emotionalWeight) !== emotion) return false;
-      if (cooling && (n.entropy ?? 0) < 0.45) return false;
+      if (cooling && (n.entropy ?? 0) < COOLING_ENTROPY) return false;
       if (drifting && (n.degree ?? 0) > 0) return false;
       if (tag && !(n.tags ?? []).includes(tag)) return false;
       return true;
@@ -243,7 +244,7 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
                 </span>
               )}
               <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
-              {(n.entropy ?? 0) >= 0.45 && <span title="cooling">· ❄️</span>}
+              {(n.entropy ?? 0) >= COOLING_ENTROPY && <span title="cooling">· ❄️</span>}
               {v && <span title={`visited ${v.visits}× · last ${relative(v.lastAt)}`}>· 👽 {v.visits}</span>}
               {constel && <span className="nl-constel" title={`constellation: ${constel}`}>· 🌌 {constel}</span>}
             </span>

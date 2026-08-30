@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { GraphNode } from "@brain/shared";
+import { type GraphNode, EARN_ACTION_DONE, ACTION_DONE_MIN_AGE_MINUTES } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { isReminderDue } from "../utils/dueReminders.js";
@@ -17,6 +17,19 @@ function ms(raw?: string): number {
   if (!raw) return NaN;
   const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
   return Date.parse(iso);
+}
+
+/**
+ * Will clearing this action actually pay out? The server refuses fuel for an action
+ * younger than ACTION_DONE_MIN_AGE_MINUTES (a create-then-delete loop was a free fuel
+ * farm — see the DELETE handler in api/routes/nodes.ts). The button used to promise
+ * "(+fuel)" unconditionally, so clearing a task you'd just written paid nothing with
+ * no explanation.
+ */
+function earnsFuel(n: Pick<GraphNode, "createdAt">): boolean {
+  const created = ms(n.createdAt);
+  if (Number.isNaN(created)) return false;
+  return Date.now() - created >= ACTION_DONE_MIN_AGE_MINUTES * 60_000;
 }
 
 /** "in 5h" / "in 3d" / "overdue" from a future-ish timestamp. */
@@ -118,7 +131,18 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
                   {c.text && <span className={`agenda-due ${c.urgent ? "urgent" : ""}`}>⏰ {c.text}</span>}
                 </button>
                 {!readOnly && (
-                  <button className="mini agenda-done" onClick={() => done(n.id)} title="Mark done (+fuel)">
+                  <button
+                    className="mini agenda-done"
+                    onClick={() => done(n.id)}
+                    /* The server only pays out once an action is old enough — a
+                       create-then-delete loop was a free fuel farm. The old flat
+                       "(+fuel)" promised a reward the user often didn't get. */
+                    title={
+                      earnsFuel(n)
+                        ? `Mark done (+${EARN_ACTION_DONE} ⛽)`
+                        : `Mark done · earns ⛽ after ${ACTION_DONE_MIN_AGE_MINUTES} min`
+                    }
+                  >
                     ✓
                   </button>
                 )}

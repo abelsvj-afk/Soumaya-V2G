@@ -5,8 +5,11 @@
  * audio files and get free per-play pitch variation. One `playSfx(name)` API; a master
  * enable + volume (separate from the music, persisted in localStorage); lazy AudioContext
  * init on first gesture; and everything wrapped so a failure can never break the UI.
- * Respects `prefers-reduced-motion` (treated as reduce-sound) unless the user opts in.
+ * Respects reduced motion (treated as reduce-sound) unless the user opts in — via the
+ * shared `graph/motion.ts` helper, so the OS setting AND the in-app Settings toggle
+ * both reach it.
  */
+import { prefersReducedMotion } from "./motion.js";
 
 export type SfxName =
   | "tap"
@@ -24,20 +27,16 @@ let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let lastPlay = 0; // global throttle so rapid clicks don't machine-gun
 
-function prefersReducedMotion(): boolean {
-  try {
-    return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-  } catch {
-    return false;
-  }
-}
-
 export function sfxEnabled(): boolean {
   try {
     const v = localStorage.getItem(ENABLED_KEY);
     if (v === "1") return true;
     if (v === "0") return false;
-    return !prefersReducedMotion(); // default on, but off if the OS asks for less motion
+    // Default on, but off if reduced motion is asked for. Reads the SHARED helper
+    // (graph/motion.ts) rather than a local matchMedia copy — the local copy only saw
+    // the OS setting, so flipping "Reduce motion" in Settings left sound running and
+    // the app's two accessibility systems disagreed with each other.
+    return !prefersReducedMotion();
   } catch {
     return true;
   }

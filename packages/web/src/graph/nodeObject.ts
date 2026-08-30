@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { type GraphNode, classify, deriveMass } from "@brain/shared";
+import { type GraphNode, classify, deriveMass, SECTOR_MASS } from "@brain/shared";
 import { bodyColor } from "./theme.js";
 import { makeStarMaterial, makePlanetMaterial, type ShaderTier } from "./shaders.js";
 
@@ -596,7 +596,7 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
   const macro = makeMacroBody(color, size, isStarLike);
 
   // 3. Sector Title — every hub gets a name at macro/zoomed-out view
-  const hasSectorTitle = mass >= 0.44;
+  const hasSectorTitle = mass >= SECTOR_MASS;
   if (hasSectorTitle) {
     const sectorLabel = makeLabel((node.celestialTitle ?? node.label).toUpperCase());
     sectorLabel.scale.multiplyScalar(2.5); // Giant sector name

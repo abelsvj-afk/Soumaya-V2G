@@ -2822,7 +2822,16 @@ button {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  z-index: 60;
+  /* Toasts must outrank EVERY panel/overlay — at z-60 they rendered BEHIND
+     .help-overlay (60, lost on DOM order), .settings-overlay/.lenses-overlay (70),
+     .rankup-moment (95), .timeline-overlay (96), .review-overlay (97) and
+     .fuel-ways-backdrop (98). That silently swallowed all the correct error
+     handling inside those panels ("Couldn't save that lens", a failed recall
+     grade, a failed profile save) — the user saw nothing at all. 150 clears the
+     highest overlay (98) with room to spare, and stays under .att-lightbox (200),
+     which is a deliberate fullscreen media view.
+     Anything added above 98 from here on MUST stay below this line. */
+  z-index: 150;
   pointer-events: none;
   width: max-content;
   max-width: min(92vw, 460px);
@@ -4375,6 +4384,23 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   /* Ambient perimeter motes shouldn't wander or shimmer under reduced motion. */
   .mindspace-mote { animation: none !important; }
 }
+/* The SAME reset, driven by the in-app Settings toggle rather than the OS setting.
+   `graph/motion.ts` mirrors the effective a11y state onto <html data-reduced-motion="1">;
+   without this half, flipping "Reduce motion" in Settings wrote localStorage and calmed
+   the WebGL galaxy but left every DOM animation running, because CSS could only ever see
+   the OS media query. Duplicated rather than shared because a media query and an
+   attribute selector can't be combined in one block.
+   `!important` here also outranks inline `style={{ transition: … }}` (e.g. InboxPanel's
+   per-card transitions), which a media-query-only reset could never reach. */
+:root[data-reduced-motion="1"] *,
+:root[data-reduced-motion="1"] *::before,
+:root[data-reduced-motion="1"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+:root[data-reduced-motion="1"] .mindspace-mote { animation: none !important; }
 
 /* ── Recall session (spaced-repetition active recall, NEURO_ALIGNMENT #1) ── */
 .review-overlay {

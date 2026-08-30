@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType, FUEL_JOB_COST } from "@brain/shared";
 import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { colorForType } from "../graph/theme.js";
@@ -435,7 +435,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           }}
           title="She'll prioritize this memory on her next round. With Research Mode on (and fuel in the tank) she deep-dives it — that spends 2 ⛽; otherwise it's a free recalibration."
         >
-          {requested ? "🛰️ Queued for Soumaya" : "🛰️ Ask Soumaya to tend this · up to 2 ⛽"}
+          {requested ? "🛰️ Queued for Soumaya" : `🛰️ Ask Soumaya to tend this · up to ${FUEL_JOB_COST} ⛽`}
         </button>
       )}
 

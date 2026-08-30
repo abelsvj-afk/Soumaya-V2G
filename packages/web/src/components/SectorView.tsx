@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON } from "@brain/shared";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, SECTOR_MASS } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
 
 interface Props {
@@ -43,7 +43,7 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
 
   const sectors = useMemo(
-    () => graph.nodes.filter((n) => (n.mass ?? 0) >= 0.44).sort((a, b) => (b.mass ?? 0) - (a.mass ?? 0)),
+    () => graph.nodes.filter((n) => (n.mass ?? 0) >= SECTOR_MASS).sort((a, b) => (b.mass ?? 0) - (a.mass ?? 0)),
     [graph.nodes],
   );
 

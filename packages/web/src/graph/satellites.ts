@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from "three";
+import { COOLING_ENTROPY } from "@brain/shared";
 import { gltfLoader } from "./gltf.js";
 import { emotionColorHex } from "./theme.js";
 
@@ -30,8 +31,9 @@ export const SATELLITE_LORE =
   "make sure none cools unseen. Visit a beamed memory to warm it; the beacon moves on. " +
   "Drifters fear them: the beam scrambles a wanderer's bearings, so the aliens keep clear.";
 
-/** A memory is "going cold" (worth a beacon) at/above this entropy. */
-const COLD_THRESHOLD = 0.45;
+/** A memory is "going cold" (worth a beacon) at/above this entropy — the same
+ *  threshold the ❄️ badge, the Browse cooling filter and the daily quest all use. */
+const COLD_THRESHOLD = COOLING_ENTROPY;
 
 const vecOf = (n: any): THREE.Vector3 => new THREE.Vector3(n.x ?? 0, n.y ?? 0, n.z ?? 0);
 

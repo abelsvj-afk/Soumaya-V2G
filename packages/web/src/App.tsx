@@ -1,7 +1,7 @@
 import { logDiagnosticEvent } from "./diagnostics/buffer";
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type CSSProperties } from "react";
 import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
-import { CELESTIAL_CLASSES, CELESTIAL_LABEL } from "@brain/shared";
+import { CELESTIAL_CLASSES, CELESTIAL_LABEL, COOLING_ENTROPY } from "@brain/shared";
 // Pure presentational helpers live in App.helpers.ts (Post-MVP D4 split).
 import { focusItemStyle, songDotStyle, getFigurineIcon, getFigurineLabel } from "./App.helpers.js";
 
@@ -686,7 +686,7 @@ export default function App() {
       pushToast(`Welcome, ${space.name}. Drop your first thought to begin.`, "🛰️", 10000);
       return;
     }
-    const cooling = memories.filter((n) => (n.entropy ?? 0) >= 0.45).length;
+    const cooling = memories.filter((n) => (n.entropy ?? 0) >= COOLING_ENTROPY).length;
     const tail = cooling > 0 ? ` · ${cooling} cooling` : "";
     const word = memories.length === 1 ? "memory" : "memories";
     pushToast(`Welcome back, ${space.name} — ${memories.length} ${word}${tail}`, "🛰️", 10000);
@@ -1071,7 +1071,7 @@ export default function App() {
         // Only a GENUINE restore counts toward Grand Restorer / the Codex's
         // "The Gardener" — the memory had actually gone cold before this visit.
         // (Counting every click made them "tap any 10 nodes".)
-        if ((n.entropy ?? 0) >= 0.45) {
+        if ((n.entropy ?? 0) >= COOLING_ENTROPY) {
           const tendKey = `stat.memories_tended.${space.id}`;
           localStorage.setItem(tendKey, String(parseInt(localStorage.getItem(tendKey) || "0", 10) + 1));
         }

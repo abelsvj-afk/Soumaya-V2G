@@ -1,4 +1,4 @@
-import type { GraphNode } from "@brain/shared";
+import { COOLING_ENTROPY, type GraphNode } from "@brain/shared";
 
 /**
  * Daily quests / tend list (gamification Wave 2). A few concrete, click-through
@@ -30,7 +30,7 @@ export function dailyQuests(memories: GraphNode[], fedToday: boolean): Quest[] {
   ];
 
   const cooling = memories
-    .filter((n) => (n.entropy ?? 0) >= 0.45)
+    .filter((n) => (n.entropy ?? 0) >= COOLING_ENTROPY)
     .sort((a, b) => (b.entropy ?? 0) - (a.entropy ?? 0));
   if (cooling.length > 0) {
     quests.push({

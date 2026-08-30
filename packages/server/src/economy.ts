@@ -9,23 +9,38 @@ import { DEFAULT_SPACE } from "./db/schema.js";
  * top of the real USD budget, which remains the hard cap. At zero fuel she idles
  * on free upkeep only. Fully space-scoped (each brain has its own fuel).
  */
-export const FUEL_START = 25;
-export const FUEL_CAP = 200; // roomier tank so you can bank earnings instead of hitting the ceiling
-export const FUEL_JOB_COST = 2; // per autonomous LLM job
-export const EARN_MEMORY = 15; // logging a real memory (your main income — should feel rewarding)
-export const EARN_LINK = 2; // each associative link formed
-export const EARN_ACTION_DONE = 3; // clearing a day-to-day action item
-export const EARN_MIND = 6; // adding a durable thing to your Mind (goal/person/skill/identity/idea…)
-export const EARN_THOUGHT = 2; // capturing a fresh thought in the mind space (manual only)
-export const EARN_CODEX_DISCOVERY = 4; // discovering a Codex entry (one-time per entry)
-export const EARN_REVIEW = 3; // completing a spaced-repetition recall (retrieval, per NEURO north star)
-// Slow passive trickle so Soumaya keeps doing her ambitious work over time even
-// if you don't actively feed the galaxy (≈2.5 days from empty to full). The real
-// USD budget is still the hard cap — this only refills the in-app Fuel.
-// At 6/hr regen alone overfilled the 120 tank in under a day and earning stopped
-// meaning anything; 2/hr keeps an idle brain solvent while logged memories /
-// cleared actions stay the real income.
-export const FUEL_REGEN_PER_HOUR = 3.5;
+/**
+ * The numbers now live in `@brain/shared` so the web app can label a cost/reward
+ * (e.g. "up to 2 ⛽", the Agenda's "+fuel" tooltip) without restating them as
+ * literals that silently go stale when these are retuned. Re-exported here so every
+ * existing server import site keeps working unchanged.
+ *
+ * Meanings, for reference: FUEL_CAP is a roomy tank so earnings can be banked rather
+ * than hitting the ceiling. EARN_MEMORY is the main income and should feel rewarding.
+ * FUEL_REGEN_PER_HOUR is a slow passive trickle (≈2.5 days empty→full) so Soumaya keeps
+ * working even for an idle brain — at 6/hr regen alone overfilled the tank in under a
+ * day and earning stopped meaning anything; the real USD budget is still the hard cap.
+ */
+export {
+  FUEL_START,
+  FUEL_CAP,
+  FUEL_JOB_COST,
+  EARN_MEMORY,
+  EARN_LINK,
+  EARN_ACTION_DONE,
+  EARN_MIND,
+  EARN_THOUGHT,
+  EARN_CODEX_DISCOVERY,
+  EARN_REVIEW,
+  FUEL_REGEN_PER_HOUR,
+  ACTION_DONE_MIN_AGE_MINUTES,
+} from "@brain/shared";
+import {
+  FUEL_START,
+  FUEL_CAP,
+  FUEL_JOB_COST,
+  FUEL_REGEN_PER_HOUR,
+} from "@brain/shared";
 
 const clamp = (x: number, lo: number, hi: number) => (x < lo ? lo : x > hi ? hi : x);
 

@@ -1,4 +1,4 @@
-import type { GraphData } from "@brain/shared";
+import { COOLING_ENTROPY, type GraphData } from "@brain/shared";
 
 /** Lore-bearing non-memory objects in the galaxy. */
 export type LoreObjectKind = "station" | "ship" | "satellite";
@@ -123,7 +123,7 @@ function readSignals(graph: GraphData): BrainSignals {
     const ms = parseTs(n.createdAt);
     if (ms !== null && ms < oldest) oldest = ms;
     if ((n.degree ?? 0) > (hub?.degree ?? -1) || (hub == null)) hub = n;
-    if ((n.entropy ?? 0) >= 0.45) cooling += 1;
+    if ((n.entropy ?? 0) >= COOLING_ENTROPY) cooling += 1;
     if ((n.entropy ?? 0) > (coldest?.entropy ?? -1) || coldest == null) coldest = n;
   }
   const ageDays = oldest === Infinity ? 0 : Math.max(0, (Date.now() - oldest) / 86_400_000);
@@ -134,7 +134,7 @@ function readSignals(graph: GraphData): BrainSignals {
     ageDays,
     hub: hub?.label,
     cooling,
-    coldest: (coldest?.entropy ?? 0) >= 0.45 ? coldest?.label : undefined,
+    coldest: (coldest?.entropy ?? 0) >= COOLING_ENTROPY ? coldest?.label : undefined,
     watch: coldest?.label,
   };
 }
