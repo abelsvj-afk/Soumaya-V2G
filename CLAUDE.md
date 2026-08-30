@@ -242,6 +242,19 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 - **Optimization: Link LOD** (Graph3D.tsx): LOD optimization for dense brains.
 - **Refactor: Intro and Observatory Timing** (various): Timing adjustments for smooth entrance.
 - **Refactor: Startup Flow** (various): Decoupled loading dismissal from intro sequence.
+- **Observatory card density** (Observatory.tsx): after Mission Control + the search-button fix,
+  an active user's Observatory can render up to ~15 cards stacked (away digest, daily contact,
+  foresight, discovery, money, journeys, agenda, worth-a-moment, quests, up to 3 observations,
+  constellations, recent activity). Need eyes on whether this still reads as a calm "one glance"
+  landing screen once it's actually that full, or needs capping/prioritizing.
+- **Observatory 🔍 search button** (Observatory.tsx header): new, added blind — confirm it doesn't
+  visually collide with the existing × close button on narrow phone widths.
+- **Fly billing hold, ongoing (2026-08-29):** the owner's Fly subscription lapsed, so NONE of the
+  above (nor anything shipped since) has been visually verified on a real device — this whole
+  section is a running list of "check these once billing is resolved and a deploy can happen,"
+  not a backlog to pause work for. Keep shipping; keep appending here as new visual-dependent
+  changes land, per the owner's explicit instruction not to stop finding/fixing things just
+  because they can't currently look at the result.
 
 
 - Match the surrounding code's style and comment density (comments explain *why*).

@@ -4,7 +4,7 @@ import type { BudgetSummary } from "@brain/shared";
 import { FinAccountRepo } from "../repositories/finAccount.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
-import { computeBudget, estimateNextIncomeDate, weekStart } from "./budget.js";
+import { computeBudget, estimateNextIncomeDate, weekStart, weeksOfIncomeHistory } from "./budget.js";
 import { toDay } from "./bills.js";
 
 /**
@@ -35,11 +35,16 @@ export function getBudgetSummary(
   }));
 
   const weekEarnedCents = income.sumNetBetween(weekStart(now), today);
-  // Rough 4-week trailing average — what scenario questions ("how many weeks to afford
-  // X") are computed from. Computed once here so every consumer (chat snapshot, the
-  // /afford route) reads the same number instead of each re-deriving it independently.
+  // Rough trailing average over up to 4 weeks — what scenario questions ("how many weeks
+  // to afford X") are computed from. Computed once here so every consumer (chat snapshot,
+  // the /afford route) reads the same number instead of each re-deriving it independently.
+  // Divide by ACTUAL weeks of income history, not a hardcoded 4 — dividing a brand-new
+  // account's first paycheck by 4 understated a real $800/wk earner as $200/wk on day 2
+  // (measured directly). weeksOfIncomeHistory caps at 4 once there's real history, so this
+  // reproduces the prior fixed-window behavior exactly for anyone past their first month.
   const fourWeeksAgo = toDay(new Date(now.getTime() - 28 * 86_400_000));
-  const avgWeeklyIncomeCents = Math.round(income.sumNetBetween(fourWeeksAgo, today) / 4);
+  const weeks = weeksOfIncomeHistory(incomeDates[0], today);
+  const avgWeeklyIncomeCents = Math.round(income.sumNetBetween(fourWeeksAgo, today) / weeks);
 
   return computeBudget({
     balanceCents: account.balanceCents,

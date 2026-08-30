@@ -319,7 +319,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
               onClick={() => {
                 deleteNode(node.id)
                   .then(() => onDeleted())
-                  .catch(() => {});
+                  .catch(() => pushToast("Couldn't clear that — try again.", "⚠️", 3500));
               }}
             >
               ✓ Done
@@ -394,6 +394,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           onClick={() => {
             void archiveNode(node.id, true).then((ok) => {
               if (ok) onDeleted();
+              else pushToast("Couldn't archive that — try again.", "⚠️", 3500);
             });
           }}
         >
@@ -409,7 +410,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
             playSfx("delete");
             deleteNode(node.id)
               .then(() => onDeleted())
-              .catch(() => {});
+              .catch(() => pushToast("Couldn't delete that — try again.", "⚠️", 3500));
           }}
         >
           🗑 Delete memory

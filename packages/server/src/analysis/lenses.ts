@@ -91,8 +91,15 @@ export function evalLens(
     params.push(...ids);
   }
 
+  // Safety cap, not a real-world limit — a lens is meant to match everything that
+  // qualifies, but an unbounded scan over a years-old, thousands-of-memories brain
+  // is an unforced cost. 2000 is generous headroom above every other cap in this
+  // file (keywordSearch's 500) and far past where an "isolate" view stays legible.
   const rows = s
-    .prepare(`SELECT n.id FROM nodes n WHERE ${where.join(" AND ")} ORDER BY COALESCE(n.importance, 0) DESC, n.id DESC`)
+    .prepare(
+      `SELECT n.id FROM nodes n WHERE ${where.join(" AND ")}
+       ORDER BY COALESCE(n.importance, 0) DESC, n.id DESC LIMIT 2000`,
+    )
     .all(...params) as { id: number }[];
   return rows.map((r) => r.id);
 }

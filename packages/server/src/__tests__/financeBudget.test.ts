@@ -5,9 +5,32 @@ import {
   estimateNextIncomeDate,
   medianIncomeGapDays,
   weekStart,
+  weeksOfIncomeHistory,
 } from "../finance/budget.js";
 
 /** Stage 1a — the PURE money math. No DB, no LLM: deterministic + hit hard. */
+
+describe("weeksOfIncomeHistory (the divisor for the trailing weekly average)", () => {
+  it("returns 1 for a same-day-as-today first paycheck (not a hardcoded 4)", () => {
+    expect(weeksOfIncomeHistory("2026-01-29", "2026-01-29")).toBe(1);
+  });
+
+  it("returns 1 for a first paycheck a couple days ago", () => {
+    expect(weeksOfIncomeHistory("2026-01-27", "2026-01-29")).toBe(1);
+  });
+
+  it("returns 2 once history spans into a second week", () => {
+    expect(weeksOfIncomeHistory("2026-01-20", "2026-01-29")).toBe(2);
+  });
+
+  it("caps at 4 once history is well past a month old", () => {
+    expect(weeksOfIncomeHistory("2025-06-01", "2026-01-29")).toBe(4);
+  });
+
+  it("returns 1 (not 0 or NaN) with no income history at all", () => {
+    expect(weeksOfIncomeHistory(undefined, "2026-01-29")).toBe(1);
+  });
+});
 
 describe("bill occurrence date math", () => {
   it("monthly recurrence walks month by month within the window", () => {

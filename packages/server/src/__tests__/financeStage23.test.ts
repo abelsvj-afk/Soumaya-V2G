@@ -103,6 +103,17 @@ describe("getBudgetSummary — avgWeeklyIncomeCents (computed once, shared by sn
     const budget = getBudgetSummary(handle, "s2", new Date("2026-01-29T00:00:00Z"));
     expect(budget.avgWeeklyIncomeCents).toBe(0);
   });
+
+  it("does NOT understate a brand-new account's real weekly income by dividing by a hardcoded 4", () => {
+    // Regression: this used to divide by 4 unconditionally, so a single $800 paycheck two
+    // days into using the app read as $200/wk — a 4x understatement that fed Safe-to-Spend,
+    // the /afford calculator, and Soumaya's chat answers.
+    const now = new Date("2026-02-01T00:00:00Z");
+    new FinAccountRepo(handle, "s3").setBalance(0);
+    new FinIncomeRepo(handle, "s3").create({ date: "2026-01-30", netCents: 80000 });
+    const budget = getBudgetSummary(handle, "s3", now);
+    expect(budget.avgWeeklyIncomeCents).toBe(80000);
+  });
 });
 
 describe("forecast helpers (Stage 3)", () => {

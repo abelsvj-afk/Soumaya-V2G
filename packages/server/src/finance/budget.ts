@@ -26,6 +26,21 @@ export function medianIncomeGapDays(incomeDates: string[]): number | null {
 }
 
 /**
+ * How many weeks of the trailing 4-week window actually have income HISTORY behind them —
+ * the divisor for a trailing weekly average. A brand-new account dividing by a hardcoded 4
+ * understates a real weekly average by up to 4x in week one (measured: a steady $800/wk
+ * earner reads as $200/wk on day 2). `earliestIncomeDate` is the FIRST income record ever
+ * (not just within the window) — once that's older than 4 weeks this returns 4, exactly
+ * reproducing the prior fixed-window behavior for anyone with real history; only a genuinely
+ * new account (or one with no income logged at all) gets a smaller, honest divisor.
+ */
+export function weeksOfIncomeHistory(earliestIncomeDate: string | undefined, today: string): number {
+  if (!earliestIncomeDate) return 1;
+  const days = Math.max(0, Math.round((parseDay(today).getTime() - parseDay(earliestIncomeDate).getTime()) / DAY_MS));
+  return Math.max(1, Math.min(4, Math.ceil((days + 1) / 7)));
+}
+
+/**
  * Estimate the date of the NEXT income — the horizon before which bills must be reserved.
  * Uses the recent income cadence (median gap from the last income), or an explicit
  * `cadenceDays`, else a safe default. Never returns a date in the past relative to `now`.

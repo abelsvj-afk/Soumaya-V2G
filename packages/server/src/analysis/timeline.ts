@@ -77,10 +77,15 @@ function rowToChapter(r: Record<string, unknown>): TimelineChapter {
   };
 }
 
-/** All chapters for a space, oldest → newest (timeline order). */
+/**
+ * All chapters for a space, oldest → newest (timeline order). Capped as a safety net,
+ * not a real limit — chapters land roughly 1-3x/month (see maybeGenerateChapter), so
+ * even a decade of daily use stays well under this; real pagination is a bigger
+ * redesign (docs/specs/timeline-life-seasons.md), deferred separately.
+ */
 export function listChapters(ctx: AppContext, spaceId: string = DEFAULT_SPACE): TimelineChapter[] {
   const rows = ctx.handle.sqlite
-    .prepare(`SELECT * FROM timeline_chapters WHERE space_id = ? ORDER BY period_end ASC, id ASC`)
+    .prepare(`SELECT * FROM timeline_chapters WHERE space_id = ? ORDER BY period_end ASC, id ASC LIMIT 500`)
     .all(spaceId) as Record<string, unknown>[];
   return rows.map(rowToChapter);
 }
