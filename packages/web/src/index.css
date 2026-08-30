@@ -4831,6 +4831,8 @@ button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
   color: var(--text); border-radius: 999px; padding: 7px 12px; min-height: 38px; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(6px); }
 .gv-chip.on { border-color: rgba(122,220,255,0.6); background: rgba(122,220,255,0.14); }
 .gv-chip.gv-all { border-style: dashed; }
+.gv-chip.gv-save-lens { border-color: rgba(185,139,255,0.4); }
+.gv-chip.gv-save-lens:disabled { opacity: 0.6; cursor: default; }
 .gv-count { color: var(--muted); font-size: 0.72rem; font-variant-numeric: tabular-nums; }
 .gv-chip.on .gv-count { color: var(--accent); }
 

@@ -2,25 +2,34 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { GraphNode } from "@brain/shared";
 import { getMoneySky } from "../api/finance.js";
 import { getJourneys } from "../api/journeys.js";
+import { createLens } from "../api/lenses.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * Galaxy Views (mobile performance pivot) — view ONE category of the galaxy at a time instead
  * of rendering every body at once. Reuses the Smart-Lens isolate machinery (isolateSet), which
  * stops rendering the other bodies — the single biggest win on a cheap phone (you feel it when a
  * lens/isolate is active). Collapsible so it adds no chrome until you want it.
+ *
+ * Views vs. Lens: two legitimate, complementary tools, not overlap. Views is fixed and instant —
+ * zero setup, built originally to solve a real performance problem (rendering every name/label
+ * live at once bogged down weaker phones; showing one category at a time fixed it) — reach for it
+ * for a quick glance or to lighten the scene. Lens is saved, custom, and LIVE — build your own
+ * criteria once and it keeps matching new memories forever. "Save as Lens" below is the bridge
+ * between them: the same relationship "recent files" has to "saved searches" elsewhere.
  */
 
-interface ViewDef { key: string; label: string; icon: string; pred: (n: GraphNode) => boolean }
+interface ViewDef { key: string; label: string; icon: string; pred: (n: GraphNode) => boolean; kinds: string[] }
 
 const VIEWS: ViewDef[] = [
-  { key: "people", label: "People", icon: "👤", pred: (n) => n.type === "person" },
-  { key: "projects", label: "Projects", icon: "🚀", pred: (n) => n.type === "project" || n.type === "company" },
-  { key: "goals", label: "Goals", icon: "🎯", pred: (n) => n.kind === "goal" },
-  { key: "ideas", label: "Ideas", icon: "💡", pred: (n) => n.kind === "idea" },
-  { key: "beliefs", label: "Beliefs", icon: "🌟", pred: (n) => n.kind === "belief" },
-  { key: "knowledge", label: "Knowledge", icon: "📚", pred: (n) => n.type === "knowledge" || n.type === "concept" },
-  { key: "meetings", label: "Meetings", icon: "🗓️", pred: (n) => n.type === "meeting" },
-  { key: "notes", label: "Notes", icon: "📝", pred: (n) => n.type === "daily" },
+  { key: "people", label: "People", icon: "👤", pred: (n) => n.type === "person", kinds: ["person"] },
+  { key: "projects", label: "Projects", icon: "🚀", pred: (n) => n.type === "project" || n.type === "company", kinds: ["project", "company"] },
+  { key: "goals", label: "Goals", icon: "🎯", pred: (n) => n.kind === "goal", kinds: ["goal"] },
+  { key: "ideas", label: "Ideas", icon: "💡", pred: (n) => n.kind === "idea", kinds: ["idea"] },
+  { key: "beliefs", label: "Beliefs", icon: "🌟", pred: (n) => n.kind === "belief", kinds: ["belief"] },
+  { key: "knowledge", label: "Knowledge", icon: "📚", pred: (n) => n.type === "knowledge" || n.type === "concept", kinds: ["knowledge", "concept"] },
+  { key: "meetings", label: "Meetings", icon: "🗓️", pred: (n) => n.type === "meeting", kinds: ["meeting"] },
+  { key: "notes", label: "Notes", icon: "📝", pred: (n) => n.type === "daily", kinds: ["daily"] },
 ];
 
 export function GalaxyViews({
@@ -43,6 +52,7 @@ export function GalaxyViews({
   const [open, setOpen] = useState(false);
   const [moneyCount, setMoneyCount] = useState(0);
   const [journeyCount, setJourneyCount] = useState(0);
+  const [savingLens, setSavingLens] = useState(false);
 
   // These are separate render layers (not graph nodes), so we count them directly.
   useEffect(() => {
@@ -79,6 +89,24 @@ export function GalaxyViews({
     if (v.ids.length > 0) onOpen(v.ids, name);
   };
 
+  // Only a category View (not the money/journeys overlay layers) maps to a LensQuery —
+  // those are separate render layers, not a `nodes` filter.
+  const activeCat = cats.find((c) => `${c.icon} ${c.label}` === activeView);
+  const saveAsLens = async () => {
+    if (!activeCat || savingLens) return;
+    setSavingLens(true);
+    try {
+      const lens = await createLens(activeCat.label, { kinds: activeCat.kinds }, false);
+      pushToast(
+        lens ? `⧉ Saved "${activeCat.label}" as a Lens — it'll keep matching new memories.` : "Couldn't save that Lens — try again.",
+        lens ? "⧉" : "⚠️",
+        4500,
+      );
+    } finally {
+      setSavingLens(false);
+    }
+  };
+
   return (
     <div className="gv-wrap">
       <button className={`gv-toggle ${open ? "open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}
@@ -109,6 +137,16 @@ export function GalaxyViews({
             return <button className={`gv-chip ${on ? "on" : ""}`} onClick={() => (on ? onExit() : onLayer("journeys", name))} aria-pressed={on} title="View only your journey hubs">
               <span>🧭 Journeys</span><span className="gv-count">{on ? "✕" : journeyCount}</span></button>;
           })()}
+          {activeCat && (
+            <button
+              className="gv-chip gv-save-lens"
+              onClick={() => void saveAsLens()}
+              disabled={savingLens}
+              title="Save this View as a Lens — a saved, self-updating filter you can reopen anytime"
+            >
+              💾 {savingLens ? "Saving…" : "Save as Lens"}
+            </button>
+          )}
           {activeView && <button className="gv-chip gv-all" onClick={onExit}>★ Show all</button>}
         </div>
       )}
