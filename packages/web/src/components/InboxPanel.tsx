@@ -1,5 +1,10 @@
-import { useEffect, useState } from "react";
-import { type InboxNotification, cleanupNotifications } from "./Toasts.js";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type InboxNotification,
+  cleanupNotifications,
+  readNotifications,
+  writeNotifications,
+} from "./Toasts.js";
 
 interface InboxPanelProps {
   spaceId: string;
@@ -9,86 +14,66 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
   const [notifications, setNotifications] = useState<InboxNotification[]>([]);
   const [filter, setFilter] = useState<"all" | "unseen" | "seen">("unseen");
 
-  const loadNotifications = () => {
-    const logKey = `brain.notifications.${spaceId}`;
-    try {
-      const raw = localStorage.getItem(logKey);
-      if (raw) {
-        setNotifications(JSON.parse(raw));
-      } else {
-        setNotifications([]);
-      }
-    } catch (e) {
-      console.error("Failed to load notifications in panel", e);
-    }
-  };
-
-  useEffect(() => {
-    loadNotifications();
-    // Listen to updates from pushToast or other tabs
-    window.addEventListener("brain-notifications-updated", loadNotifications);
-    
-    // Also run an initial cleanup when mounting the inbox panel
-    cleanupNotifications(spaceId);
-
-    return () => {
-      window.removeEventListener("brain-notifications-updated", loadNotifications);
-    };
+  const loadNotifications = useCallback(() => {
+    setNotifications(readNotifications(spaceId));
   }, [spaceId]);
 
-  const handleMarkSeen = (id: string) => {
-    const logKey = `brain.notifications.${spaceId}`;
-    try {
-      const updated = notifications.map((n) => {
-        if (n.id === id) {
-          return { ...n, seen: true, seenAt: Date.now() };
-        }
-        return n;
-      });
-      localStorage.setItem(logKey, JSON.stringify(updated));
-      setNotifications(updated);
-      window.dispatchEvent(new Event("brain-notifications-updated"));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  useEffect(() => {
+    // Prune BEFORE the first read. The old order (load, then prune) left state
+    // holding rows that no longer existed in storage — and because every mutation
+    // below used to write React state back wholesale, the next Mark-All-Read or
+    // Clear-History RESURRECTED everything cleanup had just deleted.
+    cleanupNotifications(spaceId);
+    loadNotifications();
 
-  const handleMarkAllSeen = () => {
-    const logKey = `brain.notifications.${spaceId}`;
-    try {
-      const updated = notifications.map((n) => {
-        if (!n.seen) {
-          return { ...n, seen: true, seenAt: Date.now() };
-        }
-        return n;
-      });
-      localStorage.setItem(logKey, JSON.stringify(updated));
-      setNotifications(updated);
-      window.dispatchEvent(new Event("brain-notifications-updated"));
-    } catch (e) {
-      console.error(e);
-    }
-  };
+    window.addEventListener("brain-notifications-updated", loadNotifications);
+    // Real cross-tab sync. The old comment claimed to listen for "other tabs" but
+    // only registered the in-window custom event, so another tab's notifications
+    // never appeared.
+    window.addEventListener("storage", loadNotifications);
+    return () => {
+      window.removeEventListener("brain-notifications-updated", loadNotifications);
+      window.removeEventListener("storage", loadNotifications);
+    };
+  }, [spaceId, loadNotifications]);
+
+  /**
+   * Every mutation goes through here. It re-reads storage first rather than trusting
+   * React state: `pushToast` appends to the same key concurrently, so a toast that
+   * fired since the last render would be silently erased by a state-based write.
+   * Read → modify → write → announce.
+   */
+  const mutate = useCallback(
+    (fn: (list: InboxNotification[]) => InboxNotification[]) => {
+      const next = fn(readNotifications(spaceId));
+      writeNotifications(next, spaceId); // dispatches; our own listener re-reads
+      setNotifications(next);
+    },
+    [spaceId],
+  );
+
+  const handleMarkSeen = (id: string) =>
+    mutate((list) => list.map((n) => (n.id === id ? { ...n, seen: true, seenAt: Date.now() } : n)));
+
+  const handleMarkAllSeen = () =>
+    mutate((list) => list.map((n) => (n.seen ? n : { ...n, seen: true, seenAt: Date.now() })));
 
   const handleClearHistory = () => {
-    const logKey = `brain.notifications.${spaceId}`;
-    try {
-      const updated = notifications.filter((n) => !n.seen);
-      localStorage.setItem(logKey, JSON.stringify(updated));
-      setNotifications(updated);
-      window.dispatchEvent(new Event("brain-notifications-updated"));
-    } catch (e) {
-      console.error(e);
-    }
+    const seenCount = notifications.filter((n) => n.seen).length;
+    if (seenCount === 0) return;
+    // Destructive and irreversible — it used to wipe the whole history on one tap.
+    if (!confirm(`Clear ${seenCount} read notification${seenCount === 1 ? "" : "s"}? This can't be undone.`)) return;
+    mutate((list) => list.filter((n) => !n.seen));
   };
 
-  const unseenList = notifications.filter((n) => !n.seen);
-  const seenList = notifications.filter((n) => n.seen);
+  const unseenList = useMemo(() => notifications.filter((n) => !n.seen), [notifications]);
+  const seenList = useMemo(() => notifications.filter((n) => n.seen), [notifications]);
 
-  const displayedList = filter === "unseen" ? unseenList : filter === "seen" ? seenList : notifications;
-
-  // Sort: newest first
-  const sortedList = [...displayedList].sort((a, b) => b.timestamp - a.timestamp);
+  // Sort: newest first.
+  const sortedList = useMemo(() => {
+    const displayed = filter === "unseen" ? unseenList : filter === "seen" ? seenList : notifications;
+    return [...displayed].sort((a, b) => b.timestamp - a.timestamp);
+  }, [filter, unseenList, seenList, notifications]);
 
   const formatTime = (ts: number) => {
     const diff = Date.now() - ts;

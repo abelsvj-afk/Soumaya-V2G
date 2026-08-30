@@ -31,6 +31,10 @@ export interface InboxNotification {
   priority: "low" | "normal" | "high";
 }
 
+/** How many notifications the inbox log keeps. Defined once — InboxPanel used to
+ *  render the list assuming it was bounded by this number without knowing it. */
+export const INBOX_CAP = 100;
+
 type Listener = (t: Toast) => void;
 const listeners = new Set<Listener>();
 let nextId = 1;
@@ -59,13 +63,50 @@ export function setToastsQuiet(q: boolean): void {
   if (!quiet) maybeFlush();
 }
 
+/**
+ * The one definition of the inbox storage key. `pushToast` writes to the canonical
+ * `brain.spaceId` bucket (set at login) while InboxPanel used to build the key from a
+ * prop — two sources for the same key, one prop-plumbing mistake away from the writer
+ * and reader pointing at different buckets. Callers pass the id they have; passing
+ * nothing resolves the canonical one.
+ */
+export function notificationsKey(spaceId?: string): string {
+  const id = spaceId ?? (() => {
+    try {
+      return localStorage.getItem("brain.spaceId") || "default";
+    } catch {
+      return "default";
+    }
+  })();
+  return `brain.notifications.${id}`;
+}
+
+/** Read the inbox log from storage. Always the source of truth — never React state. */
+export function readNotifications(spaceId?: string): InboxNotification[] {
+  try {
+    const raw = localStorage.getItem(notificationsKey(spaceId));
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? (list as InboxNotification[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Persist the inbox log and tell every listener (this tab) to re-read. */
+export function writeNotifications(list: InboxNotification[], spaceId?: string): void {
+  try {
+    localStorage.setItem(notificationsKey(spaceId), JSON.stringify(list.slice(-INBOX_CAP)));
+    window.dispatchEvent(new Event("brain-notifications-updated"));
+  } catch (e) {
+    console.error("Failed to write notifications", e);
+  }
+}
+
 /** Prune notifications: seen items > 5 minutes, normal unseen items > 24 hours. Important ones are kept. */
 export function cleanupNotifications(spaceId: string): void {
-  const logKey = `brain.notifications.${spaceId}`;
   try {
-    const listRaw = localStorage.getItem(logKey);
-    if (!listRaw) return;
-    const list: InboxNotification[] = JSON.parse(listRaw);
+    const list = readNotifications(spaceId);
+    if (list.length === 0) return;
     const now = Date.now();
     const fiveMinutes = 5 * 60 * 1000;
     const oneDay = 24 * 60 * 60 * 1000;
@@ -80,7 +121,11 @@ export function cleanupNotifications(spaceId: string): void {
       return (now - item.timestamp < oneDay);
     });
 
-    localStorage.setItem(logKey, JSON.stringify(filtered));
+    // Only write + announce when something actually changed. Cleanup used to write
+    // silently, so a panel that had already loaded kept stale rows in state — and the
+    // next Mark-All-Read/Clear-History wrote that stale array straight back, RESURRECTING
+    // everything cleanup had just pruned. Announcing makes readers re-sync.
+    if (filtered.length !== list.length) writeNotifications(filtered, spaceId);
   } catch (e) {
     console.error("Failed to cleanup notifications", e);
   }
@@ -102,15 +147,11 @@ export function pushToast(
     playSfx(priority === "high" ? "achievement" : "notify"); // audible cue when shown
   }
 
-  // Write to notification inbox log (scoped to space). Key off the canonical
-  // `brain.spaceId` (set at login) — the same id RightDock/InboxPanel read by — so
-  // notifications never land in a different bucket than the inbox reads from.
-  const spaceId = localStorage.getItem("brain.spaceId") || "default";
-  const logKey = `brain.notifications.${spaceId}`;
+  // Write to the notification inbox log (scoped to space, via the shared key helper
+  // so the writer and the inbox reader can never point at different buckets).
   try {
-    const listRaw = localStorage.getItem(logKey);
-    const list: InboxNotification[] = listRaw ? JSON.parse(listRaw) : [];
-    
+    const list = readNotifications();
+
     // Check for duplicate recent messages to prevent spam
     const lastMsg = list[list.length - 1];
     if (lastMsg && lastMsg.text === text && Date.now() - lastMsg.timestamp < 1000) {
@@ -118,7 +159,7 @@ export function pushToast(
     }
 
     const newNote: InboxNotification = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       text,
       icon,
       timestamp: Date.now(),
@@ -127,8 +168,7 @@ export function pushToast(
       priority,
     };
     list.push(newNote);
-    localStorage.setItem(logKey, JSON.stringify(list.slice(-100)));
-    window.dispatchEvent(new Event("brain-notifications-updated"));
+    writeNotifications(list);
   } catch (e) {
     console.error("Failed to append to notification inbox", e);
   }
