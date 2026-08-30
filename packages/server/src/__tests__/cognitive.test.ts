@@ -71,6 +71,37 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     expect(setCognitiveProgress(ctx, "legacy", 999999, 0.5)).toBe(false);
   });
 
+  it("stamps a goal's completedAt exactly once when it crosses the completion threshold", async () => {
+    const id = await createCognitive(ctx, "legacy", "goal", "Ship Soumaya", "");
+    expect(listCognitive(ctx, "legacy", "goal").find((g) => g.id === id)!.completedAt).toBeNull();
+
+    setCognitiveProgress(ctx, "legacy", id, 0.999);
+    const firstStamp = listCognitive(ctx, "legacy", "goal").find((g) => g.id === id)!.completedAt;
+    expect(firstStamp).not.toBeNull();
+
+    const log = handle.sqlite
+      .prepare(`SELECT description FROM agent_logs WHERE space_id = 'legacy' AND action = 'goal_completed'`)
+      .all() as { description: string }[];
+    expect(log).toHaveLength(1);
+    expect(log[0]!.description).toContain("Ship Soumaya");
+
+    // Nudging it back down and up again must NOT re-stamp or re-log — achieved is permanent.
+    setCognitiveProgress(ctx, "legacy", id, 0.5);
+    setCognitiveProgress(ctx, "legacy", id, 1);
+    const secondStamp = listCognitive(ctx, "legacy", "goal").find((g) => g.id === id)!.completedAt;
+    expect(secondStamp).toBe(firstStamp);
+    const logAfter = handle.sqlite
+      .prepare(`SELECT COUNT(*) AS c FROM agent_logs WHERE space_id = 'legacy' AND action = 'goal_completed'`)
+      .get() as { c: number };
+    expect(logAfter.c).toBe(1);
+  });
+
+  it("never stamps completedAt for a non-goal kind, even at full progress", async () => {
+    const id = await createCognitive(ctx, "legacy", "skill", "Guitar", "");
+    setCognitiveProgress(ctx, "legacy", id, 1);
+    expect(listCognitive(ctx, "legacy", "skill").find((s) => s.id === id)!.completedAt).toBeNull();
+  });
+
   /** Count supports edges pointing at an anchor. */
   const supportsInto = (anchorId: number) =>
     (handle.sqlite

@@ -14,6 +14,8 @@ export interface CognitiveItem {
   label: string;
   content: string;
   progress: number | null;
+  /** Set once a goal actually finished (never cleared). Always null for other kinds. */
+  completedAt: string | null;
   degree: number;
   aliases: string[];
   createdAt: string;

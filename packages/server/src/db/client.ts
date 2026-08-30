@@ -115,6 +115,13 @@ function migrateSchema(sqlite: RawDb): void {
   if (!cols.some((c) => c.name === "progress")) {
     sqlite.exec(`ALTER TABLE nodes ADD COLUMN progress REAL`);
   }
+  // Cognitive layer: the moment a goal actually finished — set once, permanent (a
+  // completed goal never loses that status even if progress is later nudged back
+  // down). Distinguishes "just hit 100%" from "sitting at 99%" and gives a goal a
+  // real payoff instead of a number that quietly stops moving.
+  if (!cols.some((c) => c.name === "completed_at")) {
+    sqlite.exec(`ALTER TABLE nodes ADD COLUMN completed_at TEXT`);
+  }
   // Cognitive layer: aliases (JSON array) so vague memories ("my girlfriend") link
   // to the right Mind entry (person/place/…) without needing the exact name.
   if (!cols.some((c) => c.name === "aliases")) {

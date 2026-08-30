@@ -127,6 +127,8 @@ export interface CognitiveItem {
   label: string;
   content: string;
   progress: number | null;
+  /** Set once a goal actually finished (never cleared). Always null for other kinds. */
+  completedAt: string | null;
   degree: number;
   aliases: string[];
   createdAt: string;
@@ -142,7 +144,7 @@ export function listCognitive(
   const placeholders = kinds.map(() => "?").join(",");
   const rows = ctx.handle.sqlite
     .prepare(
-      `SELECT n.id, n.kind, n.label, n.content, n.progress, n.aliases, n.created_at AS createdAt,
+      `SELECT n.id, n.kind, n.label, n.content, n.progress, n.completed_at AS completedAt, n.aliases, n.created_at AS createdAt,
          (SELECT COUNT(*) FROM edges e WHERE e.space_id = n.space_id AND (e.source = n.id OR e.target = n.id)) AS degree
        FROM nodes n
        WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.kind IN (${placeholders})
@@ -295,7 +297,19 @@ export function trimAnchorLinks(
   return removed;
 }
 
-/** Set a cognitive object's 0..1 progress (goal completion / skill level). */
+// Matches the "Goal Achiever" achievement's own threshold (achievements.ts), so the
+// in-panel celebration and that badge fire at the same moment, not two slightly
+// different definitions of "done."
+const GOAL_COMPLETE_THRESHOLD = 0.999;
+
+/**
+ * Set a cognitive object's 0..1 progress (goal completion / skill level). A goal
+ * crossing GOAL_COMPLETE_THRESHOLD for the first time is stamped with `completedAt`
+ * (permanent — never cleared even if progress is later nudged back down) and logged,
+ * so finishing a goal is a real, one-time moment instead of a number that quietly
+ * stops moving. Skills reaching 1.0 (Expert) are a different, ongoing kind of "done"
+ * and are deliberately not given this same one-time treatment.
+ */
 export function setCognitiveProgress(
   ctx: AppContext,
   spaceId: string,
@@ -303,11 +317,31 @@ export function setCognitiveProgress(
   value: number,
 ): boolean {
   const v = Math.max(0, Math.min(1, value));
-  const changed = ctx.handle.sqlite
-    .prepare(`UPDATE nodes SET progress = ? WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
-    .run(v, id, spaceId).changes;
-  if (changed > 0) new NodesRepo(ctx.handle, spaceId).tend(id);
-  return changed > 0;
+  const s = ctx.handle.sqlite;
+  const row = s
+    .prepare(`SELECT kind, label, completed_at AS completedAt FROM nodes WHERE id = ? AND space_id = ? AND deleted_at IS NULL`)
+    .get(id, spaceId) as { kind: string; label: string; completedAt: string | null } | undefined;
+  if (!row) return false;
+
+  const justCompleted = row.kind === "goal" && row.completedAt == null && v >= GOAL_COMPLETE_THRESHOLD;
+  s.prepare(
+    `UPDATE nodes SET progress = ?, completed_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE completed_at END
+     WHERE id = ? AND space_id = ?`,
+  ).run(v, justCompleted ? 1 : 0, id, spaceId);
+  new NodesRepo(ctx.handle, spaceId).tend(id);
+
+  if (justCompleted) {
+    try {
+      s.prepare(`INSERT INTO agent_logs (space_id, action, description, targets) VALUES (?, 'goal_completed', ?, ?)`).run(
+        spaceId,
+        `You did it — "${row.label}" is complete.`,
+        JSON.stringify([id]),
+      );
+    } catch {
+      /* best-effort */
+    }
+  }
+  return true;
 }
 
 /**

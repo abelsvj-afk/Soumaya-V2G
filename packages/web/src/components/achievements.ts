@@ -358,7 +358,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   // The mind layer — direction, not just memory.
   { id: "goal_achiever", name: "Goal Achiever", icon: "🏁", desc: "Carry a goal all the way to done.",
     test: (c) => c.memories.some((n) => n.kind === "goal" && (n.progress ?? 0) >= 0.999) },
-  { id: "skill_advanced", name: "Practiced Hand", icon: "🎓", desc: "Grow a skill to Advanced through real practice.",
+  { id: "skill_advanced", name: "Practiced Hand", icon: "🎓", desc: "Grow a skill to Skilled through real practice.",
     test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.6) },
   { id: "skill_master", name: "Master", icon: "🥋", desc: "Grow a skill all the way to Expert.",
     test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.85) },

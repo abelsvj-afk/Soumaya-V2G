@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { COGNITIVE_KINDS, COGNITIVE_META, skillTier, type CognitiveKind } from "@brain/shared";
+import {
+  COGNITIVE_KINDS,
+  COGNITIVE_META,
+  skillTier,
+  IDEA_PROMOTE_SUPPORT,
+  WORKING_MEMORY_DECAY_PER_HOUR,
+  type CognitiveKind,
+} from "@brain/shared";
 import {
   getCognitive,
   createCognitive,
@@ -340,7 +347,7 @@ export function MindPanel({
                 {editThoughtId !== t.id && (
                   <span className={`mind-mote-fade ${t.strength < 0.2 ? "low" : ""}`}>
                     {(() => {
-                      const days = t.strength / 0.192; // matches the server decay (0.008/hr)
+                      const days = t.strength / (WORKING_MEMORY_DECAY_PER_HOUR * 24);
                       return days < 1 ? "fades today" : `~${Math.round(days)}d left`;
                     })()}
                   </span>
@@ -520,7 +527,12 @@ export function MindPanel({
                     <button className="mini ghost" onClick={() => void removeItem(it)} title="Delete">🗑️</button>
                   </div>
                 )}
-                {editId !== it.id && COGNITIVE_META[k].hasProgress && (
+                {editId !== it.id && k === "goal" && it.completedAt && (
+                  <div className="mind-achieved" title={`Achieved ${new Date(it.completedAt).toLocaleDateString()}`}>
+                    ✓ Achieved
+                  </div>
+                )}
+                {editId !== it.id && COGNITIVE_META[k].hasProgress && !(k === "goal" && it.completedAt) && (
                   <div className="mind-progress">
                     {k === "skill" && (
                       <span className="mind-tier" title="Level — nudges up gently as related memories accrue; set your real mastery with – / +">
@@ -537,11 +549,11 @@ export function MindPanel({
                 )}
                 {editId !== it.id && k === "idea" && (
                   <button
-                    className={`mind-promote ${it.degree >= 4 ? "ripe" : ""}`}
+                    className={`mind-promote ${it.degree >= IDEA_PROMOTE_SUPPORT ? "ripe" : ""}`}
                     onClick={() => void promoteToGoal(it)}
                     title="Commit to this — turn it into a goal your memories orbit"
                   >
-                    {it.degree >= 4 ? "✨ Ripe — promote to Goal" : "💡→🎯 Promote to Goal"}
+                    {it.degree >= IDEA_PROMOTE_SUPPORT ? "✨ Ripe — promote to Goal" : "💡→🎯 Promote to Goal"}
                   </button>
                 )}
                 {editId !== it.id && k === "identity" && (

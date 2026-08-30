@@ -42,6 +42,8 @@ export const nodes = sqliteTable("nodes", {
   researchAnswers: text("research_answers"),
   // Cognitive layer: 0..1 progress (goal completion / skill level).
   progress: real("progress"),
+  // Cognitive layer: when a goal actually finished — set once, permanent.
+  completedAt: text("completed_at"),
   // Lifecycle: "active" | "archived". Archived rests out of the galaxy + retrieval (kept, not deleted).
   status: text("status").notNull().default("active"),
   // Cognitive layer: JSON array of aliases so vague memories ("my girlfriend") link

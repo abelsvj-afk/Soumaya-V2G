@@ -977,6 +977,22 @@ export default function App() {
         pushToast(l.description, icon, 9000, l.action === "tool:bill_risk" ? "high" : "normal");
       }
 
+      // Mind-tab lifecycle transitions the autonomy loop makes on its own (a goal
+      // finished, an intention came true or expired, a future event arrived) used to
+      // just vanish from the panel on next refresh with zero acknowledgement — every
+      // USER-triggered transition in the Mind tab gets a toast, these silent ones
+      // didn't. Same direct-description pattern as tool:* above.
+      const MIND_ICON: Record<string, string> = {
+        goal_completed: "🏁",
+        intention_fulfilled: "🌠",
+        intention_expired: "💨",
+        event_passed: "⏳",
+      };
+      const mindLogs = logs.filter((l) => l.id > lastSeen && MIND_ICON[l.action]).reverse();
+      for (const l of mindLogs.slice(-2)) {
+        pushToast(l.description, MIND_ICON[l.action]!, 8000);
+      }
+
       const fresh = logs
         .filter((l) => l.id > lastSeen && VERBS[l.action])
         .reverse(); // oldest first, so the story reads forward

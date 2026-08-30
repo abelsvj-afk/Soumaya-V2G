@@ -249,6 +249,9 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   landing screen once it's actually that full, or needs capping/prioritizing.
 - **Observatory 🔍 search button** (Observatory.tsx header): new, added blind — confirm it doesn't
   visually collide with the existing × close button on narrow phone widths.
+- **Mind tab "✓ Achieved" badge + "💾 Save as Lens" chip** (MindPanel.tsx, GalaxyViews.tsx): new,
+  small pill-shaped UI elements, added blind — confirm they read clearly at a glance and don't
+  crowd their row on a narrow phone.
 - **Fly billing hold, ongoing (2026-08-29):** the owner's Fly subscription lapsed, so NONE of the
   above (nor anything shipped since) has been visually verified on a real device — this whole
   section is a running list of "check these once billing is resolved and a deploy can happen,"

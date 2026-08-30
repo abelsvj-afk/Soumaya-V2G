@@ -1,4 +1,4 @@
-import { COGNITIVE_META } from "@brain/shared";
+import { COGNITIVE_META, IDEA_PROMOTE_SUPPORT } from "@brain/shared";
 import type { AppContext } from "../context.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { EdgesRepo } from "../repositories/edges.repo.js";
@@ -40,8 +40,9 @@ const FADE_STEP = 0.05;
 const FADE_ARCHIVE_DAYS = 30;
 /** Cosine at/above which two ideas are "the same idea" and merge. */
 const MERGE_SIM = 0.82;
-/** Support count at which an idea is ripe to become a goal. */
-export const PROMOTE_SUPPORT = 4;
+/** Support count at which an idea is ripe to become a goal. Shared with the client
+ *  (MindPanel.tsx's "ripe" indicator) via @brain/shared — one source of truth. */
+export const PROMOTE_SUPPORT = IDEA_PROMOTE_SUPPORT;
 
 /** How many memories support an idea (incoming `supports` edges). */
 function supportCount(ctx: AppContext, spaceId: string, id: number): number {
