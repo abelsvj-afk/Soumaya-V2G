@@ -5,6 +5,7 @@ import {
   skillTier,
   IDEA_PROMOTE_SUPPORT,
   WORKING_MEMORY_DECAY_PER_HOUR,
+  THOUGHT_SOURCE_COLOR,
   type CognitiveKind,
 } from "@brain/shared";
 import {
@@ -73,6 +74,24 @@ export function MindPanel({
   const [thoughts, setThoughts] = useState<Thought[]>([]);
   const [thought, setThought] = useState("");
   const [ambient, setAmbient] = useState(mindSpaceEnabled());
+  // A thought mid-way through dissolving into a real memory — gives the fade/reinforce
+  // loop a felt ending instead of just vanishing on the next poll. Scoped to THIS list
+  // only (not mirrored to the ambient MindSpace overlay): promoting only happens via a
+  // button here, so MindSpace is always hidden at the instant it would fire — see the
+  // comment in MindSpace.tsx.
+  const [settlingIds, setSettlingIds] = useState<Set<number>>(new Set());
+  const SETTLE_MS = 650;
+  const settleThenRefresh = (id: number) => {
+    setSettlingIds((s) => new Set(s).add(id));
+    window.setTimeout(() => {
+      setSettlingIds((s) => {
+        const next = new Set(s);
+        next.delete(id);
+        return next;
+      });
+      void refreshThoughts();
+    }, SETTLE_MS);
+  };
   // Inline editing of a working-memory thought.
   const [editThoughtId, setEditThoughtId] = useState<number | null>(null);
   const [editThoughtText, setEditThoughtText] = useState("");
@@ -172,6 +191,8 @@ export function MindPanel({
       playSfx("achievement");
       pushToast(`💭 A recurring thought settled into memory`, "🧠", 4500);
       onChanged?.();
+      settleThenRefresh(t.id);
+      return;
     }
     await refreshThoughts();
   };
@@ -181,6 +202,8 @@ export function MindPanel({
       playSfx("achievement");
       pushToast(`💭 Consolidated into your galaxy`, "🧠", 4000);
       onChanged?.();
+      settleThenRefresh(t.id);
+      return;
     }
     await refreshThoughts();
   };
@@ -321,13 +344,16 @@ export function MindPanel({
             {thoughts.map((t) => (
               <li
                 key={t.id}
-                className="mind-mote"
+                className={`mind-mote ${settlingIds.has(t.id) ? "settling" : ""}`}
                 style={{ opacity: 0.4 + t.strength * 0.6 }}
                 title={`Strength ${Math.round(t.strength * 100)}% · reinforced ${t.reinforceCount}×`}
               >
                 <span
                   className="mind-mote-dot"
-                  style={{ boxShadow: `0 0 ${4 + t.strength * 10}px rgba(143,220,255,${0.4 + t.strength * 0.5})` }}
+                  style={{
+                    background: `rgb(${THOUGHT_SOURCE_COLOR[t.source] ?? THOUGHT_SOURCE_COLOR.manual})`,
+                    boxShadow: `0 0 ${4 + t.strength * 10}px rgba(${THOUGHT_SOURCE_COLOR[t.source] ?? THOUGHT_SOURCE_COLOR.manual},${0.4 + t.strength * 0.5})`,
+                  }}
                 />
                 {editThoughtId === t.id ? (
                   <input

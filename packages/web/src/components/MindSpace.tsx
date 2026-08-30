@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getThoughts, type Thought } from "../api/client.js";
+import { THOUGHT_SOURCE_COLOR } from "@brain/shared";
 
 /**
  * The Mind Space (Cognitive Layer Phase 2) — an ambient overlay that floats your
@@ -53,6 +54,7 @@ function moteStyle(t: Thought, idx: number): React.CSSProperties {
     animationDelay: `${((t.id * 7 + idx * 3) % 20) * -1}s, ${((t.id * 3) % 5) * -0.6}s`,
     animationDuration: `${16 + ((t.id * 5) % 10)}s, ${2.3 + ((t.id % 7) * 0.3)}s`,
     "--mote-glow": `${6 + t.strength * 16}px`,
+    "--mote-color": THOUGHT_SOURCE_COLOR[t.source] ?? THOUGHT_SOURCE_COLOR.manual,
   } as React.CSSProperties;
 }
 
@@ -78,6 +80,10 @@ export function MindSpace({ hidden }: { hidden?: boolean }) {
   }, [on]);
 
   // Vanish while a menu/panel is open so drifting motes never sit over what you're reading.
+  // (This is also why a "settle" animation on promotion doesn't belong here: promoting a
+  // thought only happens via a button inside the Mind panel, which means this overlay is
+  // ALWAYS hidden at the instant it would fire — the in-panel list is where that flourish
+  // is actually visible; see MindPanel.tsx.)
   if (!on || hidden || thoughts.length === 0) return null;
 
   return (

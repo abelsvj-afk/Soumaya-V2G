@@ -252,6 +252,14 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 - **Mind tab "✓ Achieved" badge + "💾 Save as Lens" chip** (MindPanel.tsx, GalaxyViews.tsx): new,
   small pill-shaped UI elements, added blind — confirm they read clearly at a glance and don't
   crowd their row on a narrow phone.
+- **Working-memory mote color-by-source + settle animation** (MindPanel.tsx, MindSpace.tsx): motes
+  now tint by why the thought surfaced (manual/chat/goal/priority/emotion) instead of one flat
+  blue, and a thought promoted to a real memory (via ★ or the 3rd "Keep") gets a brief flare/shrink
+  in the in-panel list before it clears. Added blind — confirm the five source colors read as
+  distinct at mote size (8px dot) and that the settle flourish doesn't feel like a glitch. Note:
+  deliberately NOT mirrored to the ambient MindSpace overlay (it's always hidden at the exact
+  moment a promotion can fire, since promoting only happens from a button inside the open Mind
+  panel) — MindSpace only picked up the color tinting, which is worth an eyes-on for legibility too.
 - **Fly billing hold, ongoing (2026-08-29):** the owner's Fly subscription lapsed, so NONE of the
   above (nor anything shipped since) has been visually verified on a real device — this whole
   section is a running list of "check these once billing is resolved and a deploy can happen,"
