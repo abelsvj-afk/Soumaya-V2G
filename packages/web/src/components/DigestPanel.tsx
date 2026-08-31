@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
 import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, getBeliefs, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog, type Belief } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
@@ -52,7 +52,10 @@ export function DigestPanel({
   // (identity → behavioral → situational, then most recent) and cap the list by
   // default so the digest stays scannable.
   const INSIGHT_CAP = 6;
-  const rankedInsights = [...items].sort((a, b) => (a.tier ?? 3) - (b.tier ?? 3) || b.id - a.id);
+  const rankedInsights = useMemo(
+    () => [...items].sort((a, b) => (a.tier ?? 3) - (b.tier ?? 3) || b.id - a.id),
+    [items],
+  );
   const shownInsights = showAllInsights ? rankedInsights : rankedInsights.slice(0, INSIGHT_CAP);
   const TIER_LABEL: Record<number, string> = { 1: "identity", 2: "pattern", 3: "situational" };
   // Inline "save as constellation" — which cluster is being named, the draft name, and save-in-flight.
@@ -85,6 +88,7 @@ export function DigestPanel({
   }
 
   useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     Promise.all([
       getDigest().catch(() => [] as Insight[]),
@@ -110,6 +114,7 @@ export function DigestPanel({
         dailyLogRes,
         beliefsRes,
       ]) => {
+        if (cancelled) return;
         setItems(itemsRes);
         setDaily(dailyRes);
         setConstellations(constellationsRes);
@@ -122,8 +127,11 @@ export function DigestPanel({
         setBeliefs(beliefsRes);
       })
       .finally(() => {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function run() {
@@ -134,9 +142,14 @@ export function DigestPanel({
       // several announced nothing. scanContradictions (right below this) already
       // toasts both outcomes; this button behaved completely differently.
       const found = await runDigest();
-      setItems(await getDigest());
-      setDaily(await getDailyDigest());
-      setConstellations(await getConstellations());
+      const [freshItems, freshDaily, freshConstellations] = await Promise.all([
+        getDigest(),
+        getDailyDigest(),
+        getConstellations(),
+      ]);
+      setItems(freshItems);
+      setDaily(freshDaily);
+      setConstellations(freshConstellations);
       pushToast(
         found.length > 0
           ? `Found ${found.length} new connection${found.length === 1 ? "" : "s"} ✨`

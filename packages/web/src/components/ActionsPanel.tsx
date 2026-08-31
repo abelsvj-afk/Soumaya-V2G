@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type GraphNode, EARN_ACTION_DONE, ACTION_DONE_MIN_AGE_MINUTES } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
@@ -9,7 +9,6 @@ interface Props {
   onFocus: (id: number) => void;
   /** Called after an action is cleared so the galaxy + fuel refresh. */
   onChanged?: () => void;
-  readOnly?: boolean;
 }
 
 /**
@@ -41,7 +40,7 @@ function countdown(target: number): { text: string; urgent: boolean; over: boole
  * upcoming reminders set on real memories (remind_at). Both are time-driven, so
  * they live together here instead of being scattered as tiny bodies in the galaxy.
  */
-export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
+export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
   const actions = useMemo(
     () =>
       nodes
@@ -53,6 +52,19 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
   // Acknowledged-this-session reminders (server clears remind_at; hide locally
   // until the next graph refresh catches up).
   const [acked, setAcked] = useState<Set<number>>(new Set());
+  // Once a refresh actually lands the cleared remind_at, an acked id has nothing
+  // left to mask — without this, the Set only ever grew for the life of the panel.
+  useEffect(() => {
+    setAcked((prev) => {
+      if (prev.size === 0) return prev;
+      const stillNeeded = new Set<number>();
+      for (const id of prev) {
+        const n = nodes.find((x) => x.id === id);
+        if (n && n.remindAt) stillNeeded.add(id);
+      }
+      return stillNeeded.size === prev.size ? prev : stillNeeded;
+    });
+  }, [nodes]);
   const allReminders = useMemo(
     () =>
       nodes
@@ -62,9 +74,12 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
     [nodes],
   );
   // DUE reminders used to silently VANISH here (the list filtered to future-only)
-  // — the one moment a reminder mattered was the moment it disappeared.
-  const dueReminders = allReminders.filter(({ n }) => isReminderDue(n, Date.now()) && !acked.has(n.id));
-  const reminders = allReminders.filter(({ at }) => at > Date.now());
+  // — the one moment a reminder mattered was the moment it disappeared. Both
+  // lists share one `now` — reading Date.now() separately for each could (in
+  // principle) straddle a millisecond boundary and disagree on a borderline item.
+  const now = Date.now();
+  const dueReminders = allReminders.filter(({ n }) => isReminderDue(n, now) && !acked.has(n.id));
+  const reminders = allReminders.filter(({ at }) => at > now);
 
   const done = (id: number) => {
     deleteNode(id)
@@ -74,7 +89,13 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
 
   const ack = (id: number) => {
     ackReminder(id)
-      .then(() => setAcked((s) => new Set(s).add(id)))
+      .then(() => {
+        setAcked((s) => new Set(s).add(id));
+        // Without this, the galaxy/NotificationsBar/NodeList — all of which read
+        // the same remind_at — kept showing this reminder as live until whatever
+        // OTHER action happened to trigger their own next refresh.
+        onChanged?.();
+      })
       .catch(() => pushToast("Couldn't acknowledge that reminder — try again.", "⚠️", 3500));
   };
 
@@ -99,11 +120,9 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
                   <span className="agenda-label">{n.label}</span>
                   <span className="agenda-due urgent">due now</span>
                 </button>
-                {!readOnly && (
-                  <button className="mini agenda-done" onClick={() => ack(n.id)} title="Acknowledge — stop reminding">
-                    ✓
-                  </button>
-                )}
+                <button className="mini agenda-done" onClick={() => ack(n.id)} title="Acknowledge — stop reminding">
+                  ✓
+                </button>
               </li>
             ))}
           </ul>
@@ -123,22 +142,20 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
                   <span className="agenda-label">{n.label}</span>
                   {c.text && <span className={`agenda-due ${c.urgent ? "urgent" : ""}`}>⏰ {c.text}</span>}
                 </button>
-                {!readOnly && (
-                  <button
-                    className="mini agenda-done"
-                    onClick={() => done(n.id)}
-                    /* The server only pays out once an action is old enough — a
-                       create-then-delete loop was a free fuel farm. The old flat
-                       "(+fuel)" promised a reward the user often didn't get. */
-                    title={
-                      earnsFuel(n)
-                        ? `Mark done (+${EARN_ACTION_DONE} ⛽)`
-                        : `Mark done · earns ⛽ after ${ACTION_DONE_MIN_AGE_MINUTES} min`
-                    }
-                  >
-                    ✓
-                  </button>
-                )}
+                <button
+                  className="mini agenda-done"
+                  onClick={() => done(n.id)}
+                  /* The server only pays out once an action is old enough — a
+                     create-then-delete loop was a free fuel farm. The old flat
+                     "(+fuel)" promised a reward the user often didn't get. */
+                  title={
+                    earnsFuel(n)
+                      ? `Mark done (+${EARN_ACTION_DONE} ⛽)`
+                      : `Mark done · earns ⛽ after ${ACTION_DONE_MIN_AGE_MINUTES} min`
+                  }
+                >
+                  ✓
+                </button>
               </li>
             );
           })}
@@ -149,20 +166,23 @@ export function ActionsPanel({ nodes, onFocus, onChanged, readOnly }: Props) {
         <>
           <h3 className="agenda-h">⏰ Upcoming reminders ({reminders.length})</h3>
           <ul className="agenda-list">
-            {reminders.map(({ n, at }) => (
-              <li key={n.id}>
-                <button className="agenda-main" onClick={() => onFocus(n.id)} title="Fly to it">
-                  <span className="agenda-label">{n.label}</span>
-                  <span className="agenda-due">
-                    {countdown(at).text}
-                    <br />
-                    <span style={{ fontSize: "0.85em", opacity: 0.8 }}>
-                      {new Date(at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {reminders.map(({ n, at }) => {
+              const c = countdown(at);
+              return (
+                <li key={n.id} className={c.over ? "over" : ""}>
+                  <button className="agenda-main" onClick={() => onFocus(n.id)} title="Fly to it">
+                    <span className="agenda-label">{n.label}</span>
+                    <span className={`agenda-due ${c.urgent ? "urgent" : ""}`}>
+                      {c.text}
+                      <br />
+                      <span style={{ fontSize: "0.85em", opacity: 0.8 }}>
+                        {new Date(at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                      </span>
                     </span>
-                  </span>
-                </button>
-              </li>
-            ))}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
