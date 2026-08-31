@@ -18,7 +18,10 @@ export type SfxName =
   | "achievement"
   | "delete"
   | "welcome"
-  | "dock"; // clamping onto the station to recharge
+  | "dock" // clamping onto the station to recharge
+  | "complete" // a task/journey/agenda item finished — lighter than achievement
+  | "milestone" // a bigger, tracked-number crossing (streak day, capacity, tier)
+  | "chime"; // gentle one-note confirmation for a quieter save
 
 const ENABLED_KEY = "sfx.enabled";
 const VOLUME_KEY = "sfx.volume";
@@ -96,6 +99,7 @@ function ensure(): AudioContext | null {
 /** One shaped tone: freq (with optional glide), waveform, duration, relative gain. */
 function tone(
   ac: AudioContext,
+  dest: GainNode,
   opts: { freq: number; glideTo?: number; type?: OscillatorType; dur: number; gain: number; delay?: number },
 ): void {
   const t0 = ac.currentTime + (opts.delay ?? 0);
@@ -111,7 +115,7 @@ function tone(
   g.gain.exponentialRampToValueAtTime(Math.max(0.0002, opts.gain), t0 + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
   osc.connect(g);
-  g.connect(master!);
+  g.connect(dest);
   osc.start(t0);
   osc.stop(t0 + opts.dur + 0.02);
 }
@@ -119,6 +123,7 @@ function tone(
 /** A band-pass-swept white-noise burst — the core of "whoosh"/thruster sounds. */
 function noiseSweep(
   ac: AudioContext,
+  dest: GainNode,
   opts: { dur: number; from: number; to: number; gain: number; q?: number; delay?: number },
 ): void {
   const t0 = ac.currentTime + (opts.delay ?? 0);
@@ -139,47 +144,70 @@ function noiseSweep(
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + opts.dur);
   src.connect(filt);
   filt.connect(g);
-  g.connect(master!);
+  g.connect(dest);
   src.start(t0);
   src.stop(t0 + opts.dur + 0.02);
 }
 
 // Sound recipes. Short (<0.5s); the master gain scales them. Gains are punchy so a
 // click reads clearly ON TOP of the ambient music (which also ducks — see below).
-const RECIPES: Record<SfxName, (ac: AudioContext) => void> = {
-  tap: (ac) => {
-    tone(ac, { freq: 1650, type: "triangle", dur: 0.045, gain: 0.28 });
-    tone(ac, { freq: 2600, type: "sine", dur: 0.02, gain: 0.14 }); // tiny high tick for crispness
+const RECIPES: Record<SfxName, (ac: AudioContext, dest: GainNode) => void> = {
+  tap: (ac, dest) => {
+    tone(ac, dest, { freq: 1650, type: "triangle", dur: 0.045, gain: 0.28 });
+    tone(ac, dest, { freq: 2600, type: "sine", dur: 0.02, gain: 0.14 }); // tiny high tick for crispness
   },
-  select: (ac) => tone(ac, { freq: 2050, type: "sine", dur: 0.09, gain: 0.26 }),
-  notify: (ac) => tone(ac, { freq: 1320, glideTo: 1560, type: "sine", dur: 0.13, gain: 0.3 }),
-  achievement: (ac) => {
-    tone(ac, { freq: 523, type: "triangle", dur: 0.12, gain: 0.34 });
-    tone(ac, { freq: 659, type: "triangle", dur: 0.12, gain: 0.34, delay: 0.1 });
-    tone(ac, { freq: 784, type: "triangle", dur: 0.3, gain: 0.36, delay: 0.2 });
+  select: (ac, dest) => tone(ac, dest, { freq: 2050, type: "sine", dur: 0.09, gain: 0.26 }),
+  notify: (ac, dest) => tone(ac, dest, { freq: 1320, glideTo: 1560, type: "sine", dur: 0.13, gain: 0.3 }),
+  achievement: (ac, dest) => {
+    tone(ac, dest, { freq: 523, type: "triangle", dur: 0.12, gain: 0.34 });
+    tone(ac, dest, { freq: 659, type: "triangle", dur: 0.12, gain: 0.34, delay: 0.1 });
+    tone(ac, dest, { freq: 784, type: "triangle", dur: 0.3, gain: 0.36, delay: 0.2 });
   },
-  delete: (ac) => tone(ac, { freq: 420, glideTo: 110, type: "sawtooth", dur: 0.22, gain: 0.26 }),
-  welcome: (ac) => {
-    tone(ac, { freq: 440, type: "sine", dur: 0.3, gain: 0.3 });
-    tone(ac, { freq: 660, type: "sine", dur: 0.5, gain: 0.3, delay: 0.14 });
+  delete: (ac, dest) => tone(ac, dest, { freq: 420, glideTo: 110, type: "sawtooth", dur: 0.22, gain: 0.26 }),
+  welcome: (ac, dest) => {
+    tone(ac, dest, { freq: 440, type: "sine", dur: 0.3, gain: 0.3 });
+    tone(ac, dest, { freq: 660, type: "sine", dur: 0.5, gain: 0.3, delay: 0.14 });
   },
   // Docking clamp: a metallic thunk + a short pneumatic hiss.
-  dock: (ac) => {
-    tone(ac, { freq: 150, glideTo: 90, type: "square", dur: 0.1, gain: 0.24 });
-    noiseSweep(ac, { dur: 0.2, from: 900, to: 400, gain: 0.16, q: 1.4, delay: 0.06 });
+  dock: (ac, dest) => {
+    tone(ac, dest, { freq: 150, glideTo: 90, type: "square", dur: 0.1, gain: 0.24 });
+    noiseSweep(ac, dest, { dur: 0.2, from: 900, to: 400, gain: 0.16, q: 1.4, delay: 0.06 });
   },
+  // A flat "done" — one clean beat, not a full arpeggio. `achievement` was reused
+  // for every single celebration in the app (task done, journey complete, export
+  // succeeded, ...), so nothing ever sounded distinct from anything else.
+  complete: (ac, dest) => {
+    tone(ac, dest, { freq: 587, type: "triangle", dur: 0.1, gain: 0.3 });
+    tone(ac, dest, { freq: 880, type: "triangle", dur: 0.16, gain: 0.3, delay: 0.07 });
+  },
+  // A bigger moment than `complete` (a streak day, a fuel cap, a tier crossing) —
+  // four ascending notes, longer tail than `achievement`'s three.
+  milestone: (ac, dest) => {
+    tone(ac, dest, { freq: 494, type: "triangle", dur: 0.1, gain: 0.32 });
+    tone(ac, dest, { freq: 622, type: "triangle", dur: 0.1, gain: 0.32, delay: 0.09 });
+    tone(ac, dest, { freq: 740, type: "triangle", dur: 0.1, gain: 0.34, delay: 0.18 });
+    tone(ac, dest, { freq: 988, type: "triangle", dur: 0.34, gain: 0.36, delay: 0.27 });
+  },
+  // A quieter save confirmation — one soft note, for moments too minor for a chime
+  // sequence but still worth a small audible ack.
+  chime: (ac, dest) => tone(ac, dest, { freq: 1046, type: "sine", dur: 0.14, gain: 0.22 }),
 };
 
 /** Play a UI sound. No-op if disabled, unsupported, or throttled. Never throws. */
 export function playSfx(name: SfxName): void {
   try {
     if (!sfxEnabled()) return;
-    const now = performance.now();
-    if (name === "tap" && now - lastPlay < 45) return; // throttle only the rapid tap
-    lastPlay = now;
+    // lastPlay used to be overwritten by every sound, not just `tap` — a burst of
+    // achievement/notify cues could then make the NEXT genuinely-rapid tap read
+    // as throttled for a reason that had nothing to do with tapping quickly.
+    if (name === "tap") {
+      const now = performance.now();
+      if (now - lastPlay < 45) return;
+      lastPlay = now;
+    }
     const ac = ensure();
     if (!ac || !master) return;
-    RECIPES[name]?.(ac);
+    RECIPES[name]?.(ac, master);
     // Briefly duck the ambient music so meatier cues punch through (not the rapid tap,
     // which would make the music pump). The audio module listens for this.
     if (name !== "tap") {

@@ -16,6 +16,8 @@ vi.mock("../api/journeys.js", () => ({
 }));
 const pushToast = vi.fn();
 vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
+const playSfx = vi.fn();
+vi.mock("../graph/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
 
 import { JourneysPanel } from "./JourneysPanel.js";
 
@@ -145,6 +147,20 @@ describe("JourneysPanel — paused/done status is never opacity-alone", () => {
     render(<JourneysPanel />);
     await screen.findByText("Recover Financially");
     expect(screen.getByText("✓ Done")).toBeTruthy();
+  });
+});
+
+describe("JourneysPanel — marking a Journey complete is celebrated", () => {
+  it("plays a milestone sound and toasts, not just a silent list re-sort", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1, status: "active" })]);
+    patchJourney.mockResolvedValue(journey({ id: 1, status: "done" }));
+    render(<JourneysPanel />);
+    const head = await screen.findByText("Recover Financially");
+    act(() => head.click());
+    const markComplete = await screen.findByText("Mark complete");
+    await act(async () => { markComplete.click(); });
+    expect(playSfx).toHaveBeenCalledWith("milestone");
+    expect(pushToast).toHaveBeenCalledWith(expect.stringContaining("complete"), "🧭", expect.any(Number));
   });
 });
 

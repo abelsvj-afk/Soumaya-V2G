@@ -4,6 +4,7 @@ import { NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
 import { getArchivedNodes, archiveNode } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 
 /**
  * Library — a browsable, foldered view of the whole brain. The galaxy is beautiful
@@ -111,6 +112,10 @@ export function LibraryPanel({
     if (await archiveNode(id, false)) {
       setArchived((a) => (a ? a.filter((n) => n.id !== id) : a));
       window.dispatchEvent(new Event("brain-memory-added")); // nudge the galaxy to refresh
+      // A failed restore already toasted; a successful one had no feedback at
+      // all beyond the row quietly vanishing from the Archived list.
+      playSfx("chime");
+      pushToast("Memory restored to your galaxy.", "↩", 3000);
     } else {
       pushToast("Couldn't restore that memory — try again.", "⚠️", 3500);
     }
@@ -133,7 +138,9 @@ export function LibraryPanel({
 
   const exportFolder = (label: string, items: GraphNode[]) => {
     const body = `# ${label}\n\n_${items.length} ${items.length === 1 ? "memory" : "memories"} · exported from ${spaceName}_\n\n${items.map(memoryMarkdown).join("\n---\n\n")}`;
-    if (!download(`${slug(spaceName)}-${slug(label)}.md`, body)) {
+    if (download(`${slug(spaceName)}-${slug(label)}.md`, body)) {
+      playSfx("chime");
+    } else {
       pushToast("Couldn't export — your browser blocked the download.", "⚠️", 4000);
     }
   };
@@ -142,7 +149,9 @@ export function LibraryPanel({
     const body = `# ${spaceName} — full library\n\n_${total} memories across ${folders.length} folders_\n\n${folders
       .map((f) => `# ${f.label}\n\n${f.items.map(memoryMarkdown).join("\n---\n\n")}`)
       .join("\n\n")}`;
-    if (!download(`${slug(spaceName)}-library.md`, body)) {
+    if (download(`${slug(spaceName)}-library.md`, body)) {
+      playSfx("chime");
+    } else {
       pushToast("Couldn't export — your browser blocked the download.", "⚠️", 4000);
     }
   };

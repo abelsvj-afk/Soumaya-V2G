@@ -4,6 +4,7 @@ import { useDialogA11y } from "../hooks/useDialogA11y.js";
 import { askChat, getSpaceId, ingestText, distillChat } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 import { isVoiceSupported, isVoiceEnabled, setVoiceEnabled, speak, stopSpeaking } from "../voice.js";
 import { SoumayaEye } from "./SoumayaEye.js";
 import { CompanionPanel } from "./CompanionPanel.js";
@@ -195,6 +196,7 @@ export function ChatDock({
       const r = await ingestText(text);
       const ids = (r.nodes ?? []).map((n) => n.id);
       setMessages((m) => m.map((msg, i) => (i === idx ? { ...msg, saved: true } : msg)));
+      playSfx("chime");
       pushToast(`Soumaya is charting it into your galaxy ✦`, "🛰️", 4500);
       if (ids.length) onCreated?.(ids);
     } catch (err) {
@@ -338,6 +340,7 @@ export function ChatDock({
       const r = await ingestText(text);
       const ids = (r.nodes ?? []).map((n) => n.id);
       if (ids.length) onCreated?.(ids);
+      playSfx("chime");
       pushToast("Soumaya is charting it into your galaxy ✦", "🛰️", 4000);
     } catch (err) {
       pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4000);

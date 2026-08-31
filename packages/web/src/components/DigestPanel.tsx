@@ -3,6 +3,7 @@ import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, Evol
 import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, getBeliefs, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog, type Belief } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 
 /** Dependency-free valence sparkline (−1..1). Green above the midline, red below. */
 function MoodSparkline({ points }: { points: EmotionalTrajectory["points"] }) {
@@ -70,6 +71,7 @@ export function DigestPanel({
     try {
       const { hub, error } = await promoteConstellation(name, c.nodes.map((n) => n.id));
       if (hub) {
+        playSfx("achievement");
         pushToast(`Constellation "${name}" charted ✦`, "🌌", 5500);
         setPromotingId(null);
         setDraftName("");

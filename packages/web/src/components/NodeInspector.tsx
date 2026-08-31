@@ -466,6 +466,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
             const ok = await requestMaintenance(node.id);
             if (ok) {
               setRequested(true);
+              playSfx("chime");
               pushToast(`Soumaya will tend "${node.label.slice(0, 30)}" on her next round.`, "🛰️", 6000);
             } else {
               pushToast("Couldn't queue that — try again.", "⚠️", 3500);

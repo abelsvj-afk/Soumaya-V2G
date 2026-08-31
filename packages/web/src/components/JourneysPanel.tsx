@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Journey, JourneyLinkSummary } from "@brain/shared";
 import { getJourneys, createJourney, patchJourney, deleteJourney, journeyLinks } from "../api/journeys.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 
 /**
  * Journeys (Vision 2.0) — the highest-level organizer: a life chapter everything can belong to
@@ -171,8 +172,17 @@ function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => v
 
   const setStatus = async (status: "active" | "paused" | "done") => {
     const ok = await patchJourney(j.id, { status });
-    if (ok) onChanged();
-    else pushToast("Couldn't update that Journey — try again.", "⚠️", 3500);
+    if (!ok) {
+      pushToast("Couldn't update that Journey — try again.", "⚠️", 3500);
+      return;
+    }
+    // Marking a whole Journey complete had zero feedback beyond the list
+    // re-sorting underneath you — no toast, no sound, nothing.
+    if (status === "done") {
+      playSfx("milestone");
+      pushToast(`"${j.title}" complete ✦`, "🧭", 4500);
+    }
+    onChanged();
   };
 
   const remove = async () => {

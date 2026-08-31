@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { type GraphNode, EARN_ACTION_DONE, ACTION_DONE_MIN_AGE_MINUTES } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 import { isReminderDue, parseTolerantMs as ms } from "../utils/dueReminders.js";
 
 interface Props {
@@ -90,9 +91,17 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
     };
   }, [allReminders, acked]);
 
-  const done = (id: number) => {
-    deleteNode(id)
-      .then(() => onChanged?.())
+  const done = (n: GraphNode) => {
+    deleteNode(n.id)
+      .then(() => {
+        playSfx("complete");
+        pushToast(
+          earnsFuel(n) ? `"${n.label.slice(0, 30)}" cleared (+${EARN_ACTION_DONE} ⛽)` : `"${n.label.slice(0, 30)}" cleared ✓`,
+          "✅",
+          3000,
+        );
+        onChanged?.();
+      })
       .catch(() => pushToast("Couldn't clear that — try again.", "⚠️", 3500));
   };
 
@@ -154,7 +163,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
                 </button>
                 <button
                   className="mini agenda-done"
-                  onClick={() => done(n.id)}
+                  onClick={() => done(n)}
                   /* The server only pays out once an action is old enough — a
                      create-then-delete loop was a free fuel farm. The old flat
                      "(+fuel)" promised a reward the user often didn't get. */

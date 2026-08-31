@@ -10,6 +10,8 @@ vi.mock("../api/client.js", () => ({
 }));
 const pushToast = vi.fn();
 vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
+const playSfx = vi.fn();
+vi.mock("../graph/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
 
 import { ActionsPanel } from "./ActionsPanel.js";
 
@@ -53,6 +55,19 @@ describe("ActionsPanel — the acked mask clears once the server catches up", ()
     rerender(<ActionsPanel nodes={[node({ id: 1, label: "Due thing", remindAt: undefined })]} onFocus={() => {}} />);
     rerender(<ActionsPanel nodes={[node({ id: 1, label: "Due thing", remindAt: past })]} onFocus={() => {}} />);
     await screen.findByText("Due thing");
+  });
+});
+
+describe("ActionsPanel — clearing a task is celebrated, not silent", () => {
+  it("plays a sound and toasts on a successful clear", async () => {
+    deleteNode.mockResolvedValue(undefined);
+    const onChanged = vi.fn();
+    render(<ActionsPanel nodes={[node({ id: 1, label: "Ship it", kind: "action" })]} onFocus={() => {}} onChanged={onChanged} />);
+    const doneBtn = await screen.findByTitle(/Mark done/);
+    await act(async () => { doneBtn.click(); });
+    expect(playSfx).toHaveBeenCalledWith("complete");
+    expect(pushToast).toHaveBeenCalledWith(expect.stringContaining("Ship it"), "✅", expect.any(Number));
+    expect(onChanged).toHaveBeenCalled();
   });
 });
 
