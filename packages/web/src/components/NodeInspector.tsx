@@ -25,6 +25,7 @@ interface Props {
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
+const NEIGHBORS_SHOWN_CAP = 40;
 
 /** Friendly absolute date + relative hint, tolerant of SQLite "YYYY-MM-DD HH:MM:SS". */
 function fmtWhen(raw: string): string {
@@ -484,7 +485,9 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
 
       <h3>Connected ({neighbors.length})</h3>
       <ul className="neighbors">
-        {neighbors.map((n) => (
+        {/* A richly-connected hub can carry dozens/hundreds of direct links — this
+            used to render every single one into the DOM regardless. */}
+        {neighbors.slice(0, NEIGHBORS_SHOWN_CAP).map((n) => (
           <li key={n.id}>
             <button onClick={() => onFocus(n.id)}>
               <span className="dot" style={{ background: colorForType(n.type) }} title={NODE_TYPE_LABEL[normalizeNodeType(n.type)]} />
@@ -493,6 +496,9 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           </li>
         ))}
         {neighbors.length === 0 && <li className="empty">No connections yet.</li>}
+        {neighbors.length > NEIGHBORS_SHOWN_CAP && (
+          <li className="empty small">+{neighbors.length - NEIGHBORS_SHOWN_CAP} more</li>
+        )}
       </ul>
     </div>
   );

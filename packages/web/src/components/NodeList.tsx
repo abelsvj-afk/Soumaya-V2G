@@ -187,16 +187,22 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
   }, [memories, q, tier, type, emotion, cooling, drifting, tag, sort]);
 
   // Timeline grouping: bucket the filtered set by when each memory happened.
+  // A large brain with a loose (or no) filter used to render every single
+  // matching memory into the DOM at once — search/filters already exist to
+  // narrow this down; this is just a backstop against the worst case.
+  const RENDER_CAP = 300;
+  const cappedShown = useMemo(() => (shown.length > RENDER_CAP ? shown.slice(0, RENDER_CAP) : shown), [shown]);
+
   const groups = useMemo(() => {
     if (!timeline) return [];
     const map = new Map<string, { label: string; rank: number; items: GraphNode[] }>();
-    for (const n of shown) {
+    for (const n of cappedShown) {
       const b = bucket(ms(n.occurredAt ?? n.createdAt));
       if (!map.has(b.key)) map.set(b.key, { label: b.label, rank: b.rank, items: [] });
       map.get(b.key)!.items.push(n);
     }
     return [...map.values()].sort((a, b) => b.rank - a.rank);
-  }, [timeline, shown]);
+  }, [timeline, cappedShown]);
 
   const todayMemories = useMemo(() => {
     const todayStr = new Date().toLocaleDateString();
@@ -416,7 +422,7 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
       )}
 
       <ul className="neighbors node-list">
-        {!timeline && shown.map(renderRow)}
+        {!timeline && cappedShown.map(renderRow)}
         {timeline &&
           groups.map((g) => (
             <Fragment key={g.label}>
@@ -425,6 +431,9 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
             </Fragment>
           ))}
         {shown.length === 0 && <li className="empty">No matches — loosen the filters.</li>}
+        {shown.length > RENDER_CAP && (
+          <li className="empty small">+{shown.length - RENDER_CAP} more — narrow your search or filters to see them</li>
+        )}
       </ul>
     </div>
   );

@@ -54,6 +54,16 @@ describe("NodeList — constellations refresh when one is newly promoted", () =>
   });
 });
 
+describe("NodeList — a huge matching set doesn't render unbounded", () => {
+  it("caps rendered rows and shows a '+N more' hint past the cap", async () => {
+    const many = Array.from({ length: 320 }, (_, i) => node({ id: i + 1, label: `Memory ${i + 1}` }));
+    render(<NodeList nodes={many} onFocus={() => {}} />);
+    await screen.findByText("Memory 1");
+    expect(screen.queryByText("Memory 301")).toBeNull();
+    expect(screen.getByText(/\+20 more/)).toBeTruthy();
+  });
+});
+
 describe("NodeList — emotion is never color-alone", () => {
   it("shows a visible warm/neutral/heavy label next to the emotion dot, not just a hover title", async () => {
     render(<NodeList nodes={[node({ id: 1, label: "Happy memory", emotionalWeight: 0.8 })]} onFocus={() => {}} />);

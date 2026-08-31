@@ -56,6 +56,16 @@ describe("ActionsPanel — the acked mask clears once the server catches up", ()
   });
 });
 
+describe("ActionsPanel — a huge action list doesn't render unbounded", () => {
+  it("caps the action items list and shows a '+N more' hint", async () => {
+    const many = Array.from({ length: 60 }, (_, i) => node({ id: i + 1, label: `Action ${i + 1}`, kind: "action" }));
+    render(<ActionsPanel nodes={many} onFocus={() => {}} />);
+    await screen.findByText("Action 1");
+    expect(screen.queryByText("Action 51")).toBeNull();
+    expect(screen.getByText(/\+10 more/)).toBeTruthy();
+  });
+});
+
 describe("ActionsPanel — upcoming reminders show real urgency, not just text", () => {
   it("marks a reminder due within the hour as urgent", async () => {
     const soon = new Date(Date.now() + 30 * 60_000).toISOString(); // in 30 min

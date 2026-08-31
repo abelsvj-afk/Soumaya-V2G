@@ -24,6 +24,11 @@ function earnsFuel(n: Pick<GraphNode, "createdAt">): boolean {
   return Date.now() - created >= ACTION_DONE_MIN_AGE_MINUTES * 60_000;
 }
 
+// A backstop against a genuinely huge agenda rendering unbounded — each list
+// here already gets whittled down naturally (you clear actions, ack
+// reminders), so this only ever bites in a pathological case.
+const LIST_SHOWN_CAP = 50;
+
 /** "in 5h" / "in 3d" / "overdue" from a future-ish timestamp. */
 function countdown(target: number): { text: string; urgent: boolean; over: boolean } {
   const diff = target - Date.now();
@@ -77,9 +82,13 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
   // — the one moment a reminder mattered was the moment it disappeared. Both
   // lists share one `now` — reading Date.now() separately for each could (in
   // principle) straddle a millisecond boundary and disagree on a borderline item.
-  const now = Date.now();
-  const dueReminders = allReminders.filter(({ n }) => isReminderDue(n, now) && !acked.has(n.id));
-  const reminders = allReminders.filter(({ at }) => at > now);
+  const { dueReminders, reminders } = useMemo(() => {
+    const now = Date.now();
+    return {
+      dueReminders: allReminders.filter(({ n }) => isReminderDue(n, now) && !acked.has(n.id)),
+      reminders: allReminders.filter(({ at }) => at > now),
+    };
+  }, [allReminders, acked]);
 
   const done = (id: number) => {
     deleteNode(id)
@@ -114,7 +123,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
         <>
           <h3 className="agenda-h">🔔 Reminders due now ({dueReminders.length})</h3>
           <ul className="agenda-list">
-            {dueReminders.map(({ n }) => (
+            {dueReminders.slice(0, LIST_SHOWN_CAP).map(({ n }) => (
               <li key={n.id} className="over">
                 <button className="agenda-main" onClick={() => onFocus(n.id)} title="Fly to it">
                   <span className="agenda-label">{n.label}</span>
@@ -125,6 +134,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
                 </button>
               </li>
             ))}
+            {dueReminders.length > LIST_SHOWN_CAP && <li className="empty small">+{dueReminders.length - LIST_SHOWN_CAP} more</li>}
           </ul>
         </>
       )}
@@ -134,7 +144,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
         <p className="empty small">Nothing due — you're clear.</p>
       ) : (
         <ul className="agenda-list">
-          {actions.map(({ n, due }) => {
+          {actions.slice(0, LIST_SHOWN_CAP).map(({ n, due }) => {
             const c = countdown(due);
             return (
               <li key={n.id} className={c.over ? "over" : ""}>
@@ -159,6 +169,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
               </li>
             );
           })}
+          {actions.length > LIST_SHOWN_CAP && <li className="empty small">+{actions.length - LIST_SHOWN_CAP} more</li>}
         </ul>
       )}
 
@@ -166,7 +177,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
         <>
           <h3 className="agenda-h">⏰ Upcoming reminders ({reminders.length})</h3>
           <ul className="agenda-list">
-            {reminders.map(({ n, at }) => {
+            {reminders.slice(0, LIST_SHOWN_CAP).map(({ n, at }) => {
               const c = countdown(at);
               return (
                 <li key={n.id} className={c.over ? "over" : ""}>
@@ -183,6 +194,7 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
                 </li>
               );
             })}
+            {reminders.length > LIST_SHOWN_CAP && <li className="empty small">+{reminders.length - LIST_SHOWN_CAP} more</li>}
           </ul>
         </>
       )}
