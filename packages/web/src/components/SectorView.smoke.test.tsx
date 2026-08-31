@@ -42,6 +42,17 @@ describe("SectorView — orbiting count prefers the server's own degree", () => 
   });
 });
 
+describe("SectorView — the 'no sectors yet' state shows real progress, not just a goal", () => {
+  it("shows the heaviest memory's percent of the way to a sector", () => {
+    const graph: GraphData = {
+      nodes: [node({ id: 1, label: "Growing", mass: 0.22 })], // well under SECTOR_MASS (0.44)
+      links: [],
+    } as unknown as GraphData;
+    render(<SectorView graph={graph} onFocus={() => {}} onIsolate={() => {}} />);
+    expect(screen.getByText(/50% of the way/)).toBeTruthy();
+  });
+});
+
 describe("SectorView — a newly-formed sector is celebrated, not silently listed", () => {
   it("plays a sound and toasts only on the real transition, never on initial mount", () => {
     const before: GraphData = { nodes: [node({ id: 1, label: "Old hub", mass: 0.9 })], links: [] } as unknown as GraphData;

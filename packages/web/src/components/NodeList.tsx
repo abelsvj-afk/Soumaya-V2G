@@ -430,7 +430,25 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
               {g.items.map(renderRow)}
             </Fragment>
           ))}
-        {shown.length === 0 && <li className="empty">No matches — loosen the filters.</li>}
+        {shown.length === 0 && (
+          <li className="empty" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
+            <span>No matches — loosen the filters.</span>
+            <button
+              className="mini"
+              onClick={() => {
+                setQ("");
+                setTier("all");
+                setEmotion("all");
+                setType("all");
+                setCooling(false);
+                setDrifting(false);
+                handleTagChange(null);
+              }}
+            >
+              Clear all filters
+            </button>
+          </li>
+        )}
         {shown.length > RENDER_CAP && (
           <li className="empty small">+{shown.length - RENDER_CAP} more — narrow your search or filters to see them</li>
         )}

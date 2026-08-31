@@ -102,6 +102,10 @@ export function ChatDock({
   // Her persona controls (About Me / roles / knowledge) — a view inside the chat,
   // since they configure WHO you're talking to right here.
   const [showPersona, setShowPersona] = useState(false);
+  // QUICK_TOOLS — the main cross-feature discovery surface in chat — used to be
+  // shown only in the empty-conversation state, vanishing for good the moment a
+  // single message existed (even after a reload, since history persists).
+  const [showQuickTools, setShowQuickTools] = useState(false);
   // End-of-conversation: notes Soumaya proposes to save (null = none shown yet).
   const [proposals, setProposals] = useState<string[] | null>(null);
   const [distilling, setDistilling] = useState(false);
@@ -399,6 +403,16 @@ export function ChatDock({
             </button>
           )}
           {messages.length > 0 && !showPersona && (
+            <button
+              className={`chatdock-tool ${showQuickTools ? "on" : ""}`}
+              onClick={() => setShowQuickTools((v) => !v)}
+              title="Explore Soumaya's other tools"
+              aria-pressed={showQuickTools}
+            >
+              🧭
+            </button>
+          )}
+          {messages.length > 0 && !showPersona && (
             <button className="chatdock-tool" onClick={clearChat} title="Clear conversation">
               🗑
             </button>
@@ -437,6 +451,21 @@ export function ChatDock({
                 ))}
               </div>
             </>
+          )}
+          {messages.length > 0 && showQuickTools && (
+            <div className="chatdock-quick-tools" role="list" aria-label="Explore Soumaya's tools">
+              {QUICK_TOOLS.map((t) => (
+                <button
+                  key={t.tab}
+                  className="pill chatdock-tool-chip"
+                  role="listitem"
+                  onClick={() => { setShowQuickTools(false); openQuickTool(t.tab); }}
+                  title={`Open ${t.label}`}
+                >
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={`chatdock-msg ${m.role}`}>

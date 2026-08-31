@@ -29,6 +29,10 @@ export interface InboxNotification {
   seen: boolean;
   seenAt: number | null;
   priority: "low" | "normal" | "high";
+  /** Where tapping this notification later (from the Inbox, once archived) takes
+   *  you — the transient Toast carries this, but it used to be dropped the moment
+   *  a toast was logged, making every archived notification permanently unclickable. */
+  action?: ToastAction;
 }
 
 /** How many notifications the inbox log keeps. Defined once — InboxPanel used to
@@ -194,6 +198,7 @@ export function pushToast(
       seen: false,
       seenAt: null,
       priority,
+      action,
     };
     list.push(newNote);
     writeNotifications(list);

@@ -53,3 +53,30 @@ describe("InboxPanel — reaching inbox-zero is celebrated, not silently mounted
     expect(playSfx).toHaveBeenCalledWith("chime");
   });
 });
+
+describe("InboxPanel — a notification with an action is clickable, not permanently inert", () => {
+  it("dispatches brain-toast-action with the notification's action on click", async () => {
+    readNotifications.mockReturnValue([
+      note({ id: "1", text: "Reminder due", action: { kind: "focus", value: 42 } }),
+    ]);
+    render(<InboxPanel spaceId="s1" />);
+    const row = await screen.findByText("Reminder due");
+
+    let received: unknown = null;
+    const onAction = (e: Event) => { received = (e as CustomEvent).detail; };
+    window.addEventListener("brain-toast-action", onAction);
+    try {
+      await act(async () => { row.closest('[role="button"]')?.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    } finally {
+      window.removeEventListener("brain-toast-action", onAction);
+    }
+    expect(received).toEqual({ kind: "focus", value: 42 });
+  });
+
+  it("does not make an action-less notification clickable", async () => {
+    readNotifications.mockReturnValue([note({ id: "1", text: "Just info" })]);
+    render(<InboxPanel spaceId="s1" />);
+    const row = await screen.findByText("Just info");
+    expect(row.closest('[role="button"]')).toBeNull();
+  });
+});

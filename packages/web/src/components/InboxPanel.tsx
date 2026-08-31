@@ -56,6 +56,19 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
   const handleMarkSeen = (id: string) =>
     mutate((list) => list.map((n) => (n.id === id ? { ...n, seen: true, seenAt: Date.now() } : n)));
 
+  // InboxNotification used to drop the `action` field entirely, so every logged
+  // notification — including ones that started life as a clickable toast — was
+  // permanently inert once it landed here. Reuses the exact event Toasts.tsx's
+  // own runAction() dispatches, so the same App.tsx listener handles both.
+  const runAction = (item: InboxNotification) => {
+    if (!item.action) return;
+    try {
+      window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: item.action }));
+    } catch {
+      /* no window */
+    }
+  };
+
   const handleMarkAllSeen = () =>
     mutate((list) => list.map((n) => (n.seen ? n : { ...n, seen: true, seenAt: Date.now() })));
 
@@ -190,6 +203,19 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
             return (
               <div
                 key={item.id}
+                role={item.action ? "button" : undefined}
+                tabIndex={item.action ? 0 : undefined}
+                onClick={item.action ? () => runAction(item) : undefined}
+                onKeyDown={
+                  item.action
+                    ? (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          runAction(item);
+                        }
+                      }
+                    : undefined
+                }
                 style={{
                   background: isHigh && !item.seen ? "rgba(168, 85, 247, 0.08)" : "var(--glass-panel, rgba(255, 255, 255, 0.03))",
                   border: `1px solid ${isHigh && !item.seen ? "rgba(168, 85, 247, 0.3)" : "var(--glass-border)"}`,
@@ -199,7 +225,8 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
                   alignItems: "flex-start",
                   gap: "10px",
                   transition: "all 0.25s ease",
-                  position: "relative"
+                  position: "relative",
+                  cursor: item.action ? "pointer" : undefined,
                 }}
               >
                 <span style={{ fontSize: "1.2rem", flexShrink: 0, marginTop: "2px" }}>{item.icon}</span>
@@ -207,10 +234,11 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "6px" }}>
                     <div style={{ fontSize: "0.82rem", color: "var(--text)", wordBreak: "break-word", lineHeight: 1.35 }}>
                       {item.text}
+                      {item.action && <span aria-hidden style={{ opacity: 0.6, marginLeft: "4px" }}>›</span>}
                     </div>
                     {!item.seen && (
                       <button
-                        onClick={() => handleMarkSeen(item.id)}
+                        onClick={(e) => { e.stopPropagation(); handleMarkSeen(item.id); }}
                         title="Mark as seen"
                         aria-label="Mark as seen"
                         style={{

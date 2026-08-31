@@ -115,12 +115,21 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
   }, [sectors, adj, byId]);
 
   if (sectors.length === 0) {
+    // The goal (reach SECTOR_MASS) was stated with no sense of how close you
+    // actually are — the nearest candidate's mass is trivial to compute.
+    const closest = graph.nodes
+      .filter((n) => n.kind !== "action")
+      .reduce((best, n) => Math.max(best, n.mass ?? 0), 0);
+    const pct = Math.round(Math.min(1, closest / SECTOR_MASS) * 100);
     return (
       <div className="dock-body">
         <p className="empty">
           Your galaxy hasn't formed any major sectors yet. Keep adding thoughts and linking
           them to create gravitational hubs.
         </p>
+        {closest > 0 && (
+          <p className="empty small">Your heaviest memory is {pct}% of the way to forming one.</p>
+        )}
       </div>
     );
   }

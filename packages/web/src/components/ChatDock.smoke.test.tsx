@@ -33,6 +33,23 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+describe("ChatDock — the quick-tools discovery row is reachable after the first message", () => {
+  it("reveals the tools chips via the header toggle once a conversation exists", async () => {
+    localStorage.setItem(CHAT_KEY, JSON.stringify([{ role: "you", text: "hi" }]));
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} />);
+    await screen.findByText("hi");
+    // Vanished after the first message before this fix — no way back to it.
+    expect(screen.queryByTitle("Open Mind")).toBeNull();
+
+    const toggle = screen.getByTitle("Explore Soumaya's other tools");
+    act(() => toggle.click());
+    expect(screen.getByTitle("Open Mind")).toBeTruthy();
+
+    act(() => toggle.click());
+    expect(screen.queryByTitle("Open Mind")).toBeNull();
+  });
+});
+
 describe("ChatDock — mood is never colour-alone", () => {
   it("pairs a mood-colored bubble with a visible icon, not just a border color", async () => {
     localStorage.setItem(

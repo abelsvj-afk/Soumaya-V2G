@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, act, waitFor, fireEvent } from "@testing-library/react";
 import type { GraphNode } from "@brain/shared";
 
 const getConstellations = vi.fn();
@@ -61,6 +61,17 @@ describe("NodeList — a huge matching set doesn't render unbounded", () => {
     await screen.findByText("Memory 1");
     expect(screen.queryByText("Memory 301")).toBeNull();
     expect(screen.getByText(/\+20 more/)).toBeTruthy();
+  });
+});
+
+describe("NodeList — a dead-end 'No matches' now offers a way out", () => {
+  it("clears every filter when the button is clicked", async () => {
+    render(<NodeList nodes={[node({ id: 1, label: "Only match", type: "person" })]} onFocus={() => {}} />);
+    const search = await screen.findByPlaceholderText(/Search/);
+    fireEvent.change(search, { target: { value: "nothing will match this" } });
+    await screen.findByText("Clear all filters");
+    fireEvent.click(screen.getByText("Clear all filters"));
+    await screen.findByText("Only match");
   });
 });
 
