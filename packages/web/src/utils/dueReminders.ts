@@ -1,14 +1,27 @@
 import type { GraphNode } from "@brain/shared";
 
 /**
+ * Parse a naive SQLite timestamp ("YYYY-MM-DD HH:MM:SS", no zone) OR a real ISO
+ * string, tolerantly, as UTC → epoch ms (or NaN for missing/unparsable input).
+ *
+ * This exact 2-line predicate was independently reimplemented FOUR times —
+ * NodeInspector.tsx's `fmtWhen`, NodeList.tsx's `ms`, ActionsPanel.tsx's `ms`, and
+ * SectorView.tsx's `msOf` — the identical "computed twice [and four more times] and
+ * drifting" risk docs/OPTIMIZATION_ROADMAP.md Problem 2 warns about, in the same file
+ * that already exists specifically to prevent it. One definition now; all four import it.
+ */
+export function parseTolerantMs(raw?: string): number {
+  if (!raw) return NaN;
+  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
+  return Date.parse(iso);
+}
+
+/**
  * The "is this node's reminder due right now" predicate — previously implemented
- * independently in ActionsPanel.tsx and NotificationsBar.tsx (the exact "computed
- * twice and drifting" risk docs/OPTIMIZATION_ROADMAP.md Problem 2 warns about).
- * Naive SQLite timestamps ("YYYY-MM-DD HH:MM:SS", no zone) must be read as UTC —
- * same bug class already fixed for Timeline chapters and elsewhere this session.
+ * independently in ActionsPanel.tsx and NotificationsBar.tsx (the exact drift risk
+ * above). Naive SQLite timestamps must be read as UTC — same bug class as above.
  */
 export function isReminderDue(n: Pick<GraphNode, "kind" | "remindAt">, nowMs: number = Date.now()): boolean {
   if (n.kind === "action" || !n.remindAt) return false;
-  const iso = n.remindAt.includes("Z") || n.remindAt.includes("+") ? n.remindAt : n.remindAt.replace(" ", "T") + "Z";
-  return Date.parse(iso) <= nowMs;
+  return parseTolerantMs(n.remindAt) <= nowMs;
 }

@@ -9,6 +9,7 @@ import { Chronicle } from "./Chronicle.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
 import { playSfx } from "../graph/sfx.js";
 import { JourneyChips } from "./JourneyChips.js";
+import { parseTolerantMs } from "../utils/dueReminders.js";
 
 interface Props {
   node: GraphNode | null;
@@ -27,8 +28,7 @@ const end = (v: number | { id: number }): number => (typeof v === "object" ? v.i
 
 /** Friendly absolute date + relative hint, tolerant of SQLite "YYYY-MM-DD HH:MM:SS". */
 function fmtWhen(raw: string): string {
-  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
-  const t = Date.parse(iso);
+  const t = parseTolerantMs(raw);
   if (Number.isNaN(t)) return raw;
   const abs = new Date(t).toLocaleString(undefined, {
     month: "short",

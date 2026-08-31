@@ -1,5 +1,22 @@
 import { describe, it, expect } from "vitest";
-import { isReminderDue } from "./dueReminders.js";
+import { isReminderDue, parseTolerantMs } from "./dueReminders.js";
+
+describe("parseTolerantMs", () => {
+  it("reads a naive SQLite timestamp as UTC", () => {
+    expect(parseTolerantMs("2026-08-29 12:00:00")).toBe(Date.parse("2026-08-29T12:00:00Z"));
+  });
+
+  it("passes a real ISO/zoned timestamp through unchanged", () => {
+    expect(parseTolerantMs("2026-08-29T12:00:00Z")).toBe(Date.parse("2026-08-29T12:00:00Z"));
+    expect(parseTolerantMs("2026-08-29T12:00:00+02:00")).toBe(Date.parse("2026-08-29T12:00:00+02:00"));
+  });
+
+  it("returns NaN for missing or unparsable input", () => {
+    expect(Number.isNaN(parseTolerantMs(undefined))).toBe(true);
+    expect(Number.isNaN(parseTolerantMs(""))).toBe(true);
+    expect(Number.isNaN(parseTolerantMs("not a date"))).toBe(true);
+  });
+});
 
 describe("isReminderDue", () => {
   const now = Date.parse("2026-08-29T12:00:00Z");

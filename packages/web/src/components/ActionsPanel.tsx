@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { type GraphNode, EARN_ACTION_DONE, ACTION_DONE_MIN_AGE_MINUTES } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
-import { isReminderDue } from "../utils/dueReminders.js";
+import { isReminderDue, parseTolerantMs as ms } from "../utils/dueReminders.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -10,13 +10,6 @@ interface Props {
   /** Called after an action is cleared so the galaxy + fuel refresh. */
   onChanged?: () => void;
   readOnly?: boolean;
-}
-
-/** Parse a SQLite/ISO timestamp tolerantly → ms, or NaN. */
-function ms(raw?: string): number {
-  if (!raw) return NaN;
-  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
-  return Date.parse(iso);
 }
 
 /**

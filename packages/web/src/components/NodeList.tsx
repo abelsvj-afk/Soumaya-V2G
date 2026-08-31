@@ -12,6 +12,7 @@ import {
 } from "@brain/shared";
 import { colorForType, TYPE_COLORS } from "../graph/theme.js";
 import { getConstellations, getVisitorActivity, useProcessingNodes, type VisitedMemory } from "../api/client.js";
+import { parseTolerantMs as ms } from "../utils/dueReminders.js";
 
 interface Props {
   nodes: GraphNode[];
@@ -23,12 +24,6 @@ interface Props {
 type Emotion = "all" | "positive" | "neutral" | "negative";
 type Sort = "mass" | "recent" | "links" | "name";
 
-/** Parse a SQLite/ISO timestamp → ms (tolerant), or NaN. */
-function ms(raw?: string): number {
-  if (!raw) return NaN;
-  const iso = raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z";
-  return Date.parse(iso);
-}
 function relative(raw?: string): string {
   const t = ms(raw);
   if (Number.isNaN(t)) return "";
@@ -186,7 +181,10 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
   const upcomingReminders = useMemo(() => {
     const now = Date.now();
     return nodes.filter(n => {
-      if (!n.remindAt) return false;
+      // Actions never carry a real reminder — excluded here for the same reason
+      // isReminderDue() excludes them (utils/dueReminders.ts). This filter used to
+      // disagree with that shared predicate and count them anyway.
+      if (n.kind === "action" || !n.remindAt) return false;
       const timestamp = ms(n.remindAt);
       return !Number.isNaN(timestamp) && timestamp > now && timestamp - now < 24 * 3600 * 1000; // next 24 hours
     });
@@ -285,7 +283,10 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
           {upcomingReminders.length > 0 && (
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <span>🔔</span>
-              <span><strong>Reminder incoming:</strong> "{upcomingReminders[0]!.label.slice(0, 30)}..." {relativeFuture(upcomingReminders[0]!.remindAt)}</span>
+              <span>
+                <strong>Reminder incoming:</strong> "{upcomingReminders[0]!.label.slice(0, 30)}..." {relativeFuture(upcomingReminders[0]!.remindAt)}
+                {upcomingReminders.length > 1 && ` (+${upcomingReminders.length - 1} more)`}
+              </span>
             </div>
           )}
         </div>

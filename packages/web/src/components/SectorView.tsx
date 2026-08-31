@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, SECTOR_MASS } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
+import { parseTolerantMs as msOf } from "../utils/dueReminders.js";
 
 interface Props {
   graph: GraphData;
@@ -9,10 +10,6 @@ interface Props {
 }
 
 const end = (v: number | { id: number }): number => (typeof v === "object" ? v.id : v);
-const msOf = (raw?: string): number => {
-  if (!raw) return NaN;
-  return Date.parse(raw.includes("Z") || raw.includes("+") ? raw : raw.replace(" ", "T") + "Z");
-};
 function toneOf(avg: number): { label: string; color: string } {
   if (avg > 0.2) return { label: "warm", color: "#ffcf6b" };
   if (avg < -0.2) return { label: "heavy", color: "#6bb7ff" };
@@ -30,8 +27,10 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
   const adj = useMemo(() => {
     const m = new Map<number, Set<number>>();
     for (const l of graph.links) {
-      const s = end(l.source as any);
-      const t = end(l.target as any);
+      // Matches NodeInspector.tsx's identical `end()` call site — `as never` (not
+      // `as any`) so a real shape mismatch still surfaces at compile time.
+      const s = end(l.source as never);
+      const t = end(l.target as never);
       if (!m.has(s)) m.set(s, new Set());
       if (!m.has(t)) m.set(t, new Set());
       m.get(s)!.add(t);
