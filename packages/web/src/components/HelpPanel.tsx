@@ -1,6 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SATELLITE_LORE, SATELLITE_NAME } from "../graph/satellites.js";
 import { useDialogA11y } from "../hooks/useDialogA11y.js";
+import { getSpaceId } from "../api/client.js";
+import { playSfx } from "../graph/sfx.js";
+import { pushToast } from "./Toasts.js";
 
 interface Props {
   onClose: () => void;
@@ -217,6 +220,25 @@ const CATEGORIES: {
     ]
   }
 ];
+
+/** With 60+ cards across every category and zero way to act on any of them, the
+ *  manual was pure reading with no bridge back into the app it's describing —
+ *  even though the brain-toast-action event ChatDock's quick-tools already use
+ *  was sitting right there. One representative jump per category (not per card
+ *  — most individual cards describe a nuance of a feature, not a distinct
+ *  screen) closes that without fabricating 60 uncertain per-card mappings.
+ *  Categories describing passive concepts (camera controls, galaxy physics)
+ *  have no single tab to jump to and are deliberately left without a button. */
+const CATEGORY_TRY_IT: Record<string, { label: string; action: { kind: string; value?: string } }> = {
+  start: { label: "➕ Dump a thought", action: { kind: "panel", value: "ingest" } },
+  structure: { label: "📚 Open Browse", action: { kind: "tab", value: "list" } },
+  talk: { label: "💬 Open chat", action: { kind: "chat" } },
+  explore: { label: "✨ Open Insights", action: { kind: "tab", value: "insights" } },
+  fleet: { label: "🛰️ Open Soumaya", action: { kind: "tab", value: "soumaya" } },
+  hangar: { label: "🛠️ Open Hangar", action: { kind: "tab", value: "hangar" } },
+  money: { label: "💵 Open Money", action: { kind: "tab", value: "money" } },
+  journeys: { label: "🧭 Open Journeys", action: { kind: "tab", value: "journeys" } },
+};
 
 /** Hoisted to module scope — this was a template literal recreated inline
  *  on every render (a new ~200-line string on every keystroke in the search
@@ -443,6 +465,27 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
 
   const selectedCategory = CATEGORIES.find((cat) => cat.id === activeTab);
 
+  // Reading the manual was completely unrewarded despite activeTab already
+  // tracking which categories you'd visited — nothing ever used that. Persist
+  // the seen-set per space and celebrate ONLY the real completion transition
+  // (never on a mount that already has every category seen from a prior visit).
+  useEffect(() => {
+    try {
+      const spaceId = getSpaceId() ?? "legacy";
+      const key = `brain.help.seen.${spaceId}`;
+      const seen = new Set<string>(JSON.parse(localStorage.getItem(key) || "[]"));
+      const wasComplete = seen.size >= CATEGORIES.length;
+      seen.add(activeTab);
+      localStorage.setItem(key, JSON.stringify([...seen]));
+      if (!wasComplete && seen.size >= CATEGORIES.length) {
+        playSfx("achievement");
+        pushToast("📖 You've read the whole Pilot Manual! ✦", "📖", 5000);
+      }
+    } catch {
+      /* storage unavailable */
+    }
+  }, [activeTab]);
+
   const overlayRef = useRef<HTMLDivElement>(null);
   useDialogA11y(overlayRef, onClose);
 
@@ -545,9 +588,17 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
                   ))}
                 </div>
               ) : (
-                <p className="empty" style={{ padding: "40px 0" }}>
-                  No guides match "{search}". Try searching for keywords like "fuel", "trail", "Dyson", or "lock".
-                </p>
+                <div style={{ padding: "40px 0", display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-start" }}>
+                  <p className="empty" style={{ margin: 0 }}>
+                    No guides match "{search}". Try searching for keywords like "fuel", "trail", "Dyson", or "lock".
+                  </p>
+                  <button
+                    className="mini"
+                    onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "chat" } }))}
+                  >
+                    💬 Ask Soumaya instead
+                  </button>
+                </div>
               )}
             </div>
           ) : (
@@ -556,6 +607,18 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
                 <div className="help-category-header">
                   <h3>{selectedCategory.title}</h3>
                   <p className="help-category-desc">{selectedCategory.desc}</p>
+                  {CATEGORY_TRY_IT[selectedCategory.id] && (
+                    <button
+                      className="mini"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent("brain-toast-action", { detail: CATEGORY_TRY_IT[selectedCategory.id]!.action }),
+                        )
+                      }
+                    >
+                      {CATEGORY_TRY_IT[selectedCategory.id]!.label}
+                    </button>
+                  )}
                 </div>
 
                 <div className="help-cards-grid">
