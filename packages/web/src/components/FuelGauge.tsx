@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Fuel } from "@brain/shared";
+import { playSfx } from "../graph/sfx.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * Always-on-screen fuel gauge — a futuristic "engine core" tube on the left edge that
@@ -37,6 +39,20 @@ export function FuelGauge({
     }
   }, [fuel?.fuel]);
   useEffect(() => () => { if (flashTimer.current) window.clearTimeout(flashTimer.current); }, []);
+
+  // Hitting a full tank was never marked as a moment — only the real FALSE → TRUE
+  // edge fires (never a mount that starts already full), so it doesn't spam while
+  // sitting at capacity, but does celebrate again each time you actually refill.
+  const wasAtCap = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!fuel) return;
+    const atCap = fuel.fuel >= fuel.capacity;
+    if (wasAtCap.current === false && atCap) {
+      playSfx("milestone");
+      pushToast("Fuel tank full — Soumaya's ready for anything. ⛽", "⛽", 4000);
+    }
+    wasAtCap.current = atCap;
+  }, [fuel?.fuel, fuel?.capacity]);
 
   if (!fuel) return null;
   const pct = Math.max(0, Math.min(1, fuel.fuel / fuel.capacity));

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphNode, EARN_ACTION_DONE, ACTION_DONE_MIN_AGE_MINUTES } from "@brain/shared";
 import { deleteNode, ackReminder } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
@@ -55,6 +55,20 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
         .sort((a, b) => (a.due || Infinity) - (b.due || Infinity)),
     [nodes],
   );
+
+  // Clearing the very last action item was a completely flat moment — no
+  // achievement in this app covers tasks/agenda at all. Only fires on the real
+  // >0 → 0 transition, never on a mount that starts with an empty agenda.
+  const prevActionCount = useRef<number | null>(null);
+  useEffect(() => {
+    const count = actions.length;
+    if (prevActionCount.current !== null && prevActionCount.current > 0 && count === 0) {
+      playSfx("milestone");
+      pushToast("Agenda Zero — every action item cleared. 🎯", "🎯", 4500);
+    }
+    prevActionCount.current = count;
+  }, [actions.length]);
+
   // Acknowledged-this-session reminders (server clears remind_at; hide locally
   // until the next graph refresh catches up).
   const [acked, setAcked] = useState<Set<number>>(new Set());

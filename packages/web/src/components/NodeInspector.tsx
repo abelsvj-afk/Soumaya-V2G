@@ -2,12 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType, FUEL_JOB_COST } from "@brain/shared";
 import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 import { colorForType } from "../graph/theme.js";
 import { loreFor } from "../graph/lore.js";
 import { MarkdownView } from "./MarkdownView.js";
 import { Chronicle } from "./Chronicle.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
-import { playSfx } from "../graph/sfx.js";
 import { JourneyChips } from "./JourneyChips.js";
 import { parseTolerantMs } from "../utils/dueReminders.js";
 
@@ -90,6 +90,23 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
     setResearchError("");
     setRequested(false);
   }, [node?.id]);
+
+  // A memory visibly leveling up (moon → planet → ... → supergiant) is the core
+  // visual metaphor of this app, but growing into a new tier was never actually
+  // marked as a moment — celebrate the real crossing, not just re-detect the same
+  // tier every time this memory happens to be reopened.
+  const seenTierRef = useRef<Map<number, number>>(new Map());
+  useEffect(() => {
+    if (!node?.celestial) return;
+    const tierIdx = CELESTIAL_CLASSES.indexOf(node.celestial);
+    if (tierIdx < 0) return;
+    const prev = seenTierRef.current.get(node.id);
+    if (prev !== undefined && tierIdx > prev) {
+      playSfx("milestone");
+      pushToast(`"${node.label.slice(0, 30)}" grew into a ${CELESTIAL_LABEL[node.celestial]} ${CELESTIAL_ICON[node.celestial]}`, "✨", 5000);
+    }
+    seenTierRef.current.set(node.id, tierIdx);
+  }, [node?.id, node?.celestial, node?.label]);
 
   const runSynthesis = () => {
     if (!node) return;

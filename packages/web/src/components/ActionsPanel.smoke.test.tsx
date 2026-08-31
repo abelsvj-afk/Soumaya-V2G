@@ -71,6 +71,21 @@ describe("ActionsPanel — clearing a task is celebrated, not silent", () => {
   });
 });
 
+describe("ActionsPanel — Agenda Zero is celebrated, not silent", () => {
+  it("plays a milestone sound only on the real >0 → 0 transition, never on an empty mount", async () => {
+    const { rerender } = render(<ActionsPanel nodes={[]} onFocus={() => {}} />);
+    expect(playSfx).not.toHaveBeenCalled();
+
+    rerender(<ActionsPanel nodes={[node({ id: 1, label: "One task", kind: "action" })]} onFocus={() => {}} />);
+    await screen.findByText("One task");
+    expect(playSfx).not.toHaveBeenCalled();
+
+    rerender(<ActionsPanel nodes={[]} onFocus={() => {}} />);
+    expect(playSfx).toHaveBeenCalledWith("milestone");
+    expect(pushToast).toHaveBeenCalledWith(expect.stringContaining("Agenda Zero"), "🎯", expect.any(Number));
+  });
+});
+
 describe("ActionsPanel — a huge action list doesn't render unbounded", () => {
   it("caps the action items list and shows a '+N more' hint", async () => {
     const many = Array.from({ length: 60 }, (_, i) => node({ id: i + 1, label: `Action ${i + 1}`, kind: "action" }));
