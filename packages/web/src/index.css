@@ -156,6 +156,10 @@ body,
   transform: translateX(-50%);
   width: min(440px, 70vw);
   padding: 8px;
+  /* Inherited z-index:10 from .panel sat UNDER .brand (70) and the
+     notifications bar (45) despite both occupying the same top-of-screen
+     real estate — an actively open search box shouldn't render behind them. */
+  z-index: 71;
 }
 .search input {
   width: 100%;

@@ -265,6 +265,23 @@ export async function search(q: string): Promise<SearchHit[]> {
   }
 }
 
+/** Same request as search(), but distinguishes a real failure from "zero
+ *  matches" instead of collapsing both into an empty array — SearchBox.tsx
+ *  used to render a network error as an indistinguishable "No matches". */
+export async function searchDetailed(q: string): Promise<{ hits: SearchHit[]; error?: string }> {
+  try {
+    const res = await afetch(`${API}/search?q=${encodeURIComponent(q)}`);
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { hits: [], error: body.error ?? `Search failed (${res.status})` };
+    }
+    const d = await res.json().catch(() => []);
+    return { hits: Array.isArray(d) ? d : [] };
+  } catch {
+    return { hits: [], error: "Couldn't reach the server." };
+  }
+}
+
 /** Ask the AI to piece a memory + its connections into a fresh insight. */
 export async function synthesizeNode(id: number): Promise<{ text: string; connected: number; questions?: string[] }> {
   setNodeProcessing([id], true);

@@ -1,20 +1,75 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
+
+const currentSpace = vi.fn();
+const updateProfile = vi.fn();
+vi.mock("../api/client.js", () => ({
+  currentSpace: (...a: unknown[]) => currentSpace(...a),
+  updateProfile: (...a: unknown[]) => updateProfile(...a),
+}));
+const pushToast = vi.fn();
+vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
+
 import { SettingsPanel } from "./SettingsPanel.js";
 
-afterEach(cleanup);
+beforeEach(() => {
+  vi.resetAllMocks();
+  currentSpace.mockResolvedValue({ id: "s1", name: "Sam", gamerTag: "sam99" });
+  localStorage.clear();
+  (window as unknown as { confirm: () => boolean }).confirm = () => true;
+});
 
-describe("SettingsPanel", () => {
-  it("renders the diagnostics section", () => {
-    render(<SettingsPanel onClose={vi.fn()} />);
-    expect(screen.getByText("🔬 Diagnostics")).toBeDefined();
-    expect(screen.getByText("Diagnostic recording")).toBeDefined();
+afterEach(() => cleanup());
+
+describe("SettingsPanel — the Seg segmented control keeps a stable identity across re-renders", () => {
+  it("does not remount the FPS-cap control's DOM node as the live FPS readout updates", async () => {
+    render(<SettingsPanel onClose={() => {}} />);
+    const fpsCapButtons = await screen.findAllByRole("button", { name: "30" });
+    const before = fpsCapButtons[0];
+    // Simulate the ~2x/sec re-render the live FPS sampler causes by forcing a
+    // state update via a different control (colorblind toggle) rather than
+    // waiting on real rAF timing.
+    const cbToggle = screen.getByText("Colorblind-safe colours").closest("label")!.querySelector("button")!;
+    act(() => { cbToggle.click(); });
+    const after = screen.getAllByRole("button", { name: "30" })[0];
+    expect(after).toBe(before); // same DOM node — Seg wasn't torn down and rebuilt
+  });
+});
+
+describe("SettingsPanel — Lite mode warns before discarding an unsaved profile edit", () => {
+  it("confirms before reloading when the name field has an unsaved change", async () => {
+    render(<SettingsPanel onClose={() => {}} />);
+    const nameInput = await screen.findByPlaceholderText("Your name (anything)") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "New Name" } });
+
+    let asked = false;
+    (window as unknown as { confirm: () => boolean }).confirm = () => { asked = true; return true; };
+    const liteToggle = screen.getByText(/Lite mode/).closest("label")!.querySelector("button")!;
+    act(() => { liteToggle.click(); });
+    expect(asked).toBe(true);
   });
 
-  it("can toggle diagnostic recording", () => {
-    render(<SettingsPanel onClose={vi.fn()} />);
-    const toggle = screen.getByLabelText(/Diagnostic recording/i).parentElement?.querySelector("button")!;
-    fireEvent.click(toggle);
-    expect(toggle.className).toContain("on");
+  it("does not ask when there is no unsaved edit", async () => {
+    render(<SettingsPanel onClose={() => {}} />);
+    await screen.findByPlaceholderText("Your name (anything)");
+    let asked = false;
+    (window as unknown as { confirm: () => boolean }).confirm = () => { asked = true; return true; };
+    const liteToggle = screen.getByText(/Lite mode/).closest("label")!.querySelector("button")!;
+    act(() => { liteToggle.click(); });
+    expect(asked).toBe(false);
+  });
+});
+
+describe("SettingsPanel — profile inputs lock while a save is in flight", () => {
+  it("disables the name/gamer-tag fields while saveProfile() is pending", async () => {
+    let resolveSave!: (v: { id: string; name: string; gamerTag: string }) => void;
+    updateProfile.mockReturnValue(new Promise((r) => { resolveSave = r; }));
+    render(<SettingsPanel onClose={() => {}} />);
+    const nameInput = await screen.findByPlaceholderText("Your name (anything)") as HTMLInputElement;
+    const saveBtn = screen.getByText("Save profile");
+    await act(async () => { saveBtn.click(); });
+    expect(nameInput.disabled).toBe(true);
+    await act(async () => { resolveSave({ id: "s1", name: "Sam", gamerTag: "sam99" }); });
+    expect(nameInput.disabled).toBe(false);
   });
 });

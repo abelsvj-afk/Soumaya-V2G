@@ -217,33 +217,10 @@ const CATEGORIES: {
   }
 ];
 
-export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
-  const [activeTab, setActiveTab] = useState<string>("navigation");
-  const [search, setSearch] = useState<string>("");
-
-  // Collect search results if search is not empty
-  const isSearchActive = search.trim().length > 0;
-  const searchResults: { item: HelpItem; category: string }[] = [];
-
-  if (isSearchActive) {
-    const query = search.toLowerCase();
-    CATEGORIES.forEach((cat) => {
-      cat.items.forEach((item) => {
-        const titleMatch = item.title.toLowerCase().includes(query);
-        const bodyMatch = item.body.toLowerCase().includes(query);
-        const tagMatch = item.tags?.some((t) => t.toLowerCase().includes(query));
-        if (titleMatch || bodyMatch || tagMatch) {
-          searchResults.push({ item, category: cat.title });
-        }
-      });
-    });
-  }
-
-  const selectedCategory = CATEGORIES.find((cat) => cat.id === activeTab);
-
-  return (
-    <div className="help-overlay" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <style>{`
+/** Hoisted to module scope — this was a template literal recreated inline
+ *  on every render (a new ~200-line string on every keystroke in the search
+ *  box), even though it's pure static CSS with no interpolation. */
+const HELP_CSS = `
         .help-overlay {
           padding: 24px;
         }
@@ -439,7 +416,35 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
             padding-top: 10px;
           }
         }
-      `}</style>
+`;
+
+export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
+  const [activeTab, setActiveTab] = useState<string>("navigation");
+  const [search, setSearch] = useState<string>("");
+
+  // Collect search results if search is not empty
+  const isSearchActive = search.trim().length > 0;
+  const searchResults: { item: HelpItem; category: string }[] = [];
+
+  if (isSearchActive) {
+    const query = search.toLowerCase();
+    CATEGORIES.forEach((cat) => {
+      cat.items.forEach((item) => {
+        const titleMatch = item.title.toLowerCase().includes(query);
+        const bodyMatch = item.body.toLowerCase().includes(query);
+        const tagMatch = item.tags?.some((t) => t.toLowerCase().includes(query));
+        if (titleMatch || bodyMatch || tagMatch) {
+          searchResults.push({ item, category: cat.title });
+        }
+      });
+    });
+  }
+
+  const selectedCategory = CATEGORIES.find((cat) => cat.id === activeTab);
+
+  return (
+    <div className="help-overlay" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <style>{HELP_CSS}</style>
 
       <div className="help-head">
         <h2>Galaxy Pilot Manual</h2>
@@ -507,7 +512,7 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
               {searchResults.length > 0 ? (
                 <div className="help-cards-grid">
                   {searchResults.map(({ item, category }) => (
-                    <div key={item.title} className="help-card">
+                    <div key={`${category}::${item.title}`} className="help-card">
                       <div>
                         <div className="help-card-header">
                           <span className="help-card-icon">{item.icon || "💡"}</span>

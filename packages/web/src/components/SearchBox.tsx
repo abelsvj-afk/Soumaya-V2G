@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from "react";
-import { search, type SearchHit } from "../api/client.js";
+import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { searchDetailed, type SearchHit } from "../api/client.js";
 
 interface Props {
   onFocus: (id: number) => void;
@@ -10,16 +10,33 @@ export function SearchBox({ onFocus, onClose }: Props) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // A slow first search resolving after a faster second one used to let the
+  // stale response silently overwrite the newer results.
+  const requestSeq = useRef(0);
 
   async function run(e: FormEvent) {
     e.preventDefault();
-    if (!q.trim()) return;
-    setHits(await search(q));
+    const query = q.trim();
+    if (!query) return;
+    const seq = ++requestSeq.current;
+    setBusy(true);
+    setError(null);
+    const { hits: found, error: err } = await searchDetailed(query);
+    if (seq !== requestSeq.current) return; // a newer search has already superseded this one
+    setBusy(false);
+    setHits(found);
+    setError(err ?? null);
     setOpen(true);
   }
 
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Escape") onClose?.();
+  };
+
   return (
-    <div className="panel search">
+    <div className="panel search" onKeyDown={onKeyDown}>
       <form onSubmit={run}>
         <input
           autoFocus
@@ -33,22 +50,25 @@ export function SearchBox({ onFocus, onClose }: Props) {
           </button>
         )}
       </form>
-      {open && (
+      {busy && <p className="empty">Searching…</p>}
+      {!busy && open && (
         <ul className="results">
-          {hits.length === 0 && <li className="empty">No matches.</li>}
-          {hits.map((h) => (
-            <li key={h.id}>
-              <button
-                onClick={() => {
-                  onFocus(h.id);
-                  setOpen(false);
-                }}
-              >
-                {h.label}
-                <em>{(h.similarity * 100).toFixed(0)}%</em>
-              </button>
-            </li>
-          ))}
+          {error && <li className="empty">⚠️ {error}</li>}
+          {!error && hits.length === 0 && <li className="empty">No matches.</li>}
+          {!error &&
+            hits.map((h) => (
+              <li key={h.id}>
+                <button
+                  onClick={() => {
+                    onFocus(h.id);
+                    setOpen(false);
+                  }}
+                >
+                  {h.label}
+                  <em>{typeof h.similarity === "number" ? `${(h.similarity * 100).toFixed(0)}%` : ""}</em>
+                </button>
+              </li>
+            ))}
         </ul>
       )}
     </div>

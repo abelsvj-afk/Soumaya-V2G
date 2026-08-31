@@ -25,6 +25,22 @@ import { perfHudEnabled, setPerfHudEnabled } from "./PerfHUD.js";
 import { pushToast } from "./Toasts.js";
 import { loadPersistedRung, RUNG_TABLE, ADAPTIVE_MODEL_VERSION } from "../graph/adaptiveController.js";
 
+/** Was defined INSIDE SettingsPanel's render body — a fresh function identity on
+ *  every render, which React treats as a brand-new component type. This panel
+ *  re-renders ~2x/sec while open (the live FPS sampler below), so all 6 `<Seg>`
+ *  usages were fully unmounting and remounting their DOM twice a second. */
+function Seg<T extends string>({ value, options, onPick }: { value: T; options: T[]; onPick: (v: T) => void }) {
+  return (
+    <span className="seg">
+      {options.map((o) => (
+        <button key={o} className={value === o ? "on" : ""} onClick={() => onPick(o)}>
+          {o[0]!.toUpperCase() + o.slice(1)}
+        </button>
+      ))}
+    </span>
+  );
+}
+
 /**
  * Settings overlay (⚙️). Account (display name + unique gamer tag) plus app
  * preferences. Opened from a FAB; floats over the galaxy like the Observatory.
@@ -43,6 +59,11 @@ export function SettingsPanel({
   const [gamerTag, setGamerTag] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [profileDirty, setProfileDirty] = useState(false);
+  const msgTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (msgTimer.current) clearTimeout(msgTimer.current);
+  }, []);
   const [voice, setVoice] = useState(isVoiceEnabled());
   const [sfx, setSfx] = useState(sfxEnabled());
   const [gfx, setGfx] = useState<GraphicsSettings>(getGraphics());
@@ -87,23 +108,19 @@ export function SettingsPanel({
 
   const pickMode = (m: GraphicsSettings["mode"]) => setGfx(setGraphicsMode(m));
   const setField = <K extends keyof GraphicsSettings>(k: K, v: GraphicsSettings[K]) => setGfx(setGraphicsField(k, v));
-  const Seg = <T extends string>({ value, options, onPick }: { value: T; options: T[]; onPick: (v: T) => void }) => (
-    <span className="seg">
-      {options.map((o) => (
-        <button key={o} className={value === o ? "on" : ""} onClick={() => onPick(o)}>
-          {o[0]!.toUpperCase() + o.slice(1)}
-        </button>
-      ))}
-    </span>
-  );
 
   useEffect(() => {
-    currentSpace().then((s) => {
-      if (s) {
+    let cancelled = false;
+    currentSpace()
+      .then((s) => {
+        if (cancelled || !s) return;
         setName(s.name ?? "");
         setGamerTag(s.gamerTag ?? "");
-      }
-    });
+      })
+      .catch(() => { /* profile fields just stay blank — nothing to save yet */ });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const saveProfile = async () => {
@@ -113,9 +130,11 @@ export function SettingsPanel({
       const updated = await updateProfile({ name: name.trim(), gamerTag: gamerTag.trim() });
       setName(updated.name);
       setGamerTag(updated.gamerTag);
+      setProfileDirty(false);
       onProfileUpdated?.(updated.name);
       setMsg("Saved ✓");
-      setTimeout(() => setMsg(""), 2000);
+      if (msgTimer.current) clearTimeout(msgTimer.current);
+      msgTimer.current = setTimeout(() => setMsg(""), 2000);
     } catch (err) {
       setMsg((err as Error).message);
     } finally {
@@ -141,14 +160,21 @@ export function SettingsPanel({
           <h3>Account</h3>
           <label className="settings-field">
             <span>Display name</span>
-            <input value={name} maxLength={40} onChange={(e) => setName(e.target.value)} placeholder="Your name (anything)" />
+            <input
+              value={name}
+              maxLength={40}
+              disabled={busy}
+              onChange={(e) => { setName(e.target.value); setProfileDirty(true); }}
+              placeholder="Your name (anything)"
+            />
           </label>
           <label className="settings-field">
             <span>Gamer tag <em>(unique)</em></span>
             <input
               value={gamerTag}
               maxLength={40}
-              onChange={(e) => setGamerTag(e.target.value)}
+              disabled={busy}
+              onChange={(e) => { setGamerTag(e.target.value); setProfileDirty(true); }}
               placeholder="A unique handle"
               autoCapitalize="none"
               autoCorrect="off"
@@ -258,7 +284,7 @@ export function SettingsPanel({
             </button>
           </label>
           <div className="row" style={{ marginTop: "10px", gap: "8px", display: "flex", flexWrap: "wrap" }}>
-            <button onClick={() => clearDiagnosticEvents()}>Clear Events</button>
+            <button onClick={() => { if (confirm("Clear all recorded diagnostic events?")) clearDiagnosticEvents(); }}>Clear Events</button>
             <button onClick={() => setDiagReport(JSON.stringify(getDiagnosticSnapshot(), null, 2))}>View Report</button>
             {diagReport && (
               <button
@@ -279,7 +305,10 @@ export function SettingsPanel({
           </div>
           {diagReport && (
             <div style={{ marginTop: "10px", padding: "8px", background: "#222", color: "#fff", fontSize: "10px", maxHeight: "150px", overflow: "auto", whiteSpace: "pre-wrap", border: "1px solid #444", borderRadius: "4px" }}>
-              {diagReport}
+              {/* The visible clipping above is CSS-only — a large event buffer still
+                  put the FULL string in the DOM. "Copy Report" still copies the
+                  complete, untruncated `diagReport`; only this rendered preview caps. */}
+              {diagReport.length > 20000 ? `${diagReport.slice(0, 20000)}\n… (truncated in this preview — Copy Report still copies everything)` : diagReport}
             </div>
           )}
         </section>
@@ -293,6 +322,10 @@ export function SettingsPanel({
             <button
               className={`switch ${liteOn ? "on" : ""}`}
               onClick={() => {
+                // A reload wipes any unsaved Display name/Gamer tag edit sitting
+                // in the fields above with no warning — this used to fire
+                // regardless.
+                if (profileDirty && !confirm("You have an unsaved profile change that will be lost. Continue?")) return;
                 const next = !liteOn;
                 setLiteOn(next);
                 try { localStorage.setItem("brain.lite", next ? "1" : "0"); } catch { /* ignore */ }
