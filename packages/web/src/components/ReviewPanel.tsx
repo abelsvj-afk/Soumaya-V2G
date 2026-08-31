@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDueReviews, gradeReview, type DueReview } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
+import { useDialogA11y } from "../hooks/useDialogA11y.js";
 
 /**
  * Active recall (NEURO_ALIGNMENT #1) — "memory is made by retrieval, not storage".
@@ -78,9 +79,12 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
     }
   };
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(cardRef, onClose);
+
   return (
-    <div className="review-overlay">
-      <div className="review-card">
+    <div className="review-overlay" role="dialog" aria-label="Recall session" onClick={onClose}>
+      <div className="review-card" ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <button className="rv-x" onClick={onClose} aria-label="Close">×</button>
         <div className="rv-head">
           <span className="rv-glyph">🧠</span>
@@ -128,7 +132,7 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
         )}
 
         {current && (
-          <div className="rv-body">
+          <div className="rv-body" aria-live="polite">
             <div className="rv-progress">{idx + 1} of {due!.length} this session</div>
             <div className="rv-prompt">Do you remember this one?</div>
             <button className="rv-label" onClick={() => current && onFocus?.(current.id)} title="Find it in the galaxy">

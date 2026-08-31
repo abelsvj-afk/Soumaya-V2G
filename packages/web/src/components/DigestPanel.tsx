@@ -217,7 +217,15 @@ export function DigestPanel({
               <li
                 key={b.id}
                 className="belief-card"
+                role="button"
+                tabIndex={0}
                 onClick={() => onFocus(b.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onFocus(b.id);
+                  }
+                }}
                 title="Fly to this belief and its evidence"
               >
                 <span className="belief-text">{b.content}</span>

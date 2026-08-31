@@ -173,8 +173,17 @@ export function LibraryPanel({
           return (
             <div key={f.key} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", overflow: "hidden" }}>
               <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={isOpen}
                 style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 0.7rem", cursor: "pointer", background: "rgba(255,255,255,0.03)" }}
                 onClick={() => setOpen((o) => ({ ...o, [f.key]: !o[f.key] }))}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setOpen((o) => ({ ...o, [f.key]: !o[f.key] }));
+                  }
+                }}
               >
                 <span style={{ opacity: 0.7, width: "0.9rem" }}>{isOpen ? "▾" : "▸"}</span>
                 {/* "moc" is a real NodeType with its own starlight-gold swatch —
@@ -235,8 +244,17 @@ export function LibraryPanel({
       {/* Archived (resting) memories — kept, out of the galaxy, restorable. */}
       <div style={{ marginTop: "0.9rem", border: "1px solid rgba(150,134,255,0.18)", borderRadius: "8px", overflow: "hidden" }}>
         <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={showArchived}
           style={{ display: "flex", alignItems: "center", gap: "0.5rem", padding: "0.6rem 0.7rem", cursor: "pointer", background: "rgba(150,134,255,0.06)" }}
           onClick={() => setShowArchived((v) => !v)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              setShowArchived((v) => !v);
+            }
+          }}
         >
           <span style={{ opacity: 0.7, width: "0.9rem" }}>{showArchived ? "▾" : "▸"}</span>
           <span style={{ fontWeight: 600, fontSize: "0.86rem", flex: 1 }}>📥 Archived</span>

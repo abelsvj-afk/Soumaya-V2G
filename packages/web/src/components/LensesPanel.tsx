@@ -159,7 +159,7 @@ export function LensesPanel({
                 <span className="lens-desc">{desc(l.query)}</span>
               </button>
               <span className="lens-count" aria-label={`${l.count ?? 0} matches`}>{l.count ?? 0}</span>
-              <button className="lens-mini" disabled={rowBusy.has(l.id)} onClick={() => void togglePin(l)} title={l.pinned ? "Unpin" : "Pin"}>{l.pinned ? "📌" : "📍"}</button>
+              <button className="lens-mini" disabled={rowBusy.has(l.id)} onClick={() => void togglePin(l)} title={l.pinned ? "Unpin" : "Pin"} aria-label={l.pinned ? "Unpin" : "Pin"}>{l.pinned ? "📌" : "📍"}</button>
               <button className="lens-mini" disabled={rowBusy.has(l.id)} onClick={() => void remove(l)} title="Delete lens" aria-label="Delete lens">🗑</button>
             </li>
           ))}

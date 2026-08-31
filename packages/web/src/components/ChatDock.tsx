@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMood, NodeRef } from "@brain/shared";
+import { useDialogA11y } from "../hooks/useDialogA11y.js";
 import { askChat, getSpaceId, ingestText, distillChat } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
@@ -329,6 +330,9 @@ export function ChatDock({
     onClose();
   };
 
+  const dockRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(dockRef, () => void handleClose());
+
   const approveProposal = async (text: string, i: number) => {
     try {
       const r = await ingestText(text);
@@ -359,7 +363,7 @@ export function ChatDock({
   };
 
   return (
-    <div className="chatdock" role="dialog" aria-label={`Chat with ${spaceName}`}>
+    <div className="chatdock" role="dialog" aria-label={`Chat with ${spaceName}`} ref={dockRef}>
       <header className="chatdock-head">
         <span className="chatdock-title">
           <SoumayaEye state={eyeState} mood={lastMood} size={30} /> {spaceName}

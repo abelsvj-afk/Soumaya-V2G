@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useDialogA11y } from "../hooks/useDialogA11y.js";
 import { currentSpace, updateProfile } from "../api/client.js";
 import { isVoiceEnabled, setVoiceEnabled, isVoiceSupported } from "../voice.js";
 import { sfxEnabled, setSfxEnabled } from "../graph/sfx.js";
@@ -148,12 +149,21 @@ export function SettingsPanel({
     setVoiceEnabled(next);
   };
 
+  const cardRef = useRef<HTMLDivElement>(null);
+  const closeWithConfirm = () => {
+    // Backdrop-click and Escape are new (this dialog had neither before) —
+    // must not bypass the unsaved-edit guard the × button already respects.
+    if (profileDirty && !confirm("You have an unsaved profile change that will be lost. Continue?")) return;
+    onClose();
+  };
+  useDialogA11y(cardRef, closeWithConfirm);
+
   return (
-    <div className="settings-overlay" role="dialog" aria-label="Settings">
-      <div className="settings-card">
+    <div className="settings-overlay" role="dialog" aria-label="Settings" onClick={closeWithConfirm}>
+      <div className="settings-card" ref={cardRef} onClick={(e) => e.stopPropagation()}>
         <header className="settings-head">
           <h2>⚙️ Settings</h2>
-          <button className="settings-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="settings-close" onClick={closeWithConfirm} aria-label="Close">×</button>
         </header>
 
         <section className="settings-section">

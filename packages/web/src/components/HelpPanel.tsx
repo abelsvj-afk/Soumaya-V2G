@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SATELLITE_LORE, SATELLITE_NAME } from "../graph/satellites.js";
+import { useDialogA11y } from "../hooks/useDialogA11y.js";
 
 interface Props {
   onClose: () => void;
@@ -442,8 +443,17 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
 
   const selectedCategory = CATEGORIES.find((cat) => cat.id === activeTab);
 
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useDialogA11y(overlayRef, onClose);
+
   return (
-    <div className="help-overlay" style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+    <div
+      className="help-overlay"
+      role="dialog"
+      aria-label="Galaxy Pilot Manual"
+      ref={overlayRef}
+      style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}
+    >
       <style>{HELP_CSS}</style>
 
       <div className="help-head">
@@ -474,9 +484,10 @@ export function HelpPanel({ onClose, installPrompt, onInstall }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search pilot guide for terms (e.g. fuel, orbit, beacon, trail, hangar)..."
+          aria-label="Search the pilot guide"
         />
         {isSearchActive && (
-          <button className="help-search-clear" onClick={() => setSearch("")}>
+          <button className="help-search-clear" onClick={() => setSearch("")} aria-label="Clear search">
             ×
           </button>
         )}

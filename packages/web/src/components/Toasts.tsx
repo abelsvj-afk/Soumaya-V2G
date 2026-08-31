@@ -282,7 +282,7 @@ export function Toasts() {
 
   if (items.length === 0 && overflowCount === 0) return null;
   return (
-    <div className="toast-wrap">
+    <div className="toast-wrap" role="status" aria-live="polite">
       {items.map((t) => (
         <div
           key={t.id}
@@ -290,7 +290,18 @@ export function Toasts() {
           onMouseEnter={() => setHoveredId(t.id)}
           onMouseLeave={() => setHoveredId(null)}
           onClick={t.action ? () => runAction(t) : undefined}
+          onKeyDown={
+            t.action
+              ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    runAction(t);
+                  }
+                }
+              : undefined
+          }
           role={t.action ? "button" : undefined}
+          tabIndex={t.action ? 0 : undefined}
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
@@ -299,20 +310,10 @@ export function Toasts() {
             {t.action && <span className="toast-go" aria-hidden>›</span>}
           </div>
           <button
+            className="toast-dismiss"
             onClick={(e) => { e.stopPropagation(); removeToast(t.id); }}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "rgba(255, 255, 255, 0.4)",
-              fontSize: "18px",
-              cursor: "pointer",
-              padding: "0 0 0 6px",
-              lineHeight: 1,
-              transition: "color 0.2s"
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "white")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255, 255, 255, 0.4)")}
             title="Dismiss notification"
+            aria-label="Dismiss notification"
           >
             ×
           </button>

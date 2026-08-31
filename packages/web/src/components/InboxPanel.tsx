@@ -199,6 +199,7 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
                       <button
                         onClick={() => handleMarkSeen(item.id)}
                         title="Mark as seen"
+                        aria-label="Mark as seen"
                         style={{
                           background: "transparent",
                           border: "none",

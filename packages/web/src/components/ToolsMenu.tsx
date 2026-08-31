@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useDialogA11y } from "../hooks/useDialogA11y.js";
 
 /**
  * Tools menu — a single 🧰 button that opens a compact grid of the SECONDARY tools
@@ -27,6 +28,10 @@ export interface ToolsMenuProps {
 
 export function ToolsMenu(p: ToolsMenuProps) {
   const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  // Escape/focus-trap/focus-restore — this popover previously had none of the
+  // three, only a scrim click to dismiss.
+  useDialogA11y(menuRef, () => setOpen(false), open);
   const items: { icon: string; label: string; on: () => void; badge?: number }[] = [
     { icon: "🔍", label: "Search", on: p.onSearch },
     { icon: "⧉", label: "Lenses", on: p.onLenses },
@@ -68,7 +73,7 @@ export function ToolsMenu(p: ToolsMenuProps) {
       {open && (
         <>
           <div className="tools-scrim" onClick={() => setOpen(false)} aria-hidden />
-          <div className="tools-menu" role="menu" aria-label="Tools">
+          <div className="tools-menu" role="menu" aria-label="Tools" ref={menuRef}>
             {items.map((it) => (
               <button key={it.label} className="tools-item" role="menuitem" onClick={() => tap(it.on)}>
                 <span className="tools-ic">{it.icon}</span>

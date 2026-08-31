@@ -42,6 +42,11 @@ export function FuelGauge({
   const pct = Math.max(0, Math.min(1, fuel.fuel / fuel.capacity));
   const low = pct < 0.2;
 
+  // aria-value* (valuenow/min/max) are only valid on the range-widget roles
+  // (meter/progressbar/slider/spinbutton) — they used to stay attached even
+  // when this became role="button" for the tappable variant, which is
+  // invalid ARIA for a button. The number is already in aria-label either way.
+  const isMeter = !onClick;
   return (
     <div
       className={`fuel-gauge${flash ? ` flash-${flash}` : ""}${low ? " low" : ""}${busy ? " burning" : ""}${onClick ? " tappable" : ""}`}
@@ -50,8 +55,9 @@ export function FuelGauge({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } } : undefined}
       aria-label={`Fuel ${Math.round(fuel.fuel)} of ${fuel.capacity}${onClick ? " — tap for ways to earn Fuel" : ""}`}
-      aria-valuenow={Math.round(fuel.fuel)}
-      aria-valuemax={fuel.capacity}
+      aria-valuenow={isMeter ? Math.round(fuel.fuel) : undefined}
+      aria-valuemin={isMeter ? 0 : undefined}
+      aria-valuemax={isMeter ? fuel.capacity : undefined}
       title={`⛽ Fuel ${Math.round(fuel.fuel)}/${fuel.capacity} — tap for ways to earn it. Soumaya spends it on deep-dive research & sector charting (${fuel.jobCost}/job). Earn it by logging memories, building your Mind & clearing action items; it also slowly refills. Her core upkeep + the living galaxy never need fuel.`}
     >
       <span className="fg-ic">⛽</span>

@@ -36,13 +36,14 @@ export function SearchBox({ onFocus, onClose }: Props) {
   };
 
   return (
-    <div className="panel search" onKeyDown={onKeyDown}>
+    <div className="panel search" onKeyDown={onKeyDown} role="search">
       <form onSubmit={run}>
         <input
           autoFocus
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search your mind…"
+          aria-label="Search your mind"
         />
         {onClose && (
           <button type="button" className="panel-close" onClick={onClose} aria-label="Close">
@@ -52,7 +53,7 @@ export function SearchBox({ onFocus, onClose }: Props) {
       </form>
       {busy && <p className="empty">Searching…</p>}
       {!busy && open && (
-        <ul className="results">
+        <ul className="results" aria-live="polite">
           {error && <li className="empty">⚠️ {error}</li>}
           {!error && hits.length === 0 && <li className="empty">No matches.</li>}
           {!error &&
