@@ -18,6 +18,10 @@ interface ChatMessage {
   ask?: boolean;
   /** Which Companion config shaped the reply ("🎭 Coach", "📚 resume.pdf"). */
   applied?: string[];
+  /** Already ingested as a real memory — lives on the message (not a separate
+   *  index-keyed Set) so it survives a reload; an index-keyed flag forgot every
+   *  save on refresh and let the ＋ button re-ingest the same line as a duplicate. */
+  saved?: boolean;
 }
 
 /** Browser SpeechRecognition (Chrome/Safari prefix it). Null if unsupported. */
@@ -82,7 +86,6 @@ export function ChatDock({
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
   const [speakOn, setSpeakOn] = useState(isVoiceEnabled());
-  const [saved, setSaved] = useState<Set<number>>(new Set()); // message indices saved as memories
   // Her persona controls (About Me / roles / knowledge) — a view inside the chat,
   // since they configure WHO you're talking to right here.
   const [showPersona, setShowPersona] = useState(false);
@@ -91,8 +94,11 @@ export function ChatDock({
   const [distilling, setDistilling] = useState(false);
   const distilledRef = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const recRef = useRef<any>(null);
   const micTimerRef = useRef<number | null>(null);
+  const micRestartTimerRef = useRef<number | null>(null);
+  const micRestartCountRef = useRef(0); // consecutive engine-restarts with no real speech in between
   const wantMicRef = useRef(false); // user intent — survives engine auto-restarts
   const voiceSupported = isVoiceSupported();
   const micSupported = typeof window !== "undefined" && !!((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -105,6 +111,8 @@ export function ChatDock({
   // Persist + autoscroll on every change.
   useEffect(() => {
     try {
+      // Deliberately bounded — an unbounded chat log growing forever in
+      // localStorage is its own problem; older turns just age out.
       localStorage.setItem(chatKey(), JSON.stringify(messages.slice(-60)));
     } catch {
       /* storage unavailable */
@@ -118,6 +126,7 @@ export function ChatDock({
       wantMicRef.current = false;
       recRef.current?.stop?.();
       if (micTimerRef.current) window.clearTimeout(micTimerRef.current);
+      if (micRestartTimerRef.current) window.clearTimeout(micRestartTimerRef.current);
     },
     [],
   );
@@ -126,8 +135,7 @@ export function ChatDock({
     const q = text.trim();
     if (!q || busy) return;
     setInput("");
-    const textarea = document.querySelector(".chatdock-input textarea") as HTMLTextAreaElement;
-    if (textarea) textarea.style.height = "auto";
+    if (inputRef.current) inputRef.current.style.height = "auto";
     // She sees the recent thread too — this is what makes it a conversation
     // instead of a series of amnesiac one-shots. Fold an ask-back bubble back
     // INTO its answer turn so the model reads one coherent Soumaya turn (a bare
@@ -170,11 +178,11 @@ export function ChatDock({
 
   // Save a line of the conversation into the galaxy as a real memory.
   const saveMemory = async (text: string, idx: number) => {
-    if (saved.has(idx)) return;
+    if (messages[idx]?.saved) return;
     try {
       const r = await ingestText(text);
       const ids = (r.nodes ?? []).map((n) => n.id);
-      setSaved((s) => new Set(s).add(idx));
+      setMessages((m) => m.map((msg, i) => (i === idx ? { ...msg, saved: true } : msg)));
       pushToast(`Soumaya is charting it into your galaxy ✦`, "🛰️", 4500);
       if (ids.length) onCreated?.(ids);
     } catch (err) {
@@ -192,6 +200,9 @@ export function ChatDock({
     wantMicRef.current = false;
     if (micTimerRef.current) window.clearTimeout(micTimerRef.current);
     micTimerRef.current = null;
+    if (micRestartTimerRef.current) window.clearTimeout(micRestartTimerRef.current);
+    micRestartTimerRef.current = null;
+    micRestartCountRef.current = 0;
     try {
       recRef.current?.stop?.();
     } catch {
@@ -231,6 +242,7 @@ export function ChatDock({
       }
       latest = (finalText + interim).trim();
       setInput(latest);
+      micRestartCountRef.current = 0; // real speech came through — the engine is behaving
       armSilenceTimer(); // every bit of speech pushes the send window out
     };
     rec.onerror = (e: any) => {
@@ -241,16 +253,29 @@ export function ChatDock({
     };
     rec.onend = () => {
       // The engine self-terminated (it always does eventually). If the user
-      // hasn't tapped off and the silence window hasn't fired, keep listening.
+      // hasn't tapped off and the silence window hasn't fired, keep listening —
+      // but back off and eventually give up if it keeps bouncing with no real
+      // speech in between (a bare immediate restart loop can spin indefinitely
+      // on some browsers/devices).
       if (wantMicRef.current) {
-        try {
-          rec.start();
-        } catch {
-          stopMic(true, latest);
+        micRestartCountRef.current += 1;
+        if (micRestartCountRef.current > 6) {
+          stopMic(false);
+          pushToast("The mic kept dropping — try again.", "⚠️", 4000);
+          return;
         }
+        const delay = Math.min(150 * micRestartCountRef.current, 1000);
+        micRestartTimerRef.current = window.setTimeout(() => {
+          try {
+            rec.start();
+          } catch {
+            stopMic(true, latest);
+          }
+        }, delay);
       }
     };
     wantMicRef.current = true;
+    micRestartCountRef.current = 0;
     setListening(true);
     armSilenceTimer();
     rec.start();
@@ -268,6 +293,14 @@ export function ChatDock({
         setProposals(notes);
         return true;
       }
+      return false;
+    } catch (err) {
+      // A rejection here used to propagate straight out of handleClose, so the
+      // × button would just stop responding, and out of the bare `void
+      // runDistill()` on the ✨ button as an unhandled rejection. Treat it the
+      // same as "nothing to propose" so closing still works either way.
+      distilledRef.current = true;
+      pushToast((err as Error).message || "Couldn't wrap up that chat — closing anyway.", "⚠️", 4000);
       return false;
     } finally {
       setDistilling(false);
@@ -305,12 +338,11 @@ export function ChatDock({
   };
 
   const clearChat = () => {
+    if (!confirm("Clear this conversation? This can't be undone.")) return;
     stopSpeaking();
     setMessages([]);
-    // Reset per-conversation state too — `saved` is index-keyed, so leftovers
-    // marked new messages at old indices as already-saved (dead ＋ button), and
-    // a stale distill flag suppressed the next conversation's wrap-up offer.
-    setSaved(new Set());
+    // Reset per-conversation state too — a stale distill flag would otherwise
+    // suppress the next conversation's wrap-up offer.
     setProposals(null);
     distilledRef.current = false;
   };
@@ -396,13 +428,13 @@ export function ChatDock({
                 {m.ask && <span className="chatdock-ask-tag">she wants to understand</span>}
                 {m.text}
                 <button
-                  className={`chatdock-save ${saved.has(i) ? "done" : ""}`}
+                  className={`chatdock-save ${m.saved ? "done" : ""}`}
                   onClick={() => saveMemory(m.text, i)}
-                  disabled={saved.has(i)}
-                  title={saved.has(i) ? "Saved as a memory" : "Save this as a memory"}
+                  disabled={m.saved}
+                  title={m.saved ? "Saved as a memory" : "Save this as a memory"}
                   aria-label="Save as memory"
                 >
-                  {saved.has(i) ? "✓" : "＋"}
+                  {m.saved ? "✓" : "＋"}
                 </button>
               </div>
               {m.citations && m.citations.length > 0 && (
@@ -475,6 +507,7 @@ export function ChatDock({
             </button>
           )}
           <textarea
+            ref={inputRef}
             rows={1}
             value={input}
             onChange={(e) => setInput(e.target.value)}
