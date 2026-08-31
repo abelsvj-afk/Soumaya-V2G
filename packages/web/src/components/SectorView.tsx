@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, SECTOR_MASS, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
 import { parseTolerantMs as msOf } from "../utils/dueReminders.js";
+import { playSfx } from "../graph/sfx.js";
+import { pushToast } from "./Toasts.js";
 
 interface Props {
   graph: GraphData;
@@ -50,6 +52,25 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
         .sort((a, b) => (b.mass ?? 0) - (a.mass ?? 0)),
     [graph.nodes],
   );
+
+  // A memory crossing SECTOR_MASS and becoming a new hub was completely unmarked —
+  // no toast, no sound, it just quietly appeared in this list next time you opened
+  // it. Celebrate the actual transition, never the initial mount's existing set.
+  const prevSectorIds = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    const ids = new Set(sectors.map((s) => s.id));
+    if (prevSectorIds.current) {
+      const newOnes = sectors.filter((s) => !prevSectorIds.current!.has(s.id));
+      if (newOnes.length === 1) {
+        playSfx("milestone");
+        pushToast(`A new sector has formed: "${newOnes[0]!.label}" ✦`, "🌌", 5000);
+      } else if (newOnes.length > 1) {
+        playSfx("milestone");
+        pushToast(`${newOnes.length} new sectors have formed ✦`, "🌌", 5000);
+      }
+    }
+    prevSectorIds.current = ids;
+  }, [sectors]);
 
   /** Why this hub's system coheres: shared tags/people/time/tone. */
   const contextForHub = (hub: GraphNode) => {

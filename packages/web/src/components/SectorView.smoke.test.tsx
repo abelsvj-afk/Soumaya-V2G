@@ -1,6 +1,11 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import type { GraphData, GraphNode } from "@brain/shared";
+
+const playSfx = vi.fn();
+vi.mock("../graph/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
+const pushToast = vi.fn();
+vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
 
 import { SectorView } from "./SectorView.js";
 
@@ -8,7 +13,10 @@ function node(over: Partial<GraphNode>): GraphNode {
   return { id: 1, label: "Hub", type: "concept", content: "", mass: 0.9, ...over } as GraphNode;
 }
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("SectorView — a transient action never forms a sector", () => {
   it("excludes a heavy action-kind node from the sector list", () => {
@@ -31,5 +39,21 @@ describe("SectorView — orbiting count prefers the server's own degree", () => 
     } as unknown as GraphData;
     render(<SectorView graph={graph} onFocus={() => {}} onIsolate={() => {}} />);
     expect(screen.getByText("5 memories orbiting")).toBeTruthy();
+  });
+});
+
+describe("SectorView — a newly-formed sector is celebrated, not silently listed", () => {
+  it("plays a sound and toasts only on the real transition, never on initial mount", () => {
+    const before: GraphData = { nodes: [node({ id: 1, label: "Old hub", mass: 0.9 })], links: [] } as unknown as GraphData;
+    const { rerender } = render(<SectorView graph={before} onFocus={() => {}} onIsolate={() => {}} />);
+    expect(playSfx).not.toHaveBeenCalled(); // mount alone must not celebrate the existing hub
+
+    const after: GraphData = {
+      nodes: [node({ id: 1, label: "Old hub", mass: 0.9 }), node({ id: 2, label: "Fresh hub", mass: 0.85 })],
+      links: [],
+    } as unknown as GraphData;
+    rerender(<SectorView graph={after} onFocus={() => {}} onIsolate={() => {}} />);
+    expect(playSfx).toHaveBeenCalledWith("milestone");
+    expect(pushToast).toHaveBeenCalledWith(expect.stringContaining("Fresh hub"), "🌌", expect.any(Number));
   });
 });

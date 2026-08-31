@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type InboxNotification,
   cleanupNotifications,
   readNotifications,
   writeNotifications,
 } from "./Toasts.js";
+import { playSfx } from "../graph/sfx.js";
 
 interface InboxPanelProps {
   spaceId: string;
@@ -68,6 +69,18 @@ export function InboxPanel({ spaceId }: InboxPanelProps) {
 
   const unseenList = useMemo(() => notifications.filter((n) => !n.seen), [notifications]);
   const seenList = useMemo(() => notifications.filter((n) => n.seen), [notifications]);
+
+  // "Your inbox is completely clear! 🚀" was a purely visual empty-state — reaching
+  // inbox-zero had no sound, no ceremony, nothing to mark the moment. Only fires on
+  // the actual >0 → 0 transition, never on a fresh mount that starts empty.
+  const prevUnseenCount = useRef<number | null>(null);
+  useEffect(() => {
+    const count = unseenList.length;
+    if (prevUnseenCount.current !== null && prevUnseenCount.current > 0 && count === 0) {
+      playSfx("chime");
+    }
+    prevUnseenCount.current = count;
+  }, [unseenList.length]);
 
   // Sort: newest first.
   const sortedList = useMemo(() => {
