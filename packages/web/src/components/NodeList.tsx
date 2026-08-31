@@ -45,6 +45,15 @@ const EMOTION_DOT: Record<Exclude<Emotion, "all">, string> = {
   neutral: "#9b96c4",
   negative: "#6bb7ff",
 };
+/** Same vocabulary the emotion filter dropdown already shows the user
+ *  ("● warm"/"● neutral"/"● heavy") — the dot alone (title-only) was the one
+ *  color-only signal in this row; SectorView's identical tone dot pairs it
+ *  with this exact label. */
+const EMOTION_LABEL: Record<Exclude<Emotion, "all">, string> = {
+  positive: "warm",
+  neutral: "neutral",
+  negative: "heavy",
+};
 
 /** Bucket a timestamp into a human time period (for timeline grouping). */
 function bucket(t: number): { key: string; label: string; rank: number } {
@@ -242,7 +251,7 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
     return (
       <li key={n.id} className={isProcessing ? "processing" : ""}>
         <button onClick={() => onFocus(n.id)}>
-          <span className="dot" style={{ background: colorForType(n.type) }} />
+          <span className="dot" style={{ background: colorForType(n.type) }} title={NODE_TYPE_LABEL[normalizeNodeType(n.type)]} />
           <span className="nl-main">
             <span className="nl-label">
               {n.label}
@@ -265,7 +274,9 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
                   )}
                 </span>
               )}
-              <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} title={`${emo} feeling`} />
+              <span title={`${emo} feeling`}>
+                · <span className="nl-emodot" style={{ background: EMOTION_DOT[emo] }} /> {EMOTION_LABEL[emo]}
+              </span>
               {(n.entropy ?? 0) >= COOLING_ENTROPY && <span title="cooling">· ❄️</span>}
               {v && <span title={`visited ${v.visits}× · last ${relative(v.lastAt)}`}>· 👽 {v.visits}</span>}
               {constel && <span className="nl-constel" title={`constellation: ${constel}`}>· 🌌 {constel}</span>}

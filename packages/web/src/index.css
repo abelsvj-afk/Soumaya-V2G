@@ -3783,6 +3783,15 @@ button {
   border: 1px dashed rgba(122, 200, 255, 0.45);
   font-style: italic;
 }
+/* Pairs the mood border-left color above with a real icon — the color alone
+   isn't reachable by the colorblind toggle (these are hardcoded per-mood
+   hues), so this is the one non-color way to tell her tone apart. */
+.chatdock-mood-ic {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.9em;
+  opacity: 0.85;
+}
 .chatdock-ask-tag {
   display: block;
   font-size: 0.64rem;
@@ -4780,6 +4789,9 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   padding: 12px; cursor: pointer; font-size: 0.98rem; }
 .jn-icon { font-size: 1.3rem; }
 .jn-name { flex: 1; font-weight: 700; text-align: left; }
+.jn-status-badge { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.jn-status-badge.paused { background: rgba(255, 205, 70, 0.16); color: #ffcd46; }
+.jn-status-badge.done { background: rgba(94, 230, 160, 0.16); color: #5ee6a0; }
 /* Not .jn-links — that name collided with the links-section container below it
    (a flex column), so this header count silently became a flex column too. */
 .jn-link-count { color: var(--muted); font-size: 0.75rem; }

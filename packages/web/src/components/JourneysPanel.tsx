@@ -187,6 +187,10 @@ function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => v
       <button className="jn-card-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="jn-icon">{j.icon ?? "🧭"}</span>
         <span className="jn-name">{j.title}</span>
+        {/* Paused/done used to be distinguished ONLY by a subtle 0.6/0.7 opacity
+            on the whole card — invisible at a glance, especially collapsed. */}
+        {j.status === "paused" && <span className="jn-status-badge paused">⏸ Paused</span>}
+        {j.status === "done" && <span className="jn-status-badge done">✓ Done</span>}
         <span className="jn-link-count">{j.linkCount ?? 0} linked</span>
       </button>
       <div className="jn-bar" aria-label={`${pct}% progress`}><div className="jn-bar-fill" style={{ width: `${pct}%` }} /></div>

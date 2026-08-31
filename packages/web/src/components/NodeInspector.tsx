@@ -487,7 +487,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         {neighbors.map((n) => (
           <li key={n.id}>
             <button onClick={() => onFocus(n.id)}>
-              <span className="dot" style={{ background: colorForType(n.type) }} />
+              <span className="dot" style={{ background: colorForType(n.type) }} title={NODE_TYPE_LABEL[normalizeNodeType(n.type)]} />
               {n.label}
             </button>
           </li>

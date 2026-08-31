@@ -132,6 +132,22 @@ describe("JourneysPanel — links race guard", () => {
   });
 });
 
+describe("JourneysPanel — paused/done status is never opacity-alone", () => {
+  it("shows a visible ⏸ Paused badge, not just a dimmer card", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1, status: "paused" })]);
+    render(<JourneysPanel />);
+    await screen.findByText("Recover Financially");
+    expect(screen.getByText("⏸ Paused")).toBeTruthy();
+  });
+
+  it("shows a visible ✓ Done badge for a completed journey", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1, status: "done" })]);
+    render(<JourneysPanel />);
+    await screen.findByText("Recover Financially");
+    expect(screen.getByText("✓ Done")).toBeTruthy();
+  });
+});
+
 describe("JourneysPanel — checked writes", () => {
   it("toasts and does not clear the form when creating a Journey fails", async () => {
     getJourneys.mockResolvedValue([]);

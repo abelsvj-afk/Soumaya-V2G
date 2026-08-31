@@ -33,6 +33,20 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
+describe("ChatDock — mood is never colour-alone", () => {
+  it("pairs a mood-colored bubble with a visible icon, not just a border color", async () => {
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify([{ role: "soumaya", text: "That sounds heavy.", mood: "sad" }]),
+    );
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} />);
+    const text = await screen.findByText("That sounds heavy.");
+    const bubble = text.closest(".chatdock-bubble");
+    expect(bubble?.className).toContain("mood-sad");
+    expect(bubble?.textContent).toContain("💙");
+  });
+});
+
 describe("ChatDock — close button must not get stuck", () => {
   it("still closes when the end-of-chat distill call fails", async () => {
     localStorage.setItem(

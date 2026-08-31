@@ -9,6 +9,17 @@ import { CompanionPanel } from "./CompanionPanel.js";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+/** Pairs the mood border-color with a real icon+shape, not colour alone. */
+const MOOD_ICON: Record<ChatMood, string> = {
+  happy: "😊",
+  excited: "✨",
+  warm: "🤗",
+  thoughtful: "🤔",
+  neutral: "💬",
+  concerned: "😟",
+  sad: "💙",
+};
+
 interface ChatMessage {
   role: "you" | "soumaya";
   text: string;
@@ -426,6 +437,14 @@ export function ChatDock({
                 className={`chatdock-bubble ${m.ask ? "ask" : ""} ${m.role === "soumaya" && m.mood ? `mood-${m.mood}` : ""}`}
               >
                 {m.ask && <span className="chatdock-ask-tag">she wants to understand</span>}
+                {/* The mood border-left color used to be the ONLY signal of her tone —
+                    invisible to a colorblind reader, and the colorblind toggle doesn't
+                    touch these hardcoded mood colors. A small icon pairs it with shape. */}
+                {m.role === "soumaya" && m.mood && (
+                  <span className="chatdock-mood-ic" title={`feeling ${m.mood}`} aria-hidden>
+                    {MOOD_ICON[m.mood]}
+                  </span>
+                )}
                 {m.text}
                 <button
                   className={`chatdock-save ${m.saved ? "done" : ""}`}

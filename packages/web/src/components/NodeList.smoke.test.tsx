@@ -53,3 +53,11 @@ describe("NodeList — constellations refresh when one is newly promoted", () =>
     await waitFor(() => expect(getConstellations).toHaveBeenCalledTimes(2));
   });
 });
+
+describe("NodeList — emotion is never color-alone", () => {
+  it("shows a visible warm/neutral/heavy label next to the emotion dot, not just a hover title", async () => {
+    render(<NodeList nodes={[node({ id: 1, label: "Happy memory", emotionalWeight: 0.8 })]} onFocus={() => {}} />);
+    const label = await screen.findByText("Happy memory");
+    expect(label.closest("li")?.textContent).toContain("warm");
+  });
+});

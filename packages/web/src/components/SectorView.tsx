@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON, SECTOR_MASS } from "@brain/shared";
+import { type GraphData, type GraphNode, CELESTIAL_ICON, SECTOR_MASS, NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
 import { parseTolerantMs as msOf } from "../utils/dueReminders.js";
 
@@ -121,7 +121,7 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
           return (
             <li key={s.id} className="sector-card">
               <div className="sector-header">
-                <span className="dot" style={{ background: colorForType(s.type) }} />
+                <span className="dot" style={{ background: colorForType(s.type) }} title={NODE_TYPE_LABEL[normalizeNodeType(s.type)]} />
                 <span className="sector-name">{s.label}</span>
                 <em className="sector-meta">
                   {CELESTIAL_ICON[s.celestial ?? "star"]} {Math.round((s.mass ?? 0) * 100)}% mass
