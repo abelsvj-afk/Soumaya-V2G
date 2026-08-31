@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, act, waitFor } from "@testing-library/react";
 import type { GraphData, GraphNode } from "@brain/shared";
 
 vi.mock("../api/client.js", () => ({
@@ -9,6 +9,7 @@ vi.mock("../api/client.js", () => ({
   synthesizeNode: vi.fn(),
   answerResearch: vi.fn(),
   requestMaintenance: vi.fn(),
+  ingestText: vi.fn(),
 }));
 const playSfx = vi.fn();
 vi.mock("../graph/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
@@ -20,6 +21,7 @@ vi.mock("./MemoryAttachments.js", () => ({ MemoryAttachments: () => null }));
 vi.mock("./JourneyChips.js", () => ({ JourneyChips: () => null }));
 
 import { NodeInspector } from "./NodeInspector.js";
+import { synthesizeNode, ingestText } from "../api/client.js";
 
 function node(over: Partial<GraphNode>): GraphNode {
   return {
@@ -69,5 +71,24 @@ describe("NodeInspector — a memory leveling up into a new tier is celebrated",
     const moon = node({ id: 1, label: "Cooling idea", celestial: "moon" });
     rerender(<NodeInspector node={moon} graph={graph([moon])} onFocus={() => {}} />);
     expect(playSfx).not.toHaveBeenCalled();
+  });
+});
+
+describe("NodeInspector — a synthesis insight is no longer a dead end", () => {
+  it("offers to save the insight as a memory, then disables once saved", async () => {
+    vi.mocked(synthesizeNode).mockResolvedValue({ text: "This connects to your goal of X.", connected: 2 });
+    vi.mocked(ingestText).mockResolvedValue({ nodes: [{ id: 9 }] } as never);
+    const n = node({ id: 1, label: "An idea" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    const connectBtn = await screen.findByText("✨ Connect the dots");
+    await act(async () => { connectBtn.click(); });
+    await screen.findByText("This connects to your goal of X.");
+
+    const saveBtn = screen.getByText("★ Save as memory");
+    await act(async () => { saveBtn.click(); });
+    await waitFor(() => expect(ingestText).toHaveBeenCalledTimes(1));
+    expect(ingestText).toHaveBeenCalledWith(expect.stringContaining("This connects to your goal of X."));
+    const savedBtn = await screen.findByText("✓ Saved");
+    expect(savedBtn.getAttribute("disabled")).not.toBeNull();
   });
 });

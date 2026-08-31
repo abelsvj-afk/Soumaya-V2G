@@ -237,7 +237,19 @@ export function LibraryPanel({
                         </button>
                       </div>
                       {n.content && (
-                        <p style={{ fontSize: "0.74rem", opacity: 0.75, margin: "0.25rem 0 0 0", whiteSpace: "pre-wrap", maxHeight: "4.5rem", overflow: "hidden" }}>
+                        <p
+                          role="button"
+                          tabIndex={0}
+                          style={{ fontSize: "0.74rem", opacity: 0.75, margin: "0.25rem 0 0 0", whiteSpace: "pre-wrap", maxHeight: "4.5rem", overflow: "hidden", cursor: "pointer" }}
+                          onClick={() => onFocus(n.id)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onFocus(n.id);
+                            }
+                          }}
+                          title={n.content.length > PREVIEW_CHARS ? "Truncated — click to read the full memory in Details" : "Click to open in Details"}
+                        >
                           {previewOf(n.content)}
                         </p>
                       )}

@@ -134,6 +134,38 @@ describe("JourneysPanel — links race guard", () => {
   });
 });
 
+describe("JourneysPanel — an empty links list is no longer a dead end", () => {
+  it("offers a way to capture a thought right from the empty-links hint", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1 })]);
+    journeyLinks.mockResolvedValue([]);
+    const onAction = vi.fn();
+    window.addEventListener("brain-toast-action", onAction);
+    render(<JourneysPanel />);
+    const head = await screen.findByText("Recover Financially");
+    act(() => head.click());
+    const captureBtn = await screen.findByText("➕ Dump a thought to link here");
+    act(() => captureBtn.click());
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ detail: { kind: "panel", value: "ingest" } }));
+    window.removeEventListener("brain-toast-action", onAction);
+  });
+});
+
+describe("JourneysPanel — linked recurring bills lead somewhere", () => {
+  it("opens the Money tab when the recurring-bills note is clicked", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1 })]);
+    journeyLinks.mockResolvedValue([{ kind: "bill", refId: 7, label: "Rent" }]);
+    const onAction = vi.fn();
+    window.addEventListener("brain-toast-action", onAction);
+    render(<JourneysPanel />);
+    const head = await screen.findByText("Recover Financially");
+    act(() => head.click());
+    const billsNote = await screen.findByText(/recurring bill/);
+    act(() => billsNote.click());
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ detail: { kind: "tab", value: "money" } }));
+    window.removeEventListener("brain-toast-action", onAction);
+  });
+});
+
 describe("JourneysPanel — paused/done status is never opacity-alone", () => {
   it("shows a visible ⏸ Paused badge, not just a dimmer card", async () => {
     getJourneys.mockResolvedValue([journey({ id: 1, status: "paused" })]);

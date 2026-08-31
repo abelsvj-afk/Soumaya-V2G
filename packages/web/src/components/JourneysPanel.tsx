@@ -260,7 +260,19 @@ function JourneyLinksSection({
   if (links === null) return <p className="jn-hint">Loading what's linked…</p>;
   if (linksError) return <p className="jn-hint">⚠️ Couldn't load what's linked — try reopening this Journey.</p>;
   if (links.length === 0) {
-    return <p className="jn-hint">Nothing linked yet — connect a memory, task, or transaction from where you're already working.</p>;
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
+        <p className="jn-hint" style={{ margin: 0 }}>
+          Nothing linked yet — connect a memory, task, or transaction from where you're already working.
+        </p>
+        <button
+          className="mini"
+          onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "panel", value: "ingest" } }))}
+        >
+          ➕ Dump a thought to link here
+        </button>
+      </div>
+    );
   }
   const memories = links.filter((l) => l.kind === "node" || l.kind === "insight" || l.kind === "doc");
   const income = links.filter((l) => l.kind === "income");
@@ -298,7 +310,14 @@ function JourneyLinksSection({
         </div>
       )}
       {bills.length > 0 && (
-        <div className="jn-links-note">📅 {bills.length} recurring bill{bills.length !== 1 ? "s" : ""} linked</div>
+        <button
+          className="jn-links-note"
+          style={{ background: "none", border: "none", cursor: "pointer", textAlign: "left", padding: 0, font: "inherit", color: "inherit" }}
+          onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "tab", value: "money" } }))}
+          title="Open Money to see these bills"
+        >
+          📅 {bills.length} recurring bill{bills.length !== 1 ? "s" : ""} linked
+        </button>
       )}
     </div>
   );

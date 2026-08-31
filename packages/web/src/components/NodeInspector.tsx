@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType, FUEL_JOB_COST } from "@brain/shared";
-import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance } from "../api/client.js";
+import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance, ingestText } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 import { colorForType } from "../graph/theme.js";
@@ -76,6 +76,10 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
   const [weight, setWeight] = useState<number>(node?.importance ?? 0.4);
   const [insight, setInsight] = useState<string>("");
   const [synthBusy, setSynthBusy] = useState(false);
+  // The synthesis insight used to be a dead-end paragraph with no way to keep
+  // it. savingInsight/insightSaved reset whenever a fresh insight replaces it.
+  const [savingInsight, setSavingInsight] = useState(false);
+  const [insightSaved, setInsightSaved] = useState(false);
   const [requested, setRequested] = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,6 +116,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
     if (!node) return;
     setSynthBusy(true);
     setInsight("");
+    setInsightSaved(false);
     synthesizeNode(node.id)
       .then((r) => {
         setInsight(r.text);
@@ -126,6 +131,21 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       .catch((e) => setInsight(`(couldn't synthesize: ${(e as Error).message})`))
       .finally(() => setSynthBusy(false));
   };
+
+  async function saveInsightAsMemory() {
+    if (!node || !insight || savingInsight || insightSaved) return;
+    setSavingInsight(true);
+    try {
+      await ingestText(`Insight on "${node.label}": ${insight}`);
+      setInsightSaved(true);
+      playSfx("chime");
+      pushToast("Insight saved as a memory ✦", "🛰️", 4000);
+    } catch (err) {
+      pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4000);
+    } finally {
+      setSavingInsight(false);
+    }
+  }
 
   // Keep the slider in sync when a different node is selected — but not while a
   // weight save is still in flight, or an unrelated refresh (another tab, an
@@ -473,7 +493,14 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
       <button className="synth-btn" onClick={runSynthesis} disabled={synthBusy}>
         {synthBusy ? "Connecting…" : "✨ Connect the dots"}
       </button>
-      {insight && <p className="insight-text">{insight}</p>}
+      {insight && (
+        <>
+          <p className="insight-text">{insight}</p>
+          <button className="mini" disabled={savingInsight || insightSaved} onClick={() => void saveInsightAsMemory()}>
+            {insightSaved ? "✓ Saved" : savingInsight ? "Saving…" : "★ Save as memory"}
+          </button>
+        </>
+      )}
 
       {node.kind !== "action" && (
         <button

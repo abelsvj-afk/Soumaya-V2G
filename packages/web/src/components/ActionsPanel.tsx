@@ -30,11 +30,18 @@ function earnsFuel(n: Pick<GraphNode, "createdAt">): boolean {
 // reminders), so this only ever bites in a pathological case.
 const LIST_SHOWN_CAP = 50;
 
-/** "in 5h" / "in 3d" / "overdue" from a future-ish timestamp. */
+/** "in 5h" / "in 3d" / "overdue 2d" from a future-ish timestamp. A flat, unchanging
+ *  "overdue" used to look identical whether something was 1 minute or 3 weeks late —
+ *  this grows with elapsed time so severity is actually visible. */
 function countdown(target: number): { text: string; urgent: boolean; over: boolean } {
   const diff = target - Date.now();
   if (Number.isNaN(target)) return { text: "", urgent: false, over: false };
-  if (diff <= 0) return { text: "overdue", urgent: true, over: true };
+  if (diff <= 0) {
+    const overdueH = -diff / 3.6e6;
+    const text =
+      overdueH < 1 ? `overdue ${Math.max(1, Math.round(-diff / 6e4))}m` : overdueH < 24 ? `overdue ${Math.round(overdueH)}h` : `overdue ${Math.round(overdueH / 24)}d`;
+    return { text, urgent: true, over: true };
+  }
   const h = diff / 3.6e6;
   if (h < 1) return { text: `in ${Math.max(1, Math.round(diff / 6e4))}m`, urgent: true, over: false };
   if (h < 24) return { text: `in ${Math.round(h)}h`, urgent: h < 6, over: false };
@@ -133,10 +140,18 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
 
   if (actions.length === 0 && reminders.length === 0 && dueReminders.length === 0) {
     return (
-      <p className="empty">
-        No action items or reminders. Add a thought and tick "📌 Action item", or set a reminder
-        when you log a memory.
-      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px", alignItems: "flex-start" }}>
+        <p className="empty" style={{ margin: 0 }}>
+          No action items or reminders. Add a thought and tick "📌 Action item", or set a reminder
+          when you log a memory.
+        </p>
+        <button
+          className="mini"
+          onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "panel", value: "ingest" } }))}
+        >
+          ➕ Dump a thought
+        </button>
+      </div>
     );
   }
 
@@ -213,6 +228,9 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
                         {new Date(at).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </span>
                     </span>
+                  </button>
+                  <button className="mini agenda-done" onClick={() => ack(n.id)} title="Dismiss — cancel this reminder">
+                    ✕
                   </button>
                 </li>
               );

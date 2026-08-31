@@ -105,3 +105,34 @@ describe("ActionsPanel — upcoming reminders show real urgency, not just text",
     expect(due?.className).toContain("urgent");
   });
 });
+
+describe("ActionsPanel — a fully empty agenda is no longer a dead end", () => {
+  it("offers a way to capture a thought right from the empty state", async () => {
+    const onAction = vi.fn();
+    window.addEventListener("brain-toast-action", onAction);
+    render(<ActionsPanel nodes={[]} onFocus={() => {}} />);
+    const captureBtn = await screen.findByText("➕ Dump a thought");
+    act(() => captureBtn.click());
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ detail: { kind: "panel", value: "ingest" } }));
+    window.removeEventListener("brain-toast-action", onAction);
+  });
+});
+
+describe("ActionsPanel — an upcoming reminder can be dismissed, not just flown to", () => {
+  it("acknowledges the reminder when the dismiss button is clicked", async () => {
+    const soon = new Date(Date.now() + 30 * 60_000).toISOString();
+    ackReminder.mockResolvedValue(true);
+    render(<ActionsPanel nodes={[node({ id: 1, label: "Soon thing", remindAt: soon })]} onFocus={() => {}} />);
+    const dismissBtn = await screen.findByTitle("Dismiss — cancel this reminder");
+    await act(async () => { dismissBtn.click(); });
+    await waitFor(() => expect(ackReminder).toHaveBeenCalledWith(1));
+  });
+});
+
+describe("ActionsPanel — an overdue action shows how overdue, not a flat label forever", () => {
+  it("grows the overdue text with elapsed time instead of a static 'overdue'", async () => {
+    const wayOverdue = new Date(Date.now() - 2 * 24 * 3600_000).toISOString(); // 2 days late
+    render(<ActionsPanel nodes={[node({ id: 1, label: "Late task", kind: "action", expiresAt: wayOverdue })]} onFocus={() => {}} />);
+    await screen.findByText(/overdue 2d/);
+  });
+});
