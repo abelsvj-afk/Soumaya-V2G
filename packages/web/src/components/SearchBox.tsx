@@ -55,7 +55,27 @@ export function SearchBox({ onFocus, onClose }: Props) {
       {!busy && open && (
         <ul className="results" aria-live="polite">
           {error && <li className="empty">⚠️ {error}</li>}
-          {!error && hits.length === 0 && <li className="empty">No matches.</li>}
+          {!error && hits.length === 0 && (
+            <li className="empty" style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "flex-start" }}>
+              <span>No matches.</span>
+              <div style={{ display: "flex", gap: "0.4rem" }}>
+                <button
+                  type="button"
+                  className="mini"
+                  onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "chat" } }))}
+                >
+                  💬 Ask Soumaya
+                </button>
+                <button
+                  type="button"
+                  className="mini ghost"
+                  onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "panel", value: "ingest" } }))}
+                >
+                  ➕ Add as memory
+                </button>
+              </div>
+            </li>
+          )}
           {!error &&
             hits.map((h) => (
               <li key={h.id}>

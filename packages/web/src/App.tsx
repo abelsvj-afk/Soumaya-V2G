@@ -1141,22 +1141,34 @@ export default function App() {
     setSelected(null);
   }, []);
 
+  // Shared age computation so the flashback's narration toast (below) and the
+  // 7-day candidate filter agree on what "N days ago" means for the same node.
+  const ageDaysOf = (n: GraphNode): number => {
+    if (!n.createdAt) return NaN;
+    const rawDate = n.createdAt;
+    const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
+    return (Date.now() - Date.parse(isoDate)) / (1000 * 60 * 60 * 24);
+  };
+
   const triggerFlashback = useCallback(() => {
     // Find an old, high-mass memory (Serendipity hook)
     const candidates = view.nodes.filter(n => {
       if (!n.createdAt || !n.mass) return false;
-      const rawDate = n.createdAt;
-      const isoDate = rawDate.includes("Z") ? rawDate : rawDate.replace(" ", "T") + "Z";
-      const ageDays = (Date.now() - Date.parse(isoDate)) / (1000 * 60 * 60 * 24);
-      return ageDays > 7 && n.mass > 0.3; 
+      const ageDays = ageDaysOf(n);
+      return ageDays > 7 && n.mass > 0.3;
     });
-    
+
     if (candidates.length > 0) {
       // Pick a random candidate
       const target = candidates[Math.floor(Math.random() * candidates.length)]!;
       goTo(target.id, true);
       // Spawn a special calibration/synthesis burst to draw attention
       graphRef.current?.spawnBurst(target.id, "calibration");
+      // A flashback used to fly you somewhere with zero explanation of WHY this
+      // particular memory — the whole point of a flashback is the "you wrote
+      // this a while ago" reveal, which was missing entirely.
+      const days = Math.round(ageDaysOf(target));
+      pushToast(`☄️ Flashback: "${target.label.slice(0, 40)}" — you wrote this ${days}d ago`, "☄️", 5000);
     } else {
       // Fallback if the brain is too young
       const all = view.nodes.filter(n => n.mass && n.mass > 0.2);
@@ -1164,6 +1176,14 @@ export default function App() {
         const target = all[Math.floor(Math.random() * all.length)]!;
         goTo(target.id, true);
         graphRef.current?.spawnBurst(target.id, "calibration");
+        const days = Math.round(ageDaysOf(target));
+        pushToast(
+          Number.isFinite(days) && days > 0
+            ? `☄️ Flashback: "${target.label.slice(0, 40)}" — you wrote this ${days}d ago`
+            : `☄️ Flashback: "${target.label.slice(0, 40)}"`,
+          "☄️",
+          5000,
+        );
       } else {
         // A brand-new brain has nothing old/heavy enough for either tier —
         // this used to just do nothing, with zero feedback for the tap.

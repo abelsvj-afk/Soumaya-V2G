@@ -67,6 +67,29 @@ describe("SearchBox — a hit with no similarity score doesn't render 'NaN%'", (
   });
 });
 
+describe("SearchBox — zero results is no longer a dead end", () => {
+  it("offers ask-Soumaya and add-as-memory escape hatches", async () => {
+    searchDetailed.mockResolvedValue({ hits: [] });
+    const onChat = vi.fn();
+    const onIngest = vi.fn();
+    window.addEventListener("brain-toast-action", (e) => {
+      const d = (e as CustomEvent).detail;
+      if (d.kind === "chat") onChat();
+      if (d.kind === "panel" && d.value === "ingest") onIngest();
+    });
+    render(<SearchBox onFocus={() => {}} />);
+    const input = screen.getByPlaceholderText("Search your mind…");
+    await act(async () => { submit(input, "hello"); });
+    await screen.findByText("No matches.");
+
+    act(() => screen.getByText("💬 Ask Soumaya").click());
+    expect(onChat).toHaveBeenCalled();
+
+    act(() => screen.getByText("➕ Add as memory").click());
+    expect(onIngest).toHaveBeenCalled();
+  });
+});
+
 describe("SearchBox — Escape closes it", () => {
   it("calls onClose when Escape is pressed", () => {
     const onClose = vi.fn();
