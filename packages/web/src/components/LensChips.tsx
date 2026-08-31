@@ -27,6 +27,11 @@ export function LensChips({
     [],
   );
   useEffect(() => {
+    // While hidden (any full panel/chat/Observatory open), the chips aren't
+    // shown at all — there's no reason to keep fetching on every memory add.
+    // Re-running this effect when `hidden` flips back to false refreshes once
+    // on the way back in, so it's never stale when it reappears.
+    if (hidden) return;
     refresh();
     const on = () => refresh();
     window.addEventListener("brain-memory-added", on);
@@ -35,7 +40,7 @@ export function LensChips({
       window.removeEventListener("brain-memory-added", on);
       window.removeEventListener("brain-lenses-changed", on);
     };
-  }, [refresh]);
+  }, [refresh, hidden]);
 
   if (hidden || pinned.length === 0) return null;
 

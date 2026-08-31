@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getDueReviews, gradeReview, type DueReview } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * Active recall (NEURO_ALIGNMENT #1) — "memory is made by retrieval, not storage".
@@ -21,6 +22,18 @@ const doneToday = (): number => {
 const bumpToday = () => {
   try { localStorage.setItem(todayKey(), String(doneToday() + 1)); } catch { /* ignore */ }
 };
+/** One new `review.doneToday.YYYY-MM-DD` key got written every day, forever,
+ *  with nothing ever removing an old one — a slow, permanent localStorage leak.
+ *  Only today's key is ever read; anything older is dead weight. */
+const pruneOldDoneTodayKeys = () => {
+  try {
+    const keep = todayKey();
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("review.doneToday.") && k !== keep) localStorage.removeItem(k);
+    }
+  } catch { /* ignore */ }
+};
 
 export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus?: (id: number) => void }) {
   const [due, setDue] = useState<DueReview[] | null>(null);
@@ -29,8 +42,10 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
   const [done, setDone] = useState(0);
   const [why, setWhy] = useState(false);
   const [cappedForToday, setCappedForToday] = useState(false);
+  const [grading, setGrading] = useState(false);
 
   useEffect(() => {
+    pruneOldDoneTodayKeys();
     const already = doneToday();
     if (already >= DAILY_CAP) { setCappedForToday(true); setDue([]); return; }
     const room = Math.min(SESSION_SIZE, DAILY_CAP - already);
@@ -43,14 +58,24 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
   const current = due && idx < due.length ? due[idx] : null;
 
   const grade = async (remembered: boolean) => {
-    if (!current) return;
-    await gradeReview(current.id, remembered);
-    bumpToday();
-    // A recall earns Fuel + keeps the streak alive — nudge the HUD to refresh.
-    window.dispatchEvent(new Event("brain-memory-added"));
-    setDone((n) => n + 1);
-    setRevealed(false);
-    setIdx((i) => i + 1);
+    if (!current || grading) return; // rapid double-tap used to grade the same card twice
+    setGrading(true);
+    try {
+      await gradeReview(current.id, remembered);
+      bumpToday();
+      // A recall earns Fuel + keeps the streak alive — nudge the HUD to refresh.
+      window.dispatchEvent(new Event("brain-memory-added"));
+      setDone((n) => n + 1);
+      setRevealed(false);
+      setIdx((i) => i + 1);
+    } catch {
+      // Leave the card exactly as it was (still revealed, same index) so the
+      // user can just retry — this used to be an unhandled rejection that
+      // silently ate the grade with no feedback at all.
+      pushToast("Couldn't save that — try again.", "⚠️", 3500);
+    } finally {
+      setGrading(false);
+    }
   };
 
   return (
@@ -113,8 +138,8 @@ export function ReviewPanel({ onClose, onFocus }: { onClose: () => void; onFocus
               <button className="rv-btn reveal" onClick={() => setRevealed(true)}>Reveal &amp; rate my recall</button>
             ) : (
               <div className="rv-grade">
-                <button className="rv-btn forgot" onClick={() => void grade(false)}>Forgot</button>
-                <button className="rv-btn primary" onClick={() => void grade(true)}>I remembered</button>
+                <button className="rv-btn forgot" disabled={grading} onClick={() => void grade(false)}>Forgot</button>
+                <button className="rv-btn primary" disabled={grading} onClick={() => void grade(true)}>I remembered</button>
               </div>
             )}
           </div>

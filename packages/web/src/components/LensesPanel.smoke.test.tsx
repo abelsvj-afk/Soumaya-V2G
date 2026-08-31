@@ -37,4 +37,47 @@ describe("LensesPanel", () => {
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(create.mock.calls[0]![0]).toBe("Fresh sparks");
   });
+
+  it("confirms before a backdrop click discards unsaved builder input", async () => {
+    vi.spyOn(api, "getLenses").mockResolvedValue([]);
+    render(<LensesPanel onClose={vi.fn()} onOpen={vi.fn()} />);
+    await waitFor(() => screen.getByText(/New lens/));
+    fireEvent.click(screen.getByText(/New lens/));
+    fireEvent.change(screen.getByPlaceholderText(/Lens name/), { target: { value: "In progress" } });
+
+    let asked = false;
+    (window as unknown as { confirm: () => boolean }).confirm = () => { asked = true; return false; };
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(asked).toBe(true);
+    // Declining the confirm must keep the panel open with the input intact.
+    expect(screen.getByPlaceholderText(/Lens name/)).toBeTruthy();
+  });
+
+  it("does not ask when the builder has no unsaved input", async () => {
+    vi.spyOn(api, "getLenses").mockResolvedValue([]);
+    const onClose = vi.fn();
+    render(<LensesPanel onClose={onClose} onOpen={vi.fn()} />);
+    await waitFor(() => screen.getByText(/New lens/));
+    let asked = false;
+    (window as unknown as { confirm: () => boolean }).confirm = () => { asked = true; return true; };
+    fireEvent.click(screen.getByRole("dialog"));
+    expect(asked).toBe(false);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("guards pin/unpin against a rapid double-click on the same row", async () => {
+    vi.spyOn(api, "getLenses").mockResolvedValue([
+      { id: 1, name: "Heavy work", query: { emotion: "heavy" }, pinned: false, count: 4 },
+    ]);
+    let resolvePin!: () => void;
+    const update = vi.spyOn(api, "updateLens").mockReturnValue(new Promise((r) => { resolvePin = () => r({ id: 1, name: "Heavy work", query: {}, pinned: true, count: 4 }); }));
+    render(<LensesPanel onClose={vi.fn()} onOpen={vi.fn()} />);
+    await waitFor(() => screen.getByText(/Heavy work/));
+
+    const pinBtn = screen.getByTitle("Pin");
+    fireEvent.click(pinBtn);
+    fireEvent.click(pinBtn); // second tap while the first request is still in flight
+    resolvePin();
+    await waitFor(() => expect(update).toHaveBeenCalledTimes(1));
+  });
 });

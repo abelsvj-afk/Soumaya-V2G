@@ -1164,6 +1164,10 @@ export default function App() {
         const target = all[Math.floor(Math.random() * all.length)]!;
         goTo(target.id, true);
         graphRef.current?.spawnBurst(target.id, "calibration");
+      } else {
+        // A brand-new brain has nothing old/heavy enough for either tier —
+        // this used to just do nothing, with zero feedback for the tap.
+        pushToast("Not enough history yet for a flashback — keep logging memories.", "☄️", 3500);
       }
     }
   }, [view, goTo]);

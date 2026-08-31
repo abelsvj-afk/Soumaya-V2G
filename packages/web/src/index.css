@@ -4594,12 +4594,15 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 @supports (padding: env(safe-area-inset-top)) {
   .fab-tools { top: calc(12px + env(safe-area-inset-top)); }
 }
-.tools-scrim { position: fixed; inset: 0; z-index: 58; background: transparent; }
+/* z-58/59 used to sit UNDER .brand (70) — a tap meant to dismiss the menu via
+   "click outside" over the header/logout area fell through to .brand instead,
+   both firing whatever was underneath AND leaving the menu open. */
+.tools-scrim { position: fixed; inset: 0; z-index: 71; background: transparent; }
 .tools-menu {
   position: fixed;
   top: calc(66px + env(safe-area-inset-top));
   right: 12px;
-  z-index: 59;
+  z-index: 72;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 6px;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import type { Lens, LensQuery } from "@brain/shared";
 import { getLenses, createLens, deleteLens, updateLens, lensNodes } from "../api/lenses.js";
 import { pushToast } from "./Toasts.js";
@@ -31,8 +31,17 @@ export function LensesPanel({
   const [importance, setImportance] = useState<"" | "0.3" | "0.5" | "0.7">("");
   const [within, setWithin] = useState<"" | "7" | "30" | "90">("");
   const [busy, setBusy] = useState(false);
+  // Per-lens in-flight guard for delete/pin — busy above only ever gated the
+  // builder's own Save button, so rapid double-clicking a row's 🗑/📌 while its
+  // own request was still in flight could fire a duplicate.
+  const [rowBusy, setRowBusy] = useState<Set<number>>(new Set());
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
 
-  const refresh = useCallback(() => getLenses().then(setLenses).catch(() => {}), []);
+  const refresh = useCallback(
+    () => getLenses().then((ls) => { if (mounted.current) setLenses(ls); }).catch(() => {}),
+    [],
+  );
   // Let the on-galaxy pinned-lens chips re-sync when lenses change here.
   const broadcast = () => window.dispatchEvent(new Event("brain-lenses-changed"));
   useEffect(() => {
@@ -86,15 +95,27 @@ export function LensesPanel({
   };
 
   const remove = async (l: Lens) => {
+    if (rowBusy.has(l.id)) return;
+    setRowBusy((s) => new Set(s).add(l.id));
     setLenses((xs) => xs.filter((x) => x.id !== l.id));
-    await deleteLens(l.id);
-    broadcast();
+    try {
+      await deleteLens(l.id);
+      broadcast();
+    } finally {
+      setRowBusy((s) => { const next = new Set(s); next.delete(l.id); return next; });
+    }
   };
 
   const togglePin = async (l: Lens) => {
-    await updateLens(l.id, { pinned: !l.pinned });
-    refresh();
-    broadcast();
+    if (rowBusy.has(l.id)) return;
+    setRowBusy((s) => new Set(s).add(l.id));
+    try {
+      await updateLens(l.id, { pinned: !l.pinned });
+      refresh();
+      broadcast();
+    } finally {
+      setRowBusy((s) => { const next = new Set(s); next.delete(l.id); return next; });
+    }
   };
 
   const desc = (q: LensQuery): string => {
@@ -109,12 +130,20 @@ export function LensesPanel({
     return parts.join(" · ") || "all active memories";
   };
 
+  const hasUnsavedBuilderInput = building && !!(name.trim() || text.trim() || emotion || state || importance || within);
+  const closeWithConfirm = () => {
+    // A backdrop click used to discard the builder's in-progress fields with
+    // no warning at all, identical to every other click-outside dismissal.
+    if (hasUnsavedBuilderInput && !confirm("Discard this unsaved lens?")) return;
+    onClose();
+  };
+
   return (
-    <div className="lenses-overlay" role="dialog" aria-label="Smart Lenses" onClick={onClose}>
+    <div className="lenses-overlay" role="dialog" aria-label="Smart Lenses" onClick={closeWithConfirm}>
       <div className="lenses-card" onClick={(e) => e.stopPropagation()}>
         <header className="lenses-head">
           <h2>⧉ Smart Lenses</h2>
-          <button className="lenses-close" onClick={onClose} aria-label="Close">×</button>
+          <button className="lenses-close" onClick={closeWithConfirm} aria-label="Close">×</button>
         </header>
         <p className="lenses-hint">
           A lens is a saved view — open one and the galaxy shows only its stars, staying live as your
@@ -130,8 +159,8 @@ export function LensesPanel({
                 <span className="lens-desc">{desc(l.query)}</span>
               </button>
               <span className="lens-count" aria-label={`${l.count ?? 0} matches`}>{l.count ?? 0}</span>
-              <button className="lens-mini" onClick={() => void togglePin(l)} title={l.pinned ? "Unpin" : "Pin"}>{l.pinned ? "📌" : "📍"}</button>
-              <button className="lens-mini" onClick={() => void remove(l)} title="Delete lens" aria-label="Delete lens">🗑</button>
+              <button className="lens-mini" disabled={rowBusy.has(l.id)} onClick={() => void togglePin(l)} title={l.pinned ? "Unpin" : "Pin"}>{l.pinned ? "📌" : "📍"}</button>
+              <button className="lens-mini" disabled={rowBusy.has(l.id)} onClick={() => void remove(l)} title="Delete lens" aria-label="Delete lens">🗑</button>
             </li>
           ))}
         </ul>

@@ -30,4 +30,21 @@ describe("ToolsMenu (mobile-first tool consolidation)", () => {
     const { container } = render(<ToolsMenu {...props({ candCount: 2, dueCount: 3 })} />);
     expect(container.querySelector(".fab-badge")?.textContent).toBe("5");
   });
+
+  it("uses the same cap for the aggregate FAB badge and a per-item badge", () => {
+    const { container } = render(<ToolsMenu {...props({ candCount: 20, dueCount: 0 })} />);
+    // Aggregate (20) and the Connections item badge (20) must read identically —
+    // they used to cap at 9+ and 99+ respectively.
+    expect(container.querySelector(".fab-badge")?.textContent).toBe("9+");
+    fireEvent.click(screen.getByLabelText("Tools"));
+    const connectionsBadge = screen.getByText("Connections").parentElement?.querySelector(".tools-badge");
+    expect(connectionsBadge?.textContent).toBe("9+");
+  });
+
+  it("breaks down the alert count in the FAB's title instead of a bare label", () => {
+    render(<ToolsMenu {...props({ candCount: 2, dueCount: 3 })} />);
+    const title = screen.getByLabelText("Tools").getAttribute("title") ?? "";
+    expect(title).toContain("2 connection suggestion");
+    expect(title).toContain("3 recall");
+  });
 });
