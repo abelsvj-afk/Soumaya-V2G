@@ -95,13 +95,26 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
     setSynthBusy(true);
     setInsight("");
     synthesizeNode(node.id)
-      .then((r) => setInsight(r.text))
+      .then((r) => {
+        setInsight(r.text);
+        // The server may have mutated the node itself here — either it stored
+        // fresh clarifying `questions` (researchQuestions) when there wasn't
+        // enough context, or it directly expanded the node's content/importance
+        // when there was. Neither used to reach the UI: `r.connected` and
+        // `r.questions` were read straight off a response the client type
+        // didn't even declare, and the node was never told to refresh.
+        onChanged?.(node.id);
+      })
       .catch((e) => setInsight(`(couldn't synthesize: ${(e as Error).message})`))
       .finally(() => setSynthBusy(false));
   };
 
-  // Keep the slider in sync when a different node is selected.
+  // Keep the slider in sync when a different node is selected — but not while a
+  // weight save is still in flight, or an unrelated refresh (another tab, an
+  // autonomous job) landing mid-drag would silently snap the slider back to the
+  // pre-drag value out from under the user.
   useEffect(() => {
+    if (saveTimer.current) return;
     setWeight(node?.importance ?? 0.4);
   }, [node?.id, node?.importance]);
 
@@ -111,6 +124,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
     const reverted = node.importance ?? 0.4;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      saveTimer.current = null;
       setImportance(node.id, value)
         .then(() => onChanged?.(node.id))
         .catch(() => {
@@ -123,6 +137,13 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         });
     }, 350);
   };
+
+  // The debounce timer outlives a single render — without this, navigating away
+  // mid-drag left a pending setImportance() call that could fire (and call
+  // onChanged on an unmounted inspector) well after the user moved on.
+  useEffect(() => () => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+  }, []);
 
   // Direct connections, computed from the in-memory graph (no API round-trip).
   // Fixes "N links but 0 connections".

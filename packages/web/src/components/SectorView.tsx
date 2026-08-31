@@ -42,12 +42,17 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
   const byId = useMemo(() => new Map(graph.nodes.map((n) => [n.id, n])), [graph.nodes]);
 
   const sectors = useMemo(
-    () => graph.nodes.filter((n) => (n.mass ?? 0) >= SECTOR_MASS).sort((a, b) => (b.mass ?? 0) - (a.mass ?? 0)),
+    () =>
+      graph.nodes
+        // A transient action item never coheres a "system" the way a real memory
+        // hub does — without this, a heavy-enough action could show up as a sector.
+        .filter((n) => n.kind !== "action" && (n.mass ?? 0) >= SECTOR_MASS)
+        .sort((a, b) => (b.mass ?? 0) - (a.mass ?? 0)),
     [graph.nodes],
   );
 
   /** Why this hub's system coheres: shared tags/people/time/tone. */
-  const contextFor = (hub: GraphNode) => {
+  const contextForHub = (hub: GraphNode) => {
     const members: GraphNode[] = [hub];
     for (const id of adj.get(hub.id) ?? []) {
       const n = byId.get(id);
@@ -79,6 +84,15 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
     return { count: members.length, tags, people, span, tone };
   };
 
+  // contextFor() used to be re-derived for every sector on every render (it was
+  // called straight from inside the .map()) even when neither the graph nor the
+  // sector list had changed. Memoized into a lookup, keyed by hub id.
+  const contextByHubId = useMemo(() => {
+    const m = new Map<number, ReturnType<typeof contextForHub>>();
+    for (const s of sectors) m.set(s.id, contextForHub(s));
+    return m;
+  }, [sectors, adj, byId]);
+
   if (sectors.length === 0) {
     return (
       <div className="dock-body">
@@ -98,7 +112,12 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
       </p>
       <ul className="neighbors sector-list">
         {sectors.map((s) => {
-          const ctx = contextFor(s);
+          const ctx = contextByHubId.get(s.id)!;
+          // The server's own `degree` is enriched from the full edge set; the
+          // locally-recomputed member count silently drops any neighbor whose
+          // node object isn't present client-side (e.g. archived/filtered out),
+          // which used to under-report "N memories orbiting" in that case.
+          const orbiting = s.degree ?? Math.max(ctx.count - 1, 0);
           return (
             <li key={s.id} className="sector-card">
               <div className="sector-header">
@@ -110,7 +129,7 @@ export function SectorView({ graph, onFocus, onIsolate }: Props) {
               </div>
               {s.celestialTitle && <p className="sector-title">"{s.celestialTitle}"</p>}
               <div className="sector-stats">
-                <span>{ctx.count - 1} memories orbiting</span>
+                <span>{orbiting} memories orbiting</span>
               </div>
               <div className="sector-context">
                 <span className="sector-ctx" title="emotional tone">

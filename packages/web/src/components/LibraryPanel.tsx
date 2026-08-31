@@ -29,6 +29,15 @@ const FOLDER_ORDER: { key: NodeType | "moc"; label: string }[] = [
 
 const dateOf = (n: GraphNode) => (n.occurredAt ?? n.createdAt ?? "").slice(0, 10);
 
+/** The visible clipping was only CSS (maxHeight/overflow) — a long note's FULL
+ *  body still landed in the DOM for every row across every open folder. A plain
+ *  character cap keeps what's shown identical (still clipped well before this
+ *  length) while bounding actual DOM/memory size. */
+const PREVIEW_CHARS = 400;
+function previewOf(content: string): string {
+  return content.length > PREVIEW_CHARS ? `${content.slice(0, PREVIEW_CHARS)}…` : content;
+}
+
 function memoryMarkdown(n: GraphNode): string {
   const typeLabel = NODE_TYPE_LABEL[normalizeNodeType(n.type)];
   const lines = [
@@ -58,7 +67,11 @@ function download(filename: string, text: string): boolean {
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    // 1s used to be cut close for a large "Export all" on a slow disk/device —
+    // there's no reliable "download actually finished" event, so give it a wide
+    // margin rather than risk revoking mid-write. The blob's only cost until
+    // then is memory, which is trivial for markdown-sized exports.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
     return true;
   } catch {
     return false;
@@ -80,11 +93,20 @@ export function LibraryPanel({
   // Archived (resting) memories — lazily fetched when the section is expanded.
   const [showArchived, setShowArchived] = useState(false);
   const [archived, setArchived] = useState<GraphNode[] | null>(null);
+  const [archivedError, setArchivedError] = useState(false);
   useEffect(() => {
-    // Falls back to an empty list on failure so the panel doesn't get stuck on "Loading…"
-    // forever (and stops retrying on every re-render, since archived is no longer null).
-    if (showArchived && archived === null) void getArchivedNodes().then(setArchived).catch(() => setArchived([]));
-  }, [showArchived, archived]);
+    // A failed fetch used to fall back to `[]`, which is indistinguishable from
+    // "really has zero archived memories" AND, since `archived` was no longer
+    // null, meant the effect's own condition never retried — a failure was
+    // permanent for the rest of the session. Track the failure separately so
+    // the empty state can tell the two apart and offer a real retry.
+    if (showArchived && archived === null && !archivedError) {
+      void getArchivedNodes()
+        .then(setArchived)
+        .catch(() => setArchivedError(true));
+    }
+  }, [showArchived, archived, archivedError]);
+  const retryArchived = () => setArchivedError(false);
   const restore = async (id: number) => {
     if (await archiveNode(id, false)) {
       setArchived((a) => (a ? a.filter((n) => n.id !== id) : a));
@@ -155,7 +177,10 @@ export function LibraryPanel({
                 onClick={() => setOpen((o) => ({ ...o, [f.key]: !o[f.key] }))}
               >
                 <span style={{ opacity: 0.7, width: "0.9rem" }}>{isOpen ? "▾" : "▸"}</span>
-                <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: colorForType(f.key === "moc" ? "concept" : (f.key as NodeType)), flexShrink: 0 }} />
+                {/* "moc" is a real NodeType with its own starlight-gold swatch —
+                    this used to force it to "concept" instead, making the
+                    Constellations folder look identical to a plain concept. */}
+                <span style={{ width: "10px", height: "10px", borderRadius: "3px", background: colorForType(f.key), flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, fontSize: "0.86rem", flex: 1 }}>{f.label}</span>
                 <span style={{ fontSize: "0.74rem", opacity: 0.6 }}>{f.items.length}</span>
                 <button
@@ -195,7 +220,7 @@ export function LibraryPanel({
                       </div>
                       {n.content && (
                         <p style={{ fontSize: "0.74rem", opacity: 0.75, margin: "0.25rem 0 0 0", whiteSpace: "pre-wrap", maxHeight: "4.5rem", overflow: "hidden" }}>
-                          {n.content}
+                          {previewOf(n.content)}
                         </p>
                       )}
                     </li>
@@ -219,7 +244,13 @@ export function LibraryPanel({
         </div>
         {showArchived && (
           <ul style={{ listStyle: "none", margin: 0, padding: "0.3rem 0.5rem 0.5rem" }}>
-            {archived === null && <li style={{ padding: "0.4rem", opacity: 0.6, fontSize: "0.76rem" }}>Loading…</li>}
+            {archivedError && (
+              <li style={{ padding: "0.4rem", display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.76rem" }}>
+                <span style={{ flex: 1, opacity: 0.75 }}>⚠️ Couldn't load your archived memories.</span>
+                <button className="mini" onClick={retryArchived}>Retry</button>
+              </li>
+            )}
+            {archived === null && !archivedError && <li style={{ padding: "0.4rem", opacity: 0.6, fontSize: "0.76rem" }}>Loading…</li>}
             {archived && archived.length === 0 && (
               <li style={{ padding: "0.4rem", opacity: 0.6, fontSize: "0.76rem" }}>Nothing archived. Rest a memory from its details (📥) to tuck it away here.</li>
             )}

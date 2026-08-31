@@ -92,20 +92,36 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
   };
 
   useEffect(() => {
-    const load = () => getVisitorActivity().then(setVisited).catch(() => {});
+    let cancelled = false;
+    const load = () => getVisitorActivity().then((v) => { if (!cancelled) setVisited(v); }).catch(() => {});
     load();
     const iv = window.setInterval(load, 15000);
-    return () => window.clearInterval(iv);
+    return () => {
+      cancelled = true;
+      window.clearInterval(iv);
+    };
   }, []);
 
   useEffect(() => {
-    getConstellations()
-      .then((cs) => {
-        const map = new Map<number, string>();
-        for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
-        setConstellationMap(map);
-      })
-      .catch(() => {});
+    let cancelled = false;
+    const load = () =>
+      getConstellations()
+        .then((cs) => {
+          if (cancelled) return;
+          const map = new Map<number, string>();
+          for (const c of cs) for (const n of c.nodes) map.set(n.id, c.name);
+          setConstellationMap(map);
+        })
+        .catch(() => {});
+    load();
+    // A newly-promoted constellation (DigestPanel's "Save as constellation") used
+    // to never appear here until the next full reload — this refetches on the
+    // same event the galaxy uses to fly to the new hub.
+    window.addEventListener("brain-constellation-formed", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("brain-constellation-formed", load);
+    };
   }, []);
 
   const visitorMap = useMemo(() => {
@@ -123,6 +139,9 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
     for (const n of memories) for (const t of n.tags ?? []) f.set(t, (f.get(t) ?? 0) + 1);
     return [...f.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, count]) => ({ name, count }));
   }, [memories]);
+  // Was recomputed via a fresh Math.max(...spread) inside the tag-row render map —
+  // once per tag, every render.
+  const maxTagCount = useMemo(() => Math.max(...allTagsWithCounts.map((tc) => tc.count), 1), [allTagsWithCounts]);
 
   // Distinct kinds present (legacy values normalized to the canonical taxonomy).
   const types = useMemo(
@@ -180,14 +199,19 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
 
   const upcomingReminders = useMemo(() => {
     const now = Date.now();
-    return nodes.filter(n => {
-      // Actions never carry a real reminder — excluded here for the same reason
-      // isReminderDue() excludes them (utils/dueReminders.ts). This filter used to
-      // disagree with that shared predicate and count them anyway.
-      if (n.kind === "action" || !n.remindAt) return false;
-      const timestamp = ms(n.remindAt);
-      return !Number.isNaN(timestamp) && timestamp > now && timestamp - now < 24 * 3600 * 1000; // next 24 hours
-    });
+    return nodes
+      .filter(n => {
+        // Actions never carry a real reminder — excluded here for the same reason
+        // isReminderDue() excludes them (utils/dueReminders.ts). This filter used to
+        // disagree with that shared predicate and count them anyway.
+        if (n.kind === "action" || !n.remindAt) return false;
+        const timestamp = ms(n.remindAt);
+        return !Number.isNaN(timestamp) && timestamp > now && timestamp - now < 24 * 3600 * 1000; // next 24 hours
+      })
+      // The banner below only ever shows [0] as "the reminder incoming" — without
+      // sorting, that was whatever happened to come first in the node array, not
+      // actually the soonest one.
+      .sort((a, b) => ms(a.remindAt) - ms(b.remindAt));
   }, [nodes]);
 
   const relativeFuture = (raw?: string) => {
@@ -363,9 +387,8 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
       {allTagsWithCounts.length > 0 && (
         <div className="discovery-tags" style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
           {allTagsWithCounts.map(({ name: t, count }) => {
-            const maxCount = Math.max(...allTagsWithCounts.map(tc => tc.count), 1);
-            const fontSize = `${11 + (count / maxCount) * 5}px`;
-            const isHot = count >= 3 || (count / maxCount) >= 0.5;
+            const fontSize = `${11 + (count / maxTagCount) * 5}px`;
+            const isHot = count >= 3 || (count / maxTagCount) >= 0.5;
             return (
               <button
                 key={t}

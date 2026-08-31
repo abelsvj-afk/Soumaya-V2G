@@ -68,3 +68,21 @@ describe("LibraryPanel — restore failure surfaces a toast instead of doing not
     expect(pushToast).toHaveBeenCalledWith(expect.stringContaining("Couldn't restore"), "⚠️", expect.any(Number));
   });
 });
+
+describe("LibraryPanel — a failed archived-list fetch is retryable, not permanent", () => {
+  it("shows a Retry option (not a fake empty list) after the fetch fails, and recovers", async () => {
+    getArchivedNodes.mockRejectedValueOnce(new Error("network down"));
+    render(<LibraryPanel graph={graph([node({ id: 1 })])} onFocus={() => {}} />);
+
+    const archivedHeader = await screen.findByText("📥 Archived");
+    act(() => archivedHeader.click());
+    await screen.findByText(/Couldn't load your archived memories/);
+    // A real failure must not be silently reported as "nothing archived".
+    expect(screen.queryByText(/Nothing archived/)).toBeNull();
+
+    getArchivedNodes.mockResolvedValueOnce([node({ id: 9, label: "Resting memory" })]);
+    const retryBtn = screen.getByText("Retry");
+    await act(async () => { retryBtn.click(); await Promise.resolve(); });
+    await screen.findByText("Resting memory");
+  });
+});

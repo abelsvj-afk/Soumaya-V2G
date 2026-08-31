@@ -266,7 +266,7 @@ export async function search(q: string): Promise<SearchHit[]> {
 }
 
 /** Ask the AI to piece a memory + its connections into a fresh insight. */
-export async function synthesizeNode(id: number): Promise<{ text: string; connected: number }> {
+export async function synthesizeNode(id: number): Promise<{ text: string; connected: number; questions?: string[] }> {
   setNodeProcessing([id], true);
   try {
     return await tracked(
@@ -276,7 +276,7 @@ export async function synthesizeNode(id: number): Promise<{ text: string; connec
           const body = (await res.json().catch(() => ({}))) as { error?: string };
           throw new Error(body.error ?? `Synthesis failed (${res.status})`);
         }
-        return res.json() as Promise<{ text: string; connected: number }>;
+        return res.json() as Promise<{ text: string; connected: number; questions?: string[] }>;
       })(),
     );
   } finally {
