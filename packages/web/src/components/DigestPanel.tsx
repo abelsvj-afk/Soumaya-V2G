@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Constellation, DailyDigest, DormantItem, EmotionalTrajectory, EvolutionLink, Insight, LifeAreaCount, SelfReviewItem } from "@brain/shared";
-import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, getBeliefs, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog, type Belief } from "../api/client.js";
+import { getConstellations, getDailyDigest, getDailyLog, getDigest, getDormant, getEmotionalTrajectory, getEvolutionLinks, getLifeAreas, getSelfReview, getBeliefs, ingestText, getSpaceId, promoteConstellation, resolveInsight, runDigest, runContradictions, type DailyLog, type Belief } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
@@ -48,6 +48,65 @@ export function DigestPanel({
   const [beliefs, setBeliefs] = useState<Belief[]>([]);
   const [busy, setBusy] = useState(false);
   const [showAllInsights, setShowAllInsights] = useState(false);
+  // Captain's Log used to be a dead-end static paragraph — no way to keep it or
+  // ask about it. savingLog/logSaved mirror ChatDock's save-once-per-message
+  // pattern, keyed by date so re-mounting the panel doesn't re-offer a save.
+  const [savingLog, setSavingLog] = useState(false);
+  const [logSaved, setLogSaved] = useState(false);
+  // Emotional-weather patterns had no accept/snooze/done either — a "noted,
+  // stop showing me this" per pattern, persisted so it stays dismissed.
+  const [dismissedPatterns, setDismissedPatterns] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const spaceId = getSpaceId() ?? "legacy";
+    if (dailyLog) {
+      try {
+        setLogSaved(localStorage.getItem(`brain.logsaved.${spaceId}.${dailyLog.date}`) === "1");
+      } catch {
+        /* storage unavailable */
+      }
+    }
+    try {
+      const raw = localStorage.getItem(`brain.patterns.dismissed.${spaceId}`);
+      if (raw) setDismissedPatterns(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* storage unavailable or corrupt — start fresh */
+    }
+  }, [dailyLog?.date]);
+
+  async function saveLogAsMemory() {
+    if (!dailyLog || savingLog || logSaved) return;
+    setSavingLog(true);
+    try {
+      await ingestText(`Captain's Log (${dailyLog.date}): ${dailyLog.content}`);
+      setLogSaved(true);
+      try {
+        localStorage.setItem(`brain.logsaved.${getSpaceId() ?? "legacy"}.${dailyLog.date}`, "1");
+      } catch {
+        /* storage unavailable */
+      }
+      playSfx("chime");
+      pushToast("Captain's Log saved as a memory ✦", "🛰️", 4000);
+    } catch (err) {
+      pushToast((err as Error).message || "Couldn't save that.", "⚠️", 4000);
+    } finally {
+      setSavingLog(false);
+    }
+  }
+
+  function dismissPattern(key: string) {
+    setDismissedPatterns((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      try {
+        localStorage.setItem(`brain.patterns.dismissed.${getSpaceId() ?? "legacy"}`, JSON.stringify([...next]));
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+    pushToast("Got it — noted.", "✓", 2500);
+  }
 
   // #10 tiers + #7 compression: surface the most significant insights first
   // (identity → behavioral → situational, then most recent) and cap the list by
@@ -245,11 +304,31 @@ export function DigestPanel({
             Captain's Log ({dailyLog.date})
           </h4>
           <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.4, opacity: 0.9 }}>{dailyLog.content}</p>
+          <div style={{ display: "flex", gap: "0.4rem", marginTop: "0.6rem" }}>
+            <button className="mini" disabled={savingLog || logSaved} onClick={() => void saveLogAsMemory()}>
+              {logSaved ? "✓ Saved" : savingLog ? "Saving…" : "★ Save as memory"}
+            </button>
+            <button
+              className="mini ghost"
+              onClick={() => window.dispatchEvent(new CustomEvent("brain-toast-action", { detail: { kind: "chat" } }))}
+              title="Open chat to ask Soumaya about today's log"
+            >
+              💬 Ask about this
+            </button>
+          </div>
         </div>
       )}
 
       {/* Soumaya's daily digest — her read on the day, with links + her take. */}
-      {daily && (daily.fresh.length > 0 || daily.expiredActions.length > 0 || daily.greeting) && (
+      {/* Used to check only fresh/expiredActions/greeting — a day with ONLY cooling
+          memories or ONLY due reminders (both real, actionable lists rendered below)
+          would silently render nothing at all. */}
+      {daily &&
+        (daily.fresh.length > 0 ||
+          daily.expiredActions.length > 0 ||
+          daily.cooling.length > 0 ||
+          (daily.reminders?.length ?? 0) > 0 ||
+          daily.greeting) && (
         <section className="daily-digest">
           <h3>🛰️ Soumaya&apos;s daily digest</h3>
           {daily.greeting && <p className="digest-greeting">{daily.greeting}</p>}
@@ -285,17 +364,17 @@ export function DigestPanel({
 
           {daily.cooling.length > 0 && (
             <div className="digest-cooling">
-              <h4>❄️ Going cold — drop by to warm them</h4>
+              <h4>❄️ Going cold — tap one to warm it back up</h4>
               <div className="pills">
                 {daily.cooling.map((c) => (
                   <button
                     key={c.node.id}
                     className="pill"
-                    style={{ borderColor: colorForType(c.node.type), opacity: 0.55 + 0.45 * (1 - c.entropy) }}
+                    style={{ borderColor: colorForType(c.node.type) }}
                     onClick={() => onFocus(c.node.id)}
-                    title={`${Math.round(c.entropy * 100)}% cold`}
+                    title="Fly to this memory and warm it back up"
                   >
-                    {c.node.label}
+                    {c.node.label} · {Math.round(c.entropy * 100)}% cold
                   </button>
                 ))}
               </div>
@@ -455,21 +534,40 @@ export function DigestPanel({
             Across {emotional.sampleSize} memories · avg mood {emotional.average >= 0 ? "+" : ""}
             {emotional.average.toFixed(2)} · {emotional.volatility >= 0.5 ? "high swings" : "stable"}
           </p>
-          {emotional.patterns.length > 0 ? (
+          {emotional.patterns.filter((p) => !dismissedPatterns.has(`${p.type}|${p.trigger ?? ""}`)).length > 0 ? (
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-              {emotional.patterns.map((p, i) => (
-                <li key={i} style={{ borderLeft: "3px solid #9a7aff", paddingLeft: "0.6rem" }}>
-                  <div style={{ fontSize: "0.8rem", fontWeight: 700 }}>
-                    {p.type}
-                    {p.trigger ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · often around “{p.trigger}”</span> : null}
-                    {p.repeats > 1 ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · ×{p.repeats}</span> : null}
-                  </div>
-                  <div style={{ fontSize: "0.76rem", opacity: 0.85 }}>{p.intervention}</div>
-                </li>
-              ))}
+              {emotional.patterns
+                .filter((p) => !dismissedPatterns.has(`${p.type}|${p.trigger ?? ""}`))
+                .map((p, i) => {
+                  const key = `${p.type}|${p.trigger ?? ""}`;
+                  return (
+                    <li key={i} style={{ borderLeft: "3px solid #9a7aff", paddingLeft: "0.6rem" }}>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 700, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                        <span>
+                          {p.type}
+                          {p.trigger ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · often around “{p.trigger}”</span> : null}
+                          {p.repeats > 1 ? <span style={{ opacity: 0.7, fontWeight: 400 }}> · ×{p.repeats}</span> : null}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: "0.76rem", opacity: 0.85 }}>{p.intervention}</div>
+                      <button
+                        className="mini ghost"
+                        style={{ marginTop: "0.3rem", fontSize: "0.66rem", padding: "1px 8px" }}
+                        title="Noted — stop showing me this pattern"
+                        onClick={() => dismissPattern(key)}
+                      >
+                        ✓ Got it
+                      </button>
+                    </li>
+                  );
+                })}
             </ul>
           ) : (
-            <p style={{ fontSize: "0.76rem", opacity: 0.7, margin: 0 }}>No strong patterns yet — your mood reads as steady.</p>
+            <p style={{ fontSize: "0.76rem", opacity: 0.7, margin: 0 }}>
+              {emotional.patterns.length > 0
+                ? "You've noted every pattern Soumaya's spotted so far."
+                : "No strong patterns yet — your mood reads as steady."}
+            </p>
           )}
         </section>
       )}
