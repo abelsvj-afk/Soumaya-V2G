@@ -65,7 +65,7 @@ export function DigestPanel({
     if (!name) return;
     setSavingId(c.id);
     try {
-      const hub = await promoteConstellation(name, c.nodes.map((n) => n.id));
+      const { hub, error } = await promoteConstellation(name, c.nodes.map((n) => n.id));
       if (hub) {
         pushToast(`Constellation "${name}" charted ✦`, "🌌", 5500);
         setPromotingId(null);
@@ -74,7 +74,10 @@ export function DigestPanel({
         if (hub.id != null) window.dispatchEvent(new CustomEvent("brain-constellation-formed", { detail: { id: hub.id } }));
         onPromoted?.();
       } else {
-        pushToast("Couldn't chart that constellation — try again.", "⚠️", 4500);
+        // The real server reason (e.g. "at least 2 memories required") used to be
+        // built and thrown, then caught right there and discarded — only this
+        // generic fallback ever reached the user.
+        pushToast(error ?? "Couldn't chart that constellation — try again.", "⚠️", 4500);
       }
     } finally {
       setSavingId(null);
@@ -126,10 +129,21 @@ export function DigestPanel({
   async function run() {
     setBusy(true);
     try {
-      await runDigest();
+      // Used to give NO feedback either way — a failed scan and a successful one
+      // that found nothing looked identical, and a successful one that found
+      // several announced nothing. scanContradictions (right below this) already
+      // toasts both outcomes; this button behaved completely differently.
+      const found = await runDigest();
       setItems(await getDigest());
       setDaily(await getDailyDigest());
       setConstellations(await getConstellations());
+      pushToast(
+        found.length > 0
+          ? `Found ${found.length} new connection${found.length === 1 ? "" : "s"} ✨`
+          : "No new connections yet — add a few more related thoughts and try again.",
+        found.length > 0 ? "✨" : "🔍",
+        5000,
+      );
     } finally {
       setBusy(false);
     }
@@ -497,8 +511,8 @@ export function DigestPanel({
       </div>
       {items.length === 0 && (
         <p className="empty">
-          No insights yet. Dump a few related thoughts, then hit Synthesize to surface connections
-          you haven&apos;t drawn.
+          No insights yet. Dump a few related thoughts, then hit "🔍 Find new links" above to surface
+          connections you haven&apos;t drawn.
         </p>
       )}
       <ul className="insights">
@@ -525,6 +539,8 @@ export function DigestPanel({
                         if (ok) {
                           setItems((prev) => prev.filter((x) => x.id !== it.id));
                           pushToast("Reconciled — both memories warmed ✓", "⚡", 4500);
+                        } else {
+                          pushToast("Couldn't reconcile that — try again.", "⚠️", 3500);
                         }
                       });
                     }}

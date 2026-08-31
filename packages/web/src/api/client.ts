@@ -480,7 +480,12 @@ export async function getConstellations(): Promise<Constellation[]> {
 }
 
 /** Promote a detected cluster into a persistent, named constellation hub (MOC). */
-export async function promoteConstellation(name: string, nodeIds: number[]): Promise<GraphNode | null> {
+/**
+ * `error` carries the server's real reason (e.g. "at least 2 memories required") when
+ * available. This used to build that exact message via `throw new Error(...)` and then
+ * catch it immediately, discarding it — the caller only ever saw a generic fallback.
+ */
+export async function promoteConstellation(name: string, nodeIds: number[]): Promise<{ hub: GraphNode | null; error?: string }> {
   try {
     const res = await afetch(`${API}/constellations/promote`, {
       method: "POST",
@@ -489,11 +494,11 @@ export async function promoteConstellation(name: string, nodeIds: number[]): Pro
     });
     if (!res.ok) {
       const body = (await res.json().catch(() => ({}))) as { error?: string };
-      throw new Error(body.error ?? `Couldn't create constellation (${res.status})`);
+      return { hub: null, error: body.error };
     }
-    return (await res.json()) as GraphNode;
+    return { hub: (await res.json()) as GraphNode };
   } catch {
-    return null;
+    return { hub: null };
   }
 }
 

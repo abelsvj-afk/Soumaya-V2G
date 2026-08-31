@@ -22,6 +22,7 @@ import {
   type Level,
 } from "../graph/graphicsConfig.js";
 import { perfHudEnabled, setPerfHudEnabled } from "./PerfHUD.js";
+import { pushToast } from "./Toasts.js";
 import { loadPersistedRung, RUNG_TABLE, ADAPTIVE_MODEL_VERSION } from "../graph/adaptiveController.js";
 
 /**
@@ -260,10 +261,20 @@ export function SettingsPanel({
             <button onClick={() => clearDiagnosticEvents()}>Clear Events</button>
             <button onClick={() => setDiagReport(JSON.stringify(getDiagnosticSnapshot(), null, 2))}>View Report</button>
             {diagReport && (
-              <button onClick={() => {
-                  navigator.clipboard.writeText(diagReport);
-                  alert("Report copied to clipboard!");
-              }}>Copy Report</button>
+              <button
+                onClick={() => {
+                  // Was fire-and-forget with an unconditional "it worked" alert right
+                  // after — on a denied clipboard permission or an insecure context
+                  // this claimed success while doing nothing, and blocked the UI with
+                  // alert() instead of this panel's own toast system.
+                  navigator.clipboard
+                    .writeText(diagReport)
+                    .then(() => pushToast("Report copied to clipboard.", "📋", 3000))
+                    .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
+                }}
+              >
+                Copy Report
+              </button>
             )}
           </div>
           {diagReport && (

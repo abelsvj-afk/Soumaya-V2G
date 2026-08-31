@@ -108,11 +108,19 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
   // Debounced persist so dragging the slider doesn't spam the API.
   const commitWeight = (value: number | null) => {
     if (!node) return;
+    const reverted = node.importance ?? 0.4;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       setImportance(node.id, value)
         .then(() => onChanged?.(node.id))
-        .catch(() => {});
+        .catch(() => {
+          // setImportance() throws on failure — without this the slider silently
+          // kept showing the value the user dragged to, even though it was never
+          // saved (the sync effect above only fires when node.importance actually
+          // changes, which it won't have here).
+          setWeight(reverted);
+          pushToast("Couldn't save that weight — try again.", "⚠️", 3500);
+        });
     }, 350);
   };
 
@@ -253,6 +261,12 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
                 setResearchError("");
                 answerResearch(node.id, answers)
                   .then(() => {
+                    // Success used to be silent (only onChanged, no toast/sound) and
+                    // left every answered field filled in on screen even though the
+                    // questions themselves were already resolved server-side.
+                    setAnswers({});
+                    playSfx("achievement");
+                    pushToast("Thanks — she's weaving that in.", "🛰️", 4000);
                     onChanged?.(node.id);
                   })
                   .catch((e) => {
@@ -431,6 +445,8 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
             if (ok) {
               setRequested(true);
               pushToast(`Soumaya will tend "${node.label.slice(0, 30)}" on her next round.`, "🛰️", 6000);
+            } else {
+              pushToast("Couldn't queue that — try again.", "⚠️", 3500);
             }
           }}
           title="She'll prioritize this memory on her next round. With Research Mode on (and fuel in the tank) she deep-dives it — that spends 2 ⛽; otherwise it's a free recalibration."

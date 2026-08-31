@@ -3,6 +3,7 @@ import type { GraphData, GraphNode, NodeType } from "@brain/shared";
 import { NODE_TYPE_LABEL, normalizeNodeType } from "@brain/shared";
 import { colorForType } from "../graph/theme.js";
 import { getArchivedNodes, archiveNode } from "../api/client.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * Library — a browsable, foldered view of the whole brain. The galaxy is beautiful
@@ -44,7 +45,10 @@ function memoryMarkdown(n: GraphNode): string {
   return lines.filter((l) => l !== "").join("\n");
 }
 
-function download(filename: string, text: string) {
+/** Returns whether the download actually started — this can silently do nothing
+ *  on mobile Safari / restricted contexts, where "⬇ Export all" used to produce
+ *  no file, no toast, and no console error. */
+function download(filename: string, text: string): boolean {
   try {
     const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -55,8 +59,9 @@ function download(filename: string, text: string) {
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
   } catch {
-    /* download unsupported — ignore */
+    return false;
   }
 }
 
@@ -84,6 +89,8 @@ export function LibraryPanel({
     if (await archiveNode(id, false)) {
       setArchived((a) => (a ? a.filter((n) => n.id !== id) : a));
       window.dispatchEvent(new Event("brain-memory-added")); // nudge the galaxy to refresh
+    } else {
+      pushToast("Couldn't restore that memory — try again.", "⚠️", 3500);
     }
   };
 
@@ -104,14 +111,18 @@ export function LibraryPanel({
 
   const exportFolder = (label: string, items: GraphNode[]) => {
     const body = `# ${label}\n\n_${items.length} ${items.length === 1 ? "memory" : "memories"} · exported from ${spaceName}_\n\n${items.map(memoryMarkdown).join("\n---\n\n")}`;
-    download(`${slug(spaceName)}-${slug(label)}.md`, body);
+    if (!download(`${slug(spaceName)}-${slug(label)}.md`, body)) {
+      pushToast("Couldn't export — your browser blocked the download.", "⚠️", 4000);
+    }
   };
 
   const exportAll = () => {
     const body = `# ${spaceName} — full library\n\n_${total} memories across ${folders.length} folders_\n\n${folders
       .map((f) => `# ${f.label}\n\n${f.items.map(memoryMarkdown).join("\n---\n\n")}`)
       .join("\n\n")}`;
-    download(`${slug(spaceName)}-library.md`, body);
+    if (!download(`${slug(spaceName)}-library.md`, body)) {
+      pushToast("Couldn't export — your browser blocked the download.", "⚠️", 4000);
+    }
   };
 
   if (total === 0) {
