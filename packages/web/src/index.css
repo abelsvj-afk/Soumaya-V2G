@@ -4716,9 +4716,16 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 /* Financial OS — animated numbers + history + smooth reveals */
 .fin-stat-num { font-size: 1.2rem; font-weight: 700; }
 .fin-hero-amount { transition: color 0.2s; }
+/* Hoisted out of the no-preference media block below: .jn-card and .gv-chips
+   reference this animation UNCONDITIONALLY (not inside that block), so while it was
+   scoped inside, an unknown animation-name is a silent no-op — those two never
+   actually faded in, in any browser, regardless of motion preference. Reduced
+   motion is still correctly honored for every consumer via the existing global
+   *, *::before, *::after duration-override reset (and its data-reduced-motion
+   twin) — that governs the ANIMATION, independent of where its @keyframes live. */
+@keyframes finFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
   .fin-panel section, .fin-panel .fin-form, .fin-reserved-list, .fin-txn-list { animation: finFade 0.28s ease both; }
-  @keyframes finFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 }
 .fin-history { display: flex; flex-direction: column; gap: 8px; }
 .fin-txn-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 52vh; overflow-y: auto; }
@@ -4761,7 +4768,9 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   padding: 12px; cursor: pointer; font-size: 0.98rem; }
 .jn-icon { font-size: 1.3rem; }
 .jn-name { flex: 1; font-weight: 700; text-align: left; }
-.jn-links { color: var(--muted); font-size: 0.75rem; }
+/* Not .jn-links — that name collided with the links-section container below it
+   (a flex column), so this header count silently became a flex column too. */
+.jn-link-count { color: var(--muted); font-size: 0.75rem; }
 .jn-bar { height: 5px; background: rgba(255,255,255,0.08); }
 .jn-bar-fill { height: 100%; background: linear-gradient(90deg, #5bd6ff, #b98bff); transition: width 0.6s ease; }
 .jn-detail { padding: 12px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--glass-border); }

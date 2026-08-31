@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Journey, JourneyLinkSummary } from "@brain/shared";
 import { getJourneys, createJourney, patchJourney, deleteJourney, journeyLinks } from "../api/journeys.js";
+import { pushToast } from "./Toasts.js";
 
 /**
  * Journeys (Vision 2.0) — the highest-level organizer: a life chapter everything can belong to
@@ -18,21 +19,51 @@ const SUGGESTED = [
 
 export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
+  // Distinguishes "never loaded yet" from "the last load failed" — getJourneys()
+  // returns null on ANY failure, and this used to be handed straight to setJourneys,
+  // so a single network hiccup showed "Loading your journeys…" forever. Worse,
+  // refresh() runs after every mutation, so a blip mid-session wiped the whole panel
+  // back to that same permanent loading state.
+  const [loadError, setLoadError] = useState(false);
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("🧭");
 
-  const refresh = async () => setJourneys(await getJourneys());
+  const refresh = async () => {
+    const result = await getJourneys();
+    if (result) {
+      setJourneys(result);
+      setLoadError(false);
+    } else {
+      // Keep whatever we already had rather than nulling it out — a failed refresh
+      // should read as "couldn't update," not "everything is gone."
+      setLoadError(true);
+      pushToast("Couldn't refresh your Journeys — try again.", "⚠️", 3500);
+    }
+  };
   useEffect(() => { void refresh(); }, []);
 
   const add = async (t: string, ic: string) => {
     if (!t.trim()) return;
-    await createJourney({ title: t.trim(), icon: ic });
+    const created = await createJourney({ title: t.trim(), icon: ic.trim() || "🧭" });
+    if (!created) {
+      pushToast("Couldn't create that Journey — try again.", "⚠️", 3500);
+      return;
+    }
     setTitle(""); setAdding(false);
     await refresh();
   };
 
-  if (!journeys) return <div className="jn-panel"><p className="jn-empty">Loading your journeys…</p></div>;
+  if (journeys === null) {
+    return (
+      <div className="jn-panel">
+        <p className="jn-empty">
+          {loadError ? "Couldn't load your Journeys — " : "Loading your journeys…"}
+          {loadError && <button className="jn-secondary" onClick={() => void refresh()}>Retry</button>}
+        </p>
+      </div>
+    );
+  }
 
   const active = journeys.filter((j) => j.status !== "done");
   const done = journeys.filter((j) => j.status === "done");
@@ -45,8 +76,12 @@ export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
         "<em>what Journey does this move forward?</em>"
       </div>
 
-      {journeys.length === 0 && (
+      {active.length === 0 && (
         <div className="jn-suggest">
+          {/* Gated on active.length, not journeys.length — a brand-new brain and
+              someone who's completed every Journey they started both have zero
+              active ones, and both deserve this prompt instead of it vanishing
+              forever the moment a single Journey (ever) existed. */}
           <div className="jn-empty">Start with one that fits your life right now:</div>
           <div className="jn-suggest-row">
             {SUGGESTED.map((s) => (
@@ -61,7 +96,16 @@ export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
       {adding ? (
         <div className="jn-form">
           <div className="jn-form-row">
-            <input className="jn-icon-in" value={icon} onChange={(e) => setIcon(e.target.value.slice(0, 2))} aria-label="Icon" />
+            <input
+              className="jn-icon-in"
+              value={icon}
+              // Array.from splits by Unicode code point, not UTF-16 unit — .slice(0,2)
+              // truncated any emoji outside the BMP (most modern ones) mid-character.
+              // Still imperfect for multi-codepoint ZWJ sequences (e.g. 👨‍👩‍👧), but
+              // strictly better than cutting a single emoji in half.
+              onChange={(e) => setIcon(Array.from(e.target.value).slice(0, 1).join(""))}
+              aria-label="Icon"
+            />
             <input className="jn-title-in" placeholder="Name your journey (e.g. Become an RN)" value={title} onChange={(e) => setTitle(e.target.value)} aria-label="Journey title" />
           </div>
           <div className="jn-form-actions">
@@ -86,21 +130,64 @@ export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
 function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => void; onFocus?: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
-  const pct = Math.round((j.progress ?? 0) * 100);
+  const [linksError, setLinksError] = useState(false);
+  const serverPct = Math.round((j.progress ?? 0) * 100);
+  // Local, so the thumb moves with the finger instead of only after a round-trip —
+  // the drag used to fire a PATCH per pixel (~100 requests for a full 0->100 drag),
+  // each one triggering onChanged()'s full refetch, with no guarantee they land in
+  // the order they were sent.
+  const [pct, setPct] = useState(serverPct);
+  useEffect(() => setPct(serverPct), [serverPct]);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (saveTimer.current) clearTimeout(saveTimer.current); }, []);
 
   useEffect(() => {
-    if (open) void journeyLinks(j.id).then(setLinks);
+    let cancelled = false;
+    if (open) {
+      setLinksError(false);
+      void journeyLinks(j.id).then((result) => {
+        if (cancelled) return; // this journey closed (or another opened) before it resolved
+        if (result) setLinks(result);
+        else { setLinks([]); setLinksError(true); }
+      });
+    } else {
+      // Reset so re-opening shows "Loading…" rather than a stale list from last time.
+      setLinks(null);
+    }
+    return () => { cancelled = true; };
   }, [open, j.id]);
 
-  const setProgress = async (p: number) => { await patchJourney(j.id, { progress: Math.max(0, Math.min(1, p)) }); onChanged(); };
-  const setStatus = async (status: "active" | "paused" | "done") => { await patchJourney(j.id, { status }); onChanged(); };
+  const bumpProgress = (next: number) => {
+    const clamped = Math.max(0, Math.min(100, next));
+    setPct(clamped);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      void patchJourney(j.id, { progress: clamped / 100 }).then((ok) => {
+        if (ok) onChanged();
+        else { pushToast("Couldn't save that progress — try again.", "⚠️", 3500); setPct(serverPct); }
+      });
+    }, 350);
+  };
+
+  const setStatus = async (status: "active" | "paused" | "done") => {
+    const ok = await patchJourney(j.id, { status });
+    if (ok) onChanged();
+    else pushToast("Couldn't update that Journey — try again.", "⚠️", 3500);
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete "${j.title}"? Its links are removed (the memories/items stay).`)) return;
+    const ok = await deleteJourney(j.id);
+    if (ok) onChanged();
+    else pushToast("Couldn't delete that Journey — try again.", "⚠️", 3500);
+  };
 
   return (
     <div className={`jn-card ${j.status}`}>
       <button className="jn-card-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="jn-icon">{j.icon ?? "🧭"}</span>
         <span className="jn-name">{j.title}</span>
-        <span className="jn-links">{j.linkCount ?? 0} linked</span>
+        <span className="jn-link-count">{j.linkCount ?? 0} linked</span>
       </button>
       <div className="jn-bar" aria-label={`${pct}% progress`}><div className="jn-bar-fill" style={{ width: `${pct}%` }} /></div>
       {open && (
@@ -108,7 +195,18 @@ function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => v
           {j.description && <p className="jn-desc">{j.description}</p>}
           <div className="jn-progress-row">
             <span>Progress</span>
-            <input type="range" min={0} max={100} value={pct} onChange={(e) => void setProgress(Number(e.target.value) / 100)} aria-label="Progress" />
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={pct}
+              onChange={(e) => bumpProgress(Number(e.target.value))}
+              role="progressbar"
+              aria-valuenow={pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Progress"
+            />
             <strong>{pct}%</strong>
           </div>
           <div className="jn-detail-actions">
@@ -122,9 +220,9 @@ function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => v
             ) : j.status === "paused" ? (
               <button className="jn-secondary" onClick={() => void setStatus("active")}>Resume</button>
             ) : null}
-            <button className="jn-danger" onClick={async () => { if (confirm(`Delete "${j.title}"? Its links are removed (the memories/items stay).`)) { await deleteJourney(j.id); onChanged(); } }}>Delete</button>
+            <button className="jn-danger" onClick={() => void remove()}>Delete</button>
           </div>
-          <JourneyLinksSection links={links} onFocus={onFocus} />
+          <JourneyLinksSection links={links} linksError={linksError} onFocus={onFocus} />
         </div>
       )}
     </div>
@@ -136,8 +234,17 @@ const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, {
 /** Everything linked to a Journey — memories/tasks with fly-to, transactions with a
  *  running +earned/-spent total. A linked bill shows as a separate note rather than
  *  folding into the total: it's a recurring schedule, not a dated transaction. */
-function JourneyLinksSection({ links, onFocus }: { links: JourneyLinkSummary[] | null; onFocus?: (id: number) => void }) {
+function JourneyLinksSection({
+  links,
+  linksError,
+  onFocus,
+}: {
+  links: JourneyLinkSummary[] | null;
+  linksError?: boolean;
+  onFocus?: (id: number) => void;
+}) {
   if (links === null) return <p className="jn-hint">Loading what's linked…</p>;
+  if (linksError) return <p className="jn-hint">⚠️ Couldn't load what's linked — try reopening this Journey.</p>;
   if (links.length === 0) {
     return <p className="jn-hint">Nothing linked yet — connect a memory, task, or transaction from where you're already working.</p>;
   }
