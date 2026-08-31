@@ -2859,6 +2859,11 @@ button {
 .toast-go { color: rgba(122,220,255,0.85); font-size: 0.95rem; }
 .toast-ic { font-size: 1.05rem; flex: 0 0 auto; }
 .toast-msg { min-width: 0; }
+/* Priority is now shape/weight, not colour alone — a high-priority toast used to
+   look identical to a routine one. */
+.toast.priority-high { border-width: 2px; font-weight: 600; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 22px rgba(255, 205, 70, 0.35); }
+.toast.priority-low { opacity: 0.88; }
+.toast.toast-overflow { opacity: 0.8; border-style: dashed; cursor: default; }
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(-10px) scale(0.96); }
   to { opacity: 1; transform: translateY(0) scale(1); }

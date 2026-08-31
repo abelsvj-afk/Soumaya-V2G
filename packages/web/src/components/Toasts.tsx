@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { playSfx } from "../graph/sfx.js";
 
 /**
@@ -47,10 +47,28 @@ let paused = false;
 // reading session; only high-priority (she's hailing, rank-up) still breaks through.
 let quiet = false;
 const buffer: Toast[] = [];
+// Unbounded buffering used to mean a long pause (or a stuck quiet mode) could pile
+// up an ever-growing queue that all landed at once on flush. Cap it and drop the
+// oldest non-high entries first — a high-priority toast is rare and worth keeping.
+const MAX_BUFFER = 30;
 function maybeFlush(): void {
   if (paused || buffer.length === 0) return;
-  const flush = buffer.splice(0, buffer.length);
-  for (const t of flush) for (const l of listeners) l(t);
+  // The buffer can hold a mix of "paused-buffered" (any priority) and
+  // "quiet-buffered" (low/normal only) entries. Unpausing while STILL quiet must
+  // only release what quiet mode would show live — releasing everything used to
+  // reveal quiet-gated toasts the moment pause lifted, even though quiet was
+  // never turned off.
+  const releasable = quiet ? buffer.filter((t) => t.priority === "high") : buffer.slice();
+  if (releasable.length === 0) return;
+  const releasedIds = new Set(releasable.map((t) => t.id));
+  for (let i = buffer.length - 1; i >= 0; i--) {
+    const entry = buffer[i];
+    if (entry && releasedIds.has(entry.id)) buffer.splice(i, 1);
+  }
+  for (const t of releasable) {
+    for (const l of listeners) l(t);
+    playSfx(t.priority === "high" ? "achievement" : "notify"); // flushed toasts used to play no sound at all
+  }
 }
 export function setToastsPaused(p: boolean): void {
   if (p === paused) return;
@@ -139,10 +157,28 @@ export function pushToast(
   priority: "low" | "normal" | "high" = "normal",
   action?: ToastAction,
 ): void {
+  // Duplicate-spam guard, checked BEFORE anything is shown/logged — this used to
+  // run only against the inbox log, after the transient toast had already been
+  // shown/sounded, so a rapid duplicate would display (and chime) twice while
+  // only ever being logged once.
+  let list: InboxNotification[] = [];
+  try {
+    list = readNotifications();
+    const lastMsg = list[list.length - 1];
+    if (lastMsg && lastMsg.text === text && Date.now() - lastMsg.timestamp < 1000) return;
+  } catch {
+    list = [];
+  }
+
   const t: Toast = { id: nextId++, text, icon, ttl, priority, action };
   // Buffer when paused, or when quieted (focus mode) unless it's high-priority.
-  if (paused || (quiet && priority !== "high")) buffer.push(t); // still logged to inbox below
-  else {
+  if (paused || (quiet && priority !== "high")) {
+    buffer.push(t); // still logged to inbox below
+    if (buffer.length > MAX_BUFFER) {
+      const dropIdx = buffer.findIndex((b) => b.priority !== "high");
+      buffer.splice(dropIdx === -1 ? 0 : dropIdx, 1);
+    }
+  } else {
     for (const l of listeners) l(t);
     playSfx(priority === "high" ? "achievement" : "notify"); // audible cue when shown
   }
@@ -150,14 +186,6 @@ export function pushToast(
   // Write to the notification inbox log (scoped to space, via the shared key helper
   // so the writer and the inbox reader can never point at different buckets).
   try {
-    const list = readNotifications();
-
-    // Check for duplicate recent messages to prevent spam
-    const lastMsg = list[list.length - 1];
-    if (lastMsg && lastMsg.text === text && Date.now() - lastMsg.timestamp < 1000) {
-      return; // skip duplicate within 1 sec
-    }
-
     const newNote: InboxNotification = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
       text,
@@ -177,10 +205,33 @@ export function pushToast(
 export function Toasts() {
   const [items, setItems] = useState<(Toast & { remaining: number })[]>([]);
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  const hoveredIdRef = useRef<number | null>(null);
+  const [overflowCount, setOverflowCount] = useState(0);
+  const droppedIdsRef = useRef<Set<number>>(new Set());
+  const overflowTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    hoveredIdRef.current = hoveredId;
+  }, [hoveredId]);
 
   useEffect(() => {
     const add: Listener = (t) => {
-      setItems((cur) => [...cur, { ...t, remaining: t.ttl }].slice(-4)); // limit to max 4 toasts
+      setItems((cur) => {
+        const merged = [...cur, { ...t, remaining: t.ttl }];
+        // Silently dropping the overflow (a burst of >4 celebrations landing at
+        // once) left no trace anything happened at all. Note it instead — each
+        // dropped id counted exactly once even if this updater re-runs (e.g.
+        // React StrictMode's double-invoke in dev).
+        if (merged.length > 4) {
+          for (const dropped of merged.slice(0, merged.length - 4)) {
+            if (!droppedIdsRef.current.has(dropped.id)) {
+              droppedIdsRef.current.add(dropped.id);
+              setOverflowCount((c) => c + 1);
+            }
+          }
+        }
+        return merged.slice(-4); // limit to max 4 visible toasts
+      });
     };
     listeners.add(add);
     return () => {
@@ -188,13 +239,26 @@ export function Toasts() {
     };
   }, []);
 
-  // Periodic interval countdown: pause countdown if the toast is hovered
+  useEffect(() => {
+    if (overflowCount === 0) return;
+    if (overflowTimerRef.current) window.clearTimeout(overflowTimerRef.current);
+    overflowTimerRef.current = window.setTimeout(() => setOverflowCount(0), 5000);
+    return () => {
+      if (overflowTimerRef.current) window.clearTimeout(overflowTimerRef.current);
+    };
+  }, [overflowCount]);
+
+  // Periodic interval countdown: pause countdown if the toast is hovered. A single
+  // interval created once — reading hoveredId via a ref, not a dependency — so
+  // hovering doesn't tear down and recreate the interval on every enter/leave
+  // (which used to reset its 200ms phase and let a toast linger past its real TTL
+  // whenever the pointer moved across toasts, e.g. toward the × button).
   useEffect(() => {
     const timer = setInterval(() => {
       setItems((cur) => {
         return cur
           .map((item) => {
-            if (hoveredId === item.id) {
+            if (hoveredIdRef.current === item.id) {
               return item; // pause timer for hovered toast
             }
             return { ...item, remaining: item.remaining - 200 };
@@ -203,7 +267,7 @@ export function Toasts() {
       });
     }, 200);
     return () => clearInterval(timer);
-  }, [hoveredId]);
+  }, []);
 
   const removeToast = (id: number) => {
     setItems((cur) => cur.filter((x) => x.id !== id));
@@ -216,13 +280,13 @@ export function Toasts() {
     removeToast(t.id);
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && overflowCount === 0) return null;
   return (
     <div className="toast-wrap">
       {items.map((t) => (
         <div
           key={t.id}
-          className={`toast ${t.action ? "actionable" : ""}`}
+          className={`toast ${t.action ? "actionable" : ""} ${t.priority ? `priority-${t.priority}` : ""}`}
           onMouseEnter={() => setHoveredId(t.id)}
           onMouseLeave={() => setHoveredId(null)}
           onClick={t.action ? () => runAction(t) : undefined}
@@ -254,6 +318,14 @@ export function Toasts() {
           </button>
         </div>
       ))}
+      {overflowCount > 0 && (
+        <div className="toast toast-overflow" role="status">
+          <span className="toast-ic" aria-hidden>➕</span>
+          <span className="toast-msg">
+            {overflowCount} more notification{overflowCount === 1 ? "" : "s"} — see Inbox
+          </span>
+        </div>
+      )}
     </div>
   );
 }
