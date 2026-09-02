@@ -1,5 +1,5 @@
 import { API, afetch } from "./http.js";
-import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult, MoneyStar } from "@brain/shared";
+import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult, MoneyStar, FinBucket, FinGoal, FinAllocation, WealthSummary } from "@brain/shared";
 
 /**
  * Financial OS client (Stage 1a). Thin wrappers over /api/finance; space-scoped server-side
@@ -85,3 +85,26 @@ export interface ConfirmInput {
   expenses: Array<{ date?: string; amountCents: number; merchant?: string; category: string; direction?: ExpenseDirection }>;
 }
 export const confirmIngest = (input: ConfirmInput) => send<{ committed: number; budget: BudgetSummary }>("/ingest/confirm", "POST", input);
+
+// ---- Wealth (docs/specs/wealth-goals-allocation.md): intention layered on Money's reality.
+// These go through the same getJson/send helpers as everything above — a Wealth mutation
+// dispatches "brain-finance-changed" automatically, for free, exactly like a bill/income/
+// expense change already does. No separate event wiring needed anywhere.
+export const getWealthSummary = () => getJson<WealthSummary>("/wealth/summary");
+
+export const listBuckets = () => getJson<FinBucket[]>("/wealth/buckets");
+export interface BucketInput { name: string; category?: string }
+export const createBucket = (b: BucketInput) => send<FinBucket>("/wealth/buckets", "POST", b);
+export const patchBucket = (id: number, patch: Partial<BucketInput>) => send<FinBucket>(`/wealth/buckets/${id}`, "PATCH", patch);
+export const archiveBucket = (id: number) => send<{ ok: boolean }>(`/wealth/buckets/${id}`, "DELETE");
+
+export const listGoals = (bucketId?: number) => getJson<FinGoal[]>(`/wealth/goals${bucketId != null ? `?bucketId=${bucketId}` : ""}`);
+export interface GoalInput { bucketId: number; name: string; targetCents?: number | null; targetDate?: string | null }
+export const createGoal = (g: GoalInput) => send<FinGoal>("/wealth/goals", "POST", g);
+export const patchGoal = (id: number, patch: Partial<Omit<GoalInput, "bucketId">>) => send<FinGoal>(`/wealth/goals/${id}`, "PATCH", patch);
+export const archiveGoal = (id: number) => send<{ ok: boolean }>(`/wealth/goals/${id}`, "DELETE");
+
+export const listAllocations = (goalId: number) => getJson<FinAllocation[]>(`/wealth/goals/${goalId}/allocations`);
+/** Positive = allocate, negative = withdraw — the entire de-allocation model is this one signed call. */
+export const allocate = (goalId: number, amountCents: number, note?: string) =>
+  send<{ allocation: FinAllocation; wealth: WealthSummary }>(`/wealth/goals/${goalId}/allocations`, "POST", { amountCents, note });

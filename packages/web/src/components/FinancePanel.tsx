@@ -6,10 +6,11 @@ import {
   getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid,
   ingestPaste, ingestImage, confirmIngest,
   listIncome, listExpense, editIncome, deleteIncome, editExpense, deleteExpense,
-  getAfford,
+  getAfford, getWealthSummary,
   type FinanceSummary,
 } from "../api/finance.js";
 import { JourneyChips } from "./JourneyChips.js";
+import { WealthPanel } from "./WealthPanel.js";
 
 /** A dollar amount that DIALS to its value (never snaps) — respects reduced-motion. */
 function Money({ cents, className }: { cents: number; className?: string }) {
@@ -56,13 +57,28 @@ export function FinancePanel() {
   const [loading, setLoading] = useState(true);
   const [reservedOpen, setReservedOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Money displays this; Money never computes it — the real figure lives in Wealth's own
+  // getWealthSummary(). Kept separate from `sum` so a Wealth-only mutation (allocate/withdraw)
+  // can refresh just this number via the shared brain-finance-changed event.
+  const [earmarkedCents, setEarmarkedCents] = useState<number | null>(null);
+  const [wealthOpen, setWealthOpen] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
     setSum(await getFinanceSummary());
     setLoading(false);
   };
-  useEffect(() => { void refresh(); }, []);
+  const refreshEarmarked = async () => {
+    const w = await getWealthSummary();
+    setEarmarkedCents(w?.allocatedCents ?? null);
+  };
+  useEffect(() => {
+    void refresh();
+    void refreshEarmarked();
+    const onChanged = () => void refreshEarmarked();
+    window.addEventListener("brain-finance-changed", onChanged);
+    return () => window.removeEventListener("brain-finance-changed", onChanged);
+  }, []);
 
   if (loading && !sum) return <div className="fin-panel"><p className="fin-empty">Loading your budget…</p></div>;
   if (!sum) return <div className="fin-panel"><p className="fin-empty">Couldn't reach the budget (offline?). Try again.</p></div>;
@@ -81,6 +97,14 @@ export function FinancePanel() {
           </div>
         )}
       </section>
+
+      {/* This is a separate question from Safe-to-Spend, not a refinement of it — never styled
+          to look like part of the hero figure itself (docs/specs/wealth-goals-allocation.md §12). */}
+      {!!earmarkedCents && earmarkedCents > 0 && (
+        <button className="fin-earmarked-hint" onClick={() => setWealthOpen(true)}>
+          🧭 <MoneyC cents={earmarkedCents} /> earmarked toward goals
+        </button>
+      )}
 
       <div className="fin-row2">
         <div className="fin-stat"><span>Earned this week</span><Money cents={b.weekEarnedCents} className="fin-stat-num" /></div>
@@ -128,6 +152,15 @@ export function FinancePanel() {
 
       {/* ---- What can I afford? (Stage 3 Forecast Engine, Zero-AI) ---- */}
       <AffordCalculator />
+
+      {/* ---- Wealth: what you're intentionally BUILDING, not what's happening right now ---- */}
+      <section className="fin-wealth-section">
+        <button className="fin-reserved-head" onClick={() => setWealthOpen((v) => !v)} aria-expanded={wealthOpen}>
+          <span>🧭 Wealth</span>
+          <strong>{wealthOpen ? "▾" : "▸"}</strong>
+        </button>
+        {wealthOpen && <WealthPanel />}
+      </section>
 
       {/* ---- History: everything you added, editable + deletable ---- */}
       <History onChanged={refresh} />

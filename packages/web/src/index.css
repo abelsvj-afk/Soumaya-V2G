@@ -4784,6 +4784,37 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .fin-txn.edit input { background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border);
   border-radius: 8px; padding: 8px; min-height: 40px; font-size: 0.9rem; }
 
+/* ---- Wealth (docs/specs/wealth-goals-allocation.md) — intention layered on Money's reality.
+   Deliberately visually distinct from the Safe-to-Spend hero above: never the same size/weight,
+   so "earmarked" never reads as "spendable" at a glance. */
+.fin-earmarked-hint { display: block; width: 100%; text-align: left; background: none; border: none;
+  color: var(--accent); font-size: 0.82rem; padding: 0; cursor: pointer; }
+.fin-wealth-section { display: flex; flex-direction: column; gap: 10px; }
+.wealth-panel { display: flex; flex-direction: column; gap: 12px; }
+.wealth-deployable { border-radius: 12px; padding: 12px 14px; background: rgba(122,249,255,0.06);
+  border: 1px solid var(--glass-border); }
+.wealth-deployable.over { background: rgba(255,122,89,0.10); border-color: rgba(255,122,89,0.4); }
+.wealth-deployable-amount { font-size: 1.6rem; font-weight: 800; color: var(--text); }
+.wealth-warning { font-size: 0.82rem; color: #ffab8a; margin: 6px 0 0; }
+.wealth-buckets { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.wealth-bucket { border: 1px solid var(--glass-border); border-radius: 10px; overflow: hidden; }
+.wealth-bucket-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px;
+  background: var(--glass); border: none; color: var(--text); cursor: pointer; text-align: left; }
+.wealth-bucket-name { flex: 1; font-weight: 700; }
+.wealth-bucket-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+.wealth-bucket-actions { display: flex; gap: 6px; }
+.wealth-new-bucket, .wealth-new-goal { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.wealth-goal { border-left: 3px solid var(--accent); padding-left: 10px; display: flex; flex-direction: column; gap: 6px; }
+.wealth-goal-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wealth-progress-track { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.wealth-progress-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.wealth-goal-amounts { font-size: 0.84rem; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.wealth-reached { color: #ffd36e; font-weight: 700; }
+.wealth-goal-controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.wealth-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 0.82rem; }
+.wealth-in { color: #5ee6a0; font-weight: 700; }
+.wealth-out { color: #ff8a8a; font-weight: 700; }
+
 /* Recall session — explanation UI */
 .rv-why { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.82rem; text-decoration: underline; padding: 0; }
 .rv-explain { background: rgba(0,0,0,0.22); border: 1px solid var(--glass-border); border-radius: 10px;
