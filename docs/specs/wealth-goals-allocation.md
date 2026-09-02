@@ -303,10 +303,14 @@ attempt it.
   it already only ever produced bill stars, so this is new code inside an existing, tested function,
   not a rewrite.
 - **Money Sky remains persistent** exactly as it is today — the always-on scenery group in
-  `Graph3D.tsx`, rebuilt on the existing `brain-finance-changed` event. Any Wealth mutation
-  (allocate, de-allocate, goal CRUD) should fire that **same** event rather than inventing a
-  parallel one — `moneySky()` now reads both bills and goals in one function, so one event already
-  covers both, and there's no reason to give the client two things to listen for.
+  `Graph3D.tsx`, rebuilt on the existing `brain-finance-changed` event. **Confirmed during
+  implementation-readiness review: this requires zero new event-wiring code.** `packages/web/src/api/finance.ts`'s
+  shared `send()` helper already dispatches `brain-finance-changed` automatically on every successful
+  mutating call — every existing bill/income/expense write goes through it today. As long as the new
+  Wealth client wrappers (allocate, de-allocate, bucket/goal CRUD) are added to that same file and go
+  through that same `send()` helper, the event fires for free; there is no separate dispatch call to
+  add anywhere. `moneySky()` reading both bills and goals in one function means this one existing
+  event already covers both, exactly as intended — Wealth simply joins a pipeline that already exists.
 - **The "💵 Money sky" View filter in `GalaxyViews.tsx` needs no changes.** It isolates the same
   persistent `moneysky` scene group regardless of what's inside it — confirmed by how it's wired
   today. Goal stars appear inside that same View automatically, for free, the moment `moneySky()`
@@ -516,9 +520,16 @@ from deterministic, authoritative facts (§14) and proposes, never silently acts
 
 ## 21. Recommended Implementation Sequence
 
-1. **Schema + repos**: `fin_bucket`, `fin_goal`, `fin_allocation` (additive migration), space-claim
-   list update, `FinBucketRepo`/`FinGoalRepo`/`FinAllocationRepo` following the existing per-table
-   repo convention. No routes yet — get the data model and its unit tests solid first.
+1. **Schema + repos**: `fin_bucket`, `fin_goal`, `fin_allocation` as three more
+   `CREATE TABLE IF NOT EXISTS` blocks added to `BOOTSTRAP_SQL` in `packages/server/src/db/schemaSql.ts`
+   (right alongside the other `fin_*` tables) — **not** `migrateSchema()` in `db/client.ts`, which is
+   reserved for adding columns to already-existing tables. Table creation lives only in
+   `bootstrapSchema()`, confirmed at `client.ts:220`, and `CREATE TABLE IF NOT EXISTS` is already the
+   idempotent pattern every other Financial-OS table uses, so this is safe on an existing Fly volume
+   with no separate migration step. Also update `TABLES_WITH_SPACE` in
+   `packages/server/src/auth/spaces.ts`. `FinBucketRepo`/`FinGoalRepo`/`FinAllocationRepo` follow the
+   existing per-table repo convention. No routes yet — get the data model and its unit tests solid
+   first.
 2. **Calculation model**: `finance/wealth.ts` — `goalTotalCents`, `bucketTotalCents`, `fillPct`,
    `goalState`, `allocatedCents`, `deployableCents`, `reconciliation`. Pure functions, hit hard with
    tests before anything reads them over HTTP — this is the trust-critical layer.
