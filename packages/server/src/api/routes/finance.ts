@@ -11,6 +11,10 @@ import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../../finance/mutations.js";
 import { moneySky } from "../../finance/sky.js";
 import { weeklyBillLoadCents, weeklySurplusCents, weeksToAfford } from "../../finance/forecast.js";
+import { FinBucketRepo } from "../../repositories/finBucket.repo.js";
+import { FinGoalRepo } from "../../repositories/finGoal.repo.js";
+import { FinAllocationRepo } from "../../repositories/finAllocation.repo.js";
+import { getWealthSummary } from "../../finance/wealth.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -257,6 +261,110 @@ export function financeRoutes(ctx: AppContext): Router {
     if (!p.success) return bad(res, "Invalid confirmation", p.error.issues);
     const out = confirmIngest(ctx.handle, spaceOf(res), p.data);
     return out ? res.json(out) : res.status(404).json({ error: "Source not found or already handled" });
+  });
+
+  // ---- Wealth (docs/specs/wealth-goals-allocation.md): intention layered on Money's reality.
+  // Deployable/Reconciliation are computed fresh on every read, never stored. Allocations are
+  // ledger records of intent, never real transfers — nothing here moves money or touches
+  // fin_account; the point-of-action warning (spec §3/§9) is a client-side UI courtesy, not a
+  // server-enforced block, so the route always succeeds an allocate. The one write-time guard
+  // is FinAllocationRepo.create() rejecting a withdrawal that would take a goal below zero.
+  const BucketBody = z.object({ name: z.string().trim().min(1).max(80), category: z.string().trim().min(1).max(40).optional() }).strict();
+  const BucketPatch = BucketBody.partial();
+
+  r.get("/wealth/summary", (_req, res) => {
+    const spaceId = spaceOf(res);
+    const budget = getBudgetSummary(ctx.handle, spaceId);
+    res.json(getWealthSummary(ctx.handle, spaceId, budget));
+  });
+
+  r.get("/wealth/buckets", (_req, res) => res.json(new FinBucketRepo(ctx.handle, spaceOf(res)).list()));
+  r.post("/wealth/buckets", (req, res) => {
+    const p = BucketBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid bucket", p.error.issues);
+    res.json(new FinBucketRepo(ctx.handle, spaceOf(res)).create(p.data));
+  });
+  r.patch("/wealth/buckets/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = BucketPatch.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid patch", p.error.issues);
+    const bucket = new FinBucketRepo(ctx.handle, spaceOf(res)).update(id, p.data);
+    return bucket ? res.json(bucket) : res.status(404).json({ error: "Not found" });
+  });
+  r.delete("/wealth/buckets/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    return new FinBucketRepo(ctx.handle, spaceOf(res)).archive(id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "Not found" });
+  });
+
+  const GoalBody = z
+    .object({
+      bucketId: z.number().int().positive(),
+      name: z.string().trim().min(1).max(120),
+      targetCents: posCents.nullable().optional(),
+      targetDate: isoDate.nullable().optional(),
+    })
+    .strict();
+  const GoalPatch = z
+    .object({
+      name: z.string().trim().min(1).max(120).optional(),
+      targetCents: posCents.nullable().optional(),
+      targetDate: isoDate.nullable().optional(),
+    })
+    .strict();
+
+  r.get("/wealth/goals", (req, res) => {
+    const bucketId = req.query.bucketId != null ? Number(req.query.bucketId) : undefined;
+    if (bucketId != null && !Number.isInteger(bucketId)) return bad(res, "Invalid bucketId");
+    res.json(new FinGoalRepo(ctx.handle, spaceOf(res)).list({ bucketId }));
+  });
+  r.post("/wealth/goals", (req, res) => {
+    const p = GoalBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid goal", p.error.issues);
+    const spaceId = spaceOf(res);
+    if (!new FinBucketRepo(ctx.handle, spaceId).get(p.data.bucketId)) return bad(res, "Bucket not found in this space");
+    res.json(new FinGoalRepo(ctx.handle, spaceId).create(p.data));
+  });
+  r.patch("/wealth/goals/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = GoalPatch.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid patch", p.error.issues);
+    const goal = new FinGoalRepo(ctx.handle, spaceOf(res)).update(id, p.data);
+    return goal ? res.json(goal) : res.status(404).json({ error: "Not found" });
+  });
+  r.delete("/wealth/goals/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    return new FinGoalRepo(ctx.handle, spaceOf(res)).archive(id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "Not found" });
+  });
+
+  // ---- Allocations: the entire allocate/de-allocate model is one signed ledger write.
+  // Positive amountCents = allocate, negative = withdraw. Zero is meaningless — rejected.
+  const AllocationBody = z
+    .object({ amountCents: cents.refine((n) => n !== 0, "amountCents cannot be zero"), note: z.string().trim().max(200).optional() })
+    .strict();
+
+  r.get("/wealth/goals/:id/allocations", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    res.json(new FinAllocationRepo(ctx.handle, spaceOf(res)).list(id));
+  });
+  r.post("/wealth/goals/:id/allocations", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = AllocationBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid allocation", p.error.issues);
+    const spaceId = spaceOf(res);
+    if (!new FinGoalRepo(ctx.handle, spaceId).get(id)) return res.status(404).json({ error: "Goal not found" });
+    const allocation = new FinAllocationRepo(ctx.handle, spaceId).create({ goalId: id, amountCents: p.data.amountCents, note: p.data.note ?? null });
+    if (!allocation) return bad(res, "That withdrawal would take this goal's total below zero");
+    res.json({ allocation, wealth: getWealthSummary(ctx.handle, spaceId, getBudgetSummary(ctx.handle, spaceId)) });
   });
 
   return r;
