@@ -2,6 +2,7 @@ import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import type { MoneyStar, MoneyStarState } from "@brain/shared";
 import { getBudgetSummary } from "./summary.js";
+import { getWealthSummary } from "./wealth.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { parseDay, toDay } from "./bills.js";
 
@@ -10,6 +11,13 @@ import { parseDay, toDay } from "./bills.js";
  * colour/glow/glyph (cooling = blue). Deterministic, from the Budget Engine (offline). The web
  * moneySky layer draws one small star per entry; the `glyph` is the on-focus status icon.
  * See docs/financial-os/stage-4-galaxy-and-zero-based.md §A2.
+ *
+ * Also emits one `kind: "goal"` star per active Wealth goal (docs/specs/wealth-goals-allocation.md
+ * §11) — this activates MoneyStar.kind/"goal_filling"/"goal_reached"/fillPct, which were declared
+ * on the type but never produced before this. Bill logic and goal logic are two independent
+ * branches that never share state; a goal's state is progress-driven (fillPct), never date-driven
+ * like a bill's. Archived goals are excluded automatically — getWealthSummary()'s goal list
+ * already only returns non-archived goals, the same "excluded by default" convention bills use.
  */
 
 const DAY_MS = 86_400_000;
@@ -68,5 +76,15 @@ export function moneySky(handle: DbHandle, spaceId: string = DEFAULT_SPACE, now:
 
     stars.push({ kind: "bill", id: occ.billId, label: occ.name, amountCents: occ.amountCents, state, glyph: GLYPH[state], intensity, dueInDays });
   }
+
+  const wealth = getWealthSummary(handle, spaceId, budget);
+  for (const g of wealth.goals) {
+    // Reached goals glow at full intensity; a filling goal's glow scales with its own
+    // progress (a fresh $0 goal shouldn't outshine one that's nearly there); an open-ended
+    // goal (no fillPct) gets a modest, steady presence — there's no ceiling to ramp toward.
+    const intensity = g.state === "goal_reached" ? 1 : g.fillPct != null ? Math.max(0.3, g.fillPct) : 0.5;
+    stars.push({ kind: "goal", id: g.id, label: g.name, amountCents: g.totalCents, state: g.state, glyph: GLYPH[g.state], intensity, fillPct: g.fillPct ?? undefined });
+  }
+
   return stars;
 }
