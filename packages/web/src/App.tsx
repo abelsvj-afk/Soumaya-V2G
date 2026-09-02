@@ -27,6 +27,7 @@ import { StreakEmber } from "./components/StreakEmber.js";
 import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
+import { WealthFullscreen } from "./components/WealthFullscreen.js";
 import { Legend } from "./components/Legend.js";
 import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
@@ -91,6 +92,7 @@ export default function App() {
   const [streak, setStreak] = useState<Streak | null>(null);
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
+  const [showWealthFullscreen, setShowWealthFullscreen] = useState(false);
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
   const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1117,6 +1119,15 @@ export default function App() {
     return () => window.removeEventListener("brain-toast-action", onAction);
   }, [focus]);
 
+  // Wealth's "⛶ Expand" affordance (docs/specs/wealth-goals-allocation.md §13) — a dedicated
+  // event rather than overloading brain-toast-action's `panel` kind, since that's tied to the
+  // narrow `Panel` union (search/ingest/dock) and this is a direct click, not a toast route.
+  useEffect(() => {
+    const onExpand = () => setShowWealthFullscreen(true);
+    window.addEventListener("brain-open-wealth-fullscreen", onExpand);
+    return () => window.removeEventListener("brain-open-wealth-fullscreen", onExpand);
+  }, []);
+
   // Smart Lens open/exit — shared by the Lenses panel and the on-galaxy pinned chips.
   // Lens/Views and the "system view" isolate (below) share ONE underlying cluster state
   // in Graph3D (isolateSet/isolateLayer/isolateSystem all call the same setCluster), so
@@ -1986,6 +1997,8 @@ export default function App() {
           onCreated={(ids) => void refresh(ids)}
         />
       )}
+
+      {showWealthFullscreen && space && <WealthFullscreen onClose={() => setShowWealthFullscreen(false)} />}
 
       {showObs && space && (
         <Observatory

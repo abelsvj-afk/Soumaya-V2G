@@ -71,4 +71,19 @@ describe("FinancePanel — Wealth section is collapsed by default", () => {
     fireEvent.click(screen.getByText("🧭 Wealth"));
     await screen.findByText(/No buckets yet/);
   });
+
+  it("only shows the '⛶ Expand' button once Wealth is open, and it dispatches the fullscreen event", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    expect(screen.queryByTitle("Expand to full-screen")).toBeNull();
+
+    fireEvent.click(screen.getByText("🧭 Wealth"));
+    await screen.findByText(/No buckets yet/);
+
+    const onExpand = vi.fn();
+    window.addEventListener("brain-open-wealth-fullscreen", onExpand);
+    fireEvent.click(screen.getByTitle("Expand to full-screen"));
+    expect(onExpand).toHaveBeenCalled();
+    window.removeEventListener("brain-open-wealth-fullscreen", onExpand);
+  });
 });

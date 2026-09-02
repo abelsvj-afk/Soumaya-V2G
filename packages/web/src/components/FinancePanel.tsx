@@ -155,10 +155,21 @@ export function FinancePanel() {
 
       {/* ---- Wealth: what you're intentionally BUILDING, not what's happening right now ---- */}
       <section className="fin-wealth-section">
-        <button className="fin-reserved-head" onClick={() => setWealthOpen((v) => !v)} aria-expanded={wealthOpen}>
-          <span>🧭 Wealth</span>
-          <strong>{wealthOpen ? "▾" : "▸"}</strong>
-        </button>
+        <div className="fin-wealth-head">
+          <button className="fin-reserved-head" onClick={() => setWealthOpen((v) => !v)} aria-expanded={wealthOpen}>
+            <span>🧭 Wealth</span>
+            <strong>{wealthOpen ? "▾" : "▸"}</strong>
+          </button>
+          {wealthOpen && (
+            <button
+              className="fin-mini"
+              title="Expand to full-screen"
+              onClick={() => window.dispatchEvent(new Event("brain-open-wealth-fullscreen"))}
+            >
+              ⛶
+            </button>
+          )}
+        </div>
         {wealthOpen && <WealthPanel />}
       </section>
 
