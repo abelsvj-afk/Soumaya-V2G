@@ -5,6 +5,14 @@
 > Supersedes the core data model of [`docs/specs/money-jobs-allocation.md`](./money-jobs-allocation.md)
 > (see §17, Migration/Supersession Plan) — that spec's suggestion-engine ideas remain valid future work,
 > just not part of this. Status: **proposed — not yet implemented.**
+>
+> **Revision 2** (post-review): elevates Deployable from an internal derived number to a named Wealth
+> planning concept; adds a non-blocking point-of-action warning when an allocation would exceed it
+> (closing the self-critique gap from Revision 1); keeps Buckets deliberately minimal pending real
+> usage rather than adding bucket-level features speculatively; documents a future Financial
+> Health/Debt/Credit reasoning layer as an extension point. Real-time reconciliation + the throttled
+> proactive nudge (§7) are unchanged from Revision 1 and confirmed as-is. Everything else in this
+> spec is unchanged from Revision 1.
 
 ---
 
@@ -40,7 +48,7 @@ investor's down-payment goal all run through the exact same tables and math.
 | **Allocation** | A ledger entry recording that the user has decided to direct some amount toward a Goal. Can be positive (allocate) or negative (de-allocate/withdraw). | **No.** It is a record of intent, not a transfer. This is the single most important distinction in this entire spec. |
 | **Goal total** | `SUM` of a Goal's allocation ledger. What the user has *decided* belongs to that goal so far. | Intent, not reality — see above. |
 | **Allocated (space-wide)** | Sum of every active Goal's total. | Intent. |
-| **Deployable / Uncommitted** | `Safe-to-Spend − Allocated`. What's currently free *and* not yet earmarked for anything. The number Wealth uses when it talks about "room to allocate more." | Derived; a snapshot, not a reservation (see §9). |
+| **Deployable / Uncommitted** | `Safe-to-Spend − Allocated`. **This is Wealth's primary planning concept, not an internal implementation detail** — it's the one number the entire allocation experience is built around, always named and shown, never buried as a footnote to Safe-to-Spend. It answers "how much room do I actually have to commit to something new right now?" | Derived; a snapshot, not a reservation (see §9). |
 | **Reconciliation** | Whether the user's current financial reality (Safe-to-Spend) still supports their outstanding commitments (Allocated). | A factual comparison, computed, never auto-corrected. |
 
 **On vocabulary, deliberately:** this spec uses *allocated*, *earmarked*, *pledged*, *planned*, and
@@ -58,8 +66,10 @@ context, and any future AI reasoning. A future engineer changing a button label 
 **Must have (V1):**
 - Create/rename/archive a Bucket.
 - Create/edit/archive a Goal inside a Bucket, with optional target amount and/or target date.
-- Allocate an amount to a Goal (draws conceptually from Deployable, enforced only as a UI hint —
-  see §9 on why it isn't hard-blocked).
+- Allocate an amount to a Goal, drawing conceptually from Deployable. **When an allocation would
+  take Deployable negative, show a plain, non-blocking warning before it's confirmed** — "this would
+  put you $X past what's currently deployable" — the user can still proceed; see §9 for why this is
+  a warning, not a hard block.
 - De-allocate (withdraw) an amount from a Goal, symmetric to allocating, never destructive to history.
 - View a Goal's running total, progress toward target (if any), and full allocation/de-allocation
   history with dates.
@@ -242,6 +252,12 @@ write as allocating, with the sign flipped. This is the whole model:
   deliberate, not an oversight: enforcing it (e.g., blocking spending once "allocated" money is
   claimed) would require pretending the ledger has custody of real sub-accounts it doesn't have,
   which is precisely the fictional-money-movement risk this whole spec exists to avoid (§17).
+- **The point-of-action warning (§3) is a UI courtesy, not a boundary change.** When an `allocate`
+  request would take `deployableCents` negative, the route still succeeds — Wealth has no authority
+  to refuse a user's own stated intent, and Money's numbers are still untouched either way. The
+  warning exists purely so the moment of over-committing is visible *when it happens*, rather than
+  only discoverable later via Reconciliation (§7). It is advisory exactly like Reconciliation itself
+  — informative, never blocking, never auto-correcting.
 - **The one thing that crosses the boundary into Money's own UI** is a single derived number
   (`allocatedCents`) surfaced as a small, clearly-labeled line near — not inside — Money's existing
   Safe-to-Spend hero (§12). Money displays it; Money does not compute it.
@@ -308,12 +324,16 @@ visually compete with or be styled to look like part of the Safe-to-Spend figure
 existing Money tab (no new dock tab — matches the standing "no tab removal, no rebuild" rule and
 the existing precedent that Journeys/Insights/etc. all live as sections or tabs that compose within
 what's already there):
-- Bucket list (name, category icon, archived toggle), each expandable to its Goals.
+- Bucket list (name, category icon, archived toggle), each expandable to its Goals. Kept
+  deliberately minimal — see the note at the end of §15 on why Buckets stay this lightweight in V1.
 - Goal cards: name, progress bar (only when `target_cents` is set — an open-ended goal shows a
   running total with no bar, never a fake 100%), target date if set, "+ Allocate" / "− Withdraw."
+  Confirming an allocation that would take Deployable negative shows the point-of-action warning
+  (§3/§9) inline in the same confirm step — never a separate blocking dialog, never preventing the
+  action, just visible at the moment it matters.
 - Allocation/de-allocation history per goal — a simple dated list, signed amounts, optional note.
-- A Deployable figure and the current Reconciliation state, always visible at the top of the Wealth
-  section — the one number/state that ties the whole surface together.
+- **Deployable, named as such**, and the current Reconciliation state, always visible at the top of
+  the Wealth section — the one number/state that ties the whole surface together (§2).
 
 ## 13. Embedded vs. Full-Screen Experience
 
@@ -352,7 +372,9 @@ Soumaya's reasoning layer, later, always LLM-optional and degrade-safe to a dete
 voice, noticing a goal gone quiet despite steady income (same shape as `billRisk.ts`'s proactive-tool
 pattern), and — explicitly not in V1 — suggesting how to split deployable surplus across competing
 goals (the superseded jobs spec's `allocationSuggest.ts` idea remains valid future work once V1's
-foundation is trusted).
+foundation is trusted). Longer-term, that same prioritization/reasoning thread is the natural home
+for weighing a Goal against a future Debt or Credit concern once that layer exists — see §16's
+Financial Health note; nothing in V1 builds toward that beyond leaving it a clear extension point.
 
 **The AI must reason from these deterministic facts, never recompute them itself** — the same rule
 that already governs `financialSnapshotText`: an LLM is handed the aggregated, authoritative numbers
@@ -360,17 +382,26 @@ and explains them; it never does the arithmetic.
 
 ## 15. V1 Scope
 
-**In:** Buckets, Goals, Allocations, de-allocation, goal progress/fill percentage, deployable/
-uncommitted calculation, reconciliation (inline always, throttled proactive nudge), the real-vs-
-planned vocabulary discipline enforced everywhere this data surfaces, the Wealth UI section inside
-Money, the one-line Money→Wealth connection, Goal→Galaxy stars (flat, no bucket hierarchy), the
-optional Goal→Journey link, and the embedded/full-screen presentation capability.
+**In:** Buckets, Goals, Allocations, de-allocation, goal progress/fill percentage, Deployable as a
+named planning concept with a point-of-action warning when an allocation would exceed it,
+reconciliation (inline always, throttled proactive nudge), the real-vs-planned vocabulary discipline
+enforced everywhere this data surfaces, the Wealth UI section inside Money, the one-line
+Money→Wealth connection, Goal→Galaxy stars (flat, no bucket hierarchy), the optional Goal→Journey
+link, and the embedded/full-screen presentation capability.
 
 **Out:** automatic transfers, bank/brokerage connections, investment execution, AI allocation
 recommendations, automatic goal funding, complex forecasting, profession-specific logic, a Bucket-
 level Galaxy hierarchy, a `linked_node_id`/`tier` column with no V1 consumer, and — the one
 non-negotiable exclusion — anything that creates the impression of a real financial transaction that
 didn't happen.
+
+**Buckets stay deliberately lightweight in V1, on purpose, not as an oversight to fix later.** A
+Bucket is name + category + archived, full stop — no bucket-level target, no bucket-level money, no
+color/settings beyond that. Whether Buckets earn richer treatment (their own target, their own
+Galaxy presence, reordering, custom icons) should be decided from watching how they're actually used
+once real goals live inside real buckets, not designed speculatively now. If they end up feeling
+like pure decoration once there's real usage to look at, that itself is a legitimate, useful finding
+— not a failure of this spec.
 
 ## 16. Future Extension Points
 
@@ -380,6 +411,19 @@ deep Mind-tab tie-in; a `tier` column plus `allocationSuggest.ts`'s deterministi
 engine from the superseded jobs spec; simple linear projections narrated by Soumaya ("at this pace,
 you'll reach $40k by March"); and a reconciliation history/audit trail (the jobs spec's deferred
 "Part C") once the basic reconciliation signal above has been lived with for a while.
+
+**Financial prioritization/reasoning, generalized beyond Goals — the eventual Financial Health
+layer.** The superseded jobs spec's `tier`/`allocationSuggest.ts` sketch was scoped narrowly to
+"which Goal gets the next dollar." The longer-term shape of that same idea is bigger: Soumaya
+eventually reasoning across *all* of a person's financial priorities at once — a Goal competing
+against a Debt payoff, a Credit-utilization concern, or a general Financial-Health signal this
+codebase doesn't model yet (no `fin_debt`/`fin_credit` table exists today). This spec deliberately
+does not design that layer — no debt/credit schema, no cross-category prioritization engine — but
+it's named here explicitly as the direction the "prioritization/reasoning" thread eventually grows
+into, so a future Debt/Credit/Financial-Health spec has a clear, intentional slot to extend into
+rather than needing to retrofit itself around Wealth's Goal-only assumptions. Whatever that engine
+looks like, it inherits the same non-negotiable rule as everything else in this document: it reasons
+from deterministic, authoritative facts (§14) and proposes, never silently acts.
 
 ## 17. Migration / Supersession Plan for Dormant Prior Art
 
@@ -420,7 +464,12 @@ you'll reach $40k by March"); and a reconciliation history/audit trail (the jobs
    verified by a regression test asserting `computeBudget()`'s output is identical with and without
    Wealth data present.
 4. `Deployable` and `Reconciliation` are computed fresh on every read, never stored, and correctly
-   go negative/`"over_committed"` when allocations exceed current Safe-to-Spend.
+   go negative/`"over_committed"` when allocations exceed current Safe-to-Spend. Deployable is
+   surfaced by name (not folded silently into Safe-to-Spend) everywhere Wealth shows it.
+4a. Attempting to allocate an amount that would take Deployable negative shows the point-of-action
+    warning before the write is confirmed, and still allows the user to proceed — the request is
+    never rejected server-side for this reason (only a withdrawal past a goal's own total is
+    rejected, per AC#2).
 5. Every goal/allocation/bucket surface (Wealth UI, Money's one-line hint, goal history, Galaxy star
    tooltip, and — whenever chat context is eventually extended — Soumaya's own language) uses
    "allocated/earmarked/pledged/planned" vocabulary, never "saved/balance/deposited/invested/
@@ -446,6 +495,10 @@ you'll reach $40k by March"); and a reconciliation history/audit trail (the jobs
   every time a small purchase dips Deployable negative would train the user to ignore Wealth.
   Safeguard: throttle the *proactive nudge* to once/day (reusing `billRisk.ts`'s exact pattern)
   while keeping the *inline* state always honest and unthrottled when the user actually opens Wealth.
+- **Deployable being over-committed with no signal until the next visit to Wealth.** Safeguard:
+  the point-of-action warning (§3/§9) surfaces the moment it happens, not just retroactively via
+  Reconciliation — without ever turning into a hard block that would falsely claim Wealth has
+  custody of money it doesn't.
 - **Buffer vs. a future Emergency Fund goal double-counting the same protection.** Both `buffer_cents`
   and an Emergency Fund goal describe "money kept safe," and nothing here unifies them. Deliberately
   left unresolved rather than merged prematurely (per explicit instruction) — flagged here so a
@@ -454,6 +507,9 @@ you'll reach $40k by March"); and a reconciliation history/audit trail (the jobs
 - **A Bucket's rollup total becoming a second source of truth.** Safeguard: a Bucket never stores
   its own total — it is always, structurally, the live sum of its Goals' computed totals, so there
   is nothing to keep in sync and nothing that can drift.
+- **Building out Bucket features before knowing they're wanted.** Safeguard: §15 makes staying
+  minimal an explicit, on-purpose V1 decision rather than a gap — richer Bucket behavior is
+  something to earn from observed usage, not something to guess at now.
 - **Cost of computing two Financial-OS surfaces (bills + goals) inside one `moneySky()` call.**
   Negligible — matches the same "cheap sums over small per-space sets" characteristic the rest of
   the Budget Engine already relies on; no new performance concern introduced.
@@ -489,26 +545,22 @@ discipline as every other multi-stage feature this session.
 
 ## Self-Critique: Where This Could Still Be Wrong
 
-Asked to pressure-test this before calling it final, not just validate it:
+Asked to pressure-test this before calling it final, not just validate it. Items 1–2 below were
+raised in Revision 1 and are now resolved in Revision 2; item 3 remains genuinely open.
 
-1. **"Deployable" as a UI hint, not a hard limit, is a real tension I haven't fully resolved.** The
-   spec explicitly declines to block a user from over-allocating past their current Deployable
-   figure (§9) — because enforcing it would require Wealth to pretend it has custody of money it
-   doesn't. But that means a user *can* allocate $10,000 across goals while Deployable reads $200,
-   and nothing stops them at the point of action — only the Reconciliation banner catches it
-   *after the fact*. That's the honest design given the constraints, but it does mean the system
-   is more of a mirror than a guardrail in the moment it matters most. I don't think a hard block is
-   the right fix (it would falsely claim authority Wealth doesn't have), but a soft, non-blocking
-   warning *at the moment of allocating* ("this would take you $9,800 past what's currently
-   deployable") is worth considering as a V1 addition rather than only surfacing the problem on the
-   next visit to Wealth — I left it out above to keep V1 minimal, but flag it here as the most
-   likely thing to get added back in during implementation review.
-2. **A Bucket owning no money is clean in the data model but may read as an empty gesture in the
-   UI** if the only thing a Bucket ever shows is a rollup number identical to what you'd get by just
-   summing its Goals yourself. I believe the grouping is still worth it (stable identity for
-   rename/archive, and the user's own examples group multiple goals under one bucket meaningfully),
-   but this is worth watching once real usage exists — if Buckets end up feeling like decoration,
-   that's a signal, not a failure of this spec.
+1. ~~"Deployable" as a UI hint, not a hard limit, is a real tension I haven't fully resolved.~~
+   **Resolved in Revision 2** via the point-of-action warning (§3/§9/AC#4a): the user can still
+   proceed past Deployable (a hard block would falsely claim authority Wealth doesn't have over
+   money it can't see spent elsewhere), but the moment is no longer silent — the warning fires
+   *when the decision is made*, not only discoverable later via Reconciliation. I think this is the
+   right balance: honest about what Wealth can't enforce, while no longer letting an over-commitment
+   happen without the user ever having been told.
+2. ~~A Bucket owning no money is clean in the data model but may read as an empty gesture in the UI.~~
+   **Addressed, not by adding Bucket features, but by making the wait-and-see itself the decision**
+   (§15): Buckets stay name + category + archived, deliberately, and their value gets judged from
+   real usage rather than argued from the data model alone. If they read as decoration once real
+   goals live in them, that's the intended signal to revisit — not a gap this revision needed to
+   pre-solve.
 3. **I'm not fully certain "at most once a day" is the right cadence for the reconciliation nudge**
    specifically (as opposed to bill-risk, where it was tuned for that exact signal). It's the right
    *pattern* to reuse rather than invent a new one, but the exact cadence is a guess carried over
