@@ -73,6 +73,7 @@ export class JourneysRepo {
     bill: { table: "fin_bill" },
     insight: { table: "insights" },
     doc: { table: "knowledge_docs" },
+    goal: { table: "fin_goal" },
   };
 
   private refExists(kind: JourneyLinkKind, refId: number): boolean {

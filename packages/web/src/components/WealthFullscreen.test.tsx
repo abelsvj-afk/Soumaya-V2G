@@ -8,6 +8,13 @@ vi.mock("../api/finance.js", () => ({
   createBucket: vi.fn(), patchBucket: vi.fn(), archiveBucket: vi.fn(),
   createGoal: vi.fn(), archiveGoal: vi.fn(), listAllocations: vi.fn(), allocate: vi.fn(),
 }));
+vi.mock("../api/journeys.js", () => ({
+  getJourneys: vi.fn().mockResolvedValue([]),
+  journeysFor: vi.fn().mockResolvedValue([]),
+  suggestJourneys: vi.fn().mockResolvedValue({ autoLink: [], suggested: [] }),
+  linkToJourney: vi.fn(), unlinkFromJourney: vi.fn(),
+}));
+vi.mock("./Toasts.js", () => ({ pushToast: vi.fn() }));
 
 import { WealthFullscreen } from "./WealthFullscreen.js";
 

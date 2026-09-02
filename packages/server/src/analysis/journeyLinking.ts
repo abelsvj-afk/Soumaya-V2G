@@ -62,6 +62,7 @@ const FINANCE_TABLE: Partial<Record<JourneyLinkKind, { table: string; labelCol: 
 const LABEL_TABLE: Partial<Record<JourneyLinkKind, { table: string; labelCol: string }>> = {
   insight: { table: "insights", labelCol: "text" },
   doc: { table: "knowledge_docs", labelCol: "name" },
+  goal: { table: "fin_goal", labelCol: "name" },
 };
 
 /**

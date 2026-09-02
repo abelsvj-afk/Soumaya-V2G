@@ -26,6 +26,16 @@ function makeExpense(spaceId: string): number {
       .run(spaceId).lastInsertRowid,
   );
 }
+function makeGoal(spaceId: string): number {
+  const bucketId = Number(
+    handle.sqlite.prepare(`INSERT INTO fin_bucket (space_id, name) VALUES (?, 'Trucking')`).run(spaceId).lastInsertRowid,
+  );
+  return Number(
+    handle.sqlite
+      .prepare(`INSERT INTO fin_goal (space_id, bucket_id, name, target_cents) VALUES (?, ?, 'First Truck', 100000)`)
+      .run(spaceId, bucketId).lastInsertRowid,
+  );
+}
 
 describe("JourneysRepo", () => {
   it("creates + lists journeys, active first, with a link count", () => {
@@ -39,6 +49,14 @@ describe("JourneysRepo", () => {
     expect(list[0]!.title).toBe("Become an RN"); // active before done
     expect(list.find((j) => j.id === rn.id)!.linkCount).toBe(2);
     expect(list.find((j) => j.id === done.id)!.status).toBe("done");
+  });
+
+  it("validates a 'goal' link against a real fin_goal row, and rejects a fabricated id (docs/specs/wealth-goals-allocation.md §10)", () => {
+    const repo = new JourneysRepo(handle, "s1");
+    const j = repo.create({ title: "Become an Owner-Operator" });
+    const goalId = makeGoal("s1");
+    expect(repo.link(j.id, "goal", goalId)).not.toBeNull();
+    expect(repo.link(j.id, "goal", 999999)).toBeNull(); // no such fin_goal row
   });
 
   it("links are unique (no double-count) and unlinkable", () => {

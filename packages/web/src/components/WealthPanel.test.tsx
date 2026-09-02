@@ -20,6 +20,13 @@ vi.mock("../api/finance.js", () => ({
   listAllocations: (...a: unknown[]) => listAllocations(...a),
   allocate: (...a: unknown[]) => allocate(...a),
 }));
+vi.mock("../api/journeys.js", () => ({
+  getJourneys: vi.fn().mockResolvedValue([]),
+  journeysFor: vi.fn().mockResolvedValue([]),
+  suggestJourneys: vi.fn().mockResolvedValue({ autoLink: [], suggested: [] }),
+  linkToJourney: vi.fn(), unlinkFromJourney: vi.fn(),
+}));
+vi.mock("./Toasts.js", () => ({ pushToast: vi.fn() }));
 
 import { WealthPanel } from "./WealthPanel.js";
 

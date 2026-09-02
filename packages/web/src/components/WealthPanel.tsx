@@ -5,6 +5,7 @@ import {
   createGoal, archiveGoal, listAllocations, allocate,
 } from "../api/finance.js";
 import type { FinAllocation } from "@brain/shared";
+import { JourneyChips } from "./JourneyChips.js";
 
 const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -242,6 +243,7 @@ function GoalCard({
           📥
         </button>
       </div>
+      <JourneyChips kind="goal" refId={goal.id} />
       {showHistory && (
         <ul className="wealth-history">
           {history === null && <li className="fin-muted">Loading…</li>}

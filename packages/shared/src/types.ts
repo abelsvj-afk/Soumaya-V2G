@@ -600,7 +600,8 @@ export type JourneyLinkKind =
   | "insight" // synthesis / belief
   | "doc" // a knowledge document
   | "chat" // a saved conversation
-  | "achievement";
+  | "achievement"
+  | "goal"; // a Wealth goal (docs/specs/wealth-goals-allocation.md) — optional, never required for Goals/Buckets/Allocations to function
 
 export interface Journey {
   id: number;
