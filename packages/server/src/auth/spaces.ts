@@ -43,6 +43,9 @@ const TABLES_WITH_SPACE = [
   "fin_bill_occurrence",
   "fin_category_override",
   "fin_goal_link",
+  "fin_bucket",
+  "fin_goal",
+  "fin_allocation",
   "journeys",
   "journey_link",
 ] as const;

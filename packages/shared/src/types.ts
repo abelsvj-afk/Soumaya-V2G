@@ -808,3 +808,67 @@ export interface BudgetSummary {
    *  afford X") are computed from. */
   avgWeeklyIncomeCents: number;
 }
+
+/**
+ * Wealth (docs/specs/wealth-goals-allocation.md): financial INTENTION layered on top of
+ * Money's reality. A Bucket owns no money — it's a grouping only. A Goal's current amount
+ * is always computed as SUM(allocations), never stored on the goal itself. An Allocation is
+ * a record of intent, never a real transfer — see the spec's vocabulary discipline (never
+ * "saved"/"balance"/"deposited"/"invested" for any of these).
+ */
+export interface FinBucket {
+  id: number;
+  name: string;
+  /** Free text, user-defined (e.g. "emergency", "retirement", "trucking") — not a fixed enum. */
+  category: string;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface FinGoal {
+  id: number;
+  bucketId: number;
+  name: string;
+  /** Absent = open-ended goal; never reaches "goal_reached". */
+  targetCents?: number | null;
+  targetDate?: string | null;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface FinAllocation {
+  id: number;
+  goalId: number;
+  /** Signed: positive = allocate, negative = de-allocate/withdraw. This single signed
+   *  ledger is the entire de-allocation model — never a separate "reversal" record type. */
+  amountCents: number;
+  note?: string | null;
+  createdAt: string;
+}
+
+/** One Goal with its computed (never stored) totals, for the Wealth summary and UI. */
+export interface FinGoalWithProgress extends FinGoal {
+  /** SUM of this goal's allocation ledger. */
+  totalCents: number;
+  /** null when the goal has no target (open-ended). */
+  fillPct: number | null;
+  state: "goal_filling" | "goal_reached";
+}
+
+export type ReconciliationStatus = "ok" | "over_committed";
+
+/**
+ * The Wealth-layer summary: Deployable and Reconciliation are computed fresh on every read,
+ * exactly like BudgetSummary's own fields — never stored, never cached. safeToSpendCents here
+ * is read as-is from Money's BudgetSummary, never recomputed.
+ */
+export interface WealthSummary {
+  buckets: FinBucket[];
+  goals: FinGoalWithProgress[];
+  /** Sum of every active goal's computed total. */
+  allocatedCents: number;
+  /** safeToSpendCents − allocatedCents. Wealth's primary planning concept — always named,
+   *  never folded silently into Safe-to-Spend. May be negative. */
+  deployableCents: number;
+  reconciliation: ReconciliationStatus;
+}

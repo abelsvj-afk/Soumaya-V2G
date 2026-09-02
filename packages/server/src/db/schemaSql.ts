@@ -403,6 +403,45 @@ export const BOOTSTRAP_SQL = `
     );
     CREATE INDEX IF NOT EXISTS fin_goal_link_space_idx ON fin_goal_link(space_id);
 
+    -- Wealth (docs/specs/wealth-goals-allocation.md): intention layered on top of Money's
+    -- reality. A Bucket owns no money — it's a grouping. A Goal's current amount is always
+    -- SUM(fin_allocation.amount_cents) computed on read, never stored here or anywhere else,
+    -- so the ledger can never drift from the number it backs. fin_goal_link (above) is
+    -- deliberately NOT reused for this — its node_id NOT NULL shape doesn't fit "optional."
+    CREATE TABLE IF NOT EXISTS fin_bucket (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      name TEXT NOT NULL,
+      category TEXT NOT NULL DEFAULT 'other',
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_bucket_space_idx ON fin_bucket(space_id, archived);
+
+    CREATE TABLE IF NOT EXISTS fin_goal (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      bucket_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      target_cents INTEGER,
+      target_date TEXT,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_goal_space_idx ON fin_goal(space_id, archived);
+    CREATE INDEX IF NOT EXISTS fin_goal_bucket_idx ON fin_goal(bucket_id);
+
+    CREATE TABLE IF NOT EXISTS fin_allocation (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      goal_id INTEGER NOT NULL,
+      amount_cents INTEGER NOT NULL,
+      note TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_allocation_space_idx ON fin_allocation(space_id);
+    CREATE INDEX IF NOT EXISTS fin_allocation_goal_idx ON fin_allocation(goal_id);
+
     -- Journeys (Vision 2.0): a life chapter everything can belong to. We LINK, never copy.
     CREATE TABLE IF NOT EXISTS journeys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
