@@ -42,4 +42,21 @@ describe("shaders — Stage 4 octave scaling", () => {
     expect(makePlanetMaterial("#3a7").precision).toBe("mediump");
     expect(makeStarMaterial("#ffaa00").precision).toBeNull();
   });
+
+  // Regression: planets used to light themselves from a direction fixed relative to the
+  // CAMERA (a hardcoded vec3 baked into the fragment shader), never actually responding
+  // to where the real sun is — read by users as "planets don't reflect the sun's light
+  // anymore." Graph3D's tick loop now updates this uniform every frame from each body's
+  // real position relative to the sun at the world origin; this only pins that the
+  // uniform exists (with a sane pre-first-frame default) and that the shader actually
+  // reads it instead of a hardcoded vector.
+  it("planet material exposes a uSunDirView uniform the shader reads (not a hardcoded vector); star has none", () => {
+    const planet = makePlanetMaterial("#3a7");
+    expect(planet.uniforms.uSunDirView).toBeDefined();
+    expect(planet.uniforms.uSunDirView!.value.isVector3).toBe(true);
+    expect(planet.fragmentShader).toContain("uniform vec3 uSunDirView");
+    expect(planet.fragmentShader).toContain("normalize(uSunDirView)");
+    expect(planet.fragmentShader).not.toContain("vec3(0.6, 0.7, 0.5)");
+    expect((makeStarMaterial("#ffaa00").uniforms as Record<string, unknown>).uSunDirView).toBeUndefined();
+  });
 });

@@ -108,12 +108,20 @@ export function makePlanetMaterial(hex: string, tier: ShaderTier = "quality"): T
       uLand: { value: new THREE.Vector3(land.r, land.g, land.b) },
       uOcean: { value: new THREE.Vector3(ocean.r, ocean.g, ocean.b) },
       uAtmo: { value: new THREE.Vector3(atmo.r, atmo.g, atmo.b) },
+      // View-space direction FROM this planet TOWARD the sun (world origin — see sun.ts),
+      // updated every frame in Graph3D's tick loop. Defaults to the old fixed vector so a
+      // planet still reads as lit before the first tick update runs. This material has no
+      // `lights: true` and never receives three.js's real light uniforms (deliberately —
+      // that's the "shader diet" cost this material exists to avoid), so without this the
+      // planet was lit from a direction fixed to the CAMERA, never actually responding to
+      // where the sun really is, which read as "not reflecting the sun's light."
+      uSunDirView: { value: new THREE.Vector3(0.6, 0.7, 0.5) },
     },
     vertexShader: VERT,
     fragmentShader: /* glsl */ `
       ${noiseSource(PLANET_OCTAVES[tier])}
       uniform float uTime; uniform float uBrightness;
-      uniform vec3 uLand; uniform vec3 uOcean; uniform vec3 uAtmo;
+      uniform vec3 uLand; uniform vec3 uOcean; uniform vec3 uAtmo; uniform vec3 uSunDirView;
       varying vec3 vPos; varying vec3 vNormal; varying vec3 vView;
       void main(){
         vec3 p = normalize(vPos);
@@ -121,7 +129,7 @@ export function makePlanetMaterial(hex: string, tier: ShaderTier = "quality"): T
         vec3 albedo = mix(uOcean, uLand, smoothstep(0.48, 0.56, h));
         float clouds = smoothstep(0.55, 0.72, fbm(p*5.0 + vec3(uTime*0.03)));
         albedo = mix(albedo, vec3(1.0), clouds*0.55);
-        vec3 L = normalize(vec3(0.6, 0.7, 0.5));
+        vec3 L = normalize(uSunDirView);
         float diff = clamp(dot(vNormal, L), 0.0, 1.0) * 0.85 + 0.15;
         float fres = pow(1.0 - clamp(dot(vNormal, vView), 0.0, 1.0), 3.0);
         vec3 col = albedo * diff + uAtmo * fres * 0.7;

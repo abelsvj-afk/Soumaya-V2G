@@ -276,11 +276,74 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   deliberately NOT mirrored to the ambient MindSpace overlay (it's always hidden at the exact
   moment a promotion can fire, since promoting only happens from a button inside the open Mind
   panel) — MindSpace only picked up the color tinting, which is worth an eyes-on for legibility too.
+- **Link-line flicker regression — CONFIRMED via real on-device use (2026-09-03), FIXED**
+  (Graph3D.tsx `shouldRenderLink`): a *different* code path than the one already fixed for this
+  exact symptom (`linkVisibility`'s `linkLodZoomedInRef`, June). A later perf pass added
+  `shouldRenderLink` (link-color/width short-circuit for distant/inactive links) with a bare
+  `dist < 800` check re-evaluated every frame — hovering near that distance flipped every
+  non-lit, low-activity link on/off every frame, reproducing at any zoom/angle whenever a node
+  was selected. Fixed with the same hysteresis pattern as the original fix (an 80-unit band,
+  `shouldRenderLinkCloseRef`) — the lesson (missed once already) is that this specific bug class
+  needs the fix applied to every place a camera-distance check gates link visibility, not just
+  the first one found. Needs on-device re-confirmation once a deploy is possible.
+- **Planets not lit by the sun — CONFIRMED via real on-device use (2026-09-03), FIXED**
+  (shaders.ts `makePlanetMaterial`, Graph3D.tsx tick loop): a genuine regression from the earlier
+  Stage 4 "shader diet" work — planet bodies render with a custom `ShaderMaterial` that has no
+  `lights: true` and never receives three.js's real light uniforms (deliberate, to avoid the
+  shader-recompile cost of real per-light integration), but its fragment shader also hardcoded a
+  fake light direction fixed relative to the CAMERA (`vec3(0.6,0.7,0.5)` in view space) instead of
+  ever reading the real sun's position — so a planet's lit side never actually tracked where the
+  sun (a fixed point at the world origin, `sun.ts`) really is. Fixed by adding a `uSunDirView`
+  uniform, updated every frame per body as `normalize(-bodyWorldPos)` transformed into view space
+  — cheap (one vector transform, no new lights, no shader recompilation) so it doesn't reintroduce
+  the cost Stage 4 was avoiding, while making planets genuinely respond to the sun's position.
+  Needs on-device re-confirmation once a deploy is possible.
+- **Inconsistent name pop-in/out at different zoom distances — CONFIRMED via real on-device use
+  (2026-09-03), FIXED** (Graph3D.tsx label/sector-title logic): a hub body's OWN name faded out
+  at the ordinary label distance (300-540 units) while its sector title didn't switch on until
+  ~2450-2750 units (MACRO_DIST's hysteresis band) — leaving a ~1900-2200-unit "dead zone" where a
+  hub showed NEITHER its own name nor its sector name, regardless of how steadily the camera sat
+  there. Fixed by extending a `hasSectorTitle` body's own label fade-out to meet the sector
+  title's turn-on point, so the handoff is continuous (briefly overlapping, never gapped). Also
+  found and fixed a second, smaller contributor: the nearest-N visible-label cap fully rebuilt its
+  membership every throttle window with no stickiness, so two bodies hovering near the Nth-nearest
+  boundary could swap in/out on ordinary camera drift even though the total count never changed —
+  added a 15% "sticky" distance bias for already-visible bodies so a clear overtake is required
+  before a name disappears. Needs on-device re-confirmation once a deploy is possible.
+- **Hub names "stuck" visible while orbiting/following, and visible through the sun — CONFIRMED
+  via real on-device use (2026-09-03), FIXED** (Graph3D.tsx label loop): a follow-up to the item
+  above, from the same on-device report. Two distinct causes:
+  1. A `hasSectorTitle` hub deliberately bypasses the top-level frustum-cull hide (so its title
+     sprite, which scales up with distance, can still read on screen past the body's own small
+     culling sphere) — but the SAME bypass also skipped updating that hub's own close-up label
+     whenever the body rotated out of frustum, freezing it at whatever visibility/opacity it last
+     had (often fully visible) instead of hiding it. Following Soumaya's ship in a sustained orbit
+     around the sun swings hubs in and out of frustum continuously, so their names appeared "stuck
+     on" — reproducible identically under fast manual orbiting, not specific to follow-mode itself
+     (confirmed: follow-mode drives the exact same `camera.position` the tick loop already reads
+     everywhere else, so there's no separate/stale camera path). Fixed by explicitly hiding a
+     culled hub's own label instead of leaving its state frozen.
+  2. Genuinely missing feature, not a regression: nothing ever checked whether a large opaque body
+     (the sun) sits between the camera and whatever's being named, so a body directly behind the
+     sun kept showing its name right through it. Added a cheap closest-point-on-segment occlusion
+     test against the sun's fixed position/radius (sun.ts) — no real raycaster/BVH needed, and it
+     short-circuits immediately for anything closer than the sun's own radius. Verified correct
+     with a throwaway `npx tsx` script (6 geometric cases: directly behind, sun behind camera, off
+     to the side, very close, clear miss, clear hit) before wiring it in, per the "prove it by
+     measurement" rule — one case initially failed from a wrong-by-construction test expectation on
+     my part (a symmetric camera/body layout means the ray's closest approach to the sun falls at
+     the segment's midpoint, at HALF the body's offset, not the full offset), not from the actual
+     occlusion logic; corrected the test and re-verified all 6 pass. The selected/followed body is
+     explicitly exempt (you deliberately selected or flew to it — it must stay readable regardless
+     of what's technically between the camera and it). Needs on-device re-confirmation once a
+     deploy is possible.
 - **Fly billing hold, ongoing since 2026-08-29:** most of the above (and everything shipped since)
   still hasn't been visually verified on a real device via this app's own deploy pipeline. On
-  2026-09-03 the owner did send real on-device screenshots of two specific screens (Observatory,
-  the galaxy HUD) — those two items above are marked CONFIRMED + FIXED from that direct feedback,
-  but everything else in this section remains unconfirmed. This section stays a running list of
+  2026-09-03 the owner sent real on-device screenshots of two screens (Observatory, the galaxy
+  HUD) and separately described several more real, on-device behaviors while using the 3D galaxy
+  (link flicker, dim planets, inconsistent name pop-in, names stuck visible/through the sun while
+  orbiting) — the items above are marked CONFIRMED + FIXED from that direct feedback, but
+  everything else in this section remains unconfirmed. This section stays a running list of
   "check these once a full deploy is possible," not a backlog to pause work for — keep shipping;
   keep appending here as new visual-dependent changes land, per the owner's explicit instruction
   not to stop finding/fixing things just because most of it can't currently be looked at.

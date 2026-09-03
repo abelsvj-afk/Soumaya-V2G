@@ -593,6 +593,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // whenever the camera orbits near that exact distance; this only flips once the camera
   // has crossed a buffer PAST the threshold, so hovering near the boundary is stable.
   const linkLodZoomedInRef = useRef(true);
+  // Same hysteresis need as linkLodZoomedInRef above, for the separate `shouldRenderLink`
+  // distance short-circuit (added later, missed this pattern the first time round) — a
+  // bare `dist < 800` re-checked every frame flickers non-lit/weak links on/off whenever
+  // the camera orbits near that distance.
+  const shouldRenderLinkCloseRef = useRef(true);
   const frustum = useRef(new THREE.Frustum());
   const projScreenMatrix = useRef(new THREE.Matrix4());
   const sphere = useRef(new THREE.Sphere(new THREE.Vector3(), 150));
@@ -964,6 +969,30 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // reads as points of light instead of a wall of text (Obsidian-style LOD).
     const camera: THREE.Camera = fg.camera();
     const tmp = new THREE.Vector3();
+    // Scratch for the planet-material sun-direction uniform (see makePlanetMaterial /
+    // uSunDirView) — reused every frame per body rather than allocated.
+    const sunDirScratch = new THREE.Vector3();
+    // Scratch for the sun-occlusion check (see isOccludedBySun below).
+    const occDirScratch = new THREE.Vector3();
+    const occClosestScratch = new THREE.Vector3();
+    // Names/sector titles are otherwise purely distance-based — nothing ever checked
+    // whether a large opaque body (the sun) actually sits between the camera and the
+    // body being named, so a body directly behind the sun kept showing its name right
+    // through it. The sun sits at the fixed world origin (sun.ts) with a known max
+    // radius, so this is a cheap closest-point-on-segment test, not a real raycast —
+    // no Raycaster/BVH needed. Skips immediately for anything closer than the sun's own
+    // radius, since nothing that near can possibly be occluded by it.
+    const isOccludedBySun = (bodyPos: THREE.Vector3, camPos: THREE.Vector3): boolean => {
+      const distToBody = camPos.distanceTo(bodyPos);
+      if (distToBody <= SUN_RADIUS_MAX) return false;
+      occDirScratch.copy(bodyPos).sub(camPos).normalize();
+      // Projection of (sun − camera) onto the camera→body direction — how far along the
+      // segment the closest approach to the sun's center (the origin) falls.
+      const tClosest = -camPos.dot(occDirScratch);
+      if (tClosest <= 0 || tClosest >= distToBody) return false; // sun isn't between the two
+      occClosestScratch.copy(camPos).addScaledVector(occDirScratch, tClosest);
+      return occClosestScratch.length() < SUN_RADIUS_MAX;
+    };
     // Stage 4 light-pool scratch: reused every scan instead of allocated, same pattern as
     // labelCandidatesRef but plain (this is per-effect-instance, not read outside tick()).
     const starLightCandidates: { x: number; y: number; z: number; d: number; starLight: { color: THREE.Color; intensity: number; distance: number } }[] = [];
@@ -1497,6 +1526,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastLabelCapFrameRef.current = frameCount;
           const candidates = labelCandidatesRef.current;
           candidates.length = 0;
+          const wasVisible = visibleLabelIdsRef.current; // read before it's cleared below
           for (const o of graphGroup.children as any[]) {
             const id = o.userData?.nodeId;
             if (id == null) continue;
@@ -1504,9 +1534,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             if (!n || n.x == null || isNaN(n.x)) continue;
             tmp.set(n.x, n.y, n.z ?? 0);
             const d = tmp.distanceTo(camera.position);
-            if (d < FADE_FAR) candidates.push({ id, d });
+            // A hasSectorTitle body's own label now fades out at MACRO_DIST + MACRO_HYST
+            // (see labelFadeFar below), not the ordinary FADE_FAR — it must stay eligible
+            // for the crowd cap that far out too, or this filter would exclude it from
+            // visibleLabelIdsRef and the "capped" check further down would force it
+            // invisible anyway, silently undoing that extended fade-out entirely.
+            const labelFadeFar = o.userData?.hasSectorTitle ? MACRO_DIST + MACRO_HYST : FADE_FAR;
+            if (d < labelFadeFar) candidates.push({ id, d });
           }
-          candidates.sort((a, b) => a.d - b.d);
+          // Sticky sort: an already-visible body needs to be clearly overtaken — not just
+          // marginally nearer — before losing its slot to a new candidate. Without this, two
+          // bodies hovering near the Nth-nearest boundary could swap in/out of the visible
+          // set on ordinary camera drift between throttle windows, even though the total
+          // visible count never changes — reading as "which names show is unpredictable."
+          const STICKY_FACTOR = 0.85; // an already-visible body's effective distance reads ~15% closer
+          candidates.sort((a, b) => {
+            const da = wasVisible.has(a.id) ? a.d * STICKY_FACTOR : a.d;
+            const db = wasVisible.has(b.id) ? b.d * STICKY_FACTOR : b.d;
+            return da - db;
+          });
           const visible = visibleLabelIdsRef.current;
           visible.clear();
           for (let i = 0; i < Math.min(MAX_VISIBLE_LABELS, candidates.length); i++) visible.add(candidates[i]!.id);
@@ -1572,6 +1618,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const isMacroView =
             !isSelected && (wasMacroView ? dist > MACRO_DIST - MACRO_HYST : dist > MACRO_DIST + MACRO_HYST);
           o.userData.isMacroView = isMacroView;
+          // The selected/followed body's own name should never be hidden by this — you
+          // deliberately flew to it or selected it, so it must stay readable regardless of
+          // what's technically between the camera and its position.
+          const occludedBySun = !isSelected && id !== followRef.current && isOccludedBySun(tmp, camera.position);
 
           const processing = isNodeProcessing(id);
           if (processing) {
@@ -1622,7 +1672,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
           // Process titles regardless of parent culling
           if (child.userData?.isSectorTitle) {
-            child.visible = isMacroView;
+            child.visible = isMacroView && !occludedBySun;
             if (child.visible) {
               const mat = child.material as THREE.SpriteMaterial;
               mat.opacity = 0.92;
@@ -1646,7 +1696,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           }
 
           // Skip individual label processing if too far, not selected, and not focused.
-          if (child.userData?.isLabel && dist > MACRO_DIST && !isSelected && id !== followRef.current) continue;
+          // Raised from a bare MACRO_DIST to MACRO_DIST + MACRO_HYST so this can never cut a
+          // hasSectorTitle body's own label off before its extended fade-out below (labelFadeFar)
+          // has a chance to run — ordinary (non-hub) labels are already invisible well before
+          // this point regardless (FADE_FAR tops out at 540, far short of MACRO_DIST), so
+          // raising it doesn't change anything for them.
+          if (child.userData?.isLabel && dist > MACRO_DIST + MACRO_HYST && !isSelected && id !== followRef.current) continue;
           
           // Optimization: throttle updates for distant/insignificant labels
           if ((child.userData?.isLabel || child.userData?.isSectorTitle) && frameCount % 2 !== 0 && dist > FADE_NEAR) {
@@ -1657,7 +1712,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           if (child.userData?.isFidelity) child.visible = !isMacroView;
           if (child.userData?.isMacro) child.visible = isMacroView;
 
-          if (isCulled) continue;
+          if (isCulled) {
+            // A hasSectorTitle hub bypasses the top-level cull-hide above (so its title
+            // sprite, which scales up with distance, can still read on screen past the
+            // body's own small culling sphere) — but that must not also leave the hub's
+            // OWN close-up label frozen at whatever visibility/opacity it last had before
+            // rotating out of frustum. Without this, a hub's name could stay stuck fully
+            // visible indefinitely while the camera orbits (e.g. following Soumaya around
+            // the sun swings hubs in and out of frustum continuously) — explicitly hide it
+            // instead of silently skipping its update.
+            if (child.userData?.isLabel) child.visible = false;
+            continue;
+          }
 
           if (child.userData?.isSectorTitle) {
             // Already handled above
@@ -1665,7 +1731,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               // Always exempt the selected/followed body — its name should never be
               // subject to the crowd cap, only the ambient population is capped.
               const capped = !isSelected && id !== followRef.current && !visibleLabelIdsRef.current.has(id);
-              const labelVis = (isMacroView && !isSelected) || capped ? 0 : Math.min(1, Math.max(0, (FADE_FAR - dist) / (FADE_FAR - FADE_NEAR)));
+              // A hasSectorTitle body's OWN label used to fade out at the same FADE_FAR as
+              // any ordinary body (300-540 units) while its sector title doesn't switch on
+              // until MACRO_DIST's hysteresis band (~2450-2750) — leaving it nameless for a
+              // ~1900-2200-unit dead zone in between (neither name nor sector title showing,
+              // regardless of how steadily the camera sits there). Extend ONLY a hub's own
+              // label out to meet the sector title's own turn-on point (with the same
+              // hysteresis buffer), so the handoff is continuous — briefly overlapping as the
+              // sector title fades in is fine; a gap where nothing is shown is not.
+              const labelFadeFar = o.userData?.hasSectorTitle ? MACRO_DIST + MACRO_HYST : FADE_FAR;
+              const labelVis = (isMacroView && !isSelected) || capped || occludedBySun ? 0 : Math.min(1, Math.max(0, (labelFadeFar - dist) / (labelFadeFar - FADE_NEAR)));
               child.visible = labelVis > 0.02;
               if (child.visible) {
                 const mat = child.material as THREE.SpriteMaterial;
@@ -1702,6 +1777,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               if (mat?.isShaderMaterial) {
                 mat.uniforms.uBrightness.value = intensity;
                 mat.uniforms.uTime.value = now;
+                // Planets (only — makeStarMaterial has no uSunDirView uniform, so this is
+                // a no-op for stars): the sun sits at the world origin (sun.ts), so the
+                // direction from this body toward it is just -position, transformed into
+                // VIEW space to match vNormal (also view-space, via the vertex shader's
+                // normalMatrix) — this is what makes a planet's lit side actually track
+                // the real sun instead of a direction fixed to the camera.
+                if (mat.uniforms.uSunDirView) {
+                  sunDirScratch.set(-tmp.x, -tmp.y, -tmp.z).normalize().transformDirection(camera.matrixWorldInverse);
+                  mat.uniforms.uSunDirView.value.copy(sunDirScratch);
+                }
               } else if (mat && mat.emissiveIntensity != null) {
                 mat.emissiveIntensity = intensity;
               }
@@ -2288,9 +2373,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Otherwise, check distance
     const camera = fgRef.current?.camera();
     const dist = camera ? camera.position.length() : 1200;
-    
+
+    // Hysteresis band around the 800-unit cutoff — same reasoning as linkLodZoomedInRef
+    // above: a bare distance check re-evaluated every frame flips visibility on/off every
+    // frame while the camera orbits near that exact distance ("lines disappear, camera
+    // moves, they pop back for a second, then disappear again").
+    const HYST = 80;
+    if (shouldRenderLinkCloseRef.current) {
+      if (dist > 800 + HYST) shouldRenderLinkCloseRef.current = false;
+    } else if (dist < 800 - HYST) {
+      shouldRenderLinkCloseRef.current = true;
+    }
+
     // Only render inactive/weak links if close
-    return dist < 800;
+    return shouldRenderLinkCloseRef.current;
   };
 
   const computeLinkActivity = (l: any, nowMs: number) => {
@@ -2692,17 +2788,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     }),
     [data],
   );
-
-  const renderCountRef = useRef(0);
-  const instanceIdRef = useRef(Math.random().toString(36).slice(2, 9));
-  useEffect(() => {
-    renderCountRef.current++;
-    console.log(`[Graph3D] Render: ${renderCountRef.current}, Instance: ${instanceIdRef.current}`);
-  });
-  useEffect(() => {
-    console.log(`[Graph3D] Mount: ${instanceIdRef.current}`);
-    return () => console.log(`[Graph3D] Unmount: ${instanceIdRef.current}`);
-  }, []);
 
   return (
     <ForceGraph3D
