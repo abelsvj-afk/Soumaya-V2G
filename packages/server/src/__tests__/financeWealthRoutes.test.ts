@@ -108,6 +108,26 @@ describe("wealth routes", () => {
     expect((await get(`/api/finance/wealth/goals?bucketId=${bucket.id}`)).body).toHaveLength(0);
   });
 
+  it("archiving a bucket cascades to its still-active goals — no orphaned allocation left counting toward Deployable (defect #1 regression)", async () => {
+    const bucket = (await post("/api/finance/wealth/buckets", { name: "Trucking" })).body as FinBucket;
+    const goal = (await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "First Truck", targetCents: 100000 })).body as FinGoal;
+    await post(`/api/finance/wealth/goals/${goal.id}/allocations`, { amountCents: 20000 });
+
+    const before = (await get("/api/finance/wealth/summary")).body as WealthSummary;
+    expect(before.allocatedCents).toBeGreaterThanOrEqual(20000);
+
+    // Archive the BUCKET only — the goal itself was never individually archived.
+    expect((await del(`/api/finance/wealth/buckets/${bucket.id}`)).status).toBe(200);
+
+    // The goal must no longer be reachable via its (now-archived) bucket...
+    expect((await get(`/api/finance/wealth/goals?bucketId=${bucket.id}`)).body).toHaveLength(0);
+    // ...and its allocation must no longer count toward the space-wide totals — otherwise
+    // it would silently keep dragging Deployable down with no way left to reach or fix it.
+    const after = (await get("/api/finance/wealth/summary")).body as WealthSummary;
+    expect(after.allocatedCents).toBe(before.allocatedCents - 20000);
+    expect(after.goals.some((g) => g.id === goal.id)).toBe(false);
+  });
+
   it("patches a bucket's name", async () => {
     const bucket = (await post("/api/finance/wealth/buckets", { name: "Original" })).body as FinBucket;
     const patched = await patch(`/api/finance/wealth/buckets/${bucket.id}`, { name: "Renamed" });

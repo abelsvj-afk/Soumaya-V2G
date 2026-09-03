@@ -72,7 +72,13 @@ export function makeMoneySky(stars: MoneyStar[]): THREE.Group {
 
     const mat = new THREE.SpriteMaterial({ map: STAR_TEX, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
     const star = new THREE.Sprite(mat);
-    const size = 60 + (s.amountCents / 100) * 0.05; // bigger bills read a touch larger, kept small
+    // Bills are sized off their real dollar amount (small, bounded — a monthly bill).
+    // A Goal's amountCents is its running ALLOCATED TOTAL, which is routinely orders of
+    // magnitude larger (a $15,000 truck fund vs. a $70 phone bill) — reusing the bill
+    // formula here grew unbounded with a goal's dollar total instead of its progress,
+    // making a well-funded goal star dwarf the ring itself. Size a goal star off fillPct
+    // (how full it reads, capped and bounded) instead of its raw dollar amount.
+    const size = s.kind === "goal" ? 60 + (s.fillPct ?? 0.3) * 40 : 60 + (s.amountCents / 100) * 0.05; // bigger bills read a touch larger, kept small
     star.scale.set(size, size, 1);
 
     // Lay them in a gentle ring, lifted above the galaxy plane so they read as "your money sky".

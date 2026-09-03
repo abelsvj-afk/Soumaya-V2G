@@ -164,7 +164,16 @@ export function FinancePanel() {
             <button
               className="fin-mini"
               title="Expand to full-screen"
-              onClick={() => window.dispatchEvent(new Event("brain-open-wealth-fullscreen"))}
+              onClick={() => {
+                // Collapse the embedded copy so only one WealthPanel instance is ever
+                // mounted at a time — RightDock stays mounted underneath the fullscreen
+                // overlay (they're independent App.tsx conditions), so leaving this open
+                // would otherwise run two independent instances in parallel: duplicate
+                // fetches, duplicate brain-finance-changed listeners, and unsynced local
+                // UI state (expanded bucket, in-progress amount) between the two.
+                setWealthOpen(false);
+                window.dispatchEvent(new Event("brain-open-wealth-fullscreen"));
+              }}
             >
               ⛶
             </button>

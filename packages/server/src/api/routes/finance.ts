@@ -295,9 +295,17 @@ export function financeRoutes(ctx: AppContext): Router {
   r.delete("/wealth/buckets/:id", (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) return bad(res, "Invalid id");
-    return new FinBucketRepo(ctx.handle, spaceOf(res)).archive(id)
-      ? res.json({ ok: true })
-      : res.status(404).json({ error: "Not found" });
+    const spaceId = spaceOf(res);
+    const ok = new FinBucketRepo(ctx.handle, spaceId).archive(id);
+    if (!ok) return res.status(404).json({ error: "Not found" });
+    // Cascade: a still-active goal inside an archived bucket would otherwise keep
+    // affecting allocatedCents/deployableCents/reconciliation and keep appearing as a
+    // Money Sky star, with no UI path left to reach it (WealthPanel only ever renders
+    // a goal nested under its bucket). Archiving the bucket must actually make its
+    // contents "tucked away" as promised, not orphan them still-active.
+    const goalRepo = new FinGoalRepo(ctx.handle, spaceId);
+    for (const g of goalRepo.list({ bucketId: id })) goalRepo.archive(g.id);
+    res.json({ ok: true });
   });
 
   const GoalBody = z

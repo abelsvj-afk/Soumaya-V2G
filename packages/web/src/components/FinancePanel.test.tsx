@@ -86,4 +86,20 @@ describe("FinancePanel — Wealth section is collapsed by default", () => {
     expect(onExpand).toHaveBeenCalled();
     window.removeEventListener("brain-open-wealth-fullscreen", onExpand);
   });
+
+  it("collapses the embedded copy when Expand is clicked, so only one WealthPanel is ever mounted at a time (defect #3 regression)", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+
+    fireEvent.click(screen.getByText("🧭 Wealth"));
+    await screen.findByText(/No buckets yet/); // the embedded WealthPanel is mounted
+
+    fireEvent.click(screen.getByTitle("Expand to full-screen"));
+    // RightDock/FinancePanel stays mounted underneath App.tsx's fullscreen overlay (they're
+    // independent conditions) — without collapsing here, this embedded copy would keep
+    // running (its own fetch, its own brain-finance-changed listener) alongside the
+    // fullscreen instance. Confirm it actually unmounts instead.
+    expect(screen.queryByText(/No buckets yet/)).toBeNull();
+    expect(screen.queryByTitle("Expand to full-screen")).toBeNull();
+  });
 });
