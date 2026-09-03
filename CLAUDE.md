@@ -242,11 +242,27 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 - **Optimization: Link LOD** (Graph3D.tsx): LOD optimization for dense brains.
 - **Refactor: Intro and Observatory Timing** (various): Timing adjustments for smooth entrance.
 - **Refactor: Startup Flow** (various): Decoupled loading dismissal from intro sequence.
-- **Observatory card density** (Observatory.tsx): after Mission Control + the search-button fix,
-  an active user's Observatory can render up to ~15 cards stacked (away digest, daily contact,
-  foresight, discovery, money, journeys, agenda, worth-a-moment, quests, up to 3 observations,
-  constellations, recent activity). Need eyes on whether this still reads as a calm "one glance"
-  landing screen once it's actually that full, or needs capping/prioritizing.
+- **Observatory card squish — CONFIRMED via real on-device screenshot (2026-09-03), FIXED**
+  (index.css `.obs-card`): with an active user's ~15-card-deep Observatory, cards were being
+  compressed below their content height (text cut off mid-sentence) instead of the already-scrollable
+  `.obs-stack` actually scrolling past them — root cause was `.obs-stack`'s `overflow-y:auto` on a
+  flex column resetting its children's automatic min-size to 0, so default `flex-shrink:1` let
+  `.obs-card` shrink. Fixed with `flex-shrink:0` on `.obs-card` — cards now always render at full
+  content height; the stack scrolls. Needs on-device re-confirmation once a deploy is possible.
+- **Views toggle overlapping the left FAB column — CONFIRMED via real on-device screenshot
+  (2026-09-03), FIXED** (index.css `.gv-wrap`/`.gv-chips`, `.lens-chips`): `.gv-wrap` (bottom:196px)
+  sat squarely inside `.focus-cluster`'s footprint (bottom:186px, 44px tall) after that control's
+  position had drifted without `.gv-wrap` being re-checked — same root-cause shape as the original
+  "Fix Views button overlap" item, regressed by an unrelated later change. Moved `.gv-wrap` to
+  bottom:300px, clearing the ENTIRE left FAB column (which stacks continuously 18-288px) rather than
+  threading a specific gap that can silently close again. `.lens-chips` (the pinned-lens "Linked to
+  X" pills) had the same problem from the opposite direction — centered and wide enough to reach
+  into both the left AND right FAB columns at bottom:20px — moved to bottom:350px, above `.gv-wrap`'s
+  collapsed toggle. Also capped `.gv-chips`' expanded height (`max-height:40vh; overflow-y:auto`) so
+  it can't grow unboundedly. Known residual, not fully solved: if Views is expanded to several rows
+  of chips AND 2+ lenses are pinned at the same time, `.gv-wrap`'s expansion could still reach up
+  into `.lens-chips`' band — flagged rather than fixed with a bigger state-lifting change, since it
+  wasn't the confirmed default-state bug. Needs on-device re-confirmation once a deploy is possible.
 - **Observatory 🔍 search button** (Observatory.tsx header): new, added blind — confirm it doesn't
   visually collide with the existing × close button on narrow phone widths.
 - **Mind tab "✓ Achieved" badge + "💾 Save as Lens" chip** (MindPanel.tsx, GalaxyViews.tsx): new,
@@ -260,12 +276,14 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   deliberately NOT mirrored to the ambient MindSpace overlay (it's always hidden at the exact
   moment a promotion can fire, since promoting only happens from a button inside the open Mind
   panel) — MindSpace only picked up the color tinting, which is worth an eyes-on for legibility too.
-- **Fly billing hold, ongoing (2026-08-29):** the owner's Fly subscription lapsed, so NONE of the
-  above (nor anything shipped since) has been visually verified on a real device — this whole
-  section is a running list of "check these once billing is resolved and a deploy can happen,"
-  not a backlog to pause work for. Keep shipping; keep appending here as new visual-dependent
-  changes land, per the owner's explicit instruction not to stop finding/fixing things just
-  because they can't currently look at the result.
+- **Fly billing hold, ongoing since 2026-08-29:** most of the above (and everything shipped since)
+  still hasn't been visually verified on a real device via this app's own deploy pipeline. On
+  2026-09-03 the owner did send real on-device screenshots of two specific screens (Observatory,
+  the galaxy HUD) — those two items above are marked CONFIRMED + FIXED from that direct feedback,
+  but everything else in this section remains unconfirmed. This section stays a running list of
+  "check these once a full deploy is possible," not a backlog to pause work for — keep shipping;
+  keep appending here as new visual-dependent changes land, per the owner's explicit instruction
+  not to stop finding/fixing things just because most of it can't currently be looked at.
 
 
 - Match the surrounding code's style and comment density (comments explain *why*).

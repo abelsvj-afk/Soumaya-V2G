@@ -3123,6 +3123,12 @@ button {
   align-items: flex-start;
   text-align: left;
   width: 100%;
+  /* .obs-stack (the flex column above) sets overflow-y:auto so it can scroll once a
+     full Observatory (up to ~15 cards) doesn't fit the viewport — but overflow:auto on
+     a flex container also resets its children's automatic min-size to 0, so without an
+     explicit flex-shrink:0 here, cards were being SQUISHED below their content's real
+     height (text cut off) instead of the stack actually scrolling past them. */
+  flex-shrink: 0;
   padding: 13px 15px;
   border-radius: 14px;
   background: rgba(12, 16, 34, 0.72);
@@ -4579,9 +4585,15 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .focus-mode .lens-banner { opacity: 0.08; transition: opacity 0.5s ease; }
 .focus-mode .lens-banner:hover { opacity: 1; }
 
-/* Pinned-lens quick chips — one-tap switching, bottom-center over the galaxy. */
+/* Pinned-lens quick chips — one-tap switching, bottom-center over the galaxy. Centered
+   with up to min(80vw,520px) of width means on a typical phone this row's edges reach
+   into BOTH the left (.fab-dock etc.) and right (.fab-ingest etc.) FAB columns — those
+   stack continuously from 18px to 288px on each side (see the .gv-wrap comment below),
+   so there is no vertical slot within that stack this can sit in without covering a FAB
+   on one side or the other. 350px sits above the entire FAB column (see .gv-wrap, at
+   300px) with clearance for the Views toggle's own collapsed height in between. */
 .lens-chips {
-  position: absolute; bottom: calc(20px + env(safe-area-inset-bottom));
+  position: absolute; bottom: calc(350px + env(safe-area-inset-bottom));
   left: 50%; transform: translateX(-50%); z-index: 44;
   display: flex; gap: 6px; max-width: min(80vw, 520px);
   overflow-x: auto; padding: 4px; scrollbar-width: none;
@@ -4952,19 +4964,28 @@ button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
 }
 
 /* ---- Galaxy Views (mobile perf: render one category at a time) ---- */
-/* bottom: 150px used to sit squarely inside .fab-music's footprint (bottom:130px, 46px
-   tall = 130-176px) — same z-index as .fab meant whichever rendered later in the DOM won
-   ties, so this toggle randomly appeared hidden behind / cut off by the left FAB column.
-   196px clears the whole left-column stack (dock/recenter/music end at 176px, focus-toggle
-   starts at 242px) and z-index is bumped above .fab so it's never ambiguous again. */
-.gv-wrap { position: fixed; left: 12px; bottom: 196px; z-index: 45; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
+/* The left FAB column stacks continuously from 18px to 288px (dock 18-64, recenter
+   74-120, music 130-176, .focus-cluster 186-230, .fab-focus-toggle 242-288 — each pair
+   of rows only 10-12px apart), so there is no gap in that column tall enough to hold
+   this toggle without covering (and stealing clicks from) whichever FAB shares its
+   band — this previously happened against .focus-cluster once that control's position
+   drifted to 186px without this value being re-checked. 300px clears the ENTIRE left
+   column instead of trying to thread a specific gap that can silently close again the
+   next time a FAB is repositioned. z-index stays above .fab so it's never ambiguous. */
+.gv-wrap { position: fixed; left: 12px; bottom: 300px; z-index: 45; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
 @supports (padding: env(safe-area-inset-bottom)) {
-  .gv-wrap { bottom: calc(196px + env(safe-area-inset-bottom)); }
+  .gv-wrap { bottom: calc(300px + env(safe-area-inset-bottom)); }
 }
 .gv-toggle { background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border); color: var(--text);
   border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.85rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
 .gv-toggle.open { border-color: rgba(122,220,255,0.5); }
-.gv-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 72vw; animation: finFade 0.2s ease both; }
+.gv-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; max-width: 72vw; animation: finFade 0.2s ease both;
+  /* Capped + scrollable rather than growing indefinitely — up to 8 categories plus the
+     money/journeys/save-as-lens/show-all chips can wrap to several rows; an unbounded
+     height would push the top of the list off-screen on a short device. */
+  max-height: 40vh; overflow-y: auto; scrollbar-width: thin;
+}
 .gv-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border);
   color: var(--text); border-radius: 999px; padding: 7px 12px; min-height: 38px; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(6px); }
 .gv-chip.on { border-color: rgba(122,220,255,0.6); background: rgba(122,220,255,0.14); }
