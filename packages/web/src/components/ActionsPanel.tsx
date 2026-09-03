@@ -95,7 +95,9 @@ export function ActionsPanel({ nodes, onFocus, onChanged }: Props) {
   const allReminders = useMemo(
     () =>
       nodes
-        .filter((n) => n.kind !== "action" && n.remindAt)
+        // A Life Vision's remindAt is a target date, not a reminder
+        // (docs/specs/life-vision.md) — never surfaced with ack/dismiss controls.
+        .filter((n) => n.kind !== "action" && n.kind !== "life_vision" && n.remindAt)
         .map((n) => ({ n, at: ms(n.remindAt) }))
         .sort((a, b) => a.at - b.at),
     [nodes],

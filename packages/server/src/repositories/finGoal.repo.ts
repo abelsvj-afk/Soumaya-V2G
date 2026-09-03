@@ -15,13 +15,14 @@ export class FinGoalRepo {
       id: r.id, bucketId: r.bucket_id, name: r.name,
       targetCents: r.target_cents ?? null, targetDate: r.target_date ?? null,
       archived: r.archived === 1, createdAt: r.created_at,
+      visionNodeId: r.vision_node_id ?? null,
     };
   }
 
-  create(input: { bucketId: number; name: string; targetCents?: number | null; targetDate?: string | null }): FinGoal {
+  create(input: { bucketId: number; name: string; targetCents?: number | null; targetDate?: string | null; visionNodeId?: number | null }): FinGoal {
     const info = this.handle.sqlite
-      .prepare(`INSERT INTO fin_goal (space_id, bucket_id, name, target_cents, target_date) VALUES (?, ?, ?, ?, ?)`)
-      .run(this.spaceId, input.bucketId, input.name, input.targetCents ?? null, input.targetDate ?? null);
+      .prepare(`INSERT INTO fin_goal (space_id, bucket_id, name, target_cents, target_date, vision_node_id) VALUES (?, ?, ?, ?, ?, ?)`)
+      .run(this.spaceId, input.bucketId, input.name, input.targetCents ?? null, input.targetDate ?? null, input.visionNodeId ?? null);
     return this.get(Number(info.lastInsertRowid))!;
   }
 
@@ -30,8 +31,8 @@ export class FinGoalRepo {
     return r ? this.map(r) : null;
   }
 
-  /** All non-archived goals in a space, optionally narrowed to one bucket. */
-  list(opts: { includeArchived?: boolean; bucketId?: number } = {}): FinGoal[] {
+  /** All non-archived goals in a space, optionally narrowed to one bucket or one Vision. */
+  list(opts: { includeArchived?: boolean; bucketId?: number; visionNodeId?: number } = {}): FinGoal[] {
     const clauses = ["space_id = ?"];
     const params: unknown[] = [this.spaceId];
     if (!opts.includeArchived) clauses.push("archived = 0");
@@ -39,19 +40,29 @@ export class FinGoalRepo {
       clauses.push("bucket_id = ?");
       params.push(opts.bucketId);
     }
+    if (opts.visionNodeId != null) {
+      clauses.push("vision_node_id = ?");
+      params.push(opts.visionNodeId);
+    }
     const rows = this.handle.sqlite
       .prepare(`SELECT * FROM fin_goal WHERE ${clauses.join(" AND ")} ORDER BY name`)
       .all(...params) as any[];
     return rows.map((r) => this.map(r));
   }
 
-  update(id: number, patch: { name?: string; targetCents?: number | null; targetDate?: string | null }): FinGoal | null {
+  /**
+   * `visionNodeId` uses a three-way patch convention (undefined = leave as-is, null =
+   * unlink, a number = link) since `undefined` and `null` are both meaningful here —
+   * unlike `name`/`targetCents`/`targetDate`, which never need an explicit "clear" via
+   * this same param shape today.
+   */
+  update(id: number, patch: { name?: string; targetCents?: number | null; targetDate?: string | null; visionNodeId?: number | null }): FinGoal | null {
     const cur = this.get(id);
     if (!cur) return null;
     const n = { ...cur, ...patch };
     this.handle.sqlite
-      .prepare(`UPDATE fin_goal SET name = ?, target_cents = ?, target_date = ? WHERE id = ? AND space_id = ?`)
-      .run(n.name, n.targetCents ?? null, n.targetDate ?? null, id, this.spaceId);
+      .prepare(`UPDATE fin_goal SET name = ?, target_cents = ?, target_date = ?, vision_node_id = ? WHERE id = ? AND space_id = ?`)
+      .run(n.name, n.targetCents ?? null, n.targetDate ?? null, n.visionNodeId ?? null, id, this.spaceId);
     return this.get(id);
   }
 

@@ -122,6 +122,7 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
       .prepare(
         `SELECT id, remind_at FROM nodes
          WHERE space_id = ? AND deleted_at IS NULL AND remind_at IS NOT NULL AND remind_at <= ?
+           AND (kind IS NULL OR kind != 'life_vision')
          ORDER BY remind_at ASC LIMIT 5`,
       )
       .all(spaceId, nowIso) as { id: number; remind_at: string }[];

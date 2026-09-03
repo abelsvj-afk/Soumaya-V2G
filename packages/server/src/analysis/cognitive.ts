@@ -63,6 +63,10 @@ export async function createCognitive(
   const emb = await ctx.embeddings.embed(`${label}. ${content}`);
   // Cognitive objects use `type:"concept"` (abstract) but a cognitive `kind`.
   // A future_event carries its date in `remind_at` (drives the timeline + roll-past).
+  // A life_vision may also carry an optional target date in the same column — never
+  // a reminder for this kind (C2.1-locked); the two consumer-exclusion audits already
+  // in place (reminder.ts/dailyDigest.ts/awayDigest.ts/dueReminders.ts) cover it
+  // regardless of whether it was set at creation or later via updateCognitive's patch.
   const node = repo.create(
     {
       label: label.slice(0, 200),
@@ -74,7 +78,7 @@ export async function createCognitive(
       origin: "user",
       progress: meta.hasProgress ? 0 : undefined,
       aliases: cleanAliases(opts.aliases),
-      remindAt: kind === "future_event" ? opts.date : undefined,
+      remindAt: kind === "future_event" || kind === "life_vision" ? opts.date : undefined,
     },
     emb,
   );
@@ -92,7 +96,7 @@ export async function updateCognitive(
   ctx: AppContext,
   spaceId: string,
   id: number,
-  patch: { label?: string; content?: string; aliases?: string[] },
+  patch: { label?: string; content?: string; aliases?: string[]; date?: string | null },
 ): Promise<boolean> {
   const s = ctx.handle.sqlite;
   const row = s
@@ -107,6 +111,12 @@ export async function updateCognitive(
       id,
       spaceId,
     );
+  }
+  // Life Vision target date (docs/specs/life-vision.md, C2.1-locked): only "life_vision"
+  // may have its remind_at updated post-creation here — future_event's date stays
+  // creation-time-only (unchanged), so this never touches its roll-past behavior.
+  if (patch.date !== undefined && row.kind === "life_vision") {
+    s.prepare(`UPDATE nodes SET remind_at = ? WHERE id = ? AND space_id = ?`).run(patch.date, id, spaceId);
   }
   s.prepare(`UPDATE nodes SET label = ?, content = ? WHERE id = ? AND space_id = ?`).run(label, content, id, spaceId);
   const emb = await ctx.embeddings.embed(`${label}. ${content}`);
@@ -132,6 +142,9 @@ export interface CognitiveItem {
   degree: number;
   aliases: string[];
   createdAt: string;
+  /** Life Vision's target date (docs/specs/life-vision.md) — reminder semantics for
+   *  every other kind, but never fires anything for kind "life_vision" (C2.1-locked). */
+  remindAt: string | null;
 }
 
 /** List cognitive objects, optionally filtered by kind (newest first). */
@@ -145,6 +158,7 @@ export function listCognitive(
   const rows = ctx.handle.sqlite
     .prepare(
       `SELECT n.id, n.kind, n.label, n.content, n.progress, n.completed_at AS completedAt, n.aliases, n.created_at AS createdAt,
+         n.remind_at AS remindAt,
          (SELECT COUNT(*) FROM edges e WHERE e.space_id = n.space_id AND (e.source = n.id OR e.target = n.id)) AS degree
        FROM nodes n
        WHERE n.space_id = ? AND n.deleted_at IS NULL AND n.kind IN (${placeholders})

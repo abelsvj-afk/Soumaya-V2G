@@ -136,3 +136,14 @@ describe("ActionsPanel — an overdue action shows how overdue, not a flat label
     await screen.findByText(/overdue 2d/);
   });
 });
+
+// Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): a Vision's target date is
+// not a reminder and must never get ack/dismiss controls here.
+describe("ActionsPanel — a Life Vision's target date is not a reminder", () => {
+  it("never lists a life_vision node in the Agenda reminders, even with a past remindAt", async () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    render(<ActionsPanel nodes={[node({ id: 1, kind: "life_vision", label: "Our first house", remindAt: past })]} onFocus={() => {}} />);
+    expect(screen.queryByText("Our first house")).toBeNull();
+    expect(screen.queryByTitle("Acknowledge — stop reminding")).toBeNull();
+  });
+});

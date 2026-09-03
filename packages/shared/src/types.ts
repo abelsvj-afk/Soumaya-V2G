@@ -835,6 +835,12 @@ export interface FinGoal {
   targetDate?: string | null;
   archived: boolean;
   createdAt: string;
+  /**
+   * Life Vision (docs/specs/life-vision.md): optional link to the `life_vision` node
+   * this Goal helps fund. Nullable, one-to-many (a Vision may have many Goals; a Goal
+   * has at most one Vision). Never cascades either direction on archive.
+   */
+  visionNodeId?: number | null;
 }
 
 export interface FinAllocation {

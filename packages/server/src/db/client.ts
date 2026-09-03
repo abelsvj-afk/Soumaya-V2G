@@ -217,6 +217,23 @@ function migrateSchema(sqlite: RawDb): void {
       sqlite.exec(`ALTER TABLE space_meta ADD COLUMN grounded_insight INTEGER NOT NULL DEFAULT 1`);
     }
   }
+  // Life Vision (docs/specs/life-vision.md): optional one-to-many link from a Financial
+  // Goal to the Life Vision node it helps fund. Nullable, no SQL FK (matches bucket_id's
+  // own style in this table) — validated at the application layer only. `tcols.length > 0`
+  // guards a very old volume predating Wealth: bootstrap creates fin_goal fresh with this
+  // column already present, so there's nothing to ALTER.
+  const finGoalCols = sqlite.prepare(`PRAGMA table_info(fin_goal)`).all() as { name: string }[];
+  if (finGoalCols.length > 0) {
+    if (!finGoalCols.some((c) => c.name === "vision_node_id")) {
+      sqlite.exec(`ALTER TABLE fin_goal ADD COLUMN vision_node_id INTEGER`);
+    }
+    // Created here rather than in schemaSql.ts's bootstrap block: by this point the
+    // column is guaranteed to exist (either just ALTERed above, or already present
+    // from a fresh bootstrap), so this is safe for both a brand-new DB and an
+    // upgraded old one — unlike creating it unconditionally right after CREATE TABLE,
+    // which fails on an old volume where the CREATE TABLE is a no-op.
+    sqlite.exec(`CREATE INDEX IF NOT EXISTS fin_goal_vision_idx ON fin_goal(vision_node_id)`);
+  }
   // (Table creation lives ONLY in bootstrapSchema, which always runs first —
   // a second CREATE block here once drifted out of sync and shipped wrong shapes.)
 }

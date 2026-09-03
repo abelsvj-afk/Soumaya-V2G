@@ -21,7 +21,7 @@ vi.mock("./MemoryAttachments.js", () => ({ MemoryAttachments: () => null }));
 vi.mock("./JourneyChips.js", () => ({ JourneyChips: () => null }));
 
 import { NodeInspector } from "./NodeInspector.js";
-import { synthesizeNode, ingestText } from "../api/client.js";
+import { synthesizeNode, ingestText, archiveNode } from "../api/client.js";
 
 function node(over: Partial<GraphNode>): GraphNode {
   return {
@@ -90,5 +90,56 @@ describe("NodeInspector — a synthesis insight is no longer a dead end", () => 
     expect(ingestText).toHaveBeenCalledWith(expect.stringContaining("This connects to your goal of X."));
     const savedBtn = await screen.findByText("✓ Saved");
     expect(savedBtn.getAttribute("disabled")).not.toBeNull();
+  });
+});
+
+// Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): remindAt is a passive,
+// harmless display here (it never fires anything) but must never be MISLABELED as a
+// reminder for a Vision, since C3.2 now lets a Vision actually carry a remindAt value.
+describe("NodeInspector — remindAt label reflects what it actually means for this node's kind", () => {
+  it("labels a life_vision's remindAt as a target date, not a reminder", async () => {
+    const n = node({ id: 1, kind: "life_vision", label: "Our first house", remindAt: "2030-06-01T00:00:00Z" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    await screen.findByText("Our first house");
+    expect(screen.getByText(/🌅 Target date/)).toBeTruthy();
+    expect(screen.queryByText(/⏰ Reminder/)).toBeNull();
+  });
+
+  it("still labels every other kind's remindAt as a Reminder (regression)", async () => {
+    const n = node({ id: 1, kind: "memory", label: "Call the landlord", remindAt: "2030-06-01T00:00:00Z" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    await screen.findByText("Call the landlord");
+    expect(screen.getByText(/⏰ Reminder/)).toBeTruthy();
+    expect(screen.queryByText(/🌅 Target date/)).toBeNull();
+  });
+});
+
+// Life Vision (docs/specs/life-vision.md, C3.3): the archive control widened to cover
+// this kind, reusing the existing archive mechanism verbatim (no new archive system).
+describe("NodeInspector — Life Vision archive", () => {
+  it("shows an Archive control for a life_vision node and calls the existing archiveNode()", async () => {
+    vi.mocked(archiveNode).mockResolvedValue(true);
+    const onDeleted = vi.fn();
+    const n = node({ id: 1, kind: "life_vision", label: "Our first house" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} onDeleted={onDeleted} />);
+    await screen.findByText("Our first house");
+    const archiveBtn = screen.getByText("📥 Archive Life Vision");
+    await act(async () => { archiveBtn.click(); });
+    await waitFor(() => expect(archiveNode).toHaveBeenCalledWith(1, true));
+    await waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("does not show an Archive control for a Mind Goal (regression — gate unchanged for other cognitive kinds)", async () => {
+    const n = node({ id: 1, kind: "goal", label: "Run a 5k" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} onDeleted={vi.fn()} />);
+    await screen.findByText("Run a 5k");
+    expect(screen.queryByText(/📥 Archive/)).toBeNull();
+  });
+
+  it("still shows the plain-memory archive copy for kind:null (regression)", async () => {
+    const n = node({ id: 1, kind: undefined, label: "A plain memory" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} onDeleted={vi.fn()} />);
+    await screen.findByText("A plain memory");
+    expect(screen.getByText("📥 Archive (rest it)")).toBeTruthy();
   });
 });

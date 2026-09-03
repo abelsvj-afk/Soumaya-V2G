@@ -106,7 +106,8 @@ export type CognitiveKind =
   | "mental_model"
   | "intention"
   | "future_event"
-  | "motivation";
+  | "motivation"
+  | "life_vision";
 
 export interface CognitiveMeta {
   label: string;
@@ -202,6 +203,19 @@ export const COGNITIVE_META: Record<CognitiveKind, CognitiveMeta> = {
     durable: true,
     importance: 0.72,
     hasProgress: false,
+  },
+  // Life Vision (docs/specs/life-vision.md, C1.5/C2.1-locked): a desired future state —
+  // a house, a lifestyle, a chapter — distinct from a Mind Goal or a Financial Goal.
+  // Uses the existing nodes infrastructure; no dedicated table. V1 defaults locked in
+  // C2.1 §4 as product tuning, not architectural invariants.
+  life_vision: {
+    label: "Life Vision",
+    icon: "🌅",
+    color: "#ffb37a",
+    blurb: "A desired future you're building toward — a whole chapter, not a task.",
+    durable: true,
+    importance: 0.85,
+    hasProgress: true,
   },
 };
 

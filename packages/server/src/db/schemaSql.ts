@@ -426,10 +426,18 @@ export const BOOTSTRAP_SQL = `
       target_cents INTEGER,
       target_date TEXT,
       archived INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      -- Life Vision (docs/specs/life-vision.md): optional one-to-many link to the
+      -- life_vision node this Goal helps fund. Nullable, no SQL FK (matches bucket_id's
+      -- own style here) — validated at the application layer only. Never cascades:
+      -- archiving the Vision node does not touch this Goal, and vice versa.
+      vision_node_id INTEGER
     );
     CREATE INDEX IF NOT EXISTS fin_goal_space_idx ON fin_goal(space_id, archived);
     CREATE INDEX IF NOT EXISTS fin_goal_bucket_idx ON fin_goal(bucket_id);
+    -- fin_goal_vision_idx is created in migrateSchema (db/client.ts), not here: on a
+    -- pre-existing volume this CREATE TABLE is a no-op, so an index on vision_node_id
+    -- created unconditionally at this point would fail before the column is added.
 
     CREATE TABLE IF NOT EXISTS fin_allocation (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

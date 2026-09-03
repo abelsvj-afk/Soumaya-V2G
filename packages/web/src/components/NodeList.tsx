@@ -216,10 +216,11 @@ export function NodeList({ nodes, onFocus, initialTag, onTagChange }: Props) {
     const now = Date.now();
     return nodes
       .filter(n => {
-        // Actions never carry a real reminder — excluded here for the same reason
-        // isReminderDue() excludes them (utils/dueReminders.ts). This filter used to
-        // disagree with that shared predicate and count them anyway.
-        if (n.kind === "action" || !n.remindAt) return false;
+        // Actions never carry a real reminder, and a Life Vision's remindAt is a target
+        // date, not a reminder (docs/specs/life-vision.md) — excluded here for the same
+        // reason isReminderDue() excludes them (utils/dueReminders.ts). This filter used
+        // to disagree with that shared predicate and count actions anyway.
+        if (n.kind === "action" || n.kind === "life_vision" || !n.remindAt) return false;
         const timestamp = ms(n.remindAt);
         return !Number.isNaN(timestamp) && timestamp > now && timestamp - now < 24 * 3600 * 1000; // next 24 hours
       })

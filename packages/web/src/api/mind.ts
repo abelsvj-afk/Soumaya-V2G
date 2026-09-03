@@ -19,6 +19,10 @@ export interface CognitiveItem {
   degree: number;
   aliases: string[];
   createdAt: string;
+  /** Life Vision's target date (docs/specs/life-vision.md) — never a reminder for
+   *  kind "life_vision" (C2.1-locked), even though the field is shared with kinds
+   *  where it is one. */
+  remindAt: string | null;
 }
 export async function getCognitive(kind?: string): Promise<CognitiveItem[]> {
   try {
@@ -152,7 +156,7 @@ export async function promoteIdea(id: number): Promise<boolean> {
     return false;
   }
 }
-export async function updateCognitive(id: number, patch: { label?: string; content?: string; aliases?: string[] }): Promise<boolean> {
+export async function updateCognitive(id: number, patch: { label?: string; content?: string; aliases?: string[]; date?: string | null }): Promise<boolean> {
   try {
     const res = await afetch(`${API}/cognitive/${id}`, {
       method: "PATCH",

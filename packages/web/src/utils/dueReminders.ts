@@ -22,6 +22,8 @@ export function parseTolerantMs(raw?: string): number {
  * above). Naive SQLite timestamps must be read as UTC — same bug class as above.
  */
 export function isReminderDue(n: Pick<GraphNode, "kind" | "remindAt">, nowMs: number = Date.now()): boolean {
-  if (n.kind === "action" || !n.remindAt) return false;
+  // A Life Vision's remindAt is a target date, not a reminder (docs/specs/life-vision.md,
+  // C2.1-locked) — it must never enter any reminder-notification/agenda/toast surface.
+  if (n.kind === "action" || n.kind === "life_vision" || !n.remindAt) return false;
   return parseTolerantMs(n.remindAt) <= nowMs;
 }

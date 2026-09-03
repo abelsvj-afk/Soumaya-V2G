@@ -98,8 +98,21 @@ export const createBucket = (b: BucketInput) => send<FinBucket>("/wealth/buckets
 export const patchBucket = (id: number, patch: Partial<BucketInput>) => send<FinBucket>(`/wealth/buckets/${id}`, "PATCH", patch);
 export const archiveBucket = (id: number) => send<{ ok: boolean }>(`/wealth/buckets/${id}`, "DELETE");
 
-export const listGoals = (bucketId?: number) => getJson<FinGoal[]>(`/wealth/goals${bucketId != null ? `?bucketId=${bucketId}` : ""}`);
-export interface GoalInput { bucketId: number; name: string; targetCents?: number | null; targetDate?: string | null }
+export const listGoals = (opts: { bucketId?: number; visionNodeId?: number } = {}) => {
+  const params = new URLSearchParams();
+  if (opts.bucketId != null) params.set("bucketId", String(opts.bucketId));
+  if (opts.visionNodeId != null) params.set("visionNodeId", String(opts.visionNodeId));
+  const qs = params.toString();
+  return getJson<FinGoal[]>(`/wealth/goals${qs ? `?${qs}` : ""}`);
+};
+export interface GoalInput {
+  bucketId: number;
+  name: string;
+  targetCents?: number | null;
+  targetDate?: string | null;
+  /** Life Vision (docs/specs/life-vision.md): the life_vision node this Goal helps fund. */
+  visionNodeId?: number | null;
+}
 export const createGoal = (g: GoalInput) => send<FinGoal>("/wealth/goals", "POST", g);
 export const patchGoal = (id: number, patch: Partial<Omit<GoalInput, "bucketId">>) => send<FinGoal>(`/wealth/goals/${id}`, "PATCH", patch);
 export const archiveGoal = (id: number) => send<{ ok: boolean }>(`/wealth/goals/${id}`, "DELETE");

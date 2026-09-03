@@ -15,6 +15,7 @@ import { FinBucketRepo } from "../../repositories/finBucket.repo.js";
 import { FinGoalRepo } from "../../repositories/finGoal.repo.js";
 import { FinAllocationRepo } from "../../repositories/finAllocation.repo.js";
 import { getWealthSummary } from "../../finance/wealth.js";
+import { NodesRepo } from "../../repositories/nodes.repo.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -314,6 +315,7 @@ export function financeRoutes(ctx: AppContext): Router {
       name: z.string().trim().min(1).max(120),
       targetCents: posCents.nullable().optional(),
       targetDate: isoDate.nullable().optional(),
+      visionNodeId: z.number().int().positive().nullable().optional(),
     })
     .strict();
   const GoalPatch = z
@@ -321,19 +323,36 @@ export function financeRoutes(ctx: AppContext): Router {
       name: z.string().trim().min(1).max(120).optional(),
       targetCents: posCents.nullable().optional(),
       targetDate: isoDate.nullable().optional(),
+      visionNodeId: z.number().int().positive().nullable().optional(),
     })
     .strict();
+
+  // Life Vision (docs/specs/life-vision.md): a Financial Goal may optionally point at a
+  // life_vision node. Validated here (route layer), same pattern as the bucketId check
+  // just above — must exist in this space, not soft-deleted, and actually be a Vision
+  // (not some other node kind). `null`/absent are always allowed (no Vision required).
+  const visionError = (spaceId: string, visionNodeId: number | null | undefined): string | null => {
+    if (visionNodeId == null) return null;
+    const node = new NodesRepo(ctx.handle, spaceId).getById(visionNodeId);
+    if (!node) return "Life Vision not found in this space";
+    if (node.kind !== "life_vision") return "Not a Life Vision";
+    return null;
+  };
 
   r.get("/wealth/goals", (req, res) => {
     const bucketId = req.query.bucketId != null ? Number(req.query.bucketId) : undefined;
     if (bucketId != null && !Number.isInteger(bucketId)) return bad(res, "Invalid bucketId");
-    res.json(new FinGoalRepo(ctx.handle, spaceOf(res)).list({ bucketId }));
+    const visionNodeId = req.query.visionNodeId != null ? Number(req.query.visionNodeId) : undefined;
+    if (visionNodeId != null && !Number.isInteger(visionNodeId)) return bad(res, "Invalid visionNodeId");
+    res.json(new FinGoalRepo(ctx.handle, spaceOf(res)).list({ bucketId, visionNodeId }));
   });
   r.post("/wealth/goals", (req, res) => {
     const p = GoalBody.safeParse(req.body);
     if (!p.success) return bad(res, "Invalid goal", p.error.issues);
     const spaceId = spaceOf(res);
     if (!new FinBucketRepo(ctx.handle, spaceId).get(p.data.bucketId)) return bad(res, "Bucket not found in this space");
+    const vErr = visionError(spaceId, p.data.visionNodeId);
+    if (vErr) return bad(res, vErr);
     res.json(new FinGoalRepo(ctx.handle, spaceId).create(p.data));
   });
   r.patch("/wealth/goals/:id", (req, res) => {
@@ -341,7 +360,10 @@ export function financeRoutes(ctx: AppContext): Router {
     if (!Number.isInteger(id)) return bad(res, "Invalid id");
     const p = GoalPatch.safeParse(req.body);
     if (!p.success) return bad(res, "Invalid patch", p.error.issues);
-    const goal = new FinGoalRepo(ctx.handle, spaceOf(res)).update(id, p.data);
+    const spaceId = spaceOf(res);
+    const vErr = visionError(spaceId, p.data.visionNodeId);
+    if (vErr) return bad(res, vErr);
+    const goal = new FinGoalRepo(ctx.handle, spaceId).update(id, p.data);
     return goal ? res.json(goal) : res.status(404).json({ error: "Not found" });
   });
   r.delete("/wealth/goals/:id", (req, res) => {

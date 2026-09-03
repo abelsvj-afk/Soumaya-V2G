@@ -154,4 +154,96 @@ describe("wealth routes", () => {
     expect(summary.reconciliation).toBe("over_committed");
     expect(summary.deployableCents).toBeLessThan(0);
   });
+
+  // Life Vision (docs/specs/life-vision.md, C3.2) — the Financial Goal <-> Vision API.
+  describe("wealth goals — vision_node_id (Life Vision)", () => {
+    it("creates a goal already linked to a Vision, at creation time", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const vision = (await post("/api/cognitive", { kind: "life_vision", label: "Our first house" })).body as { id: number };
+
+      const res = await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Down Payment", visionNodeId: vision.id });
+      expect(res.status).toBe(200);
+      expect((res.body as FinGoal).visionNodeId).toBe(vision.id);
+    });
+
+    it("rejects creating a goal linked to a node that isn't a life_vision", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const notAVision = (await post("/api/cognitive", { kind: "goal", label: "Run a 5k" })).body as { id: number };
+
+      const res = await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Down Payment", visionNodeId: notAVision.id });
+      expect(res.status).toBe(400);
+      expect((res.body as { error: string }).error).toMatch(/Not a Life Vision/);
+    });
+
+    it("rejects creating a goal linked to a nonexistent visionNodeId", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const res = await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Down Payment", visionNodeId: 999999 });
+      expect(res.status).toBe(400);
+      expect((res.body as { error: string }).error).toMatch(/Life Vision not found/);
+    });
+
+    it("links an existing goal to a Vision via PATCH, then unlinks it back to null", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const goal = (await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Closing Costs" })).body as FinGoal;
+      expect(goal.visionNodeId ?? null).toBeNull();
+      const vision = (await post("/api/cognitive", { kind: "life_vision", label: "Our first house" })).body as { id: number };
+
+      const linked = await patch(`/api/finance/wealth/goals/${goal.id}`, { visionNodeId: vision.id });
+      expect(linked.status).toBe(200);
+      expect((linked.body as FinGoal).visionNodeId).toBe(vision.id);
+
+      const unlinked = await patch(`/api/finance/wealth/goals/${goal.id}`, { visionNodeId: null });
+      expect(unlinked.status).toBe(200);
+      expect((unlinked.body as FinGoal).visionNodeId ?? null).toBeNull();
+    });
+
+    it("a PATCH that omits visionNodeId leaves an existing link untouched", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const vision = (await post("/api/cognitive", { kind: "life_vision", label: "Our first house" })).body as { id: number };
+      const goal = (await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Moving Costs", visionNodeId: vision.id })).body as FinGoal;
+
+      const renamed = await patch(`/api/finance/wealth/goals/${goal.id}`, { name: "Moving & Furnishing" });
+      expect(renamed.status).toBe(200);
+      expect((renamed.body as FinGoal).name).toBe("Moving & Furnishing");
+      expect((renamed.body as FinGoal).visionNodeId).toBe(vision.id);
+    });
+
+    it("rejects linking to a Vision that belongs to a different space", async () => {
+      const auth = await fetch(`${base}/api/space/auth`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gamerTag: "wealth-vision-other", passcode: "secret123", name: "wealth-vision-other" }),
+      });
+      const otherSpace = ((await auth.json()) as { id: string }).id;
+      const H2 = { "Content-Type": "application/json", "x-space-id": otherSpace };
+      const visionRes = await fetch(`${base}/api/cognitive`, { method: "POST", headers: H2, body: JSON.stringify({ kind: "life_vision", label: "Someone else's vision" }) });
+      const otherSpaceVision = (await visionRes.json()) as { id: number };
+
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const res = await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Down Payment", visionNodeId: otherSpaceVision.id });
+      expect(res.status).toBe(400);
+      expect((res.body as { error: string }).error).toMatch(/Life Vision not found/);
+    });
+
+    it("GET /wealth/goals?visionNodeId= narrows the list to goals linked to that Vision", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Housing" })).body as FinBucket;
+      const visionA = (await post("/api/cognitive", { kind: "life_vision", label: "Vision A" })).body as { id: number };
+      const visionB = (await post("/api/cognitive", { kind: "life_vision", label: "Vision B" })).body as { id: number };
+      await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "A goal 1", visionNodeId: visionA.id });
+      await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "A goal 2", visionNodeId: visionA.id });
+      await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "B goal", visionNodeId: visionB.id });
+
+      const listA = await get(`/api/finance/wealth/goals?visionNodeId=${visionA.id}`);
+      expect((listA.body as FinGoal[]).length).toBe(2);
+      const listB = await get(`/api/finance/wealth/goals?visionNodeId=${visionB.id}`);
+      expect((listB.body as FinGoal[]).length).toBe(1);
+    });
+
+    it("does not affect any existing Wealth flow when visionNodeId is never provided (regression)", async () => {
+      const bucket = (await post("/api/finance/wealth/buckets", { name: "Plain bucket" })).body as FinBucket;
+      const goal = (await post("/api/finance/wealth/goals", { bucketId: bucket.id, name: "Plain goal", targetCents: 10000 })).body as FinGoal;
+      expect(goal.visionNodeId ?? null).toBeNull();
+      const alloc = await post(`/api/finance/wealth/goals/${goal.id}/allocations`, { amountCents: 5000 });
+      expect(alloc.status).toBe(200);
+    });
+  });
 });

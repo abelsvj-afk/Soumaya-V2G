@@ -366,7 +366,14 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
           {node.occurredAt && (
             <p className="node-when">🕰️ Happened {fmtWhen(node.occurredAt)}</p>
           )}
-          {node.remindAt && <p className="node-when">⏰ Reminder {fmtWhen(node.remindAt)}</p>}
+          {node.remindAt && (
+            // A Life Vision's remindAt is a target date, not a reminder
+            // (docs/specs/life-vision.md) — it never fires anything, but the passive
+            // "⏰ Reminder" label would still misleadingly imply it does.
+            <p className="node-when">
+              {node.kind === "life_vision" ? `🌅 Target date ${fmtWhen(node.remindAt)}` : `⏰ Reminder ${fmtWhen(node.remindAt)}`}
+            </p>
+          )}
         </div>
       )}
 
@@ -460,10 +467,14 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <div className="tier-current">{node.celestial ? CELESTIAL_LABEL[node.celestial] : ""}</div>
       </div>
 
-      {onDeleted && (node.kind == null || node.kind === "memory") && (
+      {onDeleted && (node.kind == null || node.kind === "memory" || node.kind === "life_vision") && (
         <button
           className="archive-btn"
-          title="Rest this memory — it leaves the galaxy and stops surfacing in chat, but is kept and can be restored anytime from Browse → Archived."
+          title={
+            node.kind === "life_vision"
+              ? "Archive this Life Vision — it leaves the galaxy and stops surfacing in chat, but is kept and can be restored anytime from Browse → Archived. Its linked Financial Goals are never affected."
+              : "Rest this memory — it leaves the galaxy and stops surfacing in chat, but is kept and can be restored anytime from Browse → Archived."
+          }
           onClick={() => {
             void archiveNode(node.id, true).then((ok) => {
               if (ok) onDeleted();
@@ -471,7 +482,7 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
             });
           }}
         >
-          📥 Archive (rest it)
+          {node.kind === "life_vision" ? "📥 Archive Life Vision" : "📥 Archive (rest it)"}
         </button>
       )}
 

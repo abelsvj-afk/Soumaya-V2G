@@ -51,6 +51,14 @@ async function get(path: string): Promise<{ status: number; body: any }> {
   const res = await fetch(`${base}${path}`, { headers: { "x-space-id": spaceId } });
   return { status: res.status, body: await res.json() };
 }
+async function patchReq(path: string, body: unknown): Promise<{ status: number; body: any }> {
+  const res = await fetch(`${base}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", "x-space-id": spaceId },
+    body: JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json() };
+}
 
 describe("REST API", () => {
   it("reports health with a real DB probe + uptime + provider info", async () => {
@@ -358,6 +366,20 @@ describe("REST API", () => {
     const ack = await post(`/api/nodes/${id}/ack-reminder`, {});
     expect(ack.status).toBe(200);
     daily = (await get("/api/digest/daily")).body;
+    expect(daily.reminders.some((r: any) => r.node.id === id)).toBe(false);
+  });
+
+  // Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): a Vision's target date
+  // must never enter the daily digest's due-reminders list — regression against the
+  // exact spurious-reminder bug C2.1's remind_at audit flagged.
+  it("a life_vision's target date never appears in the daily digest's due reminders", async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    const vision = await post("/api/cognitive", { kind: "life_vision", label: "Our first house" });
+    const id = vision.body.id as number;
+    const patched = await patchReq(`/api/cognitive/${id}`, { date: past });
+    expect(patched.status).toBe(200);
+
+    const daily = (await get("/api/digest/daily")).body;
     expect(daily.reminders.some((r: any) => r.node.id === id)).toBe(false);
   });
 

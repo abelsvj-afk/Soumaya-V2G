@@ -18,7 +18,8 @@ const CreateBody = z.object({
   content: z.string().max(4000).optional(),
   // Other names this entry answers to (person/place aliases), so vague memories link.
   aliases: AliasList.optional(),
-  // For a future_event: when it's due (ISO datetime).
+  // For a future_event: when it's due. For a life_vision: an optional target date
+  // (never a reminder for this kind — C2.1-locked). Ignored for every other kind.
   date: z.string().datetime().optional(),
 });
 const ProgressBody = z.object({ value: z.number().min(0).max(1) });
@@ -27,9 +28,13 @@ const EditBody = z
     label: z.string().min(1).max(200).optional(),
     content: z.string().max(4000).optional(),
     aliases: AliasList.optional(),
+    // Life Vision target date (docs/specs/life-vision.md). Only applied for kind
+    // "life_vision" (see updateCognitive) — future_event's date remains creation-time
+    // only, unchanged. null clears a previously-set date.
+    date: z.string().datetime().nullable().optional(),
   })
-  .refine((b) => b.label !== undefined || b.content !== undefined || b.aliases !== undefined, {
-    message: "Provide label, content, and/or aliases",
+  .refine((b) => b.label !== undefined || b.content !== undefined || b.aliases !== undefined || b.date !== undefined, {
+    message: "Provide label, content, aliases, and/or date",
   });
 const UnlinkBody = z.object({ memoryId: z.number().int() });
 
@@ -68,7 +73,8 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     res.json({ ...node, fuelEarned: EARN_MIND, fuel });
   });
 
-  // PATCH /api/cognitive/:id { label?, content? } -> edit + re-embed + re-link.
+  // PATCH /api/cognitive/:id { label?, content?, aliases?, date? } -> edit + re-embed +
+  // re-link. `date` only takes effect for kind "life_vision" (see updateCognitive).
   r.patch("/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!Number.isInteger(id)) {
@@ -77,7 +83,7 @@ export function cognitiveRoutes(ctx: AppContext): Router {
     }
     const parsed = EditBody.safeParse(req.body);
     if (!parsed.success) {
-      res.status(400).json({ error: "Body must be { label?, content? }", issues: parsed.error.issues });
+      res.status(400).json({ error: "Body must be { label?, content?, aliases?, date? }", issues: parsed.error.issues });
       return;
     }
     const spaceId = spaceOf(res);

@@ -84,4 +84,64 @@ describe("schema migration on a pre-existing volume", () => {
       expect(tableExists(t), `missing table ${t}`).toBe(true);
     }
   });
+
+  // Life Vision (docs/specs/life-vision.md): a volume that already has fin_goal (from
+  // the earlier Wealth ship) but predates the vision_node_id column must upgrade in
+  // place, additively, without touching any existing row.
+  it("adds fin_goal.vision_node_id in place on a volume that already has fin_goal", () => {
+    dir = mkdtempSync(join(tmpdir(), "brain-mig-"));
+    const path = join(dir, "old.db");
+
+    const old = new BetterSqlite3(path);
+    old.exec(`
+      CREATE TABLE nodes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        space_id TEXT NOT NULL DEFAULT 'legacy',
+        label TEXT NOT NULL,
+        type TEXT NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE fin_bucket (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        space_id TEXT NOT NULL DEFAULT 'legacy',
+        name TEXT NOT NULL,
+        category TEXT NOT NULL DEFAULT 'other',
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE TABLE fin_goal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        space_id TEXT NOT NULL DEFAULT 'legacy',
+        bucket_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        target_cents INTEGER,
+        target_date TEXT,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO fin_bucket (name) VALUES ('Trucking');
+      INSERT INTO fin_goal (bucket_id, name, target_cents) VALUES (1, 'First Truck', 150000);
+    `);
+    old.close();
+
+    expect(() => {
+      handle = createDb(path);
+    }).not.toThrow();
+
+    const cols = handle!.sqlite.prepare(`PRAGMA table_info(fin_goal)`).all() as { name: string }[];
+    expect(cols.some((c) => c.name === "vision_node_id")).toBe(true);
+    const idx = handle!.sqlite
+      .prepare(`SELECT name FROM sqlite_master WHERE type='index' AND name='fin_goal_vision_idx'`)
+      .get();
+    expect(idx).toBeDefined();
+
+    // Pre-existing row survives untouched, with the new column defaulting to NULL.
+    const row = handle!.sqlite.prepare(`SELECT * FROM fin_goal WHERE name = 'First Truck'`).get() as {
+      target_cents: number;
+      vision_node_id: number | null;
+    };
+    expect(row.target_cents).toBe(150000);
+    expect(row.vision_node_id).toBeNull();
+  });
 });

@@ -37,6 +37,12 @@ describe("isReminderDue", () => {
     expect(isReminderDue({ kind: "action", remindAt: "2026-08-29 11:00:00" }, now)).toBe(false);
   });
 
+  // Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): remindAt on a life_vision
+  // node is a target date, never a reminder.
+  it("is never due for life_vision nodes, even with a past remindAt", () => {
+    expect(isReminderDue({ kind: "life_vision", remindAt: "2026-08-29 11:00:00" }, now)).toBe(false);
+  });
+
   it("is not due with no remindAt at all", () => {
     expect(isReminderDue({ kind: "memory" }, now)).toBe(false);
   });

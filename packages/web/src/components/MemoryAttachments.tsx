@@ -141,7 +141,16 @@ export function MemoryAttachments({
           {images.length > 1 && (
             <button className="att-lb-nav prev" onClick={(e) => { e.stopPropagation(); setViewer((v) => (v! - 1 + images.length) % images.length); }} aria-label="Previous">‹</button>
           )}
-          <img className="att-lb-img" src={urls[images[viewer]!.id]} alt={images[viewer]!.filename} onClick={(e) => e.stopPropagation()} />
+          {urls[images[viewer]!.id] ? (
+            <img className="att-lb-img" src={urls[images[viewer]!.id]} alt={images[viewer]!.filename} onClick={(e) => e.stopPropagation()} />
+          ) : (
+            // The object URL is a real per-attachment network fetch (attachmentObjectUrl) —
+            // opening the viewer before it resolves used to render a src-less, broken <img>.
+            // Same loading affordance the thumbnail grid already shows while waiting.
+            <span className="att-lb-loading" onClick={(e) => e.stopPropagation()}>
+              …
+            </span>
+          )}
           {images.length > 1 && (
             <button className="att-lb-nav next" onClick={(e) => { e.stopPropagation(); setViewer((v) => (v! + 1) % images.length); }} aria-label="Next">›</button>
           )}

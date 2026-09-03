@@ -75,4 +75,16 @@ describe("while-you-were-away digest (#keystone)", () => {
     expect(d.newContradictions).toBe(1);
     expect(d.dueReminders.map((r) => r.label)).toContain("Call Mom");
   });
+
+  // Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): a Vision's target date
+  // must never appear in the away-digest's due-reminders list.
+  it("excludes a life_vision node's target date from dueReminders", () => {
+    markSeen(handle, "legacy", ago(180));
+    handle.sqlite
+      .prepare(`INSERT INTO nodes (space_id, label, type, content, kind, remind_at) VALUES ('legacy','Our first house','concept','x','life_vision',?)`)
+      .run(ago(30));
+
+    const d = buildAwayDigest(handle, "legacy", NOW);
+    expect(d.dueReminders.map((r) => r.label)).not.toContain("Our first house");
+  });
 });

@@ -80,6 +80,20 @@ describe("Soumaya's tool-router — firing reminders", () => {
     expect(sent).toHaveLength(0);
   });
 
+  // Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): a Vision's remind_at is
+  // a target date, not a reminder — regression against the exact spurious-reminder bug
+  // the C2.1 audit flagged.
+  it("never fires a reminder for a life_vision node, even with a past remind_at", async () => {
+    const now = Date.UTC(2026, 2, 1, 12, 0, 0);
+    const id = reminder("Our first house", iso(now - 60_000));
+    handle.sqlite.prepare(`UPDATE nodes SET kind = 'life_vision' WHERE id = ?`).run(id);
+    const sent: string[] = [];
+    const r = await runToolRouter(ctx, "legacy", { now, notify: async (_s, t) => void sent.push(t) });
+    expect(sent).toHaveLength(0);
+    expect(r).toHaveLength(0);
+    expect(firedAt(id)).toBeNull(); // never even attempted, so never marked fired
+  });
+
   it("logs every action to agent_logs (in-app record even with no channel)", async () => {
     const now = Date.UTC(2026, 2, 1, 12, 0, 0);
     reminder("log me", iso(now - 60_000));

@@ -43,6 +43,16 @@ describe("NodeList — the 'reminder incoming' banner shows the SOONEST reminder
     await screen.findByText(/Reminder incoming/);
     expect(screen.getByText(/"Sooner one/)).toBeTruthy();
   });
+
+  // Life Vision (docs/specs/life-vision.md, C2.1/C3.2-locked): a Vision's target date
+  // is not a reminder and must never appear in this banner.
+  it("never shows a life_vision node's target date in the 'Reminder incoming' banner", async () => {
+    const soon = new Date(Date.now() + 2 * 3600 * 1000).toISOString();
+    const nodes = [node({ id: 1, kind: "life_vision", label: "Our first house", remindAt: soon })];
+    render(<NodeList nodes={nodes} onFocus={() => {}} />);
+    await waitFor(() => expect(getConstellations).toHaveBeenCalled());
+    expect(screen.queryByText(/Reminder incoming/)).toBeNull();
+  });
 });
 
 describe("NodeList — constellations refresh when one is newly promoted", () => {

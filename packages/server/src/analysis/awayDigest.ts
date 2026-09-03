@@ -89,6 +89,7 @@ export function buildAwayDigest(
       .prepare(
         `SELECT id, label FROM nodes
          WHERE space_id = ? AND deleted_at IS NULL AND remind_at IS NOT NULL
+         AND (kind IS NULL OR kind != 'life_vision')
          AND datetime(remind_at) > datetime(?) AND datetime(remind_at) <= datetime(?) ORDER BY remind_at DESC LIMIT 5`,
       )
       .all(spaceId, since, nowIso) as { id: number; label: string }[]

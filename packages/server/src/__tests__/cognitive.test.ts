@@ -203,6 +203,82 @@ describe("cognitive layer (goals/ideas/skills/… as first-class bodies)", () =>
     expect(node?.celestial).toBeTruthy();
     expect(node?.entropy ?? 0).toBe(0);
   });
+
+  // Life Vision (docs/specs/life-vision.md, C1.5/C2.1-locked) — foundation-layer proof
+  // that "life_vision" behaves as a durable cognitive kind via the EXISTING mechanisms,
+  // with zero kind-specific code added to createCognitive/setCognitiveProgress/the
+  // Galaxy enrichment path.
+  it("life_vision: creates with meta-derived colour/importance/progress, same mechanism as every other kind", async () => {
+    const id = await createCognitive(ctx, "legacy", "life_vision", "Our first house", "A place with a garden");
+    const node = new GraphService(handle, "legacy").getNode(id);
+    expect(node?.kind).toBe("life_vision");
+    expect(node?.type).toBe("concept");
+    expect(node?.color).toBe(COGNITIVE_META.life_vision.color);
+    expect(node?.importance).toBeCloseTo(COGNITIVE_META.life_vision.importance);
+    // hasProgress: true → starts at 0, exactly like goal/skill.
+    expect(node?.progress).toBe(0);
+  });
+
+  it("life_vision: progress is manually controlled via the existing setCognitiveProgress mechanism", async () => {
+    const id = await createCognitive(ctx, "legacy", "life_vision", "Learn to sail", "");
+    expect(setCognitiveProgress(ctx, "legacy", id, 0.4)).toBe(true);
+    expect(new GraphService(handle, "legacy").getNode(id)?.progress).toBe(0.4);
+  });
+
+  it("life_vision: durable — entropy-exempt like goal/identity, no special-casing needed", async () => {
+    const id = await createCognitive(ctx, "legacy", "life_vision", "Retire early", "");
+    handle.sqlite.prepare(`UPDATE nodes SET last_tended_at = datetime('now','-400 days') WHERE id = ?`).run(id);
+    const node = new GraphService(handle, "legacy").getNode(id);
+    expect(node?.celestial).toBeTruthy();
+    expect(node?.entropy ?? 0).toBe(0);
+  });
+
+  it("life_vision: listCognitive() surfaces remindAt (target date), null when unset", async () => {
+    const noDate = await createCognitive(ctx, "legacy", "life_vision", "No date vision", "");
+    const withDate = await createCognitive(ctx, "legacy", "life_vision", "Dated vision", "", { date: "2030-06-01T00:00:00.000Z" });
+    const items = listCognitive(ctx, "legacy", "life_vision");
+    expect(items.find((i) => i.id === noDate)?.remindAt ?? null).toBeNull();
+    expect(items.find((i) => i.id === withDate)?.remindAt).toBe("2030-06-01T00:00:00.000Z");
+  });
+
+  it("life_vision: is listable alongside other cognitive kinds, filterable by kind", async () => {
+    await createCognitive(ctx, "legacy", "life_vision", "Vision A", "");
+    await createCognitive(ctx, "legacy", "goal", "Goal A", "");
+    const all = listCognitive(ctx, "legacy");
+    expect(all.length).toBe(2);
+    const visions = listCognitive(ctx, "legacy", "life_vision");
+    expect(visions.length).toBe(1);
+    expect(visions[0]!.label).toBe("Vision A");
+  });
+
+  // C3.2 — the widened updateCognitive() write path for a Life Vision's target date.
+  it("life_vision: updateCognitive's date patch writes remind_at post-creation", async () => {
+    const id = await createCognitive(ctx, "legacy", "life_vision", "Our first house", "");
+    expect(new GraphService(handle, "legacy").getNode(id)?.remindAt).toBeUndefined();
+
+    const target = "2030-06-01T00:00:00.000Z";
+    expect(await updateCognitive(ctx, "legacy", id, { date: target })).toBe(true);
+    expect(new GraphService(handle, "legacy").getNode(id)?.remindAt).toBe(target);
+  });
+
+  it("life_vision: a date patch of null clears a previously-set target date", async () => {
+    const id = await createCognitive(ctx, "legacy", "life_vision", "Our first house", "");
+    await updateCognitive(ctx, "legacy", id, { date: "2030-06-01T00:00:00.000Z" });
+    expect(await updateCognitive(ctx, "legacy", id, { date: null })).toBe(true);
+    expect(new GraphService(handle, "legacy").getNode(id)?.remindAt).toBeFalsy();
+  });
+
+  it("future_event's date remains creation-time only — updateCognitive's date patch does not touch it (regression)", async () => {
+    const originalDate = "2027-01-01T00:00:00.000Z";
+    const id = await createCognitive(ctx, "legacy", "future_event", "Conference", "", { date: originalDate });
+    expect(new GraphService(handle, "legacy").getNode(id)?.remindAt).toBe(originalDate);
+
+    // Attempting to patch its date must be a no-op for remind_at (label/content still apply).
+    await updateCognitive(ctx, "legacy", id, { label: "Conference (renamed)", date: "2099-01-01T00:00:00.000Z" });
+    const node = new GraphService(handle, "legacy").getNode(id);
+    expect(node?.label).toBe("Conference (renamed)");
+    expect(node?.remindAt).toBe(originalDate); // unchanged
+  });
 });
 
 describe("cognitiveSnapshotText — the rest of the Mind tab, for chat context", () => {

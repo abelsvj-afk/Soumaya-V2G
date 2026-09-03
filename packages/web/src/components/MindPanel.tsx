@@ -6,8 +6,11 @@ import {
   IDEA_PROMOTE_SUPPORT,
   WORKING_MEMORY_DECAY_PER_HOUR,
   THOUGHT_SOURCE_COLOR,
+  visionRequirementCents,
   type CognitiveKind,
+  type WealthSummary,
 } from "@brain/shared";
+import { getWealthSummary, patchGoal } from "../api/finance.js";
 import {
   getCognitive,
   createCognitive,
@@ -38,6 +41,10 @@ import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
 import { mindSpaceEnabled, setMindSpaceEnabled } from "./MindSpace.js";
 import { MemoryAttachments } from "./MemoryAttachments.js";
+
+/** Same formatting convention as WealthPanel.tsx's own local `fmt` — kept local here
+ *  too rather than extracted, since it's a one-line wrapper around Intl formatting. */
+const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
 /**
  * The Mind tab — the COGNITIVE LAYER. Beyond what you've remembered, this is what
@@ -102,6 +109,14 @@ export function MindPanel({
   const [profiles, setProfiles] = useState<Record<number, PersonProfile>>({});
   const [profileOpen, setProfileOpen] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<{ name: string; count: number }[]>([]);
+  // Life Vision (docs/specs/life-vision.md): target date on the edit form, and the
+  // "Financial Goals" section — reuses the existing Wealth summary (already-computed
+  // fillPct/totalCents per goal), no separate Vision-specific finance calculation.
+  const [editDate, setEditDate] = useState(""); // life_vision only — YYYY-MM-DD
+  const [visionGoalsOpen, setVisionGoalsOpen] = useState<number | null>(null);
+  const [wealth, setWealth] = useState<WealthSummary | null>(null);
+  const [goalBusy, setGoalBusy] = useState<number | null>(null); // goal id mid-link/unlink
+  const [pickGoalId, setPickGoalId] = useState<Record<number, string>>({}); // per-vision picker selection
 
   const refresh = () => getCognitive().then(setItems).catch(() => {});
   const refreshThoughts = () => getThoughts().then(setThoughts).catch(() => {});
@@ -124,7 +139,7 @@ export function MindPanel({
     if (!label.trim()) return;
     setBusy(true);
     try {
-      const iso = kind === "future_event" && eventDate ? new Date(eventDate).toISOString() : undefined;
+      const iso = (kind === "future_event" || kind === "life_vision") && eventDate ? new Date(eventDate).toISOString() : undefined;
       const aliases = aliasText.split(",").map((t) => t.trim()).filter(Boolean);
       const r = await createCognitive(kind, label.trim(), content.trim() || undefined, iso, aliases.length ? aliases : undefined);
       if (r) {
@@ -157,11 +172,21 @@ export function MindPanel({
     setEditLabel(it.label);
     setEditContent(it.content ?? "");
     setEditAliases((it.aliases ?? []).join(", "));
+    // Target date editing only exists for life_vision (C3.2-locked) — future_event's
+    // date stays creation-time only, so there's nothing to seed for any other kind.
+    setEditDate(it.kind === "life_vision" && it.remindAt ? it.remindAt.slice(0, 10) : "");
   };
   const saveEdit = async () => {
     if (editId == null || !editLabel.trim()) return;
     const aliases = editAliases.split(",").map((t) => t.trim()).filter(Boolean);
-    const ok = await updateCognitive(editId, { label: editLabel.trim(), content: editContent.trim(), aliases });
+    const editingVision = items.find((x) => x.id === editId)?.kind === "life_vision";
+    const patch: { label: string; content: string; aliases: string[]; date?: string | null } = {
+      label: editLabel.trim(),
+      content: editContent.trim(),
+      aliases,
+    };
+    if (editingVision) patch.date = editDate ? new Date(editDate).toISOString() : null;
+    const ok = await updateCognitive(editId, patch);
     setEditId(null);
     if (ok) {
       playSfx("tap");
@@ -169,6 +194,40 @@ export function MindPanel({
       onChanged?.(); // label/links changed → refresh the galaxy
     } else {
       pushToast("Couldn't save that edit — try again.", "⚠️", 3500);
+    }
+  };
+  const toggleVisionGoals = async (it: CognitiveItem) => {
+    if (visionGoalsOpen === it.id) {
+      setVisionGoalsOpen(null);
+      return;
+    }
+    setVisionGoalsOpen(it.id);
+    const w = await getWealthSummary();
+    if (w) setWealth(w);
+  };
+  const linkGoal = async (visionId: number, goalId: number) => {
+    setGoalBusy(goalId);
+    const updated = await patchGoal(goalId, { visionNodeId: visionId });
+    setGoalBusy(null);
+    if (updated) {
+      playSfx("tap");
+      const w = await getWealthSummary();
+      if (w) setWealth(w);
+      setPickGoalId((m) => ({ ...m, [visionId]: "" }));
+    } else {
+      pushToast("Couldn't link that Financial Goal — try again.", "⚠️", 3500);
+    }
+  };
+  const unlinkGoal = async (visionId: number, goalId: number) => {
+    setGoalBusy(goalId);
+    const updated = await patchGoal(goalId, { visionNodeId: null });
+    setGoalBusy(null);
+    if (updated) {
+      playSfx("tap");
+      const w = await getWealthSummary();
+      if (w) setWealth(w);
+    } else {
+      pushToast("Couldn't unlink that Financial Goal — try again.", "⚠️", 3500);
     }
   };
 
@@ -290,6 +349,15 @@ export function MindPanel({
     setThoughts((xs) => xs.map((x) => (x.id === id ? { ...x, text } : x)));
     setEditThoughtId(null);
     await editThought(id, text);
+  };
+
+  // Life Vision (docs/specs/life-vision.md): a quiet, non-reminder read of the target
+  // date for the card summary line — never "overdue" framing (that's reminder language).
+  const visionDateLabel = (it: CognitiveItem): string | null => {
+    if (!it.remindAt) return null;
+    const passed = new Date(it.remindAt).getTime() < Date.now();
+    const date = new Date(it.remindAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return passed ? `target date passed · ${date}` : `target: ${date}`;
   };
 
   // Group by kind, in the canonical order.
@@ -476,6 +544,17 @@ export function MindPanel({
               <input type="datetime-local" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
             </label>
           )}
+          {kind === "life_vision" && (
+            <label className="mind-date">
+              <span>Target date (optional)</span>
+              <input
+                type="date"
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
+                aria-label="Target date for this Life Vision"
+              />
+            </label>
+          )}
           <input
             className="tag-input wide"
             value={aliasText}
@@ -527,6 +606,17 @@ export function MindPanel({
                       onChange={(e) => setEditAliases(e.target.value)}
                       placeholder="Also called… (comma-separated)"
                     />
+                    {k === "life_vision" && (
+                      <label className="mind-date">
+                        <span>Target date (optional)</span>
+                        <input
+                          type="date"
+                          value={editDate}
+                          onChange={(e) => setEditDate(e.target.value)}
+                          aria-label="Target date for this Life Vision"
+                        />
+                      </label>
+                    )}
                     <div className="row">
                       <button className="mini" onClick={() => void saveEdit()} disabled={!editLabel.trim()}>Save</button>
                       <button className="mini ghost" onClick={() => setEditId(null)}>Cancel</button>
@@ -546,7 +636,9 @@ export function MindPanel({
                             : events[it.id]!.inDays === 0
                               ? "today"
                               : `in ${events[it.id]!.inDays}d`
-                          : `${it.degree} linked`}
+                          : k === "life_vision"
+                            ? (visionDateLabel(it) ?? "no target date")
+                            : `${it.degree} linked`}
                       </span>
                     </button>
                     <button className="mini ghost" onClick={() => startEdit(it)} title="Edit">✎</button>
@@ -679,6 +771,100 @@ export function MindPanel({
                       </div>
                     )}
                   </div>
+                )}
+                {editId !== it.id && k === "life_vision" && (
+                  <>
+                    <MemoryAttachments nodeId={it.id} label="📎 Attachments" />
+                    <div className="mind-evidence">
+                      <button className="mind-ev-toggle" onClick={() => void toggleVisionGoals(it)}>
+                        {visionGoalsOpen === it.id ? "▾" : "▸"} Financial Goals
+                        {wealth && (
+                          <span className="mind-ev-counts">
+                            <span className="ev-for">{wealth.goals.filter((g) => g.visionNodeId === it.id).length}</span>
+                          </span>
+                        )}
+                      </button>
+                      {visionGoalsOpen === it.id && (
+                        <div className="mind-ev-body">
+                          {!wealth ? (
+                            <p className="empty small">Loading…</p>
+                          ) : (
+                            (() => {
+                              const linked = wealth.goals.filter((g) => g.visionNodeId === it.id);
+                              const available = wealth.goals.filter((g) => g.visionNodeId == null);
+                              const req = visionRequirementCents(linked);
+                              return (
+                                <>
+                                  {!req.hasLinkedGoals ? (
+                                    <p className="empty small">No Financial Goals linked — connect one below to see what funding this Vision will take.</p>
+                                  ) : (
+                                    <p className="mind-vision-requirement">
+                                      Financial requirement:{" "}
+                                      <b>
+                                        {fmt(req.totalCents)}
+                                        {req.openEndedGoals > 0 ? "+" : ""}
+                                      </b>
+                                      {req.openEndedGoals > 0 &&
+                                        ` (+${req.openEndedGoals} open-ended Financial Goal${req.openEndedGoals === 1 ? "" : "s"})`}
+                                    </p>
+                                  )}
+                                  {linked.length > 0 && (
+                                    <div className="mind-ev-group">
+                                      {linked.map((g) => (
+                                        <span key={g.id} className="mind-ev-chip removable">
+                                          <span className="mind-ev-chip-label">
+                                            {g.name} —{" "}
+                                            {g.targetCents != null
+                                              ? `${fmt(g.totalCents)} / ${fmt(g.targetCents)}`
+                                              : `${fmt(g.totalCents)} allocated (open-ended)`}
+                                          </span>
+                                          <button
+                                            className="mind-ev-chip-x"
+                                            title={`Unlink "${g.name}" from this Life Vision`}
+                                            disabled={goalBusy === g.id}
+                                            onClick={() => void unlinkGoal(it.id, g.id)}
+                                          >
+                                            ×
+                                          </button>
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {available.length > 0 ? (
+                                    <div className="row">
+                                      <select
+                                        className="tag-input"
+                                        aria-label="Choose a Financial Goal to link"
+                                        value={pickGoalId[it.id] ?? ""}
+                                        onChange={(e) => setPickGoalId((m) => ({ ...m, [it.id]: e.target.value }))}
+                                      >
+                                        <option value="">Link an existing Financial Goal…</option>
+                                        {available.map((g) => (
+                                          <option key={g.id} value={g.id}>
+                                            {g.name}
+                                            {g.targetCents != null ? ` (${fmt(g.targetCents)})` : ""}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        className="mini"
+                                        disabled={!pickGoalId[it.id] || goalBusy != null}
+                                        onClick={() => void linkGoal(it.id, Number(pickGoalId[it.id]))}
+                                      >
+                                        + Link
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <p className="empty small">No unlinked Financial Goals available — create one in Money → Wealth first.</p>
+                                  )}
+                                </>
+                              );
+                            })()
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </li>
             ))}

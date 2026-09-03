@@ -67,6 +67,65 @@ describe("FinGoalRepo", () => {
     expect(goals.list()).toHaveLength(0);
     expect(goals.list({ includeArchived: true })).toHaveLength(1);
   });
+
+  // Life Vision (docs/specs/life-vision.md, C3.2) — repository-level round-trip of
+  // vision_node_id. NodesRepo isn't used here (the node's existence/kind is validated
+  // at the route layer, not the repo — see financeWealthRoutes.test.ts); this suite
+  // only proves the column itself persists and defaults correctly.
+  it("defaults visionNodeId to null when not linked", () => {
+    const buckets = new FinBucketRepo(handle, "s1");
+    const goals = new FinGoalRepo(handle, "s1");
+    const b = buckets.create({ name: "Misc" });
+    const g = goals.create({ bucketId: b.id, name: "Unrelated goal" });
+    expect(g.visionNodeId ?? null).toBeNull();
+  });
+
+  it("persists visionNodeId at creation and round-trips it through get()", () => {
+    const buckets = new FinBucketRepo(handle, "s1");
+    const goals = new FinGoalRepo(handle, "s1");
+    const b = buckets.create({ name: "Housing" });
+    const g = goals.create({ bucketId: b.id, name: "Down Payment", targetCents: 7_000_000, visionNodeId: 42 });
+    expect(g.visionNodeId).toBe(42);
+    expect(goals.get(g.id)?.visionNodeId).toBe(42);
+  });
+
+  it("links via update(), then unlinks by patching visionNodeId back to null", () => {
+    const buckets = new FinBucketRepo(handle, "s1");
+    const goals = new FinGoalRepo(handle, "s1");
+    const b = buckets.create({ name: "Housing" });
+    const g = goals.create({ bucketId: b.id, name: "Closing Costs" });
+    expect(g.visionNodeId ?? null).toBeNull();
+
+    const linked = goals.update(g.id, { visionNodeId: 7 });
+    expect(linked?.visionNodeId).toBe(7);
+
+    const unlinked = goals.update(g.id, { visionNodeId: null });
+    expect(unlinked?.visionNodeId ?? null).toBeNull();
+  });
+
+  it("omitting visionNodeId from a patch leaves the existing link untouched", () => {
+    const buckets = new FinBucketRepo(handle, "s1");
+    const goals = new FinGoalRepo(handle, "s1");
+    const b = buckets.create({ name: "Housing" });
+    const g = goals.create({ bucketId: b.id, name: "Moving Costs", visionNodeId: 9 });
+
+    const renamed = goals.update(g.id, { name: "Moving & Furnishing" });
+    expect(renamed?.name).toBe("Moving & Furnishing");
+    expect(renamed?.visionNodeId).toBe(9);
+  });
+
+  it("list({ visionNodeId }) narrows to goals linked to that Vision only", () => {
+    const buckets = new FinBucketRepo(handle, "s1");
+    const goals = new FinGoalRepo(handle, "s1");
+    const b = buckets.create({ name: "Housing" });
+    goals.create({ bucketId: b.id, name: "Down Payment", visionNodeId: 1 });
+    goals.create({ bucketId: b.id, name: "Closing Costs", visionNodeId: 1 });
+    goals.create({ bucketId: b.id, name: "Unrelated", visionNodeId: 2 });
+    goals.create({ bucketId: b.id, name: "No vision at all" });
+
+    expect(goals.list({ visionNodeId: 1 })).toHaveLength(2);
+    expect(goals.list({ visionNodeId: 2 })).toHaveLength(1);
+  });
 });
 
 describe("FinAllocationRepo — the signed ledger IS the de-allocation model", () => {

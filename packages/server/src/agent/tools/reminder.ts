@@ -38,7 +38,8 @@ export const reminderTool: Tool = {
       .prepare(
         `SELECT id, label, remind_at FROM nodes
          WHERE space_id = ? AND deleted_at IS NULL
-           AND remind_at IS NOT NULL AND reminder_fired_at IS NULL`,
+           AND remind_at IS NOT NULL AND reminder_fired_at IS NULL
+           AND (kind IS NULL OR kind != 'life_vision')`,
       )
       .all(tc.spaceId) as DueRow[];
     return rows
