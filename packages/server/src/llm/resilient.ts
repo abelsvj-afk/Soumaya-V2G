@@ -254,6 +254,30 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
+  /** Only when the primary supports pay-stub text extraction; null → the caller falls back
+   *  to the offline regex parser (ocr/paystubHeuristic.ts). */
+  async extractPaystub(text: string): Promise<import("@brain/shared").PaystubExtractionResult | null> {
+    if (this.blocked || !this.primary.extractPaystub) return null;
+    try {
+      return await withTimeout(this.primary.extractPaystub(text), this.timeoutMs, "extractPaystub");
+    } catch (err) {
+      this.note(err, "extractPaystub");
+      return null;
+    }
+  }
+
+  /** Only when the primary supports pay-stub image extraction; null → the caller falls back
+   *  to an empty draft the user fills in manually. */
+  async extractPaystubImage(image: { dataUrl: string; mime: string }): Promise<import("@brain/shared").PaystubExtractionResult | null> {
+    if (this.blocked || !this.primary.extractPaystubImage) return null;
+    try {
+      return await withTimeout(this.primary.extractPaystubImage(image), this.timeoutMs, "extractPaystubImage");
+    } catch (err) {
+      this.note(err, "extractPaystubImage");
+      return null;
+    }
+  }
+
   /** Agentic router selection — throws when unavailable so the caller keeps every candidate. */
   async route(briefing: string, candidates: { tool: string; reason: string }[]): Promise<number[]> {
     if (this.blocked || !this.primary.route) throw new Error("route unavailable");

@@ -1,5 +1,10 @@
 import { API, afetch } from "./http.js";
-import type { FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency, ExpenseDirection, FinExtractionResult, MoneyStar, FinBucket, FinGoal, FinAllocation, WealthSummary } from "@brain/shared";
+import type {
+  FinAccount, FinBill, FinBillOccurrence, FinIncome, FinExpense, BudgetSummary, BillFrequency,
+  ExpenseDirection, FinExtractionResult, MoneyStar, FinBucket, FinGoal, FinAllocation, WealthSummary,
+  PaystubExtractionResult, PaystubLineItem, FinPaystub, FinAsset, FinAssetKind, FinAssetSnapshot,
+  IncomePoint, NetWorthPoint,
+} from "@brain/shared";
 
 /**
  * Financial OS client (Stage 1a). Thin wrappers over /api/finance; space-scoped server-side
@@ -121,3 +126,55 @@ export const listAllocations = (goalId: number) => getJson<FinAllocation[]>(`/we
 /** Positive = allocate, negative = withdraw — the entire de-allocation model is this one signed call. */
 export const allocate = (goalId: number, amountCents: number, note?: string) =>
   send<{ allocation: FinAllocation; wealth: WealthSummary }>(`/wealth/goals/${goalId}/allocations`, "POST", { amountCents, note });
+
+// ---- Pay stubs (docs/specs/paystub-ingestion.md): upload -> extract -> review -> confirm.
+// No persisted "pending source" like paste/image above — extraction is stateless.
+export const extractPaystubText = (text: string) => send<{ result: PaystubExtractionResult }>("/paystub/extract-text", "POST", { text });
+export const extractPaystubImage = (dataUrl: string, mime: string) =>
+  send<{ result: PaystubExtractionResult | null }>("/paystub/extract-image", "POST", { dataUrl, mime });
+
+export interface PaystubConfirmInput {
+  employer?: string;
+  payDate?: string;
+  periodStart?: string;
+  periodEnd?: string;
+  grossCents?: number;
+  netCents: number;
+  hours?: number;
+  hourlyRateCents?: number;
+  earnings: PaystubLineItem[];
+  deductions: PaystubLineItem[];
+  ytdGrossCents?: number;
+  ytdNetCents?: number;
+  sourceFilename?: string;
+  sourceMime?: string;
+  sourceData?: string; // base64
+}
+export const confirmPaystub = (input: PaystubConfirmInput) => send<{ paystub: FinPaystub; budget: BudgetSummary }>("/paystub/confirm", "POST", input);
+export const listPaystubs = () => getJson<FinPaystub[]>("/paystub");
+export const getPaystub = (id: number) => getJson<FinPaystub>(`/paystub/${id}`);
+export const deletePaystub = (id: number) => send<{ ok: boolean }>(`/paystub/${id}`, "DELETE");
+/** Fetch the original document's bytes as an object URL for inline viewing (same pattern as
+ *  attachmentObjectUrl) — caller must URL.revokeObjectURL it when done. */
+export async function paystubSourceObjectUrl(id: number): Promise<string | null> {
+  try {
+    const res = await afetch(`${API}/finance/paystub/${id}/download`);
+    if (!res.ok) return null;
+    return URL.createObjectURL(await res.blob());
+  } catch {
+    return null;
+  }
+}
+
+// ---- Income & Net Worth Growth Trend (docs/specs/income-net-worth-trend.md) ----
+export const listAssets = (includeArchived = false) => getJson<FinAsset[]>(`/assets${includeArchived ? "?includeArchived=true" : ""}`);
+export const createAsset = (kind: FinAssetKind, label: string) => send<FinAsset>("/assets", "POST", { kind, label });
+export const patchAsset = (id: number, patch: { kind?: FinAssetKind; label?: string }) => send<FinAsset>(`/assets/${id}`, "PATCH", patch);
+/** Archives (never hard-deletes) — its history keeps counting toward past Net Worth points. */
+export const archiveAsset = (id: number) => send<{ ok: boolean }>(`/assets/${id}`, "DELETE");
+export const listAssetSnapshots = (assetId: number) => getJson<FinAssetSnapshot[]>(`/assets/${assetId}/snapshots`);
+export const addAssetSnapshot = (assetId: number, amountCents: number, asOf: string) =>
+  send<FinAssetSnapshot>(`/assets/${assetId}/snapshots`, "POST", { amountCents, asOf });
+
+export const getIncomeTrend = (months = 12) => getJson<IncomePoint[]>(`/trend/income?months=${months}`);
+export const getNetWorthTrend = (months = 12) => getJson<NetWorthPoint[]>(`/trend/net-worth?months=${months}`);

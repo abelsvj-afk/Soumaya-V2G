@@ -4,6 +4,12 @@ import type { BudgetSummary, WealthSummary } from "@brain/shared";
 
 const getFinanceSummary = vi.fn();
 const getWealthSummary = vi.fn();
+const listPaystubs = vi.fn();
+const extractPaystubText = vi.fn();
+const confirmPaystub = vi.fn();
+const listAssets = vi.fn();
+const getIncomeTrend = vi.fn();
+const getNetWorthTrend = vi.fn();
 vi.mock("../api/finance.js", () => ({
   getFinanceSummary: (...a: unknown[]) => getFinanceSummary(...a),
   getWealthSummary: (...a: unknown[]) => getWealthSummary(...a),
@@ -14,6 +20,19 @@ vi.mock("../api/finance.js", () => ({
   getAfford: vi.fn(),
   createBucket: vi.fn(), patchBucket: vi.fn(), archiveBucket: vi.fn(),
   createGoal: vi.fn(), archiveGoal: vi.fn(), listAllocations: vi.fn(), allocate: vi.fn(),
+  // docs/specs/paystub-ingestion.md
+  extractPaystubText: (...a: unknown[]) => extractPaystubText(...a),
+  extractPaystubImage: vi.fn(),
+  confirmPaystub: (...a: unknown[]) => confirmPaystub(...a),
+  listPaystubs: (...a: unknown[]) => listPaystubs(...a),
+  deletePaystub: vi.fn(),
+  paystubSourceObjectUrl: vi.fn(),
+  // docs/specs/income-net-worth-trend.md
+  listAssets: (...a: unknown[]) => listAssets(...a),
+  createAsset: vi.fn(), archiveAsset: vi.fn(),
+  listAssetSnapshots: vi.fn().mockResolvedValue([]), addAssetSnapshot: vi.fn(),
+  getIncomeTrend: (...a: unknown[]) => getIncomeTrend(...a),
+  getNetWorthTrend: (...a: unknown[]) => getNetWorthTrend(...a),
 }));
 vi.mock("../api/journeys.js", () => ({
   getJourneys: vi.fn().mockResolvedValue([]),
@@ -22,6 +41,7 @@ vi.mock("../api/journeys.js", () => ({
   linkToJourney: vi.fn(), unlinkFromJourney: vi.fn(),
 }));
 vi.mock("./Toasts.js", () => ({ pushToast: vi.fn() }));
+vi.mock("../lib/extractFileText.js", () => ({ extractFileText: vi.fn() }));
 
 import { FinancePanel } from "./FinancePanel.js";
 
@@ -39,6 +59,10 @@ beforeEach(() => {
   vi.resetAllMocks();
   getFinanceSummary.mockResolvedValue({ budget: budget({}), account: { id: 1, name: "Cash", currency: "USD", balanceCents: 100000, bufferCents: 0, updatedAt: "x" }, upcoming: [] });
   getWealthSummary.mockResolvedValue(wealth({}));
+  listPaystubs.mockResolvedValue([]);
+  listAssets.mockResolvedValue([]);
+  getIncomeTrend.mockResolvedValue([]);
+  getNetWorthTrend.mockResolvedValue([]);
 });
 afterEach(() => cleanup());
 
@@ -101,5 +125,90 @@ describe("FinancePanel — Wealth section is collapsed by default", () => {
     // fullscreen instance. Confirm it actually unmounts instead.
     expect(screen.queryByText(/No buckets yet/)).toBeNull();
     expect(screen.queryByTitle("Expand to full-screen")).toBeNull();
+  });
+});
+
+describe("FinancePanel — Money's own expand button (docs/specs/paystub-ingestion.md §7)", () => {
+  it("shows a distinctly-titled expand button and dispatches the finance fullscreen event", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    const onExpand = vi.fn();
+    window.addEventListener("brain-open-finance-fullscreen", onExpand);
+    fireEvent.click(screen.getByTitle("Expand Money to full-screen"));
+    expect(onExpand).toHaveBeenCalled();
+    window.removeEventListener("brain-open-finance-fullscreen", onExpand);
+  });
+
+  it("hides its own expand button when embedded={false} (the fullscreen instance)", async () => {
+    render(<FinancePanel embedded={false} />);
+    await screen.findByText("Safe to Spend");
+    expect(screen.queryByTitle("Expand Money to full-screen")).toBeNull();
+  });
+});
+
+describe("FinancePanel — Pay Stubs section (docs/specs/paystub-ingestion.md)", () => {
+  it("lists saved pay stubs once opened, and not before", async () => {
+    listPaystubs.mockResolvedValue([{ id: 1, netCents: 90000, grossCents: 120000, employer: "Acme", payDate: "2026-03-01", earnings: [], deductions: [], hasSource: false, createdAt: "x" }]);
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    expect(listPaystubs).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("📄 Pay Stubs"));
+    await screen.findByText(/Acme/);
+  });
+
+  it("uploading a PDF runs it through extractFileText -> extractPaystubText and opens the confirm draft", async () => {
+    const { extractFileText } = await import("../lib/extractFileText.js");
+    (extractFileText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ text: "Net Pay 900.00", name: "stub" });
+    extractPaystubText.mockResolvedValue({ result: { netCents: 90000, earnings: [], deductions: [], confidence: 0.6 } });
+
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📄 Pay Stubs"));
+    await screen.findByText("📤 Upload a pay stub");
+
+    const input = screen.getByText("📤 Upload a pay stub").closest("label")!.querySelector("input")!;
+    const file = new File(["dummy"], "stub.pdf", { type: "application/pdf" });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+
+    await screen.findByText("Review your pay stub — confirm to save");
+    expect(extractPaystubText).toHaveBeenCalledWith("Net Pay 900.00");
+
+    fireEvent.click(screen.getByText("Save pay stub"));
+    await waitFor(() => expect(confirmPaystub).toHaveBeenCalled());
+    expect((confirmPaystub.mock.calls[0]![0] as { netCents: number }).netCents).toBe(90000);
+  });
+});
+
+describe("FinancePanel — Growth section (docs/specs/income-net-worth-trend.md)", () => {
+  it("fetches income and net-worth trends only once opened", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    expect(getIncomeTrend).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByText("📈 Growth"));
+    await waitFor(() => expect(getIncomeTrend).toHaveBeenCalled());
+    expect(getNetWorthTrend).toHaveBeenCalled();
+  });
+
+  it("toggles between Income and Net Worth without refetching", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📈 Growth"));
+    await waitFor(() => expect(getIncomeTrend).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByText("Net Worth"));
+    fireEvent.click(screen.getByText("Income"));
+    expect(getIncomeTrend).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the projected-cash note only when a net-worth point is flagged cashIsProjected", async () => {
+    getNetWorthTrend.mockResolvedValue([{ asOf: "2026-03-31", totalCents: 1000, cashIsProjected: true }]);
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📈 Growth"));
+    await waitFor(() => expect(getNetWorthTrend).toHaveBeenCalled());
+    fireEvent.click(screen.getByText("Net Worth"));
+    await screen.findByText(/Dashed = projected/);
   });
 });

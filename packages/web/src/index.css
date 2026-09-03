@@ -4700,6 +4700,8 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 
 /* ---- Financial OS (Stage 1a) — mobile-first ---- */
 .fin-panel { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px 24px; }
+.fin-panel-head { display: flex; align-items: center; justify-content: space-between; }
+.fin-panel-title { font-weight: 600; }
 .fin-empty, .fin-muted { color: var(--muted); font-size: 0.9rem; }
 .fin-hero { text-align: center; padding: 14px 12px; border-radius: 16px;
   background: radial-gradient(120% 120% at 50% 0%, rgba(122,249,255,0.12), var(--glass));
@@ -4795,6 +4797,53 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
   border: 1px solid var(--glass-border); cursor: pointer; font-size: 0.9rem; }
 .fin-txn.edit input { background: rgba(0,0,0,0.3); color: var(--text); border: 1px solid var(--glass-border);
   border-radius: 8px; padding: 8px; min-height: 40px; font-size: 0.9rem; }
+
+/* ---- GrowthTrendChart (docs/specs/income-net-worth-trend.md) — a generic animated line
+   chart, reused for both the Growth section and the pay-stub gross/net trend. The draw-in
+   reveal and the latest-point pulse both honor prefers-reduced-motion (instant, no pulse) —
+   never encode meaning by colour alone (dashed stroke + legend text carry that instead). */
+.gtc { display: flex; flex-direction: column; gap: 6px; }
+.gtc-svg { width: 100%; height: auto; display: block; }
+.gtc-baseline { stroke: var(--glass-border); stroke-width: 1; }
+.gtc-line { stroke-width: 2; }
+.gtc-line-dashed { stroke-dasharray: 5 4; }
+.gtc-reveal { transition: width 900ms ease-out; }
+.gtc-dot { animation: gtc-pulse 2.2s ease-in-out infinite; }
+@keyframes gtc-pulse { 0%, 100% { opacity: 1; r: 3.5; } 50% { opacity: 0.55; r: 5; } }
+.gtc-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 0.78rem; color: var(--muted); }
+.gtc-legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.gtc-legend-item.dashed { text-decoration: underline dashed; text-underline-offset: 3px; }
+.gtc-swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.gtc-xlabels { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); }
+.gtc-empty { margin: 4px 0 0; }
+@media (prefers-reduced-motion: reduce) {
+  .gtc-reveal { transition: none; }
+  .gtc-dot { animation: none; }
+}
+.gtc-note { margin-top: 2px; }
+
+/* ---- Pay stubs (docs/specs/paystub-ingestion.md) ---- */
+.fin-paystub-upload { display: flex; gap: 8px; flex-wrap: wrap; }
+.fin-paystub-body { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.fin-paystub-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.fin-paystub-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fin-paystub-detail { display: flex; flex-direction: column; gap: 4px; }
+.fin-paystub-detail h4 { margin: 4px 0 0; }
+.fin-paystub-detail h5 { margin: 8px 0 2px; font-size: 0.85rem; color: var(--muted); }
+.fin-paystub-lines { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 0.9rem; }
+.fin-paystub-lines li { display: flex; justify-content: space-between; gap: 8px; }
+.fin-paystub-viewer { display: flex; flex-direction: column; gap: 8px; }
+.fin-paystub-iframe { width: 100%; height: 60vh; border: 1px solid var(--glass-border); border-radius: 8px; background: #fff; }
+.fin-paystub-img { max-width: 100%; border-radius: 8px; border: 1px solid var(--glass-border); }
+.fin-source-select { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* ---- Income & Net Worth Growth Trend (docs/specs/income-net-worth-trend.md) ---- */
+.fin-growth { display: flex; flex-direction: column; gap: 8px; }
+.fin-growth-body { display: flex; flex-direction: column; gap: 10px; }
+.fin-growth-toggle { display: flex; gap: 6px; }
+.fin-assets { display: flex; flex-direction: column; gap: 10px; }
+.fin-asset-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.fin-asset-row { display: flex; flex-direction: column; gap: 4px; }
 
 /* ---- Wealth (docs/specs/wealth-goals-allocation.md) — intention layered on Money's reality.
    Deliberately visually distinct from the Safe-to-Spend hero above: never the same size/weight,

@@ -765,6 +765,70 @@ export interface FinExtractionResult {
   provider: "heuristic" | "vision";
 }
 
+// ---- Pay stubs (docs/specs/paystub-ingestion.md) -------------------------------------------
+// A pay stub is a richer record than a plain income row: employer, pay period, an itemized
+// earnings/deductions breakdown, and often YTD totals. It always produces exactly one
+// FinIncome row (the net pay) but its full detail + the original document live in fin_paystub.
+
+/** One earnings or deduction line item, verbatim from the document. */
+export interface PaystubLineItem {
+  label: string;
+  amountCents: number;
+  /** Earnings only: e.g. hours or miles, when the stub shows a quantity. */
+  quantity?: number;
+  /** Earnings only: e.g. an hourly or per-mile rate, when the stub shows one. */
+  rateCents?: number;
+  /** Deductions only: the year-to-date total for this line, when shown. */
+  ytdCents?: number;
+}
+
+/**
+ * Comprehensive, not curated: `earnings` generalizes beyond hourly/salary so a pay structure
+ * like a company truck driver's (per-mile line-haul pay, flat day-rate training pay, per diem)
+ * is captured verbatim alongside the common hourly/salary convenience fields, which stay
+ * populated too when the stub genuinely is hourly/salary.
+ */
+export interface PaystubExtractionResult {
+  employer?: string;
+  payDate?: string; // ISO date
+  periodStart?: string;
+  periodEnd?: string;
+  grossCents?: number;
+  netCents: number; // required — this becomes the FinIncome row
+  hours?: number;
+  hourlyRateCents?: number;
+  overtimeHours?: number;
+  overtimeRateCents?: number;
+  earnings: PaystubLineItem[];
+  deductions: PaystubLineItem[];
+  ytdGrossCents?: number;
+  ytdNetCents?: number;
+  confidence: number; // 0..1
+}
+
+/** A saved pay stub: the confirmed extraction + the original document, viewable again later. */
+export interface FinPaystub {
+  id: number;
+  incomeId?: number | null;
+  employer?: string | null;
+  payDate?: string | null;
+  periodStart?: string | null;
+  periodEnd?: string | null;
+  grossCents?: number | null;
+  netCents: number;
+  hours?: number | null;
+  hourlyRateCents?: number | null;
+  earnings: PaystubLineItem[];
+  deductions: PaystubLineItem[];
+  ytdGrossCents?: number | null;
+  ytdNetCents?: number | null;
+  sourceFilename?: string | null;
+  sourceMime?: string | null;
+  /** True when the original document is retained and viewable (not sent to the list view). */
+  hasSource: boolean;
+  createdAt: string;
+}
+
 // ---- Money in the galaxy (Stage 4 — bills/goals as STARS) ----
 // Meaning is carried by state → colour/glyph/glow (never colour alone). Cooling = blue.
 export type MoneyStarState =
@@ -878,4 +942,49 @@ export interface WealthSummary {
    *  never folded silently into Safe-to-Spend. May be negative. */
   deployableCents: number;
   reconciliation: ReconciliationStatus;
+}
+
+// ---- Income & Net Worth Growth Trend (docs/specs/income-net-worth-trend.md) ----------------
+// Deliberately separate from Wealth's Buckets/Goals (which never represent a real balance) and
+// from fin_account (the single spendable cash balance) — an Asset is a manually-tracked
+// savings/investment/retirement account, tracked purely for the net-worth line.
+
+export type FinAssetKind = "savings" | "investment" | "retirement" | "other";
+
+export interface FinAsset {
+  id: number;
+  kind: FinAssetKind;
+  label: string;
+  archived: boolean;
+  createdAt: string;
+}
+
+export interface FinAssetSnapshot {
+  id: number;
+  assetId: number;
+  amountCents: number;
+  /** ISO date this balance was true as of. */
+  asOf: string;
+  createdAt: string;
+}
+
+/** One point on the income trend chart — a calendar month's total net income. */
+export interface IncomePoint {
+  /** ISO date, first of the month. */
+  periodStart: string;
+  totalCents: number;
+  /** Rough source split for the nice-to-have breakdown (see spec Decision #2) — a
+   *  platform-text heuristic, not a hard categorization. */
+  bySource: { paycheck: number; selfEmployed: number };
+}
+
+/** One point on the net-worth trend chart. */
+export interface NetWorthPoint {
+  /** ISO date, month-end. */
+  asOf: string;
+  totalCents: number;
+  /** True when the cash portion of this point is today's balance projected backward
+   *  (fin_account has no history yet) rather than a real historical figure — the chart
+   *  renders this segment visually distinct (spec Decision #3), never as fact. */
+  cashIsProjected: boolean;
 }

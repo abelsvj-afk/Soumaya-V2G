@@ -1,4 +1,4 @@
-import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -45,6 +45,102 @@ export function normalizeExtraction(raw: unknown): unknown {
     }
   }
   return raw;
+}
+
+/**
+ * OpenAI's strict schema requires nullable fields to be present as `null` rather than
+ * absent; PaystubExtractionResult treats them as optional (value | undefined). Strips
+ * nulls and sanity-clamps money/confidence, same spirit as normalizeExtraction above.
+ */
+export function normalizePaystub(raw: unknown): PaystubExtractionResult | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+  const cents = (v: unknown): number | undefined => { const n = num(v); return n == null ? undefined : Math.round(n); };
+  const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
+  const items = (v: unknown, extra: (i: Record<string, unknown>) => Record<string, unknown>): Array<Record<string, unknown>> =>
+    Array.isArray(v)
+      ? v
+          .map((i) => (i && typeof i === "object" ? (i as Record<string, unknown>) : null))
+          .filter((i): i is Record<string, unknown> => !!i && typeof i.label === "string" && typeof i.amountCents === "number")
+          .map((i) => extra({ label: (i.label as string).trim().slice(0, 80), amountCents: Math.round(i.amountCents as number) }))
+      : [];
+  const netCents = cents(r.netCents);
+  if (netCents == null) return null; // netCents is the one structurally required field
+  return {
+    employer: str(r.employer),
+    payDate: str(r.payDate),
+    periodStart: str(r.periodStart),
+    periodEnd: str(r.periodEnd),
+    grossCents: cents(r.grossCents),
+    netCents,
+    hours: num(r.hours),
+    hourlyRateCents: cents(r.hourlyRateCents),
+    overtimeHours: num(r.overtimeHours),
+    overtimeRateCents: cents(r.overtimeRateCents),
+    earnings: items(r.earnings, (i) => {
+      const q = num((i as any).quantity);
+      const rate = cents((i as any).rateCents);
+      return { ...i, ...(q != null ? { quantity: q } : {}), ...(rate != null ? { rateCents: rate } : {}) };
+    }) as unknown as PaystubExtractionResult["earnings"],
+    deductions: items(r.deductions, (i) => {
+      const ytd = cents((i as any).ytdCents);
+      return { ...i, ...(ytd != null ? { ytdCents: ytd } : {}) };
+    }) as unknown as PaystubExtractionResult["deductions"],
+    ytdGrossCents: cents(r.ytdGrossCents),
+    ytdNetCents: cents(r.ytdNetCents),
+    confidence: Math.max(0, Math.min(1, num(r.confidence) ?? 0.5)),
+  };
+}
+
+const PAYSTUB_SYSTEM =
+  "You read a pay stub. Extract EVERYTHING on it, not just the common hourly/salary fields — " +
+  "pay structures vary widely (hourly, salary, per-mile for a company truck driver's line-haul " +
+  "pay, a flat day-rate for training pay, per diem, commission, detention/stop pay, bonuses). " +
+  "Put every earnings line item into `earnings` verbatim (label, amountCents, and quantity/" +
+  "rateCents when the stub shows a count and a rate, e.g. \"2,450 mi @ $0.52/mi\"), and still " +
+  "fill hours/hourlyRateCents when it genuinely is a simple hourly wage. Put every tax/benefit " +
+  "deduction into `deductions` verbatim. Money in INTEGER CENTS (e.g. $44.30 -> 4430). Dates as " +
+  "YYYY-MM-DD. Use null for anything not present. If unsure, use lower confidence.";
+
+/** The strict JSON schema shared by both paystub extraction entry points (text + image) —
+ *  one schema, two callers, per docs/specs/paystub-ingestion.md §4. */
+function paystubSchema(): object {
+  const item = (extra: Record<string, unknown> = {}) => ({
+    type: "object" as const,
+    additionalProperties: false,
+    properties: { label: { type: "string" }, amountCents: { type: "number" }, ...extra },
+  });
+  const earningsItem = item({ quantity: { type: ["number", "null"] }, rateCents: { type: ["number", "null"] } });
+  (earningsItem as any).required = ["label", "amountCents", "quantity", "rateCents"];
+  const deductionsItem = item({ ytdCents: { type: ["number", "null"] } });
+  (deductionsItem as any).required = ["label", "amountCents", "ytdCents"];
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      employer: { type: ["string", "null"] },
+      payDate: { type: ["string", "null"] },
+      periodStart: { type: ["string", "null"] },
+      periodEnd: { type: ["string", "null"] },
+      grossCents: { type: ["number", "null"] },
+      netCents: { type: "number" },
+      hours: { type: ["number", "null"] },
+      hourlyRateCents: { type: ["number", "null"] },
+      overtimeHours: { type: ["number", "null"] },
+      overtimeRateCents: { type: ["number", "null"] },
+      earnings: { type: "array", items: earningsItem },
+      deductions: { type: "array", items: deductionsItem },
+      ytdGrossCents: { type: ["number", "null"] },
+      ytdNetCents: { type: ["number", "null"] },
+      confidence: { type: "number" },
+    },
+    required: [
+      "employer", "payDate", "periodStart", "periodEnd", "grossCents", "netCents",
+      "hours", "hourlyRateCents", "overtimeHours", "overtimeRateCents",
+      "earnings", "deductions", "ytdGrossCents", "ytdNetCents", "confidence",
+    ],
+  };
 }
 
 /**
@@ -143,6 +239,60 @@ export class OpenAiProvider implements LlmProvider {
       return { incomes, expenses, provider: "vision" };
     } catch {
       return null; // any failure → caller falls back to manual entry
+    }
+  }
+
+  /**
+   * Pay stub TEXT extraction (docs/specs/paystub-ingestion.md §4) — comprehensive, not
+   * curated. `earnings` generalizes beyond hourly/salary (e.g. per-mile line-haul pay, a
+   * flat day-rate for training, per diem) so whatever pay structure is actually on the
+   * document is captured verbatim, while `hours`/`hourlyRateCents` still get filled when the
+   * stub genuinely is hourly. Best-effort + fully guarded: any failure returns null so the
+   * caller falls back to the offline regex parser (never a hard dependency on a cloud key).
+   */
+  async extractPaystub(text: string): Promise<PaystubExtractionResult | null> {
+    try {
+      const raw = await this.json<Record<string, unknown>>(
+        PAYSTUB_SYSTEM, `Pay stub text:\n\n${text.slice(0, 8000)}`, paystubSchema(), "paystub", 0,
+      );
+      return normalizePaystub(raw);
+    } catch {
+      return null; // any failure → caller falls back to the offline regex parser
+    }
+  }
+
+  /**
+   * Pay stub IMAGE extraction (a photographed paper stub or a screenshot) — the exact same
+   * schema/prompt as extractPaystub's text path (docs/specs/paystub-ingestion.md §3: "one
+   * shared schema, two entry points"), called via the raw vision endpoint the same way
+   * extractFinancialImage is. Best-effort + fully guarded: any failure returns null.
+   */
+  async extractPaystubImage(image: { dataUrl: string; mime: string }): Promise<PaystubExtractionResult | null> {
+    try {
+      const res = await fetch(ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.apiKey}` },
+        body: JSON.stringify({
+          model: MODEL,
+          temperature: 0,
+          response_format: { type: "json_schema", json_schema: { name: "paystub", strict: true, schema: paystubSchema() } },
+          messages: [
+            { role: "system", content: PAYSTUB_SYSTEM },
+            { role: "user", content: [
+              { type: "text", text: "Extract this pay stub." },
+              { type: "image_url", image_url: { url: image.dataUrl } },
+            ] },
+          ],
+        }),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { choices?: { message?: { content?: string | null } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
+      if (this.recordUsage && body.usage) this.recordUsage(MODEL, body.usage.prompt_tokens ?? 0, body.usage.completion_tokens ?? 0);
+      const content = body.choices?.[0]?.message?.content;
+      if (!content) return null;
+      return normalizePaystub(JSON.parse(content));
+    } catch {
+      return null;
     }
   }
 

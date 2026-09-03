@@ -1,13 +1,15 @@
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
-import type { FinExtractionResult, ExtractedIncome, ExtractedExpense, BudgetSummary, FinSourceKind } from "@brain/shared";
+import type { FinExtractionResult, ExtractedIncome, ExtractedExpense, BudgetSummary, FinSourceKind, PaystubExtractionResult, PaystubLineItem, FinPaystub } from "@brain/shared";
 import type { LlmProvider } from "../llm/adapter.js";
 import { HeuristicOcrProvider } from "../ocr/heuristic.js";
+import { heuristicExtractPaystub } from "../ocr/paystubHeuristic.js";
 import { FinSourceRepo } from "../repositories/finSource.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../repositories/finExpense.repo.js";
 import { FinAccountRepo } from "../repositories/finAccount.repo.js";
 import { FinCategoryOverrideRepo } from "../repositories/finCategoryOverride.repo.js";
+import { FinPaystubRepo } from "../repositories/finPaystub.repo.js";
 import { categorize } from "./categorize.js";
 import { getBudgetSummary } from "./summary.js";
 
@@ -135,4 +137,86 @@ export function confirmIngest(
   tx();
 
   return { committed, budget: getBudgetSummary(handle, spaceId) };
+}
+
+/**
+ * Pay stub ingestion (docs/specs/paystub-ingestion.md). Unlike paste/image ingest above, this
+ * has no persisted "pending source" step: extraction is a pure, stateless read (nothing
+ * commits), and confirmPaystub below is the one atomic write. Tries the LLM first (when
+ * configured), falling back to the offline regex parser — text extraction always works with
+ * no cloud key, matching this codebase's "never hard-depend on a cloud key" rule.
+ */
+export async function ingestPaystubText(llm: LlmProvider, text: string): Promise<PaystubExtractionResult> {
+  let result: PaystubExtractionResult | null = null;
+  try {
+    result = (await llm.extractPaystub?.(text)) ?? null;
+  } catch {
+    result = null;
+  }
+  return result ?? heuristicExtractPaystub(text);
+}
+
+/** A photographed paper stub or screenshot. Degrades to null (empty manual draft) with no
+ *  vision key configured or on any failure — there's no offline OCR fallback for images. */
+export async function ingestPaystubImage(
+  llm: LlmProvider,
+  image: { dataUrl: string; mime: string },
+): Promise<PaystubExtractionResult | null> {
+  try {
+    return (await llm.extractPaystubImage?.(image)) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Commit a (user-reviewed/edited) pay stub: one FinIncome row (net pay — Safe-to-Spend is
+ * unaffected in shape) plus one fin_paystub row holding the full detail + original document.
+ * taxCents is derived as the sum of the confirmed deductions, same "never store what can be
+ * computed" spirit as the rest of Financial OS, but persisted onto FinIncome (a genuinely
+ * dormant column until now) so existing income displays show more detail for free.
+ */
+export function confirmPaystub(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  input: {
+    employer?: string | null;
+    payDate?: string | null;
+    periodStart?: string | null;
+    periodEnd?: string | null;
+    grossCents?: number | null;
+    netCents: number;
+    hours?: number | null;
+    hourlyRateCents?: number | null;
+    earnings: PaystubLineItem[];
+    deductions: PaystubLineItem[];
+    ytdGrossCents?: number | null;
+    ytdNetCents?: number | null;
+    sourceFilename?: string | null;
+    sourceMime?: string | null;
+    sourceData?: string | null;
+  },
+): { paystub: FinPaystub; budget: BudgetSummary } {
+  const incomeRepo = new FinIncomeRepo(handle, spaceId);
+  const account = new FinAccountRepo(handle, spaceId);
+  const paystubRepo = new FinPaystubRepo(handle, spaceId);
+  const date = (input.payDate ?? today()).slice(0, 10);
+  const taxCents = input.deductions.reduce((s, d) => s + (d.amountCents || 0), 0);
+
+  const tx = handle.sqlite.transaction(() => {
+    const income = incomeRepo.create({
+      date,
+      netCents: input.netCents,
+      grossCents: input.grossCents ?? null,
+      taxCents: taxCents > 0 ? taxCents : null,
+      hours: input.hours ?? null,
+      platform: input.employer ?? null,
+      confidence: 1,
+    });
+    account.adjustBalance(input.netCents);
+    return paystubRepo.create({ ...input, incomeId: income.id });
+  });
+  const paystub = tx();
+
+  return { paystub, budget: getBudgetSummary(handle, spaceId) };
 }

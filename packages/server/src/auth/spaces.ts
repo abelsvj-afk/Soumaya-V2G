@@ -46,6 +46,9 @@ const TABLES_WITH_SPACE = [
   "fin_bucket",
   "fin_goal",
   "fin_allocation",
+  "fin_paystub",
+  "fin_asset",
+  "fin_asset_snapshot",
   "journeys",
   "journey_link",
 ] as const;

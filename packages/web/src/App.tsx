@@ -28,6 +28,7 @@ import { SearchBox } from "./components/SearchBox.js";
 import { RightDock, type DockTab } from "./components/RightDock.js";
 import { HelpPanel } from "./components/HelpPanel.js";
 import { WealthFullscreen } from "./components/WealthFullscreen.js";
+import { FinanceFullscreen } from "./components/FinanceFullscreen.js";
 import { Legend } from "./components/Legend.js";
 import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
@@ -93,6 +94,7 @@ export default function App() {
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
   const [showWealthFullscreen, setShowWealthFullscreen] = useState(false);
+  const [showFinanceFullscreen, setShowFinanceFullscreen] = useState(false);
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
   const hailedRef = useRef(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -1128,6 +1130,14 @@ export default function App() {
     return () => window.removeEventListener("brain-open-wealth-fullscreen", onExpand);
   }, []);
 
+  // Money's "⛶ Expand" affordance (docs/specs/paystub-ingestion.md §7) — same dedicated-event
+  // pattern as Wealth's, above.
+  useEffect(() => {
+    const onExpand = () => setShowFinanceFullscreen(true);
+    window.addEventListener("brain-open-finance-fullscreen", onExpand);
+    return () => window.removeEventListener("brain-open-finance-fullscreen", onExpand);
+  }, []);
+
   // Smart Lens open/exit — shared by the Lenses panel and the on-galaxy pinned chips.
   // Lens/Views and the "system view" isolate (below) share ONE underlying cluster state
   // in Graph3D (isolateSet/isolateLayer/isolateSystem all call the same setCluster), so
@@ -1999,6 +2009,7 @@ export default function App() {
       )}
 
       {showWealthFullscreen && space && <WealthFullscreen onClose={() => setShowWealthFullscreen(false)} />}
+      {showFinanceFullscreen && space && <FinanceFullscreen onClose={() => setShowFinanceFullscreen(false)} />}
 
       {showObs && space && (
         <Observatory

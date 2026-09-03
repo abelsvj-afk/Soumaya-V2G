@@ -1,4 +1,4 @@
-import type { ExtractionResult, RelationshipType, FinExtractionResult } from "@brain/shared";
+import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult } from "@brain/shared";
 
 /** A previously-stored node passed to the LLM as context for extraction. */
 export interface ContextNode {
@@ -138,6 +138,18 @@ export interface LlmProvider {
    *  provider and returns null on any failure → the ingest route degrades to manual entry, so
    *  no feature ever hard-depends on a vision key. */
   extractFinancialImage?(image: { dataUrl: string; mime: string }): Promise<FinExtractionResult | null>;
+  /** Optional: read pay-stub TEXT (from extractFileText's client-side PDF/DOCX conversion —
+   *  docs/specs/paystub-ingestion.md) and return a comprehensive extraction — every earnings
+   *  and deduction line, not a curated subset, generalized beyond hourly/salary. Absent on
+   *  the heuristic/offline provider; the ingest layer falls back to a dedicated regex parser
+   *  (ocr/paystubHeuristic.ts) so pay-stub text extraction always works offline. Returns null
+   *  on any failure. */
+  extractPaystub?(text: string): Promise<PaystubExtractionResult | null>;
+  /** Optional: the same comprehensive extraction as `extractPaystub`, from a photographed
+   *  paper stub or a screenshot instead of text. Absent on the heuristic/offline provider —
+   *  the ingest layer degrades to an empty draft the user fills in manually (same shape as
+   *  `extractFinancialImage`'s degrade path). Returns null on any failure. */
+  extractPaystubImage?(image: { dataUrl: string; mime: string }): Promise<PaystubExtractionResult | null>;
 }
 
 /** A grounded web-lookup result: a concise answer plus the source URLs it cited. */

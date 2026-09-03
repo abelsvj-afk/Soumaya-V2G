@@ -450,6 +450,59 @@ export const BOOTSTRAP_SQL = `
     CREATE INDEX IF NOT EXISTS fin_allocation_space_idx ON fin_allocation(space_id);
     CREATE INDEX IF NOT EXISTS fin_allocation_goal_idx ON fin_allocation(goal_id);
 
+    -- Pay stubs (docs/specs/paystub-ingestion.md): a richer record than a plain fin_income
+    -- row — the itemized extraction + the original document, viewable again later. Always
+    -- produces exactly one fin_income row (income_id); no SQL FK (matches this table
+    -- family's bucket_id/goal_id convention — application-layer validation only).
+    CREATE TABLE IF NOT EXISTS fin_paystub (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      income_id INTEGER,
+      employer TEXT,
+      pay_date TEXT,
+      period_start TEXT,
+      period_end TEXT,
+      gross_cents INTEGER,
+      net_cents INTEGER NOT NULL,
+      hours REAL,
+      hourly_rate_cents INTEGER,
+      earnings_json TEXT,
+      deductions_json TEXT,
+      ytd_gross_cents INTEGER,
+      ytd_net_cents INTEGER,
+      source_filename TEXT,
+      source_mime TEXT,
+      source_data TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_paystub_space_idx ON fin_paystub(space_id, created_at DESC);
+
+    -- Income & Net Worth Growth Trend (docs/specs/income-net-worth-trend.md): a manually
+    -- tracked savings/investment/retirement "asset", deliberately separate from fin_account
+    -- (the single spendable cash balance, untouched by this feature) and from Wealth's
+    -- Buckets/Goals (which never represent a real balance). Archiving preserves history —
+    -- a snapshot's contribution to past Net Worth points stays intact after archive.
+    CREATE TABLE IF NOT EXISTS fin_asset (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      kind TEXT NOT NULL DEFAULT 'other',
+      label TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_asset_space_idx ON fin_asset(space_id, archived);
+
+    CREATE TABLE IF NOT EXISTS fin_asset_snapshot (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      asset_id INTEGER NOT NULL,
+      amount_cents INTEGER NOT NULL,
+      as_of TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS fin_asset_snapshot_space_idx ON fin_asset_snapshot(space_id, as_of DESC);
+    CREATE INDEX IF NOT EXISTS fin_asset_snapshot_asset_idx ON fin_asset_snapshot(asset_id, as_of DESC);
+
     -- Journeys (Vision 2.0): a life chapter everything can belong to. We LINK, never copy.
     CREATE TABLE IF NOT EXISTS journeys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

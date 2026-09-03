@@ -7,7 +7,7 @@ import { FinIncomeRepo } from "../../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { getBudgetSummary } from "../../finance/summary.js";
-import { ingestPaste, ingestImage, confirmIngest } from "../../finance/ingest.js";
+import { ingestPaste, ingestImage, confirmIngest, ingestPaystubText, ingestPaystubImage, confirmPaystub } from "../../finance/ingest.js";
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../../finance/mutations.js";
 import { moneySky } from "../../finance/sky.js";
 import { weeklyBillLoadCents, weeklySurplusCents, weeksToAfford } from "../../finance/forecast.js";
@@ -16,6 +16,11 @@ import { FinGoalRepo } from "../../repositories/finGoal.repo.js";
 import { FinAllocationRepo } from "../../repositories/finAllocation.repo.js";
 import { getWealthSummary } from "../../finance/wealth.js";
 import { NodesRepo } from "../../repositories/nodes.repo.js";
+import { FinPaystubRepo } from "../../repositories/finPaystub.repo.js";
+import { FinAssetRepo } from "../../repositories/finAsset.repo.js";
+import { FinAssetSnapshotRepo } from "../../repositories/finAssetSnapshot.repo.js";
+import { incomeSeries } from "../../finance/incomeTrend.js";
+import { netWorthSeries } from "../../finance/netWorthTrend.js";
 
 /**
  * Financial OS (Stage 1a) routes. Thin: validate with zod → delegate to space-scoped repos +
@@ -67,6 +72,44 @@ const ExpenseBody = z
     merchant: z.string().trim().max(80).optional(),
   })
   .strict();
+
+const PaystubLineItemBody = z
+  .object({
+    label: z.string().trim().min(1).max(80),
+    amountCents: posCents,
+    quantity: z.number().nonnegative().max(1_000_000).optional(),
+    rateCents: posCents.optional(),
+    ytdCents: posCents.optional(),
+  })
+  .strict();
+
+const PaystubConfirmBody = z
+  .object({
+    employer: z.string().trim().max(120).optional(),
+    payDate: isoDate.optional(),
+    periodStart: isoDate.optional(),
+    periodEnd: isoDate.optional(),
+    grossCents: posCents.optional(),
+    netCents: posCents,
+    hours: z.number().nonnegative().max(1000).optional(),
+    hourlyRateCents: posCents.optional(),
+    earnings: z.array(PaystubLineItemBody).max(100).default([]),
+    deductions: z.array(PaystubLineItemBody).max(100).default([]),
+    ytdGrossCents: posCents.optional(),
+    ytdNetCents: posCents.optional(),
+    sourceFilename: z.string().trim().max(200).optional(),
+    sourceMime: z.string().trim().max(80).optional(),
+    // base64 — size-checked at the handler (decoded byte length), same pattern as
+    // nodes.ts's attachment upload, since a reasonable string-length cap here can't
+    // account for base64's ~33% inflation as precisely as a decoded-byte check.
+    sourceData: z.string().max(6_000_000).optional(),
+  })
+  .strict();
+const MAX_PAYSTUB_SOURCE_BYTES = 4_000_000; // 4 MB decoded — matches MAX_ATTACHMENT_BYTES
+
+const AssetBody = z.object({ kind: z.enum(["savings", "investment", "retirement", "other"]), label: z.string().trim().min(1).max(80) }).strict();
+const AssetPatch = AssetBody.partial();
+const SnapshotBody = z.object({ amountCents: posCents, asOf: isoDate }).strict();
 
 const bad = (res: any, msg: string, issues?: unknown) => res.status(400).json({ error: msg, issues });
 
@@ -262,6 +305,127 @@ export function financeRoutes(ctx: AppContext): Router {
     if (!p.success) return bad(res, "Invalid confirmation", p.error.issues);
     const out = confirmIngest(ctx.handle, spaceOf(res), p.data);
     return out ? res.json(out) : res.status(404).json({ error: "Source not found or already handled" });
+  });
+
+  // ---- Pay stubs (docs/specs/paystub-ingestion.md): upload -> extract -> review -> confirm.
+  // No persisted "pending source" like paste/image above — extraction is stateless (nothing
+  // commits) and /paystub/confirm is the one atomic write.
+  const PaystubTextBody = z.object({ text: z.string().min(1).max(50_000) }).strict();
+  r.post("/paystub/extract-text", async (req, res) => {
+    const p = PaystubTextBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Body must be { text }", p.error.issues);
+    const result = await ingestPaystubText(ctx.llm, p.data.text);
+    res.json({ result });
+  });
+
+  // Photographed paper stub or screenshot — calls the vision LLM, same tighter rate limit
+  // as /ingest/image.
+  r.post("/paystub/extract-image", llmLimiter, async (req, res) => {
+    const p = ImageBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Body must be { dataUrl, mime }", p.error.issues);
+    const result = await ingestPaystubImage(ctx.llm, { dataUrl: p.data.dataUrl, mime: p.data.mime });
+    res.json({ result }); // result may be null — the UI drops to a manual/empty draft
+  });
+
+  r.post("/paystub/confirm", (req, res) => {
+    const p = PaystubConfirmBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid pay stub", p.error.issues);
+    const { sourceData, ...rest } = p.data;
+    let source = sourceData;
+    if (source) {
+      const b64 = source.includes("base64,") ? source.slice(source.indexOf("base64,") + 7) : source;
+      const size = Math.floor((b64.length * 3) / 4);
+      if (size > MAX_PAYSTUB_SOURCE_BYTES) {
+        return res.status(413).json({ error: `Original file too large (max ${(MAX_PAYSTUB_SOURCE_BYTES / 1e6).toFixed(1)} MB).` });
+      }
+      source = b64;
+    }
+    const out = confirmPaystub(ctx.handle, spaceOf(res), { ...rest, sourceData: source ?? null });
+    res.json(out);
+  });
+
+  r.get("/paystub", (_req, res) => res.json(new FinPaystubRepo(ctx.handle, spaceOf(res)).list()));
+  r.get("/paystub/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const stub = new FinPaystubRepo(ctx.handle, spaceOf(res)).get(id);
+    return stub ? res.json(stub) : res.status(404).json({ error: "Not found" });
+  });
+  // The original document's bytes, for "View original" — same fetch-blob-then-object-URL
+  // pattern as nodes.ts's attachment download, never sent inline with list()/get().
+  r.get("/paystub/:id/download", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const repo = new FinPaystubRepo(ctx.handle, spaceOf(res));
+    const blob = repo.getSourceBlob(id);
+    if (!blob) return res.status(404).json({ error: "No original document saved for this pay stub." });
+    const stub = repo.get(id);
+    res.setHeader("Content-Type", blob.mime || "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${(blob.filename || stub?.employer || "paystub").replace(/"/g, "")}"`);
+    res.send(Buffer.from(blob.data, "base64"));
+  });
+  r.delete("/paystub/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    return new FinPaystubRepo(ctx.handle, spaceOf(res)).remove(id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "Not found" });
+  });
+
+  // ---- Income & Net Worth Growth Trend (docs/specs/income-net-worth-trend.md) ----
+  r.get("/assets", (req, res) => {
+    const includeArchived = req.query.includeArchived === "true";
+    res.json(new FinAssetRepo(ctx.handle, spaceOf(res)).list(includeArchived));
+  });
+  r.post("/assets", (req, res) => {
+    const p = AssetBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid asset", p.error.issues);
+    res.json(new FinAssetRepo(ctx.handle, spaceOf(res)).create(p.data));
+  });
+  r.patch("/assets/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = AssetPatch.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid patch", p.error.issues);
+    const asset = new FinAssetRepo(ctx.handle, spaceOf(res)).update(id, p.data);
+    return asset ? res.json(asset) : res.status(404).json({ error: "Not found" });
+  });
+  // Archives, never hard-deletes — a snapshot's contribution to past Net Worth points must
+  // survive (user decision: "archive should keep the history"), same DELETE→archive shape
+  // as /wealth/buckets/:id above.
+  r.delete("/assets/:id", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    return new FinAssetRepo(ctx.handle, spaceOf(res)).archive(id)
+      ? res.json({ ok: true })
+      : res.status(404).json({ error: "Not found" });
+  });
+
+  r.get("/assets/:id/snapshots", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    res.json(new FinAssetSnapshotRepo(ctx.handle, spaceOf(res)).listByAsset(id));
+  });
+  r.post("/assets/:id/snapshots", (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return bad(res, "Invalid id");
+    const p = SnapshotBody.safeParse(req.body);
+    if (!p.success) return bad(res, "Invalid snapshot", p.error.issues);
+    const spaceId = spaceOf(res);
+    if (!new FinAssetRepo(ctx.handle, spaceId).get(id)) return res.status(404).json({ error: "Asset not found" });
+    res.json(new FinAssetSnapshotRepo(ctx.handle, spaceId).create({ assetId: id, amountCents: p.data.amountCents, asOf: p.data.asOf }));
+  });
+
+  const TrendQuery = z.object({ months: z.coerce.number().int().min(1).max(60).optional() });
+  r.get("/trend/income", (req, res) => {
+    const p = TrendQuery.safeParse(req.query);
+    if (!p.success) return bad(res, "Invalid months", p.error.issues);
+    res.json(incomeSeries(ctx.handle, spaceOf(res), p.data.months ?? 12));
+  });
+  r.get("/trend/net-worth", (req, res) => {
+    const p = TrendQuery.safeParse(req.query);
+    if (!p.success) return bad(res, "Invalid months", p.error.issues);
+    res.json(netWorthSeries(ctx.handle, spaceOf(res), p.data.months ?? 12));
   });
 
   // ---- Wealth (docs/specs/wealth-goals-allocation.md): intention layered on Money's reality.

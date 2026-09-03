@@ -60,6 +60,24 @@ export class FinIncomeRepo {
     return rows.map((r) => this.map(r));
   }
 
+  /** Every income row in [start, end] inclusive (ISO dates), ascending — for the income
+   *  trend's monthly bucketing (finance/incomeTrend.ts). */
+  listBetween(start: string, end: string): FinIncome[] {
+    const rows = this.handle.sqlite
+      .prepare(`SELECT * FROM fin_income WHERE space_id = ? AND date >= ? AND date <= ? ORDER BY date ASC`)
+      .all(this.spaceId, start.slice(0, 10), end.slice(0, 10)) as any[];
+    return rows.map((r) => this.map(r));
+  }
+
+  /** The single most recent income date, or null if none has ever been recorded — the
+   *  freshness nudge's "have you logged anything lately" check. */
+  mostRecentDate(): string | null {
+    const r = this.handle.sqlite
+      .prepare(`SELECT date FROM fin_income WHERE space_id = ? ORDER BY date DESC LIMIT 1`)
+      .get(this.spaceId) as { date: string } | undefined;
+    return r?.date ?? null;
+  }
+
   /** Distinct income dates (ascending) for the cadence estimate. */
   dates(): string[] {
     const rows = this.handle.sqlite
