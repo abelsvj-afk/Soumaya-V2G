@@ -15,6 +15,7 @@ import { financialSnapshotText } from "../finance/snapshot.js";
 import { peopleSnapshotText } from "../analysis/people.js";
 import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { temporalSnapshotText } from "../analysis/temporalContext.js";
+import { intelligenceSnapshotText } from "../analysis/intelligence.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -234,6 +235,18 @@ Use this telemetry to guide the user! For example:
     if (temporal) systemExtra += `\n\n${temporal}`;
   } catch {
     /* temporal context is best-effort; never break chat */
+  }
+
+  // Maya Intelligence (docs/specs/maya-intelligence-architecture.md): open contradictions and
+  // persisting themes, reframed from EXISTING detection (synthesis/contradictions.ts's insights,
+  // analysis/temporalChains.ts's evolution links) as explicit observations — never asserted as
+  // settled fact — plus, when warranted, one gated clarification suggestion. Same best-effort,
+  // null-safe contract as the four snapshots above.
+  try {
+    const intelligence = intelligenceSnapshotText(h, spaceId);
+    if (intelligence) systemExtra += `\n\n${intelligence}`;
+  } catch {
+    /* intelligence context is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's
