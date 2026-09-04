@@ -59,12 +59,17 @@ const EMPTY: EmotionalTrajectory = {
   sampleSize: 0,
 };
 
-export function buildEmotionalTrajectory(
-  h: DbHandle,
-  spaceId: string = DEFAULT_SPACE,
-): EmotionalTrajectory {
-  const dated = new NodesRepo(h, spaceId)
-    .all()
+/**
+ * The shared core, factored out (Maya Longitudinal Intelligence Phase E,
+ * docs/specs/maya-longitudinal-intelligence.md) so the bounded chat-facing entry point below can
+ * never silently diverge in behavior from the original full-space one — same factoring
+ * discipline Phase A's `temporalChains.ts` `evolutionLinksFor()` already established for
+ * exactly this "one full-scan function, one bounded one, one shared body" shape. `nodes` is
+ * whatever set the caller already resolved (every memory in the space, or a small
+ * already-retrieved candidate set) — this function does no querying of its own.
+ */
+function trajectoryFrom(nodes: GraphNode[]): EmotionalTrajectory {
+  const dated = nodes
     .filter((n) => n.kind !== "action" && typeof n.emotionalWeight === "number")
     .map((n) => ({ t: n.occurredAt ?? n.createdAt, v: clamp(n.emotionalWeight!, -1, 1), node: n }))
     .filter((x): x is { t: string; v: number; node: GraphNode } => !!x.t)
@@ -147,4 +152,71 @@ export function buildEmotionalTrajectory(
   }
 
   return { points, trend, average, volatility, patterns, sampleSize: dated.length };
+}
+
+/**
+ * The original, UNCHANGED full-space entry point — every memory in the space feeds the
+ * trajectory. Correct and intentional for its one real caller (`GET /api/digest/*`, an
+ * on-demand Digest-panel view), matching the same "full scans are fine in an on-demand route,
+ * never the chat hot path" precedent `analysis/temporalChains.ts`'s `buildEvolutionLinks`/
+ * `synthesis/contradictions.ts`'s `runContradictionScan` already established. Behavior is
+ * byte-for-byte identical to before Phase E's refactor.
+ */
+export function buildEmotionalTrajectory(h: DbHandle, spaceId: string = DEFAULT_SPACE): EmotionalTrajectory {
+  return trajectoryFrom(new NodesRepo(h, spaceId).all());
+}
+
+/**
+ * Maya Longitudinal Intelligence, Phase E (docs/specs/maya-longitudinal-intelligence.md,
+ * Section 11) — the bounded entry point for the chat hot path. `relevantIds` is the SAME small,
+ * already-computed GraphRAG context set `chat/graphrag.ts` builds for every message (never a new
+ * retrieval), so the per-message cost is `O(|relevantIds|)` — a single bounded `byIds()` query —
+ * instead of `O(every memory in the space)`. This is also what gives the resulting trajectory
+ * its CONTEXT RELEVANCE for free: bounding to nodes already retrieved for the current message's
+ * topic means a detected pattern is, by construction, about what the conversation is currently
+ * about — not a topic-blind, all-time mood average.
+ */
+export function buildEmotionalTrajectoryAmong(h: DbHandle, spaceId: string = DEFAULT_SPACE, relevantIds: number[]): EmotionalTrajectory {
+  if (relevantIds.length === 0) return EMPTY;
+  return trajectoryFrom(new NodesRepo(h, spaceId).byIds(relevantIds));
+}
+
+/**
+ * Chat-facing renderer — same null-when-empty, best-effort contract as every other snapshot
+ * function `chat/graphrag.ts` already calls (finance/people/cognitive/temporal/intelligence).
+ * Deliberately narrates a DETECTED PATTERN only (`EmotionalPattern`, which already requires ≥2
+ * dip-days / a real bright-to-heavy shape / a multi-point slope / real variance to exist at
+ * all — see `trajectoryFrom` above) — NEVER a single memory's raw valence. This is the
+ * structural distinction between a temporary reaction (one heavy memory → `patterns: []` →
+ * `null` here, nothing said) and a recurring signal worth surfacing as conversational context
+ * (a named, repeated pattern). The returned text is explicit that this is a recurring SIGNAL,
+ * never a fact about who the user is, what they want, or a change to any goal/vision/preference
+ * — mirroring how `analysis/intelligence.ts`'s `intelligenceSnapshotText` hedges a detected
+ * contradiction rather than asserting it as settled.
+ *
+ * Deliberately does NOT fall back to the full-space `buildEmotionalTrajectory` when
+ * `contextNodeIds` is omitted/empty (unlike the temporal-bounding convention `analysis/
+ * intelligence.ts`'s `intelligenceSnapshotText` uses) — this snapshot is chat-context-only by
+ * design; a caller with no bounded context has nothing scoped to narrate, so this returns `null`
+ * rather than ever reaching for a full scan from a hot path. The full-space view stays reachable
+ * only through `buildEmotionalTrajectory` directly (the Digest panel's own route).
+ */
+export function emotionalSnapshotText(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  contextNodeIds: number[] = [],
+  now: Date = new Date(),
+): string | null {
+  void now; // accepted for signature symmetry with the other snapshot functions; unused — pattern detection is not "as of now" gated, it reads whatever dated evidence the bounded set already contains
+  const trajectory = buildEmotionalTrajectoryAmong(handle, spaceId, contextNodeIds);
+  if (trajectory.patterns.length === 0) return null;
+
+  const lines = [
+    "EMOTIONAL CONTEXT (deterministic pattern detection over memories relevant to THIS conversation — a recurring SIGNAL, never a settled fact about who the user is, what they want, or a reason to treat any goal/vision/preference as changed; mention it only if it naturally fits, never as a scripted check-in):",
+  ];
+  for (const p of trajectory.patterns) {
+    const triggerNote = p.trigger ? ` around "${p.trigger}"` : "";
+    lines.push(`- ${p.type}${triggerNote} (recurred ${p.repeats}x among the memories relevant here): ${p.intervention}`);
+  }
+  return lines.join("\n");
 }

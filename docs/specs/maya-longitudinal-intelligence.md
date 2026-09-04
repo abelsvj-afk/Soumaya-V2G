@@ -314,6 +314,59 @@ conflict without asserting it as settled. "I can't do this anymore" becomes cita
 inside a pattern, never itself a confirmed fact — the epistemic vocabulary already has the
 right vocabulary (`observation`) for this; nothing new needs inventing.
 
+**Status: fixed (Phase E, shipped) — with one correction to this section's own literal proposal.**
+This section's sketch (`emotionalSnapshotText(handle, spaceId?, now?)` calling
+`buildEmotionalTrajectory` directly) would have re-introduced the exact class of bug Phase A
+fixed: `buildEmotionalTrajectory` does `NodesRepo.all()` — every memory in the space — and this
+section was written before Phase A's bounded-entry-point pattern existed as shipped precedent.
+The as-built version instead follows Phase A's own template exactly: `analysis/emotional.ts`'s
+original full-scan body was factored into a shared, unexported `trajectoryFrom(nodes)` core, kept
+behind two entry points — `buildEmotionalTrajectory(h, spaceId)` (byte-for-byte unchanged,
+`NodesRepo.all()`, still the only function `GET /api/digest/*` calls) and a new
+`buildEmotionalTrajectoryAmong(h, spaceId, relevantIds)` (bounded to `NodesRepo.byIds`). The new
+`emotionalSnapshotText(handle, spaceId?, contextNodeIds?, now?)` calls ONLY the bounded variant,
+fed the exact same GraphRAG context id set `chat/graphrag.ts` already computes for the message —
+the same reuse `intelligenceSnapshotText`'s own `contextNodeIds` parameter already established.
+This also gives the snapshot its CONTEXT RELEVANCE for free: bounding to nodes already retrieved
+for the current topic means a detected pattern is, by construction, about what the conversation
+is currently about, not a topic-blind all-time mood average — no separate "is this relevant"
+mechanism was needed (Phase D's `computeRelevance` was deliberately NOT called from here; see
+below).
+
+The temporary-vs-recurring distinction this section described was already fully real in
+`trajectoryFrom`'s existing pattern-detection math, unchanged by this phase: a single
+emotionally-charged memory can never produce a non-empty `patterns` array (`"Stress cycle"` needs
+≥2 dip-days; `"Burnout risk"` needs ≥6 points forming a real shape; `trend`/`volatility` are both
+0 or `"steady"` for `n<2`) — `emotionalSnapshotText` returns `null` whenever `patterns.length===0`,
+so a one-off "bad day" memory is structurally incapable of reaching the LLM as emotional context,
+while a genuinely repeated signal is. Temporal decay reuses the SAME existing window
+(`trajectoryFrom`'s own `slice(-40)` day-buckets) rather than a new decay algorithm.
+
+The rendered text is explicitly hedged — "a recurring SIGNAL, never a settled fact about who the
+user is, what they want, or a reason to treat any goal/vision/preference as changed; mention it
+only if it naturally fits, never as a scripted check-in" — mirroring exactly how
+`intelligenceSnapshotText` hedges a detected contradiction. It is pure, read-only text: no
+`IntelligenceClaim` is formed, no clarification is raised, nothing is written anywhere. A durable
+Life Vision/Goal node present in the SAME bounded context is never mentioned or altered by this
+function — durability protection here is structural (the function only ever reads
+`emotionalWeight`+timestamps off whatever nodes are in the candidate set; it has no code path that
+touches a `life_vision`/`goal` node's own row at all).
+
+**Relevance interaction (Section 13): deliberately kept separate, one-directional-free.** Phase D's
+`computeRelevance` is NOT called from `emotional.ts`, and `emotional.ts`'s output is not fed into
+`computeRelevance` either — avoiding the `relevance → emotion → relevance → ...` loop the brief
+explicitly warned against. This was a real option (using Phase D to decide whether the trajectory
+result is "worth surfacing") but wasn't clearly justified: bounding to the current GraphRAG
+context already gives context relevance for free (see above), so adding Phase D as a second,
+redundant relevance gate would only add complexity without a demonstrated need. Documented here
+rather than silently decided.
+
+Verified via `__tests__/emotional.test.ts`'s new `buildEmotionalTrajectoryAmong`/
+`emotionalSnapshotText` describe blocks (19 total, including a `NodesRepo.prototype.all`
+instrumentation spy, space isolation, durable-goal non-interference, and historical-record
+immutability) and `__tests__/emotionalChat.test.ts` (5 tests, including the mandatory
+recurring-frustration-vs-durable-vision walkthrough, built with real `chat()` calls — not mocked).
+
 ## 12. Contradiction / Uncertainty Model — the one real epistemic gap found this pass
 
 **A concrete, previously-undiscovered finding**: `EpistemicStatus` was extended this session
@@ -627,9 +680,14 @@ insufficient.
   not the literal boolean sketch) and why. Verified via 28 tests, full regression gate green. Not
   wired into chat this phase (see Section 13) — ships as a standalone, reusable function for a
   future chat-context-bounding pass once a real "active topic" concept exists to drive it.
-- **Phase E — Emotional snapshot wiring (Section 11).** Independent of B/C/D — can ship any time
-  after Phase A, since it only wires an existing computation into the existing 9th-snapshot
-  pattern.
+- **Phase E — Emotional snapshot wiring (Section 11). Done.** Wired via a NEW bounded entry point
+  (`buildEmotionalTrajectoryAmong`, following Phase A's own full-scan/bounded split) rather than
+  the section's original literal sketch, which would have called the full-scan
+  `buildEmotionalTrajectory` from chat — see Section 11's Status note. `chat/graphrag.ts` gained a
+  tenth snapshot, `emotionalSnapshotText`, gated on an actually-DETECTED pattern (never a raw
+  single-memory valence). Verified via 24 new tests (`emotional.test.ts` + `emotionalChat.test.ts`)
+  including the mandatory recurring-frustration-vs-durable-vision scenario, full regression gate
+  green.
 - **Phase F — Entity continuity extension (Section 8).** Depends on a product decision (Section
   24, Open Question 1) about whether to add a new `CognitiveKind`.
 - **Phase G — Cross-domain causal extension (Section 10).** Extends `causal.ts`'s domain
@@ -688,10 +746,9 @@ No ML phase is proposed. Per Section 16, nothing in the gap matrix requires one 
    named `RelevanceTier` (`"high"|"moderate"|"low"`) computed fresh per call and discarded, never
    a new `IntelligenceClaim` field — see Section 13's Status note for why a score was rejected as
    fabricated precision.
-4. Does `analysis/emotional.ts`'s trajectory belong in the 9th chat snapshot unconditionally, or
-   only when a genuine `EmotionalPattern` is detected (never a raw single-memory valence)? This
-   document recommends the latter (Section 11) but the exact wording/framing needs product
-   review before implementation.
+4. **Resolved (Phase E).** Gated on a genuine `EmotionalPattern`, never a raw single-memory
+   valence, as this document recommended — see Section 11's Status note for the shipped wording
+   and the bounded-entry-point correction to this section's original literal proposal.
 
 ## 25. Example Walkthroughs
 

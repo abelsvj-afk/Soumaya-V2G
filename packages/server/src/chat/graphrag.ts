@@ -16,6 +16,7 @@ import { peopleSnapshotText } from "../analysis/people.js";
 import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { temporalSnapshotText } from "../analysis/temporalContext.js";
 import { intelligenceSnapshotText } from "../analysis/intelligence.js";
+import { emotionalSnapshotText } from "../analysis/emotional.js";
 import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
 import { buildNavigationCandidateList, resolveNavigationIntent } from "../analysis/galaxyEntity.js";
 import { UsageTracker } from "../usage.js";
@@ -249,6 +250,18 @@ Use this telemetry to guide the user! For example:
     if (intelligence) systemExtra += `\n\n${intelligence}`;
   } catch {
     /* intelligence context is best-effort; never break chat */
+  }
+
+  // Maya Longitudinal Intelligence, Phase E (docs/specs/maya-longitudinal-intelligence.md,
+  // Section 11): a detected, RECURRING emotional pattern among the memories already retrieved
+  // for this message — never a single memory's raw valence, never asserted as a fact about who
+  // the user is or what they want. Bounded to the SAME `ids` GraphRAG already computed (no new
+  // retrieval); null whenever nothing patterned was found, so most messages inject nothing.
+  try {
+    const emotional = emotionalSnapshotText(h, spaceId, [...ids]);
+    if (emotional) systemExtra += `\n\n${emotional}`;
+  } catch {
+    /* emotional context is best-effort; never break chat */
   }
 
   // I2 — clarification → confirmed knowledge (docs/specs/maya-intelligence-architecture.md).
