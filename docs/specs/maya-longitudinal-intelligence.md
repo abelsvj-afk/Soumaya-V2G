@@ -201,6 +201,52 @@ exists (every `supports`-linked memory, dated); only a longitudinal *view* over 
 `analysis/emotional.ts`'s trajectory) would be new, and it is explicitly **not** proposed for
 this pass (Section 22).
 
+**Status: audited (Phase F) — Path A, no architecture extension.** Phase F's mandate was to
+determine whether the existing continuity mechanisms are sufficient for real-world entities
+(vehicles, employers, equipment, etc.) not currently modeled as domain rows, and to build the
+smallest extension if a real gap existed. The audit's conclusion: **no gap exists in the
+resolution/continuity architecture itself** — the combination this section already described
+(`linkCognitiveAnchor`, kind-agnostic, deliberately conservative — its own code comment: "Better
+to miss a subtle link than to invent a false one") plus Phase B's `resolveSupersession` plus
+Phase C's `reconstructEntityTimeline` plus I2's clarification pipeline already produces every
+property Phase F's brief required, with ZERO new code, verified directly rather than argued:
+
+- **Same-entity recognition across memories**: an existing cognitive anchor's alias/keyword
+  match (`anchorMatchTokens`/`mentions`) already links any number of memories to it, at any
+  later time (`applyCognitiveGravity` re-runs the linking pass), and Phase C's
+  `reconstructEntityTimeline` already reconstructs their full ordered history — this was true
+  before Phase F and needed no change.
+- **Refusing to merge on weak evidence**: structurally guaranteed, not merely conservative —
+  no code path in this repository merges two `nodes` rows into one, except the deliberately
+  exact-match-only `mergeDuplicatePeople` (an unrelated domain, untouched). Two anchors always
+  remain two separate rows, full stop.
+- **Ambiguity ("Civic A vs. Civic B")**: measured directly (`npx tsx`, then promoted into a
+  test) — when two anchors share an alias/keyword and a new memory matches both, the EXISTING
+  keyword pass links it to **both anchors**, not one. This is not a bug to patch; it is exactly
+  the brief's own required behavior ("preserve uncertainty rather than invent identity"),
+  already true by construction, because `linkCognitiveAnchor` has no concept of "already claimed
+  by a different anchor" to begin with — there was never a false-merge risk to guard against.
+- **Clarification**: I2's `IntelligenceClarificationsRepo`/`resolveClarificationFromMessage` are
+  fully generic (a `domain`/`question`/`evidence` triple, no coupling to what kind of claim
+  raised it) — an entity-ambiguity question carries through the identical pipeline Phase C's own
+  car-walkthrough test already exercises, verified directly with a test that raises one and
+  resolves it, unmodified.
+- **Domain authority**: a Mind-tab "goal" (a `nodes` row, `kind:"goal"`) and a Financial Goal
+  (`fin_goal`, a completely different table) already never collide — verified directly that
+  linking/gravity never writes to `fin_goal`/`journeys`.
+
+**The one genuinely open item — a `CognitiveKind` for physical possessions/employers (option (a)
+above) — remains explicitly UNRESOLVED, on purpose.** It is a product-scope decision (does the
+Mind tab need a "my car" category?), not an architecture gap: the mechanism already works
+identically with or without a dedicated kind (any `nodes` row, cognitive-kind or not, is a valid
+Phase C anchor). Adding one now, with no current UI/flow asking a user to create such an anchor,
+would be exactly the "speculative infrastructure" this phase was explicitly told not to build.
+Verified via `__tests__/entityContinuity.test.ts` (12 tests, zero production code changed) —
+same-entity linking, non-merge of distinct entities, alias-only continuity, historical
+immutability, Phase B/C state-change reuse, ambiguity-as-shared-evidence, I2 clarification reuse,
+epistemic non-interference, space isolation, domain-table non-interference, and a
+`NodesRepo.prototype.all` bounds instrumentation check.
+
 ## 9. Entity State Reconstruction — the "entity → timeline → state transitions" question
 
 **Answer: yes, as a reusable *function*, not a new persistence layer.** This is the second
@@ -688,8 +734,12 @@ insufficient.
   single-memory valence). Verified via 24 new tests (`emotional.test.ts` + `emotionalChat.test.ts`)
   including the mandatory recurring-frustration-vs-durable-vision scenario, full regression gate
   green.
-- **Phase F — Entity continuity extension (Section 8).** Depends on a product decision (Section
-  24, Open Question 1) about whether to add a new `CognitiveKind`.
+- **Phase F — Entity continuity extension (Section 8). Audited — Path A, no extension built.**
+  The existing `linkCognitiveAnchor`/Phase B/Phase C/I2 combination already satisfies every
+  continuity requirement, verified directly rather than argued (see Section 8's Status note).
+  The `CognitiveKind` question (Open Question 1) remains deliberately unresolved — a product
+  decision, not an architecture gap this phase could or should settle unilaterally. 12 new tests,
+  zero production code changed, full regression gate green.
 - **Phase G — Cross-domain causal extension (Section 10).** Extends `causal.ts`'s domain
   coverage — independent of everything else, can slot in any time after Phase A.
 - **Phase H — Learned interaction model (Section 14) and external context (Section 15).**
