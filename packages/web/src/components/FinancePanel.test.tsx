@@ -178,6 +178,51 @@ describe("FinancePanel — Pay Stubs section (docs/specs/paystub-ingestion.md)",
     await waitFor(() => expect(confirmPaystub).toHaveBeenCalled());
     expect((confirmPaystub.mock.calls[0]![0] as { netCents: number }).netCents).toBe(90000);
   });
+
+  it("a failed extraction leaves Net pay EMPTY, not a misleading pre-filled 0.00", async () => {
+    const { extractFileText } = await import("../lib/extractFileText.js");
+    (extractFileText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ text: "unreadable garbage", name: "stub" });
+    extractPaystubText.mockResolvedValue({ result: { netCents: 0, earnings: [], deductions: [], confidence: 0 } });
+
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📄 Pay Stubs"));
+    await screen.findByText("📤 Upload a pay stub");
+
+    const input = screen.getByText("📤 Upload a pay stub").closest("label")!.querySelector("input")!;
+    const file = new File(["dummy"], "stub.pdf", { type: "application/pdf" });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+
+    await screen.findByText("Review your pay stub — confirm to save");
+    const netInput = screen.getByLabelText("Net pay") as HTMLInputElement;
+    expect(netInput.value).toBe(""); // NOT "0.00" — a visibly empty required field, not a fake value
+  });
+
+  it("clicking Save with no net pay shows a VISIBLE error instead of silently doing nothing", async () => {
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📄 Pay Stubs"));
+    await screen.findByText("📤 Upload a pay stub");
+
+    const input = screen.getByText("📤 Upload a pay stub").closest("label")!.querySelector("input")!;
+    // No mocked extraction result registered for this test, so extractFileText's mock
+    // resolves undefined and the draft opens blank (net pay empty) — the same end state
+    // as a failed extraction, reached a different way.
+    const { extractFileText } = await import("../lib/extractFileText.js");
+    (extractFileText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ text: "", name: "stub" });
+    extractPaystubText.mockResolvedValue({ result: { netCents: 0, earnings: [], deductions: [], confidence: 0 } });
+    const file = new File(["dummy"], "stub.pdf", { type: "application/pdf" });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+    await screen.findByText("Review your pay stub — confirm to save");
+
+    fireEvent.click(screen.getByText("Save pay stub"));
+    // The draft form stays open (nothing to save yet) AND the error is now visible in
+    // that same view — previously this message was set but rendered only in the list
+    // view the user had already navigated away from, so Save looked like a no-op.
+    await screen.findByText("Net pay is required.");
+    expect(confirmPaystub).not.toHaveBeenCalled();
+    expect(screen.getByText("Review your pay stub — confirm to save")).toBeTruthy();
+  });
 });
 
 describe("FinancePanel — Growth section (docs/specs/income-net-worth-trend.md)", () => {

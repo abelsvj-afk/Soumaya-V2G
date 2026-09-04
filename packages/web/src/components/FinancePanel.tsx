@@ -671,7 +671,12 @@ function resultToPaystubDraft(r: PaystubExtractionResult, sourceFilename?: strin
     periodStart: r.periodStart ?? "",
     periodEnd: r.periodEnd ?? "",
     gross: dollars(r.grossCents),
-    net: dollars(r.netCents) || "0.00",
+    // Net pay is the one required field, so a failed/blank extraction must leave it EMPTY
+    // (matching every other optional field's blank-when-missing behavior) rather than a
+    // pre-filled "0.00" — `dollars(0)` already returns "0.00" (a real, non-empty string,
+    // not falsy), so a `|| "0.00"` fallback here was dead code that just made a MISSING
+    // value look like a real one, letting a user believe net pay was already read.
+    net: r.netCents > 0 ? dollars(r.netCents) : "",
     hours: r.hours != null ? String(r.hours) : "",
     hourlyRate: dollars(r.hourlyRateCents),
     earnings: r.earnings.map((e) => ({ label: e.label, amount: dollars(e.amountCents), quantity: e.quantity != null ? String(e.quantity) : "", rate: dollars(e.rateCents), ytd: "" })),
@@ -934,10 +939,16 @@ function PaystubSection({ onChanged }: { onChanged: () => void }) {
       </button>
       {open && (
         <div className="fin-paystub-body">
+          {/* Rendered unconditionally (not just in the list view) — save()'s validation
+           *  failure ("Net pay is required.") sets this while the draft form stays open,
+           *  so it must be visible THERE too. It was previously nested inside the
+           *  `!draft && !detail` branch, meaning a failed save looked like Save did
+           *  nothing at all: the message was set but the only place it rendered was a
+           *  view the user had just navigated away from. */}
+          {msg && <div className="fin-muted fin-paystub-msg">{msg}</div>}
           {!draft && !detail && (
             <>
-              <PaystubUpload onDraft={(state, note) => setDraft({ state, note })} />
-              {msg && <div className="fin-muted">{msg}</div>}
+              <PaystubUpload onDraft={(state, note) => { setMsg(null); setDraft({ state, note }); }} />
               {stubs.length > 1 && <PaystubTrend stubs={stubs} />}
               <ul className="fin-paystub-list">
                 {stubs.length === 0 && <li className="fin-muted">No pay stubs saved yet.</li>}
@@ -952,7 +963,7 @@ function PaystubSection({ onChanged }: { onChanged: () => void }) {
               </ul>
             </>
           )}
-          {draft && <PaystubDraftForm draft={draft.state} note={draft.note} onSave={save} onCancel={() => setDraft(null)} />}
+          {draft && <PaystubDraftForm draft={draft.state} note={draft.note} onSave={save} onCancel={() => { setMsg(null); setDraft(null); }} />}
           {detail && !viewUrl && (
             <div className="fin-paystub-detail">
               <button className="fin-secondary" onClick={() => setDetail(null)}>← Back</button>
