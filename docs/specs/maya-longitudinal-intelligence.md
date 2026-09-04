@@ -236,6 +236,43 @@ This generalizes to vehicle/job/business/goal/relationship/asset/etc. **without 
 logic** because it only ever asks two already-general questions: "what's linked to this anchor"
 (the existing `supports` mechanism) and "in what order did it happen" (existing `lib/time.ts`).
 
+**Status: fixed (Phase C, shipped).** `analysis/entityTimeline.ts`'s `reconstructEntityTimeline(handle,
+spaceId, anchor, now?)` is the function sketched above, built close to the original signature with
+one deliberate scope narrowing: `anchor` must be `{ domain: "memory", kind: "node" }` — every
+evidence mechanism this reuses (`"supports"`/`"resolves"` edges, contradiction insights, evolution
+links) is keyed on `nodes` ids, so a money/journey anchor would need before/after relationship data
+those domains don't have yet; a non-memory or nonexistent/out-of-space anchor returns `[]` rather
+than being force-fit. The working node set is built in ONE bounded pass per mechanism (never
+recursive/transitive): the anchor itself, its `"supports"` supporters (already capped at 12 by
+`linkCognitiveAnchor`'s own write-time guard), contradiction insights and evolution links touching
+that set (each newly capped at 5), then `"resolves"` edges (clarification-confirmed replacements)
+targeting anyone found so far — a hard `MAX_TIMELINE_NODES = 25` ceiling on the final hydrated set
+regardless of how many of the above exist. Status per event: `"fact"` by default (a memory's own
+text), `"confirmed"` when the node is the source of a `"resolves"` edge (i.e. it IS a real
+clarification-confirmed replacement, never guessed), and `"outdated"`/`"contradicted"` from Phase
+B's `resolveSupersession` — reused verbatim, no second supersession algorithm — applied to
+whichever side a resolved pair names `superseded`. `"observation"`/`"inference"`/`"hypothesis"`/
+`"possible"`/`"unknown"` are deliberately never produced by this function: those describe
+CROSS-NODE claims (`IntelligenceClaim`, built by `analysis/intelligence.ts` from a PAIR of
+memories), not a single memory's own statement — a per-node `EntityStateEvent` has no natural
+claim-level counterpart for them, so this function doesn't fabricate one. `CausalLink` integration
+was considered and deliberately declined: a `CausalLink`'s `cause` is a claim's evidence ref, not a
+distinct timeline node with its own real row, so folding it into the ordered array would mean
+inventing a synthetic `source` — exactly the "no invented IDs" rule this function otherwise
+enforces. Any genuinely relevant causal signal remains reachable the same way `intelligenceSnapshotText`
+already reaches it (`openContradictionClaims` + `possibleDownstreamEffects`), so nothing new was
+needed to preserve it. **Not wired into chat** in this phase — no existing per-message signal
+identifies "which entity is this message about" beyond GraphRAG's own retrieval (which already
+surfaces raw node content directly), and calling this once per candidate anchor without a clear
+trigger would expand chat context without a demonstrated need; it ships as a standalone, tested,
+reusable capability for a future phase (e.g. Phase D's relevance combiner, or an explicit
+"tell me about X" tool) to call. Verified via `analysis/entityTimeline.test.ts` (26 tests) covering
+the Section 25 car walkthrough end-to-end (using the REAL write paths — an `insights` row and a
+`"resolves"` edge, not a synthetic fixture), temporal ordering, epistemic status, historical-record
+immutability, provenance, clarification integration, space isolation (including a defensively
+mis-scoped edge), and bounds (an `NodesRepo.prototype.all` instrumentation spy, plus explicit caps
+tested by bypassing the write-time guards that normally make them moot).
+
 ## 10. Cross-Domain Reasoning Model
 
 Already real, already working, for two chains named in the brief:
@@ -534,10 +571,14 @@ insufficient.
   "outdated"/"contradicted" producer gap via `analysis/supersession.ts`'s `resolveSupersession` +
   `analysis/intelligence.ts`'s `supersessionClaims` — see Section 12's Status note for the as-built
   design. Verified via 10 pure unit tests plus 7 integration tests, full regression gate green.
-- **Phase C — Entity timeline reconstruction (Section 9).** Depends on Phase B (a timeline needs
-  to know which side is current). Independently testable via a scripted fixture (vehicle
-  mentioned → accident mentioned → clarification confirmed) mirroring the car-accident
-  walkthrough in Section 25.
+- **Phase C — Entity timeline reconstruction (Section 9). Done.** Shipped
+  `analysis/entityTimeline.ts`'s `reconstructEntityTimeline`, reusing Phase B's
+  `resolveSupersession` for the "which side is current" question exactly as this roadmap
+  anticipated — see Section 9's Status note for the as-built design and scope narrowing.
+  Verified via the scripted car-accident fixture this roadmap called for (built from the real
+  `insights`/`"resolves"`-edge write paths, not a synthetic mock) plus 25 further tests, full
+  regression gate green. Not wired into chat this phase (see Section 9) — ships as a standalone,
+  reusable function for Phase D or a future explicit caller.
 - **Phase D — Relevance combiner (Section 13).** Depends on Phase C (needs the timeline to know
   what's superseded). Independently useful for chat context bounding even before any UI change.
 - **Phase E — Emotional snapshot wiring (Section 11).** Independent of B/C/D — can ship any time
