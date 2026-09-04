@@ -314,6 +314,34 @@ persistence, reusing 100% of the existing pipeline up to this point.
 narrative) hinges on this same resolver plus I1's causal check plus I2's clarification gate —
 all three already exist; only the direction-of-currency step is new.
 
+**Status: fixed (Phase B, shipped).** `analysis/supersession.ts`'s `resolveSupersession(a, b,
+kind)` is the resolver sketched above, built almost exactly as designed — pure arithmetic over
+`lib/time.ts`'s `parseTolerantMs(occurredAt ?? createdAt)` (event time preferred over creation
+time, per Section 7), a `MIN_CONFIDENT_GAP_MS = 60_000` floor below which it returns `null` rather
+than guessing, and it never mutates either memory. One refinement beyond the original sketch: the
+resolver takes an explicit `kind: "contradiction" | "continuity"` argument rather than inferring
+intent from the pair alone — a same-theme **continuity** pair (`temporalChains.ts`'s evolution
+links — "I drive a Ford" → "I drive a Chevy") always resolves to `"outdated"`, never
+`"contradicted"`, because nothing in that detector ever asserted the two statements were
+incompatible, only that one is older. A genuine **contradiction** pair (already LLM-verified by
+`synthesis/contradictions.ts`, reframed by `openContradictionClaims()`) resolves to
+`"contradicted"` once direction is known — a stronger claim than mere staleness, because an
+upstream detector already judged the two mutually exclusive. This satisfies the task's own
+distinguishing example (a legitimate transition must not become `"contradicted"`) by tying each
+status to a *different* upstream detector rather than inventing new conflict-classification logic.
+
+Wired via the new `analysis/intelligence.ts` export `supersessionClaims(handle, spaceId,
+contextNodeIds?)`, which is ADDITIVE to (never replacing) `openContradictionClaims`'s/
+`thoughtContinuityClaims`'s existing `"observation"` framing — for each already-detected
+relationship whose two evidence memories resolve confidently, it also emits one stronger,
+transient claim naming the superseded side, capped at `MAX_SUPERSESSION_CLAIMS = 2`.
+`intelligenceSnapshotText()` surfaces this as a new line ("No longer current...") only when a
+direction was actually resolved; when `resolveSupersession` returns `null` (insufficient
+evidence), the pair is silently skipped and the existing `"observation"` claim is left exactly as
+it was — never promoted, never guessed. Verified via `analysis/supersession.test.ts` (10 pure
+unit tests) and 7 new integration tests in `analysis/intelligence.test.ts` covering both
+directions, space isolation, provenance preservation, and historical-record immutability.
+
 ## 13. Current vs. Historical Truth / Relevance Model
 
 These two are really one model, and the codebase already has the raw material for it:
@@ -423,12 +451,32 @@ structurally identical full-scan (`findContradictionCandidates`), which is corre
 the on-demand digest route and never touches the chat hot path.
 
 **This must be fixed before adding more longitudinal reasoning on top of chat**, or every new
-capability in this document inherits an O(N) cost per message. Recommended fix (Phase A,
-Section 19) — not implemented this pass: cache `buildEvolutionLinks()`'s result (e.g.
-recomputed by the same background cadence `applyCognitiveGravity()` already uses, or invalidated
-on new-memory ingestion) rather than recomputing it inline on every chat turn — the exact same
-class of fix `fin_asset_snapshot` already represents for net-worth history (a periodic snapshot
-instead of a live full recompute).
+capability in this document inherits an O(N) cost per message.
+
+**Status: fixed (Phase A, shipped).** The originally-sketched fix above (a periodic cache,
+mirroring `fin_asset_snapshot`'s snapshot-instead-of-recompute pattern) was NOT what got built —
+on reflection, a cache introduces staleness and a new invalidation surface for a problem that
+doesn't need either. Instead: `analysis/temporalChains.ts` gained a new `buildEvolutionLinksAmong(h,
+spaceId, relevantIds, opts)` that bounds the OUTER loop to an explicit `relevantIds` list — no new
+persistence, no cache invalidation, always exactly as fresh as a live query. `chat/graphrag.ts`
+already computes a small, bounded GraphRAG context id set (`ids`, typically a few dozen ids
+regardless of total memory count — the hybrid KNN+keyword seeds plus one hop of expansion) for
+every message; this same set is now threaded through `intelligenceSnapshotText(handle, spaceId,
+now, contextNodeIds)` → `thoughtContinuityClaims(handle, spaceId, contextNodeIds)` →
+`buildEvolutionLinksAmong`, so the chat hot path's per-message cost is `O(|relevantIds|)` instead
+of `O(every memory in the space)`, with **zero** growth as unrelated memory count grows.
+
+One deliberate correctness choice: only the OUTER loop is bounded. The INNER `knn()` lookup per
+outer node is still free to find a counterpart anywhere in the space (via a single bounded
+`getById()` fallback for any hit outside `relevantIds`) — narrowing that too would silently drop
+real evolution links to memories outside the immediate chat context, which is a correctness
+regression the performance fix must not introduce. `buildEvolutionLinks()` itself (the original,
+full-space function) is UNCHANGED and still the one used by `GET /api/digest/evolution` — full
+scans remain correct and intentional in that on-demand, user-opened route; they are simply no
+longer paid for on every chat turn. Both entry points share one `evolutionLinksFor()` core so the
+bounded path can never silently diverge in behavior from the full-space one. Verified via 7 new
+tests in `__tests__/temporalChains.test.ts`, including a non-timing instrumentation test that
+spies on `NodesRepo.prototype.all` and asserts it is never called from the bounded path.
 
 **Bounded-by-construction patterns already established, to extend rather than replace**:
 `MAX_FACTS_PER_BUCKET = 5` (`temporalContext.ts`), `MAX_CAUSAL_LINKS = 3` (`causal.ts`),
@@ -477,14 +525,15 @@ it; close the epistemic-vocabulary gap before building anything that depends on 
 defer anything requiring a new persisted concept until the derived approach is proven
 insufficient.
 
-- **Phase A — Performance foundation (do this first, it's already broken).** Fix Section 18's
-  `buildEvolutionLinks()` per-chat-message full scan. Independently testable (measure
-  `intelligenceSnapshotText()`'s query count before/after), independently useful (every existing
-  chat message gets faster regardless of anything else in this document), zero new concepts.
-- **Phase B — Direction-of-currency resolver (Section 12).** The single highest-leverage new
-  function: closes the "outdated"/"contradicted" producer gap. Independently testable against
-  the existing `synthesis/contradictions.ts` fixtures. Low risk — pure arithmetic over existing
-  timestamps, no schema change.
+- **Phase A — Performance foundation (do this first, it's already broken). Done.** Fixed Section
+  18's `buildEvolutionLinks()` per-chat-message full scan via a new bounded entry point,
+  `buildEvolutionLinksAmong`, fed by the chat hot path's already-computed GraphRAG context ids —
+  see Section 18's Status note for the as-built design. Verified via 7 new tests (including a
+  non-timing instrumentation check), full regression gate green.
+- **Phase B — Direction-of-currency resolver (Section 12). Done.** Closed the
+  "outdated"/"contradicted" producer gap via `analysis/supersession.ts`'s `resolveSupersession` +
+  `analysis/intelligence.ts`'s `supersessionClaims` — see Section 12's Status note for the as-built
+  design. Verified via 10 pure unit tests plus 7 integration tests, full regression gate green.
 - **Phase C — Entity timeline reconstruction (Section 9).** Depends on Phase B (a timeline needs
   to know which side is current). Independently testable via a scripted fixture (vehicle
   mentioned → accident mentioned → clarification confirmed) mirroring the car-accident

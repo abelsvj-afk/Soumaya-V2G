@@ -55,17 +55,28 @@ function gapPhrase(days: number): string {
   return `${days}d apart`;
 }
 
-export function buildEvolutionLinks(
+/**
+ * The shared core, factored out so the two exported entry points below differ ONLY in which
+ * nodes seed the OUTER loop — everything else (the per-node KNN lookup, the theme/gap/strength
+ * math) is identical, so the bounded path can never silently diverge in behavior from the
+ * full-space one. `subjects` are the OUTER-loop candidates (bounded or not); `resolveOther`
+ * looks up whatever a KNN hit actually points at, which is deliberately NOT restricted to
+ * `subjects` — the counterpart of a bounded, currently-relevant memory can be ANY memory in the
+ * space (that's the whole point of "what did this theme evolve from"), so narrowing the lookup
+ * to only the bounded set would silently drop real links instead of just skipping irrelevant
+ * outer-loop work.
+ */
+function evolutionLinksFor(
   h: DbHandle,
-  spaceId: string = DEFAULT_SPACE,
-  opts: TemporalOptions = DEFAULT_TEMPORAL,
+  spaceId: string,
+  subjects: GraphNode[],
+  resolveOther: (id: number) => GraphNode | undefined,
+  opts: TemporalOptions,
 ): EvolutionLink[] {
-  const repo = new NodesRepo(h, spaceId);
-  const byId = new Map<number, GraphNode>(repo.all().map((n) => [n.id, n]));
   const seen = new Set<string>();
   const links: (EvolutionLink & { rank: number })[] = [];
 
-  for (const node of byId.values()) {
+  for (const node of subjects) {
     if (node.kind === "action" || node.kind === "moc") continue;
     const emb = getEmbedding(h.sqlite, node.id);
     if (!emb) continue;
@@ -73,7 +84,7 @@ export function buildEvolutionLinks(
       (hit) => hit.nodeId !== node.id && hit.similarity >= opts.threshold,
     );
     for (const hit of hits) {
-      const other = byId.get(hit.nodeId);
+      const other = resolveOther(hit.nodeId);
       if (!other || other.kind === "action" || other.kind === "moc") continue;
       const key = pairKey(node.id, hit.nodeId);
       if (seen.has(key)) continue;
@@ -104,4 +115,53 @@ export function buildEvolutionLinks(
     .sort((a, b) => b.rank - a.rank)
     .slice(0, opts.maxLinks)
     .map(({ rank: _rank, ...link }) => link);
+}
+
+/**
+ * The original, UNCHANGED full-space entry point — every memory in the space seeds the outer
+ * loop. Correct and intentional for its one real caller (`GET /api/digest/evolution`, an
+ * on-demand Digest-panel view the user explicitly opens to see their whole memory graph's
+ * continuity), matching the same "full scans are fine in a batch/on-demand route, never on the
+ * chat hot path" precedent `synthesis/contradictions.ts`'s `runContradictionScan` already
+ * established. Behavior is byte-for-byte identical to before this pass — `subjects` is still
+ * every node in the space, and `resolveOther` is still an O(1) Map lookup into that same set.
+ */
+export function buildEvolutionLinks(
+  h: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  opts: TemporalOptions = DEFAULT_TEMPORAL,
+): EvolutionLink[] {
+  const all = new NodesRepo(h, spaceId).all();
+  const byId = new Map<number, GraphNode>(all.map((n) => [n.id, n]));
+  return evolutionLinksFor(h, spaceId, all, (id) => byId.get(id), opts);
+}
+
+/**
+ * Maya Longitudinal Intelligence, Phase A (docs/specs/maya-longitudinal-intelligence.md) — the
+ * bounded entry point for the chat hot path. `relevantIds` is the SAME small, already-computed
+ * GraphRAG context set `chat/graphrag.ts` builds for every message (hybrid KNN+keyword seeds
+ * plus a shallow multi-hop expansion — typically a few dozen ids regardless of how many
+ * thousand memories the space holds), not a new retrieval mechanism. Only these nodes seed the
+ * outer loop, so the per-message cost is O(|relevantIds|) instead of O(every memory in the
+ * space); each outer node still gets ONE indexed `knn()` query (already a bounded, single
+ * `vec_nodes` lookup, never a scan) that can find a counterpart ANYWHERE in the space — a
+ * bounded outer loop does not mean a bounded answer, only bounded WORK. `resolveOther` falls
+ * back to a single `getById()` for any KNN hit outside `relevantIds`, exactly the same shape of
+ * lookup `chat/graphrag.ts` already does for citation validation elsewhere.
+ */
+export function buildEvolutionLinksAmong(
+  h: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  relevantIds: number[],
+  opts: TemporalOptions = DEFAULT_TEMPORAL,
+): EvolutionLink[] {
+  if (relevantIds.length === 0) return [];
+  const repo = new NodesRepo(h, spaceId);
+  const subjects = repo.byIds(relevantIds);
+  const cache = new Map<number, GraphNode | undefined>(subjects.map((n) => [n.id, n]));
+  const resolveOther = (id: number): GraphNode | undefined => {
+    if (!cache.has(id)) cache.set(id, repo.getById(id));
+    return cache.get(id);
+  };
+  return evolutionLinksFor(h, spaceId, subjects, resolveOther, opts);
 }

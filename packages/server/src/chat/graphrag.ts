@@ -245,7 +245,7 @@ Use this telemetry to guide the user! For example:
   // settled fact — plus, when warranted, one gated clarification suggestion. Same best-effort,
   // null-safe contract as the four snapshots above.
   try {
-    const intelligence = intelligenceSnapshotText(h, spaceId);
+    const intelligence = intelligenceSnapshotText(h, spaceId, undefined, [...ids]);
     if (intelligence) systemExtra += `\n\n${intelligence}`;
   } catch {
     /* intelligence context is best-effort; never break chat */

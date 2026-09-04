@@ -8,6 +8,7 @@ import { InsightsRepo } from "../repositories/insights.repo.js";
 import {
   openContradictionClaims,
   thoughtContinuityClaims,
+  supersessionClaims,
   selectClarification,
   clarificationAskedRecently,
   intelligenceSnapshotText,
@@ -156,6 +157,95 @@ describe("clarificationAskedRecently — cooldown", () => {
     const tenDaysAgo = new Date(now - 10 * 86_400_000).toISOString().slice(0, 19).replace("T", " ");
     handle.sqlite.prepare(`UPDATE agent_logs SET created_at = ? WHERE space_id = 's1'`).run(tenDaysAgo);
     expect(clarificationAskedRecently(handle, "s1", now)).toBe(false);
+  });
+});
+
+/**
+ * Maya Longitudinal Intelligence, Phase A (docs/specs/maya-longitudinal-intelligence.md) —
+ * `supersessionClaims` is the real producer of `"outdated"`/`"contradicted"` this pass's audit
+ * found missing (both existed in `EpistemicStatus` since I1-I3 but nothing ever emitted them).
+ * `resolveSupersession`'s own pure-arithmetic unit tests live in `supersession.test.ts`; these
+ * tests cover the INTEGRATION through the two real upstream detectors it's wired to.
+ */
+describe("supersessionClaims — direction-of-currency, wired to real detectors", () => {
+  it("a genuine, already-detected contradiction with resolvable dates becomes 'contradicted'", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "s1")).nodes[0]!.id;
+    backdate(a, "2026-01-01T12:00:00");
+    backdate(b, "2026-03-01T12:00:00");
+    new InsightsRepo(handle, "s1").create(a, b, "This may conflict with only owning one vehicle.", 0.8, "contradiction");
+
+    const claims = supersessionClaims(handle, "s1");
+    expect(claims.length).toBeGreaterThan(0);
+    expect(claims[0]!.status).toBe("contradicted");
+  });
+
+  it("a legitimate state change (continuity, not a contradiction) becomes 'outdated', never 'contradicted'", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "Thinking seriously about starting a trucking company.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Thinking seriously about starting a trucking company.", "s1")).nodes[0]!.id;
+    backdate(a, "2026-01-01T12:00:00");
+    backdate(b, "2026-01-25T12:00:00");
+
+    const claims = supersessionClaims(handle, "s1", [a, b]);
+    expect(claims.length).toBeGreaterThan(0);
+    expect(claims.every((c) => c.status === "outdated")).toBe(true);
+    expect(claims.some((c) => c.status === "contradicted")).toBe(false);
+  });
+
+  it("insufficient evidence (dates too close together) never promotes a status — no claim added", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "s1")).nodes[0]!.id;
+    // Both effectively "now" — no confident date ordering (resolveSupersession's own
+    // MIN_CONFIDENT_GAP_MS guard) — the pair is skipped, not guessed at.
+    new InsightsRepo(handle, "s1").create(a, b, "This may conflict with only owning one vehicle.", 0.8, "contradiction");
+
+    expect(supersessionClaims(handle, "s1")).toEqual([]);
+  });
+
+  it("provenance is preserved end-to-end — evidence still points at the real memory ids/labels", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "s1")).nodes[0]!.id;
+    backdate(a, "2026-01-01T12:00:00");
+    backdate(b, "2026-03-01T12:00:00");
+    new InsightsRepo(handle, "s1").create(a, b, "This may conflict with only owning one vehicle.", 0.8, "contradiction");
+
+    const [claim] = supersessionClaims(handle, "s1");
+    expect(claim!.evidence.map((e) => e.id).sort()).toEqual([a, b].sort());
+    expect(claim!.evidence.every((e) => e.domain === "memory" && e.kind === "node")).toBe(true);
+  });
+
+  it("the historical record is preserved unmutated — the superseded memory's own row is untouched", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "s1")).nodes[0]!.id;
+    backdate(a, "2026-01-01T12:00:00");
+    backdate(b, "2026-03-01T12:00:00");
+    new InsightsRepo(handle, "s1").create(a, b, "This may conflict with only owning one vehicle.", 0.8, "contradiction");
+
+    const before = handle.sqlite.prepare(`SELECT label, content, occurred_at FROM nodes WHERE id = ?`).get(a);
+    supersessionClaims(handle, "s1");
+    const after = handle.sqlite.prepare(`SELECT label, content, occurred_at FROM nodes WHERE id = ?`).get(a);
+    expect(after).toEqual(before);
+  });
+
+  it("is space-scoped — an insight/pair from another space never produces a claim here", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "other-space")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "other-space")).nodes[0]!.id;
+    handle.sqlite.prepare(`UPDATE nodes SET occurred_at = ? WHERE id = ?`).run("2026-01-01T12:00:00", a);
+    handle.sqlite.prepare(`UPDATE nodes SET occurred_at = ? WHERE id = ?`).run("2026-03-01T12:00:00", b);
+    new InsightsRepo(handle, "other-space").create(a, b, "conflict", 0.8, "contradiction");
+
+    expect(supersessionClaims(handle, "s1")).toEqual([]);
+  });
+
+  it("intelligenceSnapshotText surfaces the supersession line only when a status was actually resolved", async () => {
+    const a = (await ingest(handle, { embeddings, llm }, "I have one vehicle.", "s1")).nodes[0]!.id;
+    const b = (await ingest(handle, { embeddings, llm }, "Got a second vehicle.", "s1")).nodes[0]!.id;
+    backdate(a, "2026-01-01T12:00:00");
+    backdate(b, "2026-03-01T12:00:00");
+    new InsightsRepo(handle, "s1").create(a, b, "This may conflict with only owning one vehicle.", 0.8, "contradiction");
+
+    const text = intelligenceSnapshotText(handle, "s1") ?? "";
+    expect(text).toContain("No longer current");
   });
 });
 

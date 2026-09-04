@@ -4,8 +4,10 @@ import { DEFAULT_SPACE } from "../db/schema.js";
 import type { CausalLink } from "@brain/shared";
 import { InsightsRepo } from "../repositories/insights.repo.js";
 import { IntelligenceClarificationsRepo } from "../repositories/intelligenceClarifications.repo.js";
-import { buildEvolutionLinks } from "./temporalChains.js";
+import { NodesRepo } from "../repositories/nodes.repo.js";
+import { buildEvolutionLinks, buildEvolutionLinksAmong } from "./temporalChains.js";
 import { possibleDownstreamEffects } from "./causal.js";
+import { resolveSupersession, type SupersessionKind } from "./supersession.js";
 
 /**
  * Maya Intelligence — deterministic claim formation and clarification gating
@@ -66,9 +68,23 @@ export function openContradictionClaims(handle: DbHandle, spaceId: string = DEFA
  * has persisted across time"). Deliberately does not materialize these as graph edges — that
  * is a separate, already-flagged follow-up noted in `temporalChains.ts`'s own doc comment
  * ("materializing as `evolves_into` edges"), not part of this pass.
+ *
+ * Maya Longitudinal Intelligence Phase A (docs/specs/maya-longitudinal-intelligence.md): when
+ * `contextNodeIds` is given (the chat hot path always provides it — the SAME bounded GraphRAG
+ * context set `chat/graphrag.ts` already built for this message), evolution-link construction
+ * is bounded to those nodes via `buildEvolutionLinksAmong` instead of scanning every memory in
+ * the space. Omitting it (every OTHER existing caller — the digest route, this file's own
+ * tests) reproduces the exact prior full-space behavior via `buildEvolutionLinks`, unchanged.
  */
-export function thoughtContinuityClaims(handle: DbHandle, spaceId: string = DEFAULT_SPACE): IntelligenceClaim[] {
-  const links = buildEvolutionLinks(handle, spaceId);
+export function thoughtContinuityClaims(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  contextNodeIds?: number[],
+): IntelligenceClaim[] {
+  const links =
+    contextNodeIds && contextNodeIds.length > 0
+      ? buildEvolutionLinksAmong(handle, spaceId, contextNodeIds)
+      : buildEvolutionLinks(handle, spaceId);
   return links
     .filter((l) => CONTINUITY_MIN_STRENGTH.includes(l.strength as "medium" | "strong"))
     .slice(0, MAX_CONTINUITY_CLAIMS)
@@ -84,6 +100,66 @@ export function thoughtContinuityClaims(handle: DbHandle, spaceId: string = DEFA
       ],
       createdAt: new Date().toISOString(),
     }));
+}
+
+/** Bounded like every other cap in this module (`MAX_CONTRADICTION_CLAIMS`,
+ *  `MAX_CONTINUITY_CLAIMS`) — this is a SECONDARY signal layered on top of already-capped
+ *  inputs, so it stays conservative. */
+const MAX_SUPERSESSION_CLAIMS = 2;
+
+/**
+ * Direction-of-currency claims (docs/specs/maya-longitudinal-intelligence.md, Phase A) — the
+ * real producer of `"outdated"`/`"contradicted"` this pass's audit found missing. ADDITIVE to
+ * (never replacing) `openContradictionClaims`'s/`thoughtContinuityClaims`'s own `"observation"`
+ * framing: for each already-detected relationship whose two evidence memories have a
+ * confidently-resolvable date order (`resolveSupersession`, pure arithmetic, no LLM call), this
+ * ALSO produces one stronger claim naming the superseded side — `"contradicted"` for a genuine,
+ * already-LLM-verified conflict; `"outdated"` for a same-theme evolution pair (a legitimate
+ * change over time, never mislabeled as a conflict just for having changed). Never invents
+ * evidence, never touches either memory's content — only ever ADDS a label to a NEW, transient
+ * claim. When direction can't be established confidently, the pair is silently skipped (the
+ * underlying claim's existing `"observation"` status is left exactly as it was).
+ */
+export function supersessionClaims(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  contextNodeIds?: number[],
+): IntelligenceClaim[] {
+  const nodesRepo = new NodesRepo(handle, spaceId);
+  const out: IntelligenceClaim[] = [];
+
+  const fromPair = (evidence: ProvenanceRef[], kind: SupersessionKind, baseConfidence: number): void => {
+    if (out.length >= MAX_SUPERSESSION_CLAIMS) return;
+    const [refA, refB] = evidence;
+    if (!refA || !refB || refA.domain !== "memory" || refB.domain !== "memory") return;
+    const a = nodesRepo.getById(refA.id);
+    const b = nodesRepo.getById(refB.id);
+    if (!a || !b) return;
+    const result = resolveSupersession(a, b, kind);
+    if (!result) return;
+    out.push({
+      id: `supersession:${result.superseded.id}:${result.current.id}`,
+      status: result.status,
+      statement: `"${result.superseded.label}" — ${result.reason}`,
+      confidence: baseConfidence,
+      domain: "mind",
+      evidence: [result.superseded, result.current],
+      createdAt: new Date().toISOString(),
+    });
+  };
+
+  for (const claim of openContradictionClaims(handle, spaceId)) {
+    if (out.length >= MAX_SUPERSESSION_CLAIMS) break;
+    fromPair(claim.evidence, "contradiction", claim.confidence);
+  }
+  if (out.length < MAX_SUPERSESSION_CLAIMS) {
+    for (const claim of thoughtContinuityClaims(handle, spaceId, contextNodeIds)) {
+      if (out.length >= MAX_SUPERSESSION_CLAIMS) break;
+      fromPair(claim.evidence, "continuity", claim.confidence);
+    }
+  }
+
+  return out;
 }
 
 /** A claim, reframed as something worth possibly asking about. Priority favors a genuine
@@ -165,10 +241,21 @@ const fmtCausal = (c: CausalLink): string => c.effectDescription;
  * suggested question for Soumaya to ask NATURALLY if it fits the conversation, never a scripted
  * line she must recite verbatim.
  */
-export function intelligenceSnapshotText(handle: DbHandle, spaceId: string = DEFAULT_SPACE, now: Date = new Date()): string | null {
+export function intelligenceSnapshotText(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  now: Date = new Date(),
+  /** Maya Longitudinal Intelligence Phase A — the SAME bounded GraphRAG context ids
+   *  `chat/graphrag.ts` already computed for this message, threaded through to
+   *  `thoughtContinuityClaims`/`supersessionClaims` so evolution-link construction never
+   *  scans the whole memory graph on the chat hot path. Omitted by every other caller
+   *  (tests), which reproduces the exact prior full-space behavior. */
+  contextNodeIds?: number[],
+): string | null {
   const contradictions = openContradictionClaims(handle, spaceId);
-  const continuity = thoughtContinuityClaims(handle, spaceId);
+  const continuity = thoughtContinuityClaims(handle, spaceId, contextNodeIds);
   const causal = contradictions.flatMap((c) => possibleDownstreamEffects(handle, spaceId, c, now)).slice(0, 3);
+  const superseded = supersessionClaims(handle, spaceId, contextNodeIds);
   if (contradictions.length === 0 && continuity.length === 0) return null;
 
   const lines = ["INTELLIGENCE NOTES (deterministic observations — these are NOT settled facts; never state them as certain):"];
@@ -177,6 +264,12 @@ export function intelligenceSnapshotText(handle: DbHandle, spaceId: string = DEF
   }
   if (continuity.length) {
     lines.push(`- Persisting theme: ${continuity.map(fmtClaim).join("; ")}.`);
+  }
+  if (superseded.length) {
+    // "outdated"/"contradicted" claims: a real, deterministic direction-of-currency verdict,
+    // not a settled deletion of the earlier memory — phrased so the LLM never mistakes this
+    // for permission to say the older statement never happened.
+    lines.push(`- No longer current (a later statement supersedes it — the earlier memory itself is still historically true, just not a description of now): ${superseded.map(fmtClaim).join("; ")}.`);
   }
   if (causal.length) {
     lines.push(`- Possible downstream effect (correlation only, NOT proven causation — never say "X caused Y", only "the timing coincides"): ${causal.map(fmtCausal).join(" ")}`);
