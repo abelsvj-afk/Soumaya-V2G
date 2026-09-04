@@ -197,7 +197,13 @@ export class HeuristicProvider implements LlmProvider {
     let overlap = 0;
     for (const w of mWords) if (qWords.has(w)) overlap++;
 
-    const answers = (affirmative || negative || overlap >= 1) && trimmed.length >= 4;
+    // A message that is ITSELF a question is never a confirmed statement of fact — the same
+    // "a trailing '?' means a question, not an answer" reasoning `chat/graphrag.ts`'s `justAsked`
+    // already applies to Soumaya's own turns. Without this, a user proactively asking about the
+    // very topic that just raised a clarification (topical word-overlap, no real answer given)
+    // would otherwise be misread as confirming their own question's wording as fact.
+    const isQuestion = trimmed.endsWith("?");
+    const answers = !isQuestion && (affirmative || negative || overlap >= 1) && trimmed.length >= 4;
     if (!answers) return { answers: false, confirmedStatement: "", confidence: 0 };
 
     // Strip a leading "yes,"/"no," acknowledgement so the stored fact reads as a

@@ -868,6 +868,16 @@ insufficient.
   exist, discoverability weak — one small documentation fix made, no redesign). See Section 14's
   and Section 15's own Status notes for the as-built decisions and why external context's live
   wiring was deliberately left a product decision rather than built speculatively.
+- **Phase I — Full-system integration audit (Section 26). Done.** Traced the real `chat()`
+  pipeline end-to-end, built the Integration Matrix (Section 26), and drove three realistic
+  scenarios through the actual `chat()` entry point (not direct function calls). Found and fixed
+  exactly one small, proven integration gap (Class B): `HeuristicProvider.interpretClarificationAnswer`
+  could misread a user's own interrogative message as confirming a clarification it had just
+  raised, purely from topical keyword overlap. No other gap met the bar for a code change —
+  Phases C/D's non-integration into `chat()` is reconfirmed as a deliberate, already-documented
+  decision, not a newly-discovered defect. 5 new tests
+  (`__tests__/longitudinalIntegration.test.ts`), full regression gate green (825 server + 320 web
+  tests, typecheck, web build).
 
 No ML phase is proposed. Per Section 16, nothing in the gap matrix requires one yet.
 
@@ -967,9 +977,169 @@ in a future phase (G).
 
 ---
 
+## 26. Phase I — Full-System Integration Audit
+
+Phases A–H each built or audited ONE capability. This phase asks a different question: do they
+cooperate as a single coherent reasoning pipeline when driven together, through the real
+production entry point, with realistic multi-turn conversations? Traced from
+`packages/server/src/chat/graphrag.ts` directly (not from this document), as of the Phase H
+commit.
+
+### 26.1 Integration Matrix (verified against the real code, not assumed)
+
+| Capability | Exists | Called by `chat()` | Output consumed | Bounded | Space-scoped | Tested end-to-end |
+|---|---|---|---|---|---|---|
+| Hybrid GraphRAG retrieval (KNN+BM25+RRF+multi-hop) | ✅ | ✅ (the core pipeline) | ✅ context to LLM | ✅ `k`/`depth` capped | ✅ | ✅ (pre-existing + Scenario A) |
+| Entity continuity (`linkCognitiveAnchor`/gravity) | ✅ | indirectly — feeds `cognitiveSnapshotText`, not called from `chat()` directly | ✅ via Mind snapshot | ✅ | ✅ | ✅ (Phase F, direct) |
+| Entity timeline reconstruction (`reconstructEntityTimeline`) | ✅ | ❌ (deliberate, Phase C) | — | ✅ | ✅ | ✅ (Phase C, direct only) |
+| Temporal reasoning (`temporalSnapshotText`) | ✅ | ✅ | ✅ systemExtra | ✅ | ✅ | ✅ (pre-existing) |
+| Supersession (`supersessionClaims`) | ✅ | ✅ (via `intelligenceSnapshotText`) | ✅ systemExtra | ✅ (`MAX_SUPERSESSION_CLAIMS`) | ✅ | ✅ (Phase A/B + Scenario A) |
+| Relevance combiner (`computeRelevance`) | ✅ | ❌ (deliberate, Phase D) | — | ✅ | ✅ | ✅ (Phase D, direct only) |
+| Emotional intelligence (`emotionalSnapshotText`) | ✅ | ✅ | ✅ systemExtra | ✅ (bounded to `ids`) | ✅ | ✅ (Phase E + Scenario A/C) |
+| Causal reasoning (`possibleDownstreamEffects`) | ✅ | ✅ (via `intelligenceSnapshotText`) | ✅ systemExtra | ✅ (`MAX_CAUSAL_LINKS`) | ✅ | ✅ (Phase G + Scenario A) |
+| Clarification (I2 lifecycle) | ✅ | ✅ (raise in `intelligenceSnapshotText`, resolve via `resolveClarificationFromMessage`) | ✅ new memory + edge | ✅ | ✅ | ✅ (I1-I3 direct + Scenario B via real `chat()`) |
+| Interaction preferences (Phase H) | ✅ | ✅ | ✅ systemExtra (Layer 2) | ✅ (small table, no scan) | ✅ | ✅ (Phase H + Scenario A/C) |
+| Galaxy navigation (I3/Model C) | ✅ | ✅ (candidate list in, resolved intent out) | ✅ `ChatResponse.navigation` | ✅ (small candidate list) | ✅ | ✅ (`chatNavigation.test.ts` + Scenario C) |
+
+Two rows are legitimately "not called by chat()" — this was re-verified, not assumed. Both
+remain the right call: neither Phase C's timeline reconstruction nor Phase D's relevance tiers
+have a demonstrated per-message use case (`chat()` doesn't currently ask "what is entity X's
+current state" or "rank these N candidates by relevance" for any real reason); wiring them in
+speculatively would add LLM-context cost with no proven benefit, exactly what Sections 9 and 13
+already concluded. This phase re-confirms that conclusion under the stricter "does everything
+actually cooperate" lens rather than treating it as an oversight to fix.
+
+### 26.2 Realistic end-to-end scenarios (all via real `chat()` calls, `__tests__/longitudinalIntegration.test.ts`)
+
+- **Scenario A — full longitudinal conversation.** One coherent narrative (a vehicle/accident
+  contradiction, a genuine repeated stress pattern about the same event, a real income drop, and
+  an explicit repeated request to keep replies shorter) driven through five sequential `chat()`
+  calls in one space. Confirmed: retrieval favors the topical memories over unrelated filler;
+  `INTELLIGENCE NOTES` (contradiction + supersession), the causal "possible downstream effect"
+  note, and `EMOTIONAL CONTEXT` all appear together in the SAME reply without corrupting each
+  other's wording; a single preference mention does not surface, a second consistent one does,
+  on a later, unrelated turn; every original memory is byte-identical before and after the whole
+  conversation; the causal note's only use of the word "caused" is inside its own
+  never-say-this guidance, never as an assertion.
+- **Scenario B — clarification lifecycle through TWO real `chat()` calls.** Turn 1 (a neutral
+  message) causes `intelligenceSnapshotText` to raise and persist a pending clarification within
+  that same call; turn 2 (the user's next, ordinary message, which happens to answer it) causes
+  `resolveClarificationFromMessage` to resolve it, append `CLARIFICATION RESOLVED` to
+  `systemExtra`, and create a real, edge-linked, `origin:"user"` memory node — proving the I2
+  loop closes through the actual chat entry point, not just via the direct-call tests I1–I3
+  already had.
+- **Scenario C — Galaxy navigation alongside the full snapshot stack.** With intelligence,
+  emotional, and durable-preference context all simultaneously active, a proposed navigation
+  candidate still resolves correctly (real target, non-empty reason) in the SAME reply, and an
+  invalid id / a cross-space id proposed under the same full-stack conditions still correctly
+  fails to resolve — the server-side validation in `resolveNavigationIntent` is unaffected by how
+  much else is happening in the same turn.
+- **Cross-pipeline space isolation.** The entire integrated stack (contradiction, causal,
+  emotional, durable preference, an active Journey) built in one space, then proposed/queried
+  from a second space — nothing leaks: no snapshot text, no preference row, no navigation
+  resolution.
+- **Performance.** `NodesRepo.all()` is called exactly once per `chat()` turn with the full
+  longitudinal stack active — precisely chat/graphrag.ts:135's already-documented pre-existing
+  telemetry scan (Phase H's own limitations note), never zero and never more than one. No phase
+  in this architecture — including this one — added a second full-space scan.
+
+### 26.3 Epistemic-safety audit (re-verified under integration, not just in isolation)
+
+- **possible ≠ confirmed**: causal links from `possibleDownstreamEffects` are always rendered
+  under the "NOT proven causation" heading; Scenario A's transcript contains the word "caused"
+  only inside that guidance sentence, never as an assertion.
+- **preference ≠ fact**: `interactionPreferenceSnapshotText` never touches the `nodes` table
+  (Phase H's own tests) and is rendered under a distinct "HOW THEY'VE ASKED YOU TO COMMUNICATE"
+  heading, never folded into `INTELLIGENCE NOTES`'s claim vocabulary.
+- **external ≠ personal**: unaffected by this phase — Section 15 remains a design-only boundary
+  with no live wiring to audit.
+- **similarity ≠ identity**: unaffected — Phase F's audit (anchors/aliases) already covers this;
+  no new entity-merging code was introduced by this phase to re-check.
+- **sequence ≠ causality**: re-verified directly in Scenario A — a temporally-coincident causal
+  claim is never phrased as more than "the timing coincides."
+- **Historical truth**: re-verified in both Scenario A (whole-narrative immutability check) and
+  Scenario B (the original contradiction memories are untouched after clarification resolves).
+
+### 26.4 The one integration gap found, and the fix
+
+**Finding (Class B — integration gap, small fix permitted).** `HeuristicProvider.interpretClarificationAnswer`
+uses topical keyword overlap as one of its "does this message answer the pending question"
+signals. When a user's OWN message both contains enough shared vocabulary to newly raise a
+contradiction claim (via `intelligenceSnapshotText`, which runs before clarification resolution
+in `chat()`) AND happens to overlap with that freshly-minted question's own wording, the SAME
+message could be misread as confirming it — with the confirmed "fact" being the user's own
+question, verbatim. This was never caught by any earlier phase's tests because they each called
+`resolveClarificationFromMessage`/`intelligenceSnapshotText` as separate, deliberately-sequenced
+steps; only driving a single, realistic, topically-consistent message through the real `chat()`
+pipeline (Phase I's whole point) surfaced it.
+
+**Fix (small, matches existing precedent).** `heuristic.ts`'s `interpretClarificationAnswer` now
+treats a message ending in `?` as never a confirmed statement of fact — mirroring the exact
+"a trailing `?` means a question, not an answer" reasoning `chat/graphrag.ts`'s own `justAsked`
+check already applies to Soumaya's turns. One line of production logic changed; no new
+abstraction, table, or module. Verified: the fix doesn't affect any of the ~15 existing
+`interpretClarificationAnswer`/`resolveClarificationFromMessage` tests (none of them use an
+interrogative "answer"), and Scenario A now passes without the user's own question being
+misfiled as a confirmed memory.
+
+### 26.5 Galaxy navigation — no automatic camera movement (structural verification)
+
+`packages/web/src/components/ChatDock.tsx:522` calls `onNavigate?.(m.navigation!)` only from a
+navigation chip's own `onClick` handler — there is no code path that invokes it on message
+receipt or render. `ChatResponse.navigation` is inert data until the user clicks it. This is a
+code-structure guarantee, not something a server-side `chat()` test can observe (there is no
+camera on that side of the boundary) — verified by reading the client code directly rather than
+asserted in a server test.
+
+### 26.6 Journey / Life Vision sanity check (re-verify, not redesign)
+
+Re-confirmed Phase H's own findings still hold: Journeys are fully wired end-to-end (no change
+needed); Life Vision's backend + UI are real and functional (Phase H's earlier default-open
+Financial Goals fix is unchanged). No new discoverability issue found this pass. No redesign
+attempted, per this phase's explicit instruction.
+
+### 26.7 Performance, security, and failure isolation
+
+- **Performance**: no new full-space scan anywhere in the integrated pipeline (Section 26.2).
+  The pre-existing `chat/graphrag.ts:135` telemetry scan remains the sole, already-documented
+  exception, unchanged by this phase.
+- **Security**: space isolation holds through the entire integrated pipeline in one combined
+  test (Section 26.2), not just per-feature as in earlier phases.
+- **Failure isolation**: every snapshot function chat() calls remains individually wrapped in
+  its own `try/catch` (the existing, unchanged pattern) — this phase added no new failure
+  surface and did not need a new isolation mechanism.
+
+### 26.8 Classification of everything reviewed
+
+- **Class A (working correctly, no action)**: retrieval, temporal, supersession, emotional,
+  causal, interaction preferences, Galaxy navigation, space isolation, performance bound.
+- **Class B (integration gap, fixed)**: the interrogative-message clarification misread
+  (Section 26.4) — the only Class B finding.
+- **Class C (product-discoverability)**: none new; Journeys/Life Vision re-confirmed already
+  addressed in Phase H.
+- **Class D (architectural gap — stop and document, do not build)**: none found. Phase C/D's
+  non-integration into `chat()` was considered under this lens and re-confirmed as the correct
+  call, not a gap.
+- **Class E (performance issue)**: none newly introduced; the one known pre-existing item
+  (chat/graphrag.ts:135) is unchanged and out of scope per this phase's own instruction.
+
+### 26.9 Verdict
+
+The architecture already works. Per this phase's own mandate, the correct action given that
+finding is to make no unnecessary changes beyond the one proven gap — so that is what this phase
+did: one small, precedent-matching fix, five new tests proving the pipeline's capabilities
+cooperate correctly under realistic multi-turn use, and this integration matrix as the durable
+record of what is (and isn't) wired together and why.
+
+---
+
 ## Final honesty check
 
 Per the brief's own instruction: **do not claim implementation of capabilities that were not
-actually built.** Nothing in Sections 6–21 has been implemented. The only code change delivered
-alongside this document is the separately-committed pay stub save-failure fix, which is
-unrelated to longitudinal intelligence and is not claimed as part of this architecture.
+actually built.** Nothing in Sections 6–21 has been implemented as new intelligence machinery
+beyond what each phase's own Status note describes. Phase I (Section 26) is the one phase in
+this document that IS a real code change (one line in `heuristic.ts`) plus a real, committed test
+file — everything else in Section 26 is verification of what phases A–H already built, not new
+architecture. The only other code change delivered alongside this document's original version
+was the separately-committed pay stub save-failure fix, which is unrelated to longitudinal
+intelligence and is not claimed as part of this architecture.
