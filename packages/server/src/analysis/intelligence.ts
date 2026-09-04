@@ -254,7 +254,7 @@ export function intelligenceSnapshotText(
 ): string | null {
   const contradictions = openContradictionClaims(handle, spaceId);
   const continuity = thoughtContinuityClaims(handle, spaceId, contextNodeIds);
-  const causal = contradictions.flatMap((c) => possibleDownstreamEffects(handle, spaceId, c, now)).slice(0, 3);
+  const causal = contradictions.flatMap((c) => possibleDownstreamEffects(handle, spaceId, c, now, contextNodeIds)).slice(0, 3);
   const superseded = supersessionClaims(handle, spaceId, contextNodeIds);
   if (contradictions.length === 0 && continuity.length === 0) return null;
 

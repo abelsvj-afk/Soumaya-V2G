@@ -337,6 +337,44 @@ People, and Life Vision changes as possible downstream effects is real future wo
 **the same function, more domains** — not a new cross-domain reasoning engine. No new
 architecture is proposed here; this is a scoping note for Section 16 (roadmap).
 
+**Status: fixed (Phase G, shipped) — Path A, extended in place, no new abstraction.** The audit
+confirmed this section's own prediction exactly: the CAUSE side of `possibleDownstreamEffects`
+was already fully domain-agnostic (`IntelligenceClaim`/`ProvenanceRef` carry no Money-specific
+coupling); only the EFFECT side was Money/Wealth-only. Two candidate domains were considered and
+rejected as real extensions this pass, both for the same reason — **do not invent a missing
+relationship**: Journey/Life-Vision progress has no deterministic change detector to reuse
+(`temporalChange.ts`'s own doc comment already flags the missing point-in-time progress log as a
+genuine, separate persistence gap); "work"/"transportation" have no modeled state at all in this
+repository. The one real, demonstrable, already-deterministic domain beyond Money/Wealth is
+**Mind/Emotional** — `possibleDownstreamEffects` gained a fourth candidate check reusing Phase
+E's `buildEmotionalTrajectoryAmong` verbatim (no second pattern-detection algorithm), guarded by
+the exact same "≥2 dip-days / a real shape" gate that already makes a single emotional data
+point structurally incapable of producing a pattern (Section 20's "single point ≠ causal
+pattern" rule holds by construction, not by a new check).
+
+One genuine refinement beyond the three pre-existing Money checks: because the emotional
+candidate set isn't pre-bucketed by calendar month, an explicit direction check was added — the
+pattern's own most recent day-bucket must fall on/after the cause event's date, or the pair is
+silently dropped (never "effect precedes source"). The three original Money/Wealth checks don't
+have this same per-value precision (they trust "current vs. previous month" as an existing,
+accepted proxy) — a known, pre-existing asymmetry, not something this pass introduced or hid.
+
+`possibleDownstreamEffects` gained one new optional parameter, `contextNodeIds` — the SAME
+bounded GraphRAG context set `chat/graphrag.ts` already computes for the message, threaded
+through `intelligenceSnapshotText` exactly like Phase A's `contextNodeIds` on
+`thoughtContinuityClaims`. No new retrieval, no new embedding call, no full-space scan — the
+emotional check's candidate pool is the union of the claim's own evidence ids and this
+already-bounded context set. Deliberately kept SEPARATE from Phase D's `computeRelevance` (no
+call in either direction — relevance narrows candidates for a DIFFERENT purpose, it does not
+establish causality) and from Phase F's entity continuity (causal reasoning creates/merges no
+node rows; an entity-continuity judgment and a causal judgment about the same two memories are
+independent conclusions, verified directly). Verified via `analysis/causal.test.ts` (14 tests)
+covering temporal direction (both ways), the causal window boundary, epistemic status staying
+`"possible"` throughout, a real two-domain (Money + Mind) walkthrough with full provenance and
+unmutated history, Phase B/C supersession coexistence, Phase D non-interaction, the single-point
+guard, entity-row non-mutation, cross-space rejection, and a `NodesRepo.prototype.all`
+instrumentation check.
+
 ## 11. Emotional / Contextual Model
 
 `analysis/emotional.ts` already implements almost exactly what the brief asks for, just not yet
@@ -740,8 +778,11 @@ insufficient.
   The `CognitiveKind` question (Open Question 1) remains deliberately unresolved — a product
   decision, not an architecture gap this phase could or should settle unilaterally. 12 new tests,
   zero production code changed, full regression gate green.
-- **Phase G — Cross-domain causal extension (Section 10).** Extends `causal.ts`'s domain
-  coverage — independent of everything else, can slot in any time after Phase A.
+- **Phase G — Cross-domain causal extension (Section 10). Done.** Extended `causal.ts`'s domain
+  coverage with a fourth candidate check (Mind/Emotional, reusing Phase E's
+  `buildEmotionalTrajectoryAmong`) — see Section 10's Status note for the as-built design and
+  why Journey/Life-Vision and work/transportation were NOT forced as extensions (no
+  deterministic change detector exists for either). 14 new tests, full regression gate green.
 - **Phase H — Learned interaction model (Section 14) and external context (Section 15).**
   Deliberately last: both require new persistence/integration decisions this document
   intentionally leaves open, and neither is needed to prove the rest of the architecture.

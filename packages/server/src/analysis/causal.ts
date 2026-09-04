@@ -5,21 +5,33 @@ import { NodesRepo } from "../repositories/nodes.repo.js";
 import { FinGoalRepo } from "../repositories/finGoal.repo.js";
 import { daysSince, parseTolerantMs } from "../lib/time.js";
 import { incomeChange, netWorthChange, goalAllocationChange } from "./temporalChange.js";
+import { buildEmotionalTrajectoryAmong } from "./emotional.js";
 
 /**
- * Causal reasoning (docs/specs/maya-intelligence-architecture.md, Part I1). Deliberately NOT a
- * general causal-graph engine — per the brief's own repeated caution ("do not build a giant
- * causal graph engine," "do not attempt unrestricted causal inference," "do not allow the LLM
- * to fabricate causal relationships"), this module does exactly one bounded thing: given an
+ * Causal reasoning (docs/specs/maya-intelligence-architecture.md, Part I1; generalized across
+ * domains in Phase G, docs/specs/maya-longitudinal-intelligence.md). Deliberately NOT a general
+ * causal-graph engine — per the brief's own repeated caution ("do not build a giant causal
+ * graph engine," "do not attempt unrestricted causal inference," "do not allow the LLM to
+ * fabricate causal relationships"), this module does exactly one bounded thing: given an
  * already-formed `IntelligenceClaim` (e.g. a detected contradiction — "I have one vehicle" vs.
- * "vehicle accident"), it checks whether any of the EXISTING, ALREADY-BUILT change-detection
- * functions (`analysis/temporalChange.ts`'s `incomeChange`/`netWorthChange`/
- * `goalAllocationChange`) show a real, dated, deterministic change that is temporally
- * CONSISTENT with having happened after the claim's evidence — and if so, surfaces it as a
- * `CausalLink` with `status: "possible"`, NEVER higher. No LLM call happens here; the only
- * "inference" is the deterministic temporal-consistency check below. Narrating the
- * correlation-not-causation distinction in natural language is the EXISTING chat LLM's job
- * (via `intelligenceSnapshotText`'s injected context), not a new model call.
+ * "vehicle accident"), it checks whether any of the EXISTING, ALREADY-BUILT deterministic
+ * change/pattern-detection functions show a real, dated signal that is temporally CONSISTENT
+ * with having happened after the claim's evidence — and if so, surfaces it as a `CausalLink`
+ * with `status: "possible"`, NEVER higher. No LLM call happens here; the only "inference" is the
+ * deterministic temporal-consistency check below. Narrating the correlation-not-causation
+ * distinction in natural language is the EXISTING chat LLM's job (via `intelligenceSnapshotText`'s
+ * injected context), not a new model call.
+ *
+ * Phase G audit finding: the CAUSE side was already fully domain-agnostic (`IntelligenceClaim`/
+ * `ProvenanceRef` carry no Money-specific coupling) — only the EFFECT side was Money/Wealth-only
+ * (`temporalChange.ts`'s three functions). Journey/Life-Vision progress has no deterministic
+ * change detector to reuse (no point-in-time progress log exists — `temporalChange.ts`'s own
+ * doc comment already flags this as a genuine, separate persistence gap, not something this
+ * pass invents a workaround for) and a "work"/"transportation" domain has no state at all in
+ * this repository — so this pass does NOT force those examples. The one real, demonstrable,
+ * genuinely-different domain this repo already models deterministically is Mind/Emotional
+ * (Phase E's `buildEmotionalTrajectoryAmong`) — added below as a fourth candidate check, reusing
+ * Phase E's own bounded entry point verbatim, no second pattern-detection algorithm.
  */
 
 /** How far after an event a deterministic change is still considered temporally plausible as
@@ -62,12 +74,19 @@ function fmtDollars(cents: number): string {
  * proven cause. Returns `[]` (not a fabricated link) when the event date is unknown or nothing
  * temporally-consistent is found — matching this codebase's "insufficient evidence → silence"
  * discipline established in the temporal-reasoning pass.
+ *
+ * `contextNodeIds` (Phase G) — the SAME bounded GraphRAG context set `chat/graphrag.ts` already
+ * computes for the message (threaded through `intelligenceSnapshotText`, exactly like Phase A's
+ * `contextNodeIds` on `thoughtContinuityClaims`) — is the bounded candidate pool for the
+ * Mind/Emotional check below. Never a new retrieval; omitting it falls back to just the claim's
+ * own evidence ids (still bounded, just narrower — never a full-space scan either way).
  */
 export function possibleDownstreamEffects(
   handle: DbHandle,
   spaceId: string = DEFAULT_SPACE,
   claim: IntelligenceClaim,
   now: Date = new Date(),
+  contextNodeIds?: number[],
 ): CausalLink[] {
   const eventDate = earliestEvidenceDate(handle, spaceId, claim);
   if (!eventDate) return [];
@@ -129,6 +148,39 @@ export function possibleDownstreamEffects(
           createdAt: now.toISOString(),
         });
       }
+    }
+  }
+
+  // Mind/Emotional (Phase G — the first non-Money/Wealth candidate, proving this function
+  // generalizes rather than being hardcoded to one domain pair). Reuses Phase E's bounded
+  // trajectory builder verbatim — the SAME "≥2 dip-days / a real shape" gate that already makes
+  // a single emotional data point structurally incapable of producing a pattern, so "one heavy
+  // memory" can never masquerade as a downstream effect here either.
+  if (links.length < MAX_CAUSAL_LINKS) {
+    const evidenceIds = claim.evidence.filter((e) => e.domain === "memory" && e.kind === "node").map((e) => e.id);
+    const candidateIds = [...new Set([...evidenceIds, ...(contextNodeIds ?? [])])];
+    const trajectory = buildEmotionalTrajectoryAmong(handle, spaceId, candidateIds);
+    // Unlike the three Money/Wealth checks (which trust "current vs. previous month" as an
+    // adequate after-the-fact proxy), this candidate set isn't pre-bucketed by calendar month —
+    // it's an arbitrary bounded id list, so an explicit direction check is needed: the pattern's
+    // OWN most recent day-bucket must fall on/after the cause event's date, or this would be
+    // "effect precedes source," which must never produce a claim.
+    const latestPatternDay = trajectory.points.at(-1)?.date;
+    const patterns = latestPatternDay && latestPatternDay >= eventDate.slice(0, 10) ? trajectory.patterns : [];
+    for (const pattern of patterns) {
+      if (links.length >= MAX_CAUSAL_LINKS) break;
+      const triggerNote = pattern.trigger ? ` around "${pattern.trigger}"` : "";
+      links.push({
+        id: `causal:emotional:${pattern.type}:${cause.id}`,
+        cause,
+        effectDescription: `Around the same time, memories relevant to this show a recurring emotional pattern (${pattern.type}${triggerNote}) — the timing coincides, but that alone doesn't prove a connection, and a single memory on its own would not be enough to say this.`,
+        effectDomain: "mind",
+        status: "possible",
+        confidence,
+        temporalOrder: "after",
+        evidence: claim.evidence,
+        createdAt: now.toISOString(),
+      });
     }
   }
 
