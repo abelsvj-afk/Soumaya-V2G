@@ -409,6 +409,48 @@ is never rewritten; the confirmed statement is a newer, separate node). Section 
 `"outdated"` label generalizes this same discipline to ordinary (non-clarification) contradiction
 resolution.
 
+**Status: fixed (Phase D, shipped).** `analysis/relevance.ts`'s `computeRelevance(handle, spaceId,
+candidates, context?, now?)` implements this section's combiner — with one deliberate deviation
+from the literal boolean formula sketched above. Inspection of the real repository found the
+signals don't cleanly reduce to a single yes/no without losing information the mandatory test
+cases actually need (a durable Life Vision and a merely-reinforced memory are both "relevant," but
+not equally so — the required tests explicitly distinguish "high historical relevance" from "low
+current operational relevance" for the SAME fact). Rather than fabricate a precise-looking 0..1
+score this module has no principled way to justify (this codebase's own standing rule: `confidence`
+is never folded into another number — see `IntelligenceClaim`'s own doc comment and the
+`dreamCycle.ts` anti-pattern it cites), the as-built representation is a small named classification,
+`RelevanceTier = "high" | "moderate" | "low"`, each result carrying an explicit, auditable
+`reasons: string[]` — the "ranked classification" option this section's own design question left
+open, chosen over both a bare boolean (loses the historical-vs-current-relevance gradient the
+mandatory tests require) and a numeric score (fabricated precision).
+
+Signals actually used, all pre-existing, none re-derived: **durability** via
+`DURABLE_COGNITIVE_KINDS` (unchanged, as this section anticipated); **reinforcement** via the same
+insight-linkage count `graph/service.ts`'s own `enrich()` already calls "reinforcement" (mirrored
+as a small bounded query — `enrich()` itself is private, so this is the same query shape, not a
+shared call); **recency/cooling** via `@brain/shared`'s own `entropyFrom`/`COOLING_ENTROPY`,
+reused verbatim; **supersession** via Phase C's `EntityStateEvent[]` (an optional `context.timeline`
+input) — `resolveSupersession` is never called a second time, only its already-computed result is
+read; **causal connection** via an externally-supplied id set (`context.causallyConnectedIds`) —
+Phase D forms no new `CausalLink` itself, the caller passes in whatever `analysis/causal.ts`'s
+existing `possibleDownstreamEffects` already found; **context match** via a plain dot product
+between a candidate's stored embedding and an optional `context.topic` anchor's (vectors are
+already L2-normalized per `db/vec.ts`'s own bootstrap comment, so cosine similarity is just the dot
+product — no new similarity metric). Relevance is computed fresh per call and never persisted — no
+new table, no new `nodes` column, matching this section's own "no new field is needed" verdict.
+**Not wired into chat this phase**, for the same reason Phase C's `reconstructEntityTimeline` wasn't:
+`chat/graphrag.ts` has no existing single "active topic anchor" concept today (only a raw KNN/
+keyword seed list), and calling this per retrieved node on every message would add a real,
+un-demonstrated per-message cost (an embedding fetch + a bounded insight-count query per
+candidate) without a shown need to filter today's context — it ships as a standalone, tested
+function for that later focused pass. Verified via `analysis/relevance.test.ts` (28 tests) covering
+the full required matrix: basic/determinism, durability, reinforcement, recency, supersession
+(built on real Phase B/C output, not a mock), entity-timeline integration, externally-supplied
+causal connection, epistemic-status non-interference, context-dependence (the same candidate
+scoring differently under a trucking vs. an unrelated topic, via real embedding similarity — not
+hard-coded subject strings), space isolation (including a defensively mis-scoped `insights` row),
+and bounds (an `NodesRepo.prototype.all` instrumentation spy).
+
 ## 14. Learned Interaction Model (design only — explicitly not implemented)
 
 Three distinct concepts, kept structurally separate per the brief's own instruction:
@@ -579,8 +621,12 @@ insufficient.
   `insights`/`"resolves"`-edge write paths, not a synthetic mock) plus 25 further tests, full
   regression gate green. Not wired into chat this phase (see Section 9) — ships as a standalone,
   reusable function for Phase D or a future explicit caller.
-- **Phase D — Relevance combiner (Section 13).** Depends on Phase C (needs the timeline to know
-  what's superseded). Independently useful for chat context bounding even before any UI change.
+- **Phase D — Relevance combiner (Section 13). Done.** Shipped `analysis/relevance.ts`'s
+  `computeRelevance`, reusing Phase C's timeline for "what's superseded" exactly as this roadmap
+  anticipated — see Section 13's Status note for the as-built classification (three named tiers,
+  not the literal boolean sketch) and why. Verified via 28 tests, full regression gate green. Not
+  wired into chat this phase (see Section 13) — ships as a standalone, reusable function for a
+  future chat-context-bounding pass once a real "active topic" concept exists to drive it.
 - **Phase E — Emotional snapshot wiring (Section 11).** Independent of B/C/D — can ship any time
   after Phase A, since it only wires an existing computation into the existing 9th-snapshot
   pattern.
@@ -638,10 +684,10 @@ No ML phase is proposed. Per Section 16, nothing in the gap matrix requires one 
    the full contradiction scan already lives)? This document leans toward "inline, since it's
    O(1) per already-detected contradiction claim (capped at 3)," but flags it for review since
    it's the one new function proposed to run on the hot path.
-3. If Phase D's relevance combiner later needs a numeric score rather than a boolean, should
-   that score be a NEW field on `IntelligenceClaim`, or computed and discarded per-request? This
-   document has no evidence yet that a numeric score (vs. the boolean combination described) is
-   needed — flagged rather than decided.
+3. **Resolved (Phase D).** Neither a boolean nor a numeric score: `computeRelevance` returns a
+   named `RelevanceTier` (`"high"|"moderate"|"low"`) computed fresh per call and discarded, never
+   a new `IntelligenceClaim` field — see Section 13's Status note for why a score was rejected as
+   fabricated precision.
 4. Does `analysis/emotional.ts`'s trajectory belong in the 9th chat snapshot unconditionally, or
    only when a genuine `EmotionalPattern` is detected (never a raw single-memory valence)? This
    document recommends the latter (Section 11) but the exact wording/framing needs product
