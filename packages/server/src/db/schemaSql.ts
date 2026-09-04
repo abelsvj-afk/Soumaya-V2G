@@ -528,4 +528,27 @@ export const BOOTSTRAP_SQL = `
     );
     CREATE INDEX IF NOT EXISTS journey_link_space_idx ON journey_link(space_id, journey_id);
     CREATE UNIQUE INDEX IF NOT EXISTS journey_link_unique ON journey_link(space_id, journey_id, kind, ref_id);
+
+    -- Maya Intelligence — clarification lifecycle (docs/specs/maya-intelligence-architecture.md,
+    -- Part I2). The ONE piece of intelligence-originated persistence this feature introduces —
+    -- explicitly justified: without durable state, "Maya remembers she asked and remembers the
+    -- answer" is impossible. Tracks the QUESTION lifecycle only; the actual confirmed knowledge,
+    -- once resolved, is a real nodes row (origin='user') linked back via a 'resolves' edge —
+    -- never duplicated here. evidence_json is the originating claim's ProvenanceRef[] so a later
+    -- answer can be matched back to what was actually asked about.
+    CREATE TABLE IF NOT EXISTS intelligence_clarifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      claim_id TEXT NOT NULL,
+      domain TEXT NOT NULL,
+      question TEXT NOT NULL,
+      evidence_json TEXT NOT NULL DEFAULT '[]',
+      status TEXT NOT NULL DEFAULT 'pending',
+      answer_text TEXT,
+      confirmed_statement TEXT,
+      confirmed_node_id INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      resolved_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS intelligence_clarifications_space_idx ON intelligence_clarifications(space_id, status, created_at DESC);
 `;

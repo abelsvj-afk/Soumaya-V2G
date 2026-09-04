@@ -102,12 +102,22 @@ export interface Graph3DHandle {
   /** Live status of every fleet unit (ship/station/beacons/scout/defender). */
   getFleetStatus: () => FleetStatus;
   reorderTasks: (newOrder: { id: string; type: string }[]) => void;
+  /** Frame the camera on a single Journey hub or Money-sky star (Maya Intelligence Part I3) —
+   *  a one-shot, non-follow-locking fly (modeled on `isolateLayer`'s bounding-sphere framing,
+   *  not `flyTo`'s memory-node follow-lock, since a journey/bill/goal id lives in a DIFFERENT
+   *  id space than memory node ids and must never be compared against `followRef`). Returns
+   *  false when the body isn't currently in the scene (e.g. its overlay ring is hidden). */
+  flyToGalaxyEntity: (kind: "journey" | "bill" | "goal", id: number) => boolean;
 }
 
 interface Props {
   data: GraphData;
   onSelect: (node: GraphNode) => void;
   onSoumayaClick?: () => void;
+  /** Fires when a Journey hub or Money-sky star is clicked (Maya Intelligence Part I3) —
+   *  these are plain overlay scenery, not force-graph "nodes", so they need their own
+   *  raycast the way `onSoumayaClick` already does for the ship. */
+  onGalaxyEntityClick?: (kind: "journey" | "bill" | "goal", id: number) => void;
   /** Fires when the number of active beacons changes (drives the pulsing FAB). */
   onSatelliteCount?: (count: number) => void;
   /** Fires when the number of visitors in the sandbox changes (drives the FAB). */
@@ -145,6 +155,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     data,
     onSelect,
     onSoumayaClick,
+    onGalaxyEntityClick,
     onSatelliteCount,
     onVisitorCount,
     selectedId,
@@ -924,15 +935,42 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const raycaster = new THREE.Raycaster();
       const mouse = new THREE.Vector2();
       const handleClick = (e: MouseEvent) => {
-        if (!onSoumayaClick) return;
+        if (!onSoumayaClick && !onGalaxyEntityClick) return;
         const rect = canvas.getBoundingClientRect();
         mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
         mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
         raycaster.setFromCamera(mouse, fg.camera());
-        const intersects = raycaster.intersectObject(soumaya!.object, true);
-        if (intersects.length > 0) {
-          logDiagnosticEvent('callback', 'Graph3D.onSoumayaClick');
-          onSoumayaClick();
+        if (onSoumayaClick) {
+          const intersects = raycaster.intersectObject(soumaya!.object, true);
+          if (intersects.length > 0) {
+            logDiagnosticEvent('callback', 'Graph3D.onSoumayaClick');
+            onSoumayaClick();
+            return;
+          }
+        }
+        // Journey hubs / Money-sky stars (Maya Intelligence Part I3) are plain overlay
+        // scenery, not force-graph "nodes", so `onSelect`/`onNodeClick` never fires for
+        // them — this is the only click path that can. Only the star/hub sprite itself
+        // carries the id in `userData` (its sibling glyph/label sprite doesn't), and
+        // three.js's raycaster ignores `.visible` entirely, so both checks are manual.
+        if (onGalaxyEntityClick) {
+          const s = sceneryRef.current;
+          if (s.moneysky && s.moneysky.visible !== false) {
+            const hit = raycaster.intersectObject(s.moneysky, true).find((h) => (h.object as any).userData?.moneyId != null);
+            if (hit) {
+              const ud = (hit.object as any).userData;
+              logDiagnosticEvent('callback', 'Graph3D.onGalaxyEntityClick');
+              onGalaxyEntityClick(ud.moneyKind, ud.moneyId);
+              return;
+            }
+          }
+          if (s.journeyhubs && s.journeyhubs.visible !== false) {
+            const hit = raycaster.intersectObject(s.journeyhubs, true).find((h) => (h.object as any).userData?.journeyId != null);
+            if (hit) {
+              logDiagnosticEvent('callback', 'Graph3D.onGalaxyEntityClick');
+              onGalaxyEntityClick("journey", (hit.object as any).userData.journeyId);
+            }
+          }
         }
       };
       canvas.addEventListener("click", handleClick);
@@ -2628,6 +2666,35 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             fg.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: sphere.center.x, y: sphere.center.y, z: sphere.center.z }, 900);
           }
         }
+      },
+      flyToGalaxyEntity: (kind: "journey" | "bill" | "goal", id: number) => {
+        // Modeled on isolateLayer's own one-shot bounding-sphere framing above, NOT on
+        // flyTo's follow-lock (`followRef.current = n.id`) — a journey/bill/goal id lives
+        // in a completely different id space than memory node ids, so setting followRef
+        // to one could silently "follow" an unrelated memory that happens to share the
+        // same numeric id every frame afterward. This never touches followRef at all.
+        const s = sceneryRef.current;
+        const group = kind === "journey" ? s.journeyhubs : s.moneysky;
+        if (!group || group.visible === false) return false;
+        const obj = group.children.find((c: any) =>
+          kind === "journey" ? c.userData?.journeyId === id : c.userData?.moneyKind === kind && c.userData?.moneyId === id,
+        );
+        const fg = fgRef.current;
+        const cam = fg?.camera?.() as THREE.PerspectiveCamera | undefined;
+        if (!obj || !fg || !cam) return false;
+        followRef.current = null;
+        followObjRef.current = null;
+        followKindRef.current = null;
+        const worldPos = new THREE.Vector3();
+        obj.getWorldPosition(worldPos);
+        const fov = ((cam.fov ?? 60) * Math.PI) / 180;
+        // A single small body needs a much tighter frame than isolateLayer's whole-ring
+        // bounding sphere — 220 units keeps it comfortably filling the view regardless of fov.
+        const dist = 220 / Math.sin(fov / 2);
+        const dir = new THREE.Vector3(0.3, 0.45, 1).normalize();
+        const pos = worldPos.clone().addScaledVector(dir, dist);
+        fg.cameraPosition({ x: pos.x, y: pos.y, z: pos.z }, { x: worldPos.x, y: worldPos.y, z: worldPos.z }, 900);
+        return true;
       },
       spawnBurst: (id: number, type = "user") => {
         const n = (dataRef.current.nodes as any[]).find((x) => x.id === id);

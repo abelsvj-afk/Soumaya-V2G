@@ -51,6 +51,7 @@ const TABLES_WITH_SPACE = [
   "fin_asset_snapshot",
   "journeys",
   "journey_link",
+  "intelligence_clarifications",
 ] as const;
 
 function hash(passcode: string, salt: string): Buffer {

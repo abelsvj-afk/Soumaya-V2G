@@ -1,4 +1,4 @@
-import { type ExtractionResult, type NodeType, type RelationshipType, analyzeSentiment } from "@brain/shared";
+import { type ExtractionResult, type NodeType, type RelationshipType, type ClarificationInterpretation, analyzeSentiment } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 
 /** Lexical reversal/negation cues used by the offline contradiction heuristic. */
@@ -181,6 +181,29 @@ export class HeuristicProvider implements LlmProvider {
       // Same-topic + a reversal cue → a moderately sharp conflict.
       score: conflict ? Math.min(1, 0.5 + similarity * 0.4) : 0,
     };
+  }
+
+  async interpretClarificationAnswer(question: string, userMessage: string): Promise<ClarificationInterpretation> {
+    const trimmed = userMessage.trim();
+    if (!trimmed) return { answers: false, confirmedStatement: "", confidence: 0 };
+
+    // Conservative offline signal: an explicit yes/no cue, OR real topical word-overlap
+    // with the question (reusing the same `keywords()` helper the link/mass heuristics
+    // already use) — a bare chitchat reply or an unrelated new topic never counts.
+    const affirmative = /\b(yes|yeah|yep|yup|correct|that'?s right|exactly|confirmed|right)\b/i.test(trimmed);
+    const negative = /\b(no|nope|not really|incorrect|wrong)\b/i.test(trimmed);
+    const qWords = keywords(question);
+    const mWords = keywords(trimmed);
+    let overlap = 0;
+    for (const w of mWords) if (qWords.has(w)) overlap++;
+
+    const answers = (affirmative || negative || overlap >= 1) && trimmed.length >= 4;
+    if (!answers) return { answers: false, confirmedStatement: "", confidence: 0 };
+
+    // Strip a leading "yes,"/"no," acknowledgement so the stored fact reads as a
+    // statement, not a reply — never invent content beyond what the user actually said.
+    const confirmedStatement = trimmed.replace(/^(yes|yeah|yep|yup|no|nope)[,.\s]*/i, "").trim() || trimmed;
+    return { answers: true, confirmedStatement, confidence: affirmative || negative ? 0.7 : 0.45 };
   }
 
   async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {

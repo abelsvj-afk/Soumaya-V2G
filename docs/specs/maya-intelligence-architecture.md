@@ -5,8 +5,12 @@
 > per the originating brief's own §32/§37. It supersedes nothing — it sits alongside
 > [temporal-contextual-reasoning.md](./temporal-contextual-reasoning.md) (the temporal layer
 > this pass builds directly on top of) as the broader frame that layer lives inside. Status:
-> **Phase 1 implemented; Phases 2+ deliberately deferred and enumerated below, per the
-> brief's own "do not implement everything simultaneously" instruction.**
+> **Phase 1 (epistemic vocabulary, contradiction/continuity reframing, clarification gate) AND
+> the I1–I3 completion pass (causal reasoning, clarification → confirmed knowledge, Galaxy
+> Entity Intelligence) are both implemented — see "I1–I3 completion pass" below.** Phases
+> beyond I1–I3 (ML-assisted pattern detection, a persisted provenance graph, cross-domain
+> contradiction detection, Debt/Credit/Financial Health) remain deliberately deferred and
+> enumerated in "V1 limitations."
 
 ## 🎯 North star
 
@@ -50,11 +54,11 @@ possible new layer on top of that**, rather than re-implement any of it.
 | Contradiction detection exists but nothing reframes it into a chat-visible, appropriately-hedged claim; chat currently doesn't know about contradictions at all (only the separate Insights/Digest UI does) | Real, concrete | **Closed this pass** — `analysis/intelligence.ts` + `chat/graphrag.ts` wiring |
 | No deterministic "is this worth asking about" gate anywhere in the repo | Core to the brief's ask | **Closed this pass** — `selectClarification()` + a 3-day cooldown |
 | `analysis/dreamCycle.ts` folds LLM confidence into `importance`, losing it as a distinct signal | Minor, pre-existing | Documented; not touched (out of scope — that module isn't part of this pass's claim-formation path) |
-| Journey hubs and Money-sky stars render in the Galaxy but have **no click → entity resolution** (confirmed by direct code audit: `userData.journeyId` is set but read nowhere; no click handler exists for either layer) | Real, scoped, non-trivial (3D raycast + click-handler work) | **Deferred — Phase 10 of the brief's own sequence.** Memory/MOC-hub bodies already work; this gap is specific to two non-memory visual layers. |
-| No causal-relationship detection (A may have caused B) anywhere | Real, and the brief itself asks it be approached "carefully" | **Deferred** — forming even hedged causal claims safely needs its own design pass; not attempted here to avoid overstating what a pass this size can respect the brief's own caution about. |
+| Journey hubs and Money-sky stars render in the Galaxy but have **no click → entity resolution** (confirmed by direct code audit: `userData.journeyId` is set but read nowhere; no click handler exists for either layer) | Real, scoped, non-trivial (3D raycast + click-handler work) | **Closed in the I1–I3 pass** — `analysis/galaxyEntity.ts`'s `resolveGalaxyEntity` + `GET /api/graph/entity/:kind/:id`, and `Graph3D.tsx`'s `handleClick`/`flyToGalaxyEntity`. See "Galaxy Entity Intelligence (I3)" below. |
+| No causal-relationship detection (A may have caused B) anywhere | Real, and the brief itself asks it be approached "carefully" | **Closed in the I1–I3 pass**, deliberately bounded (never a causal-graph engine) — `analysis/causal.ts`. See "Causal reasoning (I1)" below. |
 | Thought-evolution links are computed but never persisted as graph edges (`temporalChains.ts`'s own doc comment already flags this as a "noted follow-up") | Pre-existing, not introduced by this pass | Reused exactly as it is (ephemeral); materializing `evolves_into` edges is future work, not blocking this pass's claim formation. |
 | No ML-based pattern/anomaly/forecast detection anywhere | Explicitly named as future-only by the brief (§23, §27) | **Not attempted.** The brief is explicit that ML must earn its place with real value, not be added for branding. |
-| No mechanism for a user's answer to a clarification question to become a `"confirmed"` claim (the type exists; nothing writes it) | Real, scoped | **Deferred** — needs a chat-flow/UI decision (how does the system recognize "that message was answering the earlier question"?) this pass did not want to guess at; flagged explicitly rather than built speculatively. |
+| No mechanism for a user's answer to a clarification question to become a `"confirmed"` claim (the type exists; nothing writes it) | Real, scoped | **Closed in the I1–I3 pass** — `intelligence_clarifications` table + `analysis/clarificationResolution.ts`. See "Clarification → confirmed knowledge (I2)" below. |
 | Debt / Credit / Financial Health | Explicitly out of scope per the brief (§36) | **Not touched**, not even an extensible interface stub — the brief says not to invent their schemas, and no other part of this pass needed one. |
 
 ## Recommended implementation sequence (adopted, following the brief's own §33 list)
@@ -75,10 +79,14 @@ possible new layer on top of that**, rather than re-implement any of it.
 7. Provenance — **partially done** (`ProvenanceRef` type + `nodes.origin` reuse); a persisted,
    queryable provenance graph ("show me every fact that supports this claim") is future work —
    the brief itself says "leave room for it," not "build it now" (§16).
-8. ~~Clarification engine~~ — **done this pass** (`selectClarification`, cooldown-gated).
+8. ~~Clarification engine~~ — **done this pass**; ~~clarification → confirmed knowledge~~ —
+   **done in the I1–I3 pass** (`intelligence_clarifications` table + `clarificationResolution.ts`).
 9. ~~Chat integration~~ — **done this pass** (5th snapshot in `chat/graphrag.ts`).
-10. Galaxy intelligence integration — **deferred**, gap confirmed and scoped above.
-11. ML-assisted relevance/pattern systems — **deferred**, per the brief's own explicit caution.
+10. ~~Galaxy intelligence integration~~ — **done in the I1–I3 pass** (`galaxyEntity.ts` +
+    `Graph3D.tsx` click wiring).
+11. ML-assisted relevance/pattern systems — **still deferred**, per the brief's own explicit caution.
+12. ~~Bounded causal reasoning~~ — **done in the I1–I3 pass** (`analysis/causal.ts`), reusing the
+    existing temporal change-detection functions rather than a new inference engine.
 
 ## The central principle (unchanged, enforced structurally)
 
@@ -97,23 +105,47 @@ Galaxy (graph/service.ts, celestial.ts) → visualizes system state, never indep
 
 ## The unified epistemic vocabulary
 
-`packages/shared/src/intelligence.ts`:
+`packages/shared/src/intelligence.ts` — extended in the I1–I3 pass from 6 to 9 `EpistemicStatus`
+values, plus four new types (`CausalLink`, `ClarificationStatus`/`ClarificationRecord`,
+`ClarificationInterpretation`, `GalaxyEntityDescriptor`/`GalaxyEntityKind`, `NavigationIntent`):
 
 ```ts
-type EpistemicStatus = "fact" | "observation" | "inference" | "hypothesis" | "unknown" | "confirmed";
+type EpistemicStatus =
+  | "fact" | "observation" | "inference" | "hypothesis" | "possible"
+  | "unknown" | "confirmed" | "outdated" | "contradicted";
 
 interface ProvenanceRef { domain: "money"|"wealth"|"life_vision"|"journey"|"mind"|"people"|"memory"; kind: string; id: number; label?: string; }
 
 interface IntelligenceClaim { id: string; status: EpistemicStatus; statement: string; confidence: number; domain: ProvenanceRef["domain"]; evidence: ProvenanceRef[]; createdAt: string; }
 
 interface ClarificationCandidate { claim: IntelligenceClaim; question: string; priority: number; reason: string; }
+
+// I1 — causal reasoning: NEVER stronger than "possible" from this deterministic layer alone.
+interface CausalLink { id: string; cause: ProvenanceRef; effectDescription: string; effectDomain: ProvenanceRef["domain"]; status: "possible"|"hypothesis"|"confirmed"; confidence: number; temporalOrder: "before"|"after"|"concurrent"|"unknown"; evidence: ProvenanceRef[]; createdAt: string; }
+
+// I2 — the clarification QUESTION lifecycle (the confirmed KNOWLEDGE itself is a real memory node, never duplicated here).
+type ClarificationStatus = "pending" | "confirmed" | "dismissed";
+interface ClarificationRecord { id: number; claimId: string; domain: ProvenanceRef["domain"]; question: string; evidence: ProvenanceRef[]; status: ClarificationStatus; answerText?: string|null; confirmedStatement?: string|null; confirmedNodeId?: number|null; createdAt: string; resolvedAt?: string|null; }
+interface ClarificationInterpretation { answers: boolean; confirmedStatement: string; confidence: number; }
+
+// I3 — Galaxy Entity Intelligence.
+type GalaxyEntityKind = "node" | "journey" | "bill" | "goal";
+interface GalaxyEntityDescriptor { ref: ProvenanceRef; state: string; temporal?: string; navigable: boolean; }
+interface NavigationIntent { target: ProvenanceRef; reason: string; }
 ```
 
-**Never silently promoted upward** — enforced by construction in this pass, not just by
-convention: `openContradictionClaims()` and `thoughtContinuityClaims()` (the only two claim
-producers implemented so far) both hard-code `status: "observation"` — there is no code path in
-this pass that can produce `"fact"` from detected evidence, and no code path that produces
-`"confirmed"` at all yet (see the deferred "clarification answer → confirmed claim" gap above).
+**New status values, and why:** `"possible"` is I1's causal-reasoning status — deliberately
+weaker than `"hypothesis"`, reserved for a merely-time-coincident change, never promotable to
+`"confirmed"` by this layer. `"outdated"`/`"contradicted"` exist for a claim that a NEWER fact or
+user confirmation has since superseded — the OLD claim is re-labeled, never deleted or rewritten
+(Scenario 3/10 below).
+
+**Never silently promoted upward** — enforced by construction: `openContradictionClaims()` and
+`thoughtContinuityClaims()` still hard-code `status: "observation"`; `possibleDownstreamEffects()`
+(I1) hard-codes `status: "possible"`; the ONLY code path that can produce `"confirmed"` is
+`resolveClarificationFromMessage()` (I2), and only when the LLM adapter's
+`interpretClarificationAnswer()` judges a real chat message actually answers a real pending
+question — never inferred from silence, never invented from a hunch.
 
 ### The car-accident example, mapped onto the actual mechanism
 
@@ -141,6 +173,104 @@ call (and, upstream of that, the existing extraction pipeline). This pass adds t
 and gating** layer on top of judgments that pipeline already makes; it does not re-implement the
 judgment itself.
 
+## I1–I3 completion pass
+
+The three sections below close the three gaps the Phase-1 audit named explicitly (causal
+detection, clarification → confirmed knowledge, Galaxy click-resolution). All three follow the
+same discipline as Phase 1: reuse existing detection/infrastructure, add the smallest new layer,
+never duplicate a domain's source of truth.
+
+### Causal reasoning (I1)
+
+`analysis/causal.ts`'s `possibleDownstreamEffects(handle, spaceId, claim, now)` is deliberately
+**not** a causal-graph engine. Given an already-formed `IntelligenceClaim` (e.g. the car-accident
+contradiction above), it checks whether the temporal-reasoning layer's EXISTING, already-built
+change-detection functions (`analysis/temporalChange.ts`'s `incomeChange`/`netWorthChange`/
+`goalAllocationChange`) show a real, dated change that is temporally consistent with having
+happened after the claim's evidence (within a 65-day window — long enough to span one missed pay
+cycle and the month-over-month bucketing those functions already use). If so, it surfaces a
+`CausalLink` with `status: "possible"` — **never higher, never asserted as proven causation** —
+and an `effectDescription` explicitly phrased as coincidence ("the timing coincides, but that
+alone doesn't prove a connection"). No LLM call happens in this module: the only "inference" is
+the deterministic temporal-consistency check; narrating the correlation-vs-causation distinction
+in natural language is the EXISTING chat LLM's job (`intelligenceSnapshotText`'s injected
+context), not a new model call. Bounded to 3 links max, and returns `[]` (never a fabricated link)
+when the event date is unknown or too old — the same "insufficient evidence → silence" discipline
+established in the temporal-reasoning pass.
+
+### Clarification → confirmed knowledge (I2)
+
+Closes the full lifecycle: *Unknown → candidate inference → clarification needed → Maya asks →
+user answers → confirmed knowledge, stored with provenance, available to future retrieval* —
+without ever overwriting a historical memory.
+
+- **The question itself** is the one piece of intelligence-originated PERSISTENCE this pass
+  introduces, explicitly justified (without it, "Maya remembers she asked" is impossible): the
+  `intelligence_clarifications` table (`IntelligenceClarificationsRepo`) tracks only
+  `{claimId, domain, question, evidence, status: pending|confirmed|dismissed, answerText,
+  confirmedStatement, confirmedNodeId}`. `intelligenceSnapshotText()` now persists a row here
+  the moment a candidate clears the existing clarification gate (`selectClarification` + the
+  3-day cooldown) — this is what makes the lifecycle real rather than a shape with nothing
+  writing to it.
+- **The answer** is judged by a new REQUIRED `LlmProvider` method, `interpretClarificationAnswer
+  (question, userMessage)`, implemented on every provider (gemini/openai/heuristic, wrapped in
+  `resilient.ts`) — same precedent as `detectContradiction`. It returns
+  `{answers, confirmedStatement, confidence}` and is deliberately conservative: the offline
+  heuristic only treats a message as an answer given an explicit yes/no cue or real topical
+  keyword overlap with the question, never a bare guess.
+- **The confirmed knowledge itself is a REAL memory node** — `analysis/clarificationResolution.ts`'s
+  `resolveClarificationFromMessage()` creates a `NodesRepo` row (`origin:"user"`, embedded exactly
+  like any other memory) and links it back to the original evidence via the ALREADY-EXISTING
+  `"resolves"` relationship type — no parallel knowledge store, no new retrieval infrastructure.
+  This is why Scenario 5's test can assert the confirmed fact is found by the SAME
+  `keywordSearch()` every other memory already uses.
+- **Historical memories are never rewritten.** The memory that raised the question keeps its
+  exact original content/timestamp forever; the confirmed statement is a NEWER, separate node —
+  "current" is a matter of recency (a later `createdAt`), never destruction of the old fact.
+- Wired into `chat/graphrag.ts`'s `chat()`: on every message, a bounded, single-row
+  `mostRecentPending()` lookup checks for a live question; only if one exists does the one
+  `interpretClarificationAnswer` LLM call fire. When it resolves, the CURRENT turn's system
+  prompt gets an explicit `CLARIFICATION RESOLVED: ...` note so Maya can acknowledge it naturally
+  in the same reply, not just on some future message.
+
+### Galaxy Entity Intelligence (I3)
+
+Every meaningful Galaxy body — not just memory/MOC bodies, which already resolved — now has a
+stable, resolvable identity:
+
+- **`GalaxyEntityDescriptor`** (`{ ref: ProvenanceRef, state, temporal?, navigable }`) is
+  deliberately built ON `ProvenanceRef` rather than a parallel id/label shape — a descriptor is
+  never a second source of truth, just a resolved, presentable view of one real row.
+  `analysis/galaxyEntity.ts`'s `resolveGalaxyEntity(handle, spaceId, kind, id, now)` resolves
+  `"node"` (memory, via `NodesRepo`), `"journey"` (via `JourneysRepo`), and `"bill"`/`"goal"`
+  (both Money-sky star kinds, via `finance/sky.ts`'s already-computed `moneySky()` state — a
+  bill/goal's display `state` is read verbatim from the SAME deterministic math already driving
+  how the star looks, never re-derived). `GET /api/graph/entity/:kind/:id` exposes this —
+  a bounded, single-lookup, no-LLM-call route safe to hit on every click.
+- **`NavigationIntent`** (`{ target: ProvenanceRef, reason: string }`) is the bounded answer to
+  the brief's explicit rule: *"if Maya navigates to something, she must have a reason — no random
+  navigation, no decorative movement."* `navigationIntentFor(descriptor)` builds one from a
+  descriptor's OWN already-computed `state` — never a separately invented sentence — so
+  `GET /api/graph/entity/:kind/:id`'s response always carries both the descriptor and the
+  concrete reason a navigation there would be meaningful.
+- **Web wiring**: Journey hubs and Money-sky stars are plain Three.js scenery, not force-graph
+  "nodes," so `Graph3D.tsx`'s `handleClick` gained a second raycast path (alongside the existing
+  Soumaya-ship check) reading `userData.journeyId`/`userData.moneyId`+`userData.moneyKind` off
+  the star/hub sprite itself (its sibling glyph/label sprite carries no id). A new
+  `flyToGalaxyEntity(kind, id)` imperative method frames the camera on the single clicked body —
+  modeled on the existing `isolateLayer`'s one-shot bounding-sphere framing, **not** on `flyTo`'s
+  memory-node follow-lock (`followRef.current = n.id`), since a journey/bill/goal id lives in a
+  completely different id space than memory node ids and comparing them via `followRef` could
+  silently "follow" an unrelated memory sharing the same numeric id. `App.tsx` calls the new
+  `galaxyEntity()` API client on click, flies the camera, and shows a toast that ALWAYS states
+  the real reason from the server's own descriptor — never invented client-side.
+- **Honest scope note**: this closes click-driven "what's that star?" resolution + navigation.
+  Autonomous, Maya-INITIATED navigation during chat (e.g. flying the camera to a journey her
+  answer just cited) is NOT built — it would require extending the LLM answer contract's
+  `citations: number[]` (memory-node-only today) across every provider, a materially larger,
+  route-contract-level change than this pass's "smallest reusable abstraction" scope. Flagged in
+  "V1 limitations" below, not silently dropped.
+
 ## Provenance
 
 `ProvenanceRef` is a pointer, never a copy: `{ domain, kind, id, label? }`. Every claim's evidence
@@ -162,52 +292,73 @@ scan, never unbounded.
 
 ## Chat integration
 
-One new `try/catch` block in `chat/graphrag.ts`, inserted immediately after the temporal-context
-block and before the grounded-insight block — the fifth in what is now a five-snapshot sequence
-(telemetry → behavior → finance → people → cognitive → temporal → **intelligence** →
-grounded-insight → instruction-profiles-last). Same null-safe, best-effort contract as every
-snapshot before it. No changes to `chat()`'s signature, retrieval, or citation logic.
+`chat/graphrag.ts`'s `chat()` now runs SIX best-effort, null-safe snapshot/side-effect blocks in
+sequence (telemetry → behavior → finance → people → cognitive → temporal → **intelligence** →
+**I2 clarification resolution** → grounded-insight → instruction-profiles-last). The I2 block is
+the only one that's not a pure read: `resolveClarificationFromMessage()` may create a memory node
++ edge when the current message answers a pending question, then injects a
+`CLARIFICATION RESOLVED: ...` line into `systemExtra` for THIS turn. Same `try/catch`, same
+"never break chat" contract as every block before it. No change to `chat()`'s signature,
+retrieval, or citation logic.
 
-## Galaxy integration — status, not a redesign
+## Galaxy integration
 
-Memory and constellation/MOC-hub bodies already have a complete, working click → id →
-`/api/nodes/:id` path (confirmed by direct code read, not assumed) — nothing needed fixing there.
-Journey hubs (`graph/journeyHubs.ts`) and Money-sky stars (`finance/sky.ts` + its web renderer)
-are real, confirmed gaps: both tag their sprites with the real underlying id
-(`userData.journeyId`, implicitly the bill/goal id for money-sky) but **no click/raycast handler
-in `Graph3D.tsx` reads either** — clicking one of these bodies today does nothing. Closing this
-gap is scoped, understood, and deliberately **not attempted in this pass** (Phase 10 of the
-sequence above) — it is 3D click-handling/raycast work, a different skill-shape from the
-deterministic reasoning this pass focused on, and bundling it in risked exactly the kind of
-scope creep the brief's own §27 warns against ("do not overbuild the first version").
+Memory and constellation/MOC-hub bodies already had a complete click → id → `/api/nodes/:id`
+path. Journey hubs and Money-sky stars — the confirmed gap from the Phase-1 audit (both tag their
+sprites with a real id in `userData`, but nothing read it) — are now closed, per "Galaxy Entity
+Intelligence (I3)" above: `resolveGalaxyEntity` + `GET /api/graph/entity/:kind/:id` on the server,
+`Graph3D.tsx`'s extended `handleClick` + new `flyToGalaxyEntity` on the client. What remains
+scoped OUT (see "V1 limitations"): Maya-initiated navigation during chat (as opposed to a direct
+user click), which would need the LLM citation contract extended beyond memory-node ids.
 
 ## ML / LLM / deterministic role split
 
-- **Deterministic code** (this pass, entirely): claim formation from already-detected evidence,
-  confidence carrying, the clarification priority/cooldown gate, all of `analysis/temporal*.ts`.
+- **Deterministic code**: claim formation from already-detected evidence, confidence carrying,
+  the clarification priority/cooldown gate, all of `analysis/temporal*.ts`, I1's causal
+  temporal-consistency check (`analysis/causal.ts`), I2's clarification persistence/resolution
+  bookkeeping, I3's `resolveGalaxyEntity`/`navigationIntentFor` (both pure reads of already-
+  computed domain state — no new math).
 - **Retrieval/embeddings** (fully pre-existing, reused): semantic similarity for contradiction
-  candidates and evolution links, hybrid search for chat.
-- **LLM** (fully pre-existing, reused): `detectContradiction()` for the actual conflict judgment;
-  chat's own synthesis/narration of everything assembled above.
-- **ML (pattern/anomaly/forecasting)**: genuinely absent from this pass, per the brief's own
-  instruction not to add it "merely for branding." No pattern-detection, classification, or
-  forecasting model was introduced.
+  candidates and evolution links, hybrid search for chat — including retrieval of a
+  clarification's confirmed-knowledge node, via the SAME embed+KNN/keyword path as any memory.
+- **LLM**: `detectContradiction()` for the conflict judgment (pre-existing); I2's new REQUIRED
+  `interpretClarificationAnswer()` for judging whether a message answers a pending question —
+  implemented on every provider including the offline heuristic, same precedent as
+  `detectContradiction`; chat's own synthesis/narration of everything assembled above.
+- **ML (pattern/anomaly/forecasting)**: genuinely absent, per the brief's own instruction not to
+  add it "merely for branding." No pattern-detection, classification, or forecasting model was
+  introduced anywhere in I1–I3.
 
 ## Privacy & performance
 
-Identical posture to the temporal spec: every new function is space-scoped through the same
-`spaceId` threading every other repository already uses (verified by a direct space-isolation
-test in `intelligence.test.ts`); every query is hard-capped (≤3 contradiction claims, ≤2
-continuity claims, a single clarification candidate surfaced); no full-database scans; no new
-hot-path cost on every chat message beyond two small, already-space-scoped, already-capped reads
-that reuse existing detection output rather than recomputing it.
+Identical posture to the temporal spec, extended to every I1–I3 mechanism: `intelligence_clarifications`
+is a space-scoped table (added to `TABLES_WITH_SPACE`); `resolveClarificationFromMessage`,
+`resolveGalaxyEntity`, and `possibleDownstreamEffects` all thread `spaceId` the same way every
+other repository does (direct space-isolation tests exist for all three — see "Testing" below).
+No full-system scan is ever performed per chat message: I1's causal check runs only over the
+already-capped contradiction claims (≤3) and reuses temporal-reasoning's own bounded month-over-
+month queries; I2's clarification check is a single indexed `mostRecentPending()` row lookup, and
+its one LLM call fires ONLY when a clarification is actually pending (a rare, gated state); I3's
+Galaxy resolution is a single-row/bounded lookup per click, never a full Galaxy dump into a
+prompt. Explicitly forbidden and not present anywhere: scanning every memory/node/Galaxy
+object/financial record on every message.
 
 ## V1 limitations (explicit)
 
-1. No causal-relationship detection — flagged, not attempted, per the brief's own caution.
-2. No mechanism yet for a user's clarification answer to become a `"confirmed"` claim — the type
-   exists, nothing produces it. Needs a chat-flow design decision this pass did not want to guess.
-3. Galaxy click-resolution for Journey hubs and Money-sky stars remains unbuilt.
+1. ~~No causal-relationship detection~~ — **closed in I1**, bounded to temporal-coincidence
+   detection over already-existing change functions; still no general causal-graph engine, by
+   design.
+2. ~~No mechanism for a clarification answer to become `"confirmed"`~~ — **closed in I2.**
+3. ~~Galaxy click-resolution for Journey hubs and Money-sky stars~~ — **closed in I3** for
+   click-driven resolution + navigation. NOT closed: Maya-INITIATED navigation during chat (e.g.
+   flying the camera to something her answer just cited) — that needs the LLM `AnswerResult`
+   citation contract (`citations: number[]`, memory-node-only today) extended across every
+   provider, a materially larger, route-contract-level change out of scope for "smallest
+   reusable abstraction." The 3D click interaction itself (raycast hit-testing on the money-sky/
+   journey-hub sprites) is typecheck/build-clean and verified end-to-end against a live server
+   for the resolution route, but has **not been visually confirmed on-device** — this repo's own
+   "prove it by reproduction" standard for spatial/visual code it cannot render; flagged, not
+   claimed.
 4. No ML-based relevance ranking, pattern detection, or forecasting.
 5. Thought-evolution links stay ephemeral (not persisted as graph edges) — a pre-existing,
    already-documented gap this pass did not need to close to build claim formation on top of it.
@@ -215,6 +366,16 @@ that reuse existing detection output rather than recomputing it.
    employment goal") does not exist — today's `synthesis/contradictions.ts` only compares
    memory-to-memory via embedding similarity. Extending it across domains is future work.
 7. A persisted, queryable provenance graph is not built — `ProvenanceRef` is the room left for it.
+8. I1's causal check only covers Money/Wealth change signals (income, net worth, goal
+   allocation) — it does not reason about Journey progress, People, or Life Vision changes as
+   possible downstream effects; extending `possibleDownstreamEffects` to those domains would
+   reuse the same pattern but wasn't part of this pass's scoped acceptance criteria.
+9. I2's clarification-resolution check runs against only the SINGLE most-recent pending
+   question — by design (there is normally at most one "live" question at a time, gated by the
+   existing 3-day cooldown), but a user who ignores a question and later gets asked a second,
+   different one could, in principle, have an old pending row linger unresolved indefinitely
+   (never auto-dismissed by staleness). No auto-expiry was built — flagged as a possible small
+   follow-up, not attempted here to avoid a speculative "how stale is too stale" policy decision.
 
 ## Future evolution rules
 
@@ -227,23 +388,56 @@ that reuse existing detection output rather than recomputing it.
   clarification-answer-updates-understanding flow, check whether the already-existing
   `"resolves"`/`"contradicts"` types cover the need — they were found, by audit, to already exist
   for exactly this kind of temporal-logic relationship.
-- Galaxy click-resolution, when built, must reuse the existing enrich-on-read pattern
-  (`graph/service.ts`) for consistency with how memory/MOC bodies already work — not a bespoke
-  per-layer resolution mechanism.
+- Galaxy click-resolution reuses the `GalaxyEntityDescriptor`/`resolveGalaxyEntity` pattern
+  established in I3 for consistency with how memory/MOC bodies already work — a future new
+  Galaxy body kind should add one case to `resolveGalaxyEntity`, not a bespoke per-layer
+  resolution mechanism.
+- A `NavigationIntent`'s `reason` must always be built from something already known (a
+  descriptor's `state`, a causal link's `effectDescription`, a clarification's
+  `confirmedStatement`) — never a separately invented sentence.
 - Any future ML component must have a stated, falsifiable reason it beats the deterministic/LLM
   alternative already in place, per the brief's own §23/§27.
 
 ## 🧪 Testing (behavioral, per the brief's §28/§29 — "prove it, don't claim it")
 
-New test files: `analysis/intelligence.test.ts` (18 cases), `__tests__/intelligenceChat.test.ts`
-(2 cases). See the final report for the exact PASS/PARTIAL/deferred verdict per lettered
-scenario — several scenarios (D, E, G) are honestly reported as testing only the mechanism they
-depend on, not the full end-to-end behavior, because the missing piece is real LLM visual/causal
-judgment or 3D click infrastructure this pass didn't build, not something a synthetic unit test
-can substitute for without pretending.
+**Phase 1**: `analysis/intelligence.test.ts` (18 cases), `__tests__/intelligenceChat.test.ts`
+(2 cases).
+
+**I1–I3 completion pass**, new test files (all real end-to-end calls into the modules under
+test, no mocking of the code being verified):
+- `repositories/intelligenceClarifications.repo.test.ts` (5) — create/read, `mostRecentPending`
+  ignoring resolved rows, `resolve()` setting confirmed fields, cooldown boundary, space isolation.
+- `llm/heuristic.test.ts` (6) — `interpretClarificationAnswer`'s conservative offline judgment:
+  explicit yes/no, topical-overlap-without-yes/no, rejecting an unrelated new topic, empty input,
+  and the leading-acknowledgement strip.
+- `analysis/clarificationResolution.test.ts` (5) — no pending → null, a non-answering message
+  leaves the clarification pending, a real answer creates the confirmed node + `resolves` edge +
+  marks the row confirmed while the original evidence is untouched, a dangling evidence ref is
+  skipped not crashed, space isolation.
+- `analysis/galaxyEntity.test.ts` (7) — resolves node/journey/bill/goal to the correct
+  `ProvenanceRef` + a real computed `state`; a goal's funding math reads the authoritative
+  `fin_goal.targetCents` rather than back-deriving it from `fillPct`; unknown id → null; space
+  isolation; `navigationIntentFor` carries the descriptor's own ref/state verbatim.
+- `__tests__/mayaIntelligenceI1I3.test.ts` (13) — the 12 required scenarios from the brief's
+  Part VIII, numbered to match exactly, built around the canonical car-accident fixture:
+  1 causal uncertainty stays `"possible"`; 2 a confirmed answer carries real provenance
+  (`origin:"user"` + a `resolves` edge); 3 historical vs. current (both coexist, confirmed is
+  newer); 4 downstream uncertainty spans multiple domains, still hedged, never fabricates an
+  unchanged-income link; 5 the full lifecycle end-to-end including retrieval via the existing
+  `keywordSearch`; 6 a resolved clarification is never re-asked and an unrelated message is never
+  mistaken for an answer; 7 Galaxy entity resolution across all three non-memory-node kinds;
+  8 a `NavigationIntent` is never producible without a real resolved entity; 9 resolving a
+  clarification creates exactly one new memory node and zero parallel Journey/finance rows;
+  10 the confirmed node's `origin` is a strictly stronger provenance signal than the original
+  evidence's; 11 insufficient evidence returns `[]`/`null`, never a fabrication; 12 full-flow
+  space isolation across every new mechanism at once.
+
+Server suite total after I1–I3: **666/666** (up from Phase 1's baseline). Full gate (typecheck +
+server tests + web tests + web build) green at every commit in this pass.
 
 ## ✅ Acceptance criteria
 
+**Phase 1** (unchanged, still holds):
 1. A unified epistemic vocabulary exists and is used by at least one real claim producer.
 2. Existing contradiction detection is reframed into chat-visible, appropriately-hedged claims —
    never asserted as fact.
@@ -251,7 +445,23 @@ can substitute for without pretending.
 4. A deterministic clarification gate exists, is cooldown-limited, and is unit-tested in
    isolation from any database.
 5. Chat receives this via the exact same integration pattern as every existing domain snapshot.
-6. Zero domain-fact writes; one documented, narrow operational log write.
+6. Zero domain-fact writes beyond documented, narrow operational/provenance writes.
 7. Full gate green; zero regressions in Money/Wealth/Life Vision/Journeys/People/Growth/Pay
    Stubs/Galaxy/the just-shipped temporal layer.
 8. Every deferred capability is named explicitly, not silently dropped.
+
+**I1–I3 completion pass**, additionally:
+9. A bounded causal-reasoning layer infers possible downstream effects from existing change
+   detection, always `status:"possible"`, never asserted as proven causation.
+10. A clarification the user answers becomes a real, provenance-carrying memory node, retrievable
+    through the SAME existing retrieval infrastructure, without rewriting any historical memory.
+11. Every Journey hub / Money-sky star click resolves to a real, human-meaning descriptor via a
+    single bounded server lookup, and a resulting camera navigation always carries an explained,
+    non-invented reason.
+12. No new persistence duplicates an existing domain's source of truth (verified explicitly by
+    Scenario 9's node/Journey-count test).
+13. Full gate green (typecheck + 666 server tests + 308 web tests + web build); every new
+    space-scoped mechanism has a direct isolation test.
+14. Every remaining gap (Maya-initiated navigation, on-device visual confirmation, causal
+    reasoning's Money/Wealth-only domain coverage, no clarification auto-expiry) is named
+    explicitly in "V1 limitations," not silently dropped.

@@ -16,6 +16,7 @@ import { peopleSnapshotText } from "../analysis/people.js";
 import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { temporalSnapshotText } from "../analysis/temporalContext.js";
 import { intelligenceSnapshotText } from "../analysis/intelligence.js";
+import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -247,6 +248,19 @@ Use this telemetry to guide the user! For example:
     if (intelligence) systemExtra += `\n\n${intelligence}`;
   } catch {
     /* intelligence context is best-effort; never break chat */
+  }
+
+  // I2 — clarification → confirmed knowledge (docs/specs/maya-intelligence-architecture.md).
+  // If this message answers a pending clarification, it's now a real memory (embedded,
+  // linked back to its evidence) — surface it in THIS turn's context so she can acknowledge
+  // it naturally instead of the confirmation only becoming visible on some future message.
+  try {
+    const resolved = await resolveClarificationFromMessage(h, deps, question, spaceId);
+    if (resolved) {
+      systemExtra += `\n\nCLARIFICATION RESOLVED: the user just confirmed "${resolved.confirmedStatement}" — this is now a settled fact, saved to memory. Acknowledge it naturally if it fits; never re-ask the question you just got an answer to.`;
+    }
+  } catch {
+    /* clarification resolution is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's

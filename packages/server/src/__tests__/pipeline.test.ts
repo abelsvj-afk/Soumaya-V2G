@@ -43,6 +43,9 @@ class FakeLlm implements LlmProvider {
   ): Promise<{ conflict: boolean; text: string; score: number }> {
     return { conflict: false, text: "", score: 0 };
   }
+  async interpretClarificationAnswer(): Promise<{ answers: boolean; confirmedStatement: string; confidence: number }> {
+    return { answers: false, confirmedStatement: "", confidence: 0 };
+  }
   async answer(
     _question: string,
     context: ContextNode[],

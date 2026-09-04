@@ -1,8 +1,11 @@
 import type { IntelligenceClaim, ClarificationCandidate, ProvenanceRef } from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
+import type { CausalLink } from "@brain/shared";
 import { InsightsRepo } from "../repositories/insights.repo.js";
+import { IntelligenceClarificationsRepo } from "../repositories/intelligenceClarifications.repo.js";
 import { buildEvolutionLinks } from "./temporalChains.js";
+import { possibleDownstreamEffects } from "./causal.js";
 
 /**
  * Maya Intelligence — deterministic claim formation and clarification gating
@@ -151,18 +154,21 @@ function recordClarificationAsked(handle: DbHandle, spaceId: string, candidate: 
 }
 
 const fmtClaim = (c: IntelligenceClaim): string => c.statement;
+const fmtCausal = (c: CausalLink): string => c.effectDescription;
 
 /**
  * Chat-facing renderer — same null-when-empty, best-effort contract as the other four snapshot
  * functions `chat/graphrag.ts` already calls (finance/people/cognitive/temporal). Narrates open
  * contradictions and persisting themes as explicitly-framed OBSERVATIONS (never as settled
- * fact), and — only when a candidate clears the clarification gate — appends ONE suggested
- * question for Soumaya to ask NATURALLY if it fits the conversation, never a scripted line she
- * must recite verbatim.
+ * fact), possible downstream effects (Part I1 causal reasoning — always "possible", never
+ * asserted causation), and — only when a candidate clears the clarification gate — appends ONE
+ * suggested question for Soumaya to ask NATURALLY if it fits the conversation, never a scripted
+ * line she must recite verbatim.
  */
 export function intelligenceSnapshotText(handle: DbHandle, spaceId: string = DEFAULT_SPACE, now: Date = new Date()): string | null {
   const contradictions = openContradictionClaims(handle, spaceId);
   const continuity = thoughtContinuityClaims(handle, spaceId);
+  const causal = contradictions.flatMap((c) => possibleDownstreamEffects(handle, spaceId, c, now)).slice(0, 3);
   if (contradictions.length === 0 && continuity.length === 0) return null;
 
   const lines = ["INTELLIGENCE NOTES (deterministic observations — these are NOT settled facts; never state them as certain):"];
@@ -172,6 +178,9 @@ export function intelligenceSnapshotText(handle: DbHandle, spaceId: string = DEF
   if (continuity.length) {
     lines.push(`- Persisting theme: ${continuity.map(fmtClaim).join("; ")}.`);
   }
+  if (causal.length) {
+    lines.push(`- Possible downstream effect (correlation only, NOT proven causation — never say "X caused Y", only "the timing coincides"): ${causal.map(fmtCausal).join(" ")}`);
+  }
 
   const candidates = [...contradictions, ...continuity].map(toCandidate);
   const cooldownActive = clarificationAskedRecently(handle, spaceId, now.getTime());
@@ -179,6 +188,17 @@ export function intelligenceSnapshotText(handle: DbHandle, spaceId: string = DEF
   if (chosen) {
     lines.push(`- If it fits naturally, you may ask (in your own words, not verbatim): "${chosen.question}"`);
     recordClarificationAsked(handle, spaceId, chosen);
+    // I2 (docs/specs/maya-intelligence-architecture.md) — the candidate becoming an actual
+    // PENDING row is what closes the lifecycle: without this, `resolveClarificationFromMessage`
+    // (analysis/clarificationResolution.ts) would never have anything to match a future answer
+    // against. The agent_logs cooldown above already prevents this from firing again for the
+    // same window, so this can't spam duplicate pending rows in normal operation.
+    new IntelligenceClarificationsRepo(handle, spaceId).create({
+      claimId: chosen.claim.id,
+      domain: chosen.claim.domain,
+      question: chosen.question,
+      evidence: chosen.claim.evidence,
+    });
   }
 
   return lines.join("\n");

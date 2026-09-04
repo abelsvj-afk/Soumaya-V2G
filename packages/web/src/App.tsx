@@ -34,6 +34,7 @@ import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
 import { GalaxyViews } from "./components/GalaxyViews.js";
 import { getMoneySky } from "./api/finance.js";
+import { galaxyEntity } from "./api/graph.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -1385,6 +1386,18 @@ export default function App() {
           setFollowFig1(false);
           setFollowFig2(false);
           graphRef.current?.toggleFollowShip(true);
+        }}
+        onGalaxyEntityClick={(kind, id) => {
+          // Journey hubs / Money-sky stars (Maya Intelligence Part I3): "what's that
+          // star?" resolved on click, then a bounded, EXPLAINED fly-to (never decorative
+          // navigation — the toast always states the real reason, straight from the
+          // server's own descriptor, never invented client-side).
+          void galaxyEntity(kind, id).then((r) => {
+            if (!r) return;
+            const flew = graphRef.current?.flyToGalaxyEntity(kind, id) ?? false;
+            const icon = kind === "journey" ? "🧭" : "💵";
+            pushToast(`${icon} ${r.descriptor.ref.label} — ${r.navigation.reason}`, icon, flew ? 7000 : 5000);
+          });
         }}
         onSatelliteCount={setSatelliteCount}
         onVisitorCount={setVisitorCount}

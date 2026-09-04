@@ -1,10 +1,11 @@
-import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult, type ClarificationInterpretation } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
   SYNTHESIS_SYSTEM,
   CONTRADICTION_SYSTEM,
+  CLARIFICATION_SYSTEM,
   composeSystem,
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
@@ -17,6 +18,7 @@ import {
   buildLinkPrompt,
   buildSynthesisPrompt,
   buildContradictionPrompt,
+  buildClarificationPrompt,
   buildAnswerPrompt,
   buildResearchPrompt,
   buildSectorPrompt,
@@ -419,6 +421,30 @@ export class OpenAiProvider implements LlmProvider {
       conflict: !!raw.conflict,
       text: raw.conflict ? String(raw.text ?? "") : "",
       score: raw.conflict ? (typeof raw.score === "number" ? raw.score : similarity) : 0,
+    };
+  }
+
+  async interpretClarificationAnswer(question: string, userMessage: string): Promise<ClarificationInterpretation> {
+    const schema = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        answers: { type: "boolean" },
+        confirmedStatement: { type: "string" },
+        confidence: { type: "number" },
+      },
+      required: ["answers", "confirmedStatement", "confidence"],
+    };
+    const raw = await this.json<ClarificationInterpretation>(
+      CLARIFICATION_SYSTEM,
+      buildClarificationPrompt(question, userMessage),
+      schema,
+      "clarification",
+    );
+    return {
+      answers: !!raw.answers,
+      confirmedStatement: raw.answers ? String(raw.confirmedStatement ?? "").trim() : "",
+      confidence: raw.answers ? Math.max(0, Math.min(1, typeof raw.confidence === "number" ? raw.confidence : 0.5)) : 0,
     };
   }
 

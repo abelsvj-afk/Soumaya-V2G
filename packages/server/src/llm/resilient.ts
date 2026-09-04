@@ -1,4 +1,4 @@
-import type { ExtractionResult } from "@brain/shared";
+import type { ExtractionResult, ClarificationInterpretation } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, DegradeReason, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
@@ -153,6 +153,20 @@ export class ResilientLlmProvider implements LlmProvider {
     } catch (err) {
       this.note(err, "detectContradiction");
       return this.fallback.detectContradiction(a, b, similarity);
+    }
+  }
+
+  async interpretClarificationAnswer(question: string, userMessage: string): Promise<ClarificationInterpretation> {
+    if (this.blocked) return this.fallback.interpretClarificationAnswer(question, userMessage);
+    try {
+      return await withTimeout(
+        this.primary.interpretClarificationAnswer(question, userMessage),
+        this.timeoutMs,
+        "interpretClarificationAnswer",
+      );
+    } catch (err) {
+      this.note(err, "interpretClarificationAnswer");
+      return this.fallback.interpretClarificationAnswer(question, userMessage);
     }
   }
 

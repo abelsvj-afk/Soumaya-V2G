@@ -25,6 +25,9 @@ class BrokeProvider implements LlmProvider {
   async detectContradiction(): Promise<{ conflict: boolean; text: string; score: number }> {
     throw new Error("429 insufficient_quota");
   }
+  async interpretClarificationAnswer(): Promise<{ answers: boolean; confirmedStatement: string; confidence: number }> {
+    throw new Error("429 insufficient_quota");
+  }
   async answer(): Promise<{ answer: string; citations: number[] }> {
     throw new Error("429 insufficient_quota");
   }

@@ -1,4 +1,4 @@
-import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult } from "@brain/shared";
+import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult, ClarificationInterpretation } from "@brain/shared";
 
 /** A previously-stored node passed to the LLM as context for extraction. */
 export interface ContextNode {
@@ -102,6 +102,12 @@ export interface LlmProvider {
     b: LinkCandidate,
     similarity: number,
   ): Promise<ContradictionResult>;
+  /** Judge whether a new chat message ANSWERS a pending clarification question Maya asked
+   *  earlier, and if so extract it as a plain declarative statement (docs/specs/
+   *  maya-intelligence-architecture.md, Part I2). Implemented on every provider (offline
+   *  heuristic included) so the lifecycle always works, same precedent as `detectContradiction`.
+   *  Must be conservative: prefer `answers:false` over misreading an unrelated message. */
+  interpretClarificationAnswer(question: string, userMessage: string): Promise<ClarificationInterpretation>;
   /** Answer a question grounded in a retrieved subgraph; cite node ids. */
   answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult>;
   /** Perform autonomous research on a single node to expand the knowledge base. */

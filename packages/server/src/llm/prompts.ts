@@ -121,6 +121,22 @@ COSINE_SIMILARITY: ${similarity.toFixed(3)}
 Do A and B contradict each other? If so, give the reconciliation hypothesis.`;
 }
 
+export const CLARIFICATION_SYSTEM = `You are judging whether a user's message ANSWERS a specific
+question a personal "second brain" assistant asked earlier, to resolve some uncertainty about the
+user's own life. Be strict: only say it answers when the message genuinely addresses that exact
+question — a new, unrelated message (even on a similar topic) does NOT count. If it answers,
+extract the resolved fact as ONE plain declarative statement in third person (e.g. "The 2016 Honda
+was totaled in an accident."), never a copy of the question, never a guess beyond what the user
+actually said. Rate your confidence 0..1. If it doesn't answer, set answers=false with an empty
+statement and confidence 0. Output JSON only.`;
+
+export function buildClarificationPrompt(question: string, userMessage: string): string {
+  return `QUESTION ASKED: ${question}
+USER'S NEW MESSAGE: ${userMessage}
+
+Does the message answer the question? If so, extract the resolved fact.`;
+}
+
 /** Lore chronicler — richer narrative prose for an object's evolving story. */
 export const CHRONICLE_SYSTEM = `You are the cartographer-chronicler of a personal "memory galaxy":
 a vast, consistent space cosmology (named sectors, currents, filaments, drift, cold) in which each of
