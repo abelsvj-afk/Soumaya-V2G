@@ -14,6 +14,7 @@ import { soulTextFor, getGroundedInsight } from "../identity.js";
 import { financialSnapshotText } from "../finance/snapshot.js";
 import { peopleSnapshotText } from "../analysis/people.js";
 import { cognitiveSnapshotText } from "../analysis/cognitive.js";
+import { temporalSnapshotText } from "../analysis/temporalContext.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -220,6 +221,19 @@ Use this telemetry to guide the user! For example:
     if (cognitive) systemExtra += `\n\n${cognitive}`;
   } catch {
     /* cognitive context is best-effort; never break chat */
+  }
+
+  // Temporal/Contextual Reasoning (docs/specs/temporal-contextual-reasoning.md): a bounded,
+  // deterministic cross-domain read of what's overdue/upcoming/stale/recently-changed right
+  // now (Money, Wealth, Life Vision, Journeys, Mind, People) plus a couple of real
+  // period-over-period trends — so she can reason about TIMING (what's due, what's gone
+  // stale, what actually changed) instead of treating every fact as equally "now". Same
+  // best-effort, null-safe contract as the three snapshots above.
+  try {
+    const temporal = temporalSnapshotText(h, spaceId);
+    if (temporal) systemExtra += `\n\n${temporal}`;
+  } catch {
+    /* temporal context is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's

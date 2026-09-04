@@ -14,8 +14,12 @@ import { FinAssetSnapshotRepo } from "../../repositories/finAssetSnapshot.repo.j
  * or no asset ever added, is treated as "not applicable" rather than "stale."
  */
 const DAY_MS = 86_400_000;
-const INCOME_STALE_DAYS = 20;
-const ASSET_STALE_DAYS = 30;
+// Exported so analysis/temporal.ts (docs/specs/temporal-contextual-reasoning.md) reuses these
+// exact numbers for its own Money-freshness classification instead of redefining them —
+// the audit-first rule that new reasoning code must not invent a second income/asset
+// staleness threshold alongside this tool's own.
+export const INCOME_STALE_DAYS = 20;
+export const ASSET_STALE_DAYS = 30;
 const NUDGE_COOLDOWN_DAYS = 7;
 
 function daysSince(dateIso: string, now: number): number {

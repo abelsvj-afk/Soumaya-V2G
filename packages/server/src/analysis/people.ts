@@ -301,9 +301,22 @@ export function suggestPeople(ctx: AppContext, spaceId: string): PersonSuggestio
  * signature exactly, since both are called from `chat()`, which only has a handle,
  * not a full app context. This function needs nothing else anyway.
  */
-export function peopleSnapshotText(handle: DbHandle, spaceId: string): string | null {
-  const s = handle.sqlite;
-  const rows = s
+/** One person's aggregated interaction summary — the structured shape behind
+ *  `peopleSnapshotText`'s prose, factored out so other consumers (e.g. temporal reasoning's
+ *  cross-domain context, docs/specs/temporal-contextual-reasoning.md) can reuse the exact same
+ *  query instead of re-deriving it, matching this feature's own "one query, not N+1" discipline. */
+export interface RecentPersonSummary {
+  label: string;
+  interactionCount: number;
+  /** ISO timestamp of the most recent interaction, or null if never interacted with. */
+  lastAt: string | null;
+  tone: ReturnType<typeof deriveTone>;
+}
+
+/** The 20 most recently-interacted-with tracked people (by last interaction), one query. Same
+ *  cap/ordering `peopleSnapshotText` has always used. */
+export function recentPeopleSummaries(handle: DbHandle, spaceId: string): RecentPersonSummary[] {
+  const rows = handle.sqlite
     .prepare(
       `SELECT n.label AS label,
               COUNT(e.source) AS cnt,
@@ -319,12 +332,16 @@ export function peopleSnapshotText(handle: DbHandle, spaceId: string): string | 
        LIMIT 20`,
     )
     .all(spaceId) as { label: string; cnt: number; lastAt: string | null; pos: number; neg: number }[];
+  return rows.map((r) => ({ label: r.label, interactionCount: r.cnt, lastAt: r.lastAt, tone: deriveTone(r.pos, r.neg) }));
+}
+
+export function peopleSnapshotText(handle: DbHandle, spaceId: string): string | null {
+  const rows = recentPeopleSummaries(handle, spaceId);
   if (rows.length === 0) return null;
 
-  const line = (r: (typeof rows)[number]) => {
-    const tone = deriveTone(r.pos, r.neg);
+  const line = (r: RecentPersonSummary) => {
     const when = r.lastAt ? `, last ${r.lastAt.slice(0, 10)}` : "";
-    return `${r.label} (${r.cnt} interaction${r.cnt === 1 ? "" : "s"}${when}, tone: ${tone})`;
+    return `${r.label} (${r.interactionCount} interaction${r.interactionCount === 1 ? "" : "s"}${when}, tone: ${r.tone})`;
   };
 
   return [

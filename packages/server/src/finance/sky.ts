@@ -21,7 +21,9 @@ import { parseDay, toDay } from "./bills.js";
  */
 
 const DAY_MS = 86_400_000;
-const SOON_DAYS = 7;
+// Exported so analysis/temporal.ts reuses the same "due soon" horizon for bill-deadline
+// classification rather than defining a second one (docs/specs/temporal-contextual-reasoning.md).
+export const SOON_DAYS = 7;
 
 const GLYPH: Record<MoneyStarState, string> = {
   calm: "•",
