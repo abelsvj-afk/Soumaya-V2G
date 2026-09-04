@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, act, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, act, waitFor, fireEvent } from "@testing-library/react";
 
 const askChat = vi.fn();
 const getSpaceId = vi.fn(() => "space1");
@@ -102,6 +102,82 @@ describe("ChatDock — saved memories survive a reload", () => {
     // Clicking the already-saved button again must not re-ingest.
     act(() => reloadedBtn.click());
     expect(ingestText).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ChatDock — Maya Chat → Galaxy Navigation", () => {
+  const NAV = {
+    target: { domain: "journey" as const, kind: "journey", id: 42, label: "Owner-operator transition" },
+    reason: "Active journey — 40% along, 2 linked items",
+  };
+
+  it("a response carrying navigation renders a click-to-navigate chip", async () => {
+    askChat.mockResolvedValue({ answer: "Here's what I found.", citations: [], navigation: NAV });
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} onNavigate={() => {}} />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "why am I not making progress?" } });
+    fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    await waitFor(() => expect(askChat).toHaveBeenCalled());
+    const chip = await screen.findByTitle(NAV.reason);
+    expect(chip.textContent).toContain("Owner-operator transition");
+  });
+
+  it("clicking the navigation chip calls onNavigate with the exact NavigationIntent, and never fires on its own", async () => {
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify([{ role: "soumaya", text: "Here's what I found.", navigation: NAV }]),
+    );
+    const onNavigate = vi.fn();
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} onNavigate={onNavigate} />);
+    const chip = await screen.findByTitle(NAV.reason);
+
+    // Rendering alone must never trigger navigation — it's a one-shot, user-triggered action.
+    expect(onNavigate).not.toHaveBeenCalled();
+
+    act(() => chip.click());
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+    expect(onNavigate).toHaveBeenCalledWith(NAV);
+  });
+
+  it("reloading persisted chat history containing navigation does NOT auto-fire it on mount", async () => {
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify([{ role: "soumaya", text: "Here's what I found.", navigation: NAV }]),
+    );
+    const onNavigate = vi.fn();
+    const { unmount } = render(<ChatDock onClose={() => {}} onFocus={() => {}} onNavigate={onNavigate} />);
+    await screen.findByTitle(NAV.reason);
+    unmount();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("clicking the chip with no onNavigate provided does not throw", async () => {
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify([{ role: "soumaya", text: "Here's what I found.", navigation: NAV }]),
+    );
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} />);
+    const chip = await screen.findByTitle(NAV.reason);
+    expect(() => act(() => chip.click())).not.toThrow();
+  });
+
+  it("existing citation chips still work unaffected by the new navigation chip", async () => {
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify([
+        {
+          role: "soumaya",
+          text: "Here's what I found.",
+          citations: [{ id: 7, label: "A real memory", type: "daily" }],
+          navigation: NAV,
+        },
+      ]),
+    );
+    const onFocus = vi.fn();
+    render(<ChatDock onClose={() => {}} onFocus={onFocus} onNavigate={() => {}} />);
+    const citeChip = await screen.findByText("A real memory");
+    act(() => citeChip.click());
+    expect(onFocus).toHaveBeenCalledWith(7);
   });
 });
 

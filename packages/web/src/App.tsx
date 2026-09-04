@@ -34,7 +34,7 @@ import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
 import { GalaxyViews } from "./components/GalaxyViews.js";
 import { getMoneySky } from "./api/finance.js";
-import { galaxyEntity } from "./api/graph.js";
+import { galaxyEntity, galaxyEntityKindFromRef } from "./api/graph.js";
 import { MindSpace } from "./components/MindSpace.js";
 import { NoticingCard } from "./components/NoticingCard.js";
 import { playSfx } from "./graph/sfx.js";
@@ -2018,6 +2018,17 @@ export default function App() {
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           onCreated={(ids) => void refresh(ids)}
+          onNavigate={(nav) => {
+            // Maya Chat → Galaxy Navigation: user clicked the chip — this is the ONLY
+            // trigger, never automatic. Same imperative path + safety as a direct click
+            // on a Journey hub/Money-sky star (Graph3D's flyToGalaxyEntity, I3) — never
+            // followRef, never a second camera implementation.
+            const kind = galaxyEntityKindFromRef(nav.target);
+            if (!kind) return;
+            const flew = graphRef.current?.flyToGalaxyEntity(kind, nav.target.id) ?? false;
+            const icon = kind === "journey" ? "🧭" : "💵";
+            pushToast(`${icon} ${nav.target.label ?? "Navigating"} — ${nav.reason}`, icon, flew ? 7000 : 5000);
+          }}
         />
       )}
 

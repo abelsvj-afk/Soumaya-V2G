@@ -307,9 +307,72 @@ Memory and constellation/MOC-hub bodies already had a complete click → id → 
 path. Journey hubs and Money-sky stars — the confirmed gap from the Phase-1 audit (both tag their
 sprites with a real id in `userData`, but nothing read it) — are now closed, per "Galaxy Entity
 Intelligence (I3)" above: `resolveGalaxyEntity` + `GET /api/graph/entity/:kind/:id` on the server,
-`Graph3D.tsx`'s extended `handleClick` + new `flyToGalaxyEntity` on the client. What remains
-scoped OUT (see "V1 limitations"): Maya-initiated navigation during chat (as opposed to a direct
-user click), which would need the LLM citation contract extended beyond memory-node ids.
+`Graph3D.tsx`'s extended `handleClick` + new `flyToGalaxyEntity` on the client.
+
+## Maya Chat → Galaxy Navigation (Model C)
+
+Closes the one gap I3 deliberately left open: Maya-INITIATED navigation during chat, as opposed
+to a direct user click on a Galaxy body. Built per an explicit, audited architecture (Model C —
+"the LLM may suggest, the server must verify, the resolver determines reality, the descriptor
+determines the reason, the user chooses whether to navigate, Graph3D performs the movement"),
+reusing I3's `resolveGalaxyEntity`/`navigationIntentFor` verbatim rather than building a second
+resolver or a second camera implementation.
+
+**Bounded candidate selection.** `analysis/galaxyEntity.ts`'s `buildNavigationCandidateList(handle,
+spaceId)` lists a FEW of the user's own active Journeys, non-archived Goals, and Bills (each kind
+capped at 3, the combined list capped at 6 — the same small-bound discipline `MAX_CAUSAL_LINKS`/
+`MAX_CONTRADICTION_CLAIMS` already established) via the EXACT SAME repos `finance/sky.ts`/
+`JourneysPanel` already use. This is explicitly NOT a relevance engine — no scoring, no
+embeddings, no Galaxy scan — just a small, cheap, always-fresh enumeration, injected into the
+chat prompt (`buildAnswerPrompt`'s new `galaxyCandidates` block) the same way memory context is
+already given as an id-tagged `[id] label` list.
+
+**LLM proposal vs. server authority.** The model may propose `navigationCandidates:
+{kind, id}[]` (`AnswerResult.navigationCandidates`, at most 2, ordered by its own confidence) —
+picking ONLY from the exact `[kind:id]` pairs it was shown. This is deliberately weaker than
+`NavigationIntent`: no `reason`, no `domain`, nothing authority-bearing. It is UNTRUSTED, exactly
+like `citations: number[]` already is. `analysis/galaxyEntity.ts`'s `resolveNavigationIntent`
+(chat/graphrag.ts's sole caller) is the ONE authority: it tries the model's candidates in its own
+preferred order, independently re-resolves each via `resolveGalaxyEntity` (space-scoped, kind-
+checked — `"node"` is explicitly rejected here even though `resolveGalaxyEntity` supports it,
+since memory navigation already has citations), and returns the FIRST real match's
+`navigationIntentFor`-derived `NavigationIntent` — or nothing. A model-invented id, a wrong-space
+id, or an injected extra field (e.g. a fake `reason`) never reaches the result; only `kind`/`id`
+that turn out to point at something real, in this space, ever matter.
+
+**Entity resolution + deterministic reason.** Identical to I3: `resolveGalaxyEntity` is the sole
+resolver, `navigationIntentFor` derives `reason` purely from the resolved descriptor's own
+already-computed `state` — never a second reason-generation system, never LLM prose.
+
+**One-target V1 limitation.** At most one `NavigationIntent` per assistant response
+(`ChatResponse.navigation?: NavigationIntent`) — the first candidate (in the model's own order)
+that resolves; the rest are discarded. No multi-target navigation UI, no multiple camera moves.
+
+**Click-to-navigate behavior — no auto-navigation.** `ChatDock`'s `ChatMessage.navigation` field
+renders ONE chip (same interaction philosophy as citation chips: "🧭 Go to {label}" /
+"💵 Go to {label}", `title` = the real reason). The camera moves ONLY when the user clicks it —
+`onNavigate` fires from that click handler alone, never from rendering, never from an effect
+watching persisted `messages` (which would replay on reload/mount). `App.tsx`'s `onNavigate`
+prop is a direct callback (mirroring the existing `onFocus`/`onRecall` pattern) that maps the
+returned `ProvenanceRef` back to a `GalaxyEntityKind` (`web/api/graph.ts`'s
+`galaxyEntityKindFromRef` — the one small, tested adapter between the two) and calls
+`graphRef.current?.flyToGalaxyEntity(kind, id)` — I3's existing, `followRef`-free camera path,
+completely unchanged.
+
+**Security / space isolation.** `resolveNavigationIntent` always resolves against the CALLER's
+own `spaceId` (never anything from the model), so a candidate pointing at another space's
+journey/goal/bill simply fails to resolve — proven directly by a dedicated space-isolation test
+at both the resolver level and the full `chat()` level.
+
+**Performance.** Candidate-list generation is three small, already-bounded repo reads, same cost
+class as every other chat snapshot — it runs on EVERY chat message. Resolution
+(`resolveGalaxyEntity`, the heavier of the two — a bill/goal call recomputes `moneySky()`) runs
+ONLY when the model actually proposes a candidate, which is rare. No additional LLM call.
+
+**Future possibilities, not built:** multi-target navigation (offering 2–3 candidates at once),
+auto-navigation (moving the camera without a click), and extending the candidate domains beyond
+Journeys/Goals/Bills (e.g. People, Life Vision, a future Debt/Credit domain) — all would reuse
+this exact contract, adding at most one new `case` to `resolveGalaxyEntity` per domain.
 
 ## ML / LLM / deterministic role split
 
@@ -324,7 +387,9 @@ user click), which would need the LLM citation contract extended beyond memory-n
 - **LLM**: `detectContradiction()` for the conflict judgment (pre-existing); I2's new REQUIRED
   `interpretClarificationAnswer()` for judging whether a message answers a pending question —
   implemented on every provider including the offline heuristic, same precedent as
-  `detectContradiction`; chat's own synthesis/narration of everything assembled above.
+  `detectContradiction`; Maya Chat → Galaxy Navigation's `navigationCandidates` (an UNTRUSTED
+  proposal only — never the authority, see above); chat's own synthesis/narration of everything
+  assembled above.
 - **ML (pattern/anomaly/forecasting)**: genuinely absent, per the brief's own instruction not to
   add it "merely for branding." No pattern-detection, classification, or forecasting model was
   introduced anywhere in I1–I3.
@@ -333,15 +398,19 @@ user click), which would need the LLM citation contract extended beyond memory-n
 
 Identical posture to the temporal spec, extended to every I1–I3 mechanism: `intelligence_clarifications`
 is a space-scoped table (added to `TABLES_WITH_SPACE`); `resolveClarificationFromMessage`,
-`resolveGalaxyEntity`, and `possibleDownstreamEffects` all thread `spaceId` the same way every
-other repository does (direct space-isolation tests exist for all three — see "Testing" below).
+`resolveGalaxyEntity`, `possibleDownstreamEffects`, `buildNavigationCandidateList`, and
+`resolveNavigationIntent` all thread `spaceId` the same way every other repository does (direct
+space-isolation tests exist for all of them — see "Testing" below).
 No full-system scan is ever performed per chat message: I1's causal check runs only over the
 already-capped contradiction claims (≤3) and reuses temporal-reasoning's own bounded month-over-
 month queries; I2's clarification check is a single indexed `mostRecentPending()` row lookup, and
 its one LLM call fires ONLY when a clarification is actually pending (a rare, gated state); I3's
 Galaxy resolution is a single-row/bounded lookup per click, never a full Galaxy dump into a
-prompt. Explicitly forbidden and not present anywhere: scanning every memory/node/Galaxy
-object/financial record on every message.
+prompt; Maya Chat → Galaxy Navigation's candidate list is 3 small, already-bounded repo reads on
+every chat message (cheap, same class as any other snapshot), while its actual resolution step
+runs ONLY when the model proposes a candidate — no extra LLM call either way. Explicitly
+forbidden and not present anywhere: scanning every memory/node/Galaxy object/financial record on
+every message.
 
 ## V1 limitations (explicit)
 
@@ -350,15 +419,19 @@ object/financial record on every message.
    design.
 2. ~~No mechanism for a clarification answer to become `"confirmed"`~~ — **closed in I2.**
 3. ~~Galaxy click-resolution for Journey hubs and Money-sky stars~~ — **closed in I3** for
-   click-driven resolution + navigation. NOT closed: Maya-INITIATED navigation during chat (e.g.
-   flying the camera to something her answer just cited) — that needs the LLM `AnswerResult`
-   citation contract (`citations: number[]`, memory-node-only today) extended across every
-   provider, a materially larger, route-contract-level change out of scope for "smallest
-   reusable abstraction." The 3D click interaction itself (raycast hit-testing on the money-sky/
-   journey-hub sprites) is typecheck/build-clean and verified end-to-end against a live server
-   for the resolution route, but has **not been visually confirmed on-device** — this repo's own
-   "prove it by reproduction" standard for spatial/visual code it cannot render; flagged, not
-   claimed.
+   click-driven resolution + navigation, and ~~Maya-INITIATED navigation during chat~~ is now
+   **also closed** (Maya Chat → Galaxy Navigation, Model C, above) — the model may propose a
+   bounded, id-tagged Journey/Goal/Bill candidate; the server independently validates/resolves
+   it via the SAME `resolveGalaxyEntity`/`navigationIntentFor` I3 already built; the user clicks
+   a chip to actually move the camera (no auto-navigation in V1). What's NOT built: multi-target
+   navigation (offering several candidates at once), auto-navigation, and candidate domains
+   beyond Journeys/Goals/Bills (People, Life Vision, a future Debt/Credit) — all flagged as
+   future extensions of the exact same contract, not attempted here. The 3D click interaction
+   itself (raycast hit-testing on the money-sky/journey-hub sprites, and the navigation chip's
+   click-triggered camera fly) is typecheck/build-clean and verified end-to-end against a live
+   server/real in-memory-DB test suite, but has **not been visually confirmed on-device** — this
+   repo's own "prove it by reproduction" standard for spatial/visual code it cannot render;
+   flagged, not claimed.
 4. No ML-based relevance ranking, pattern detection, or forecasting.
 5. Thought-evolution links stay ephemeral (not persisted as graph edges) — a pre-existing,
    already-documented gap this pass did not need to close to build claim formation on top of it.
@@ -435,6 +508,35 @@ test, no mocking of the code being verified):
 Server suite total after I1–I3: **666/666** (up from Phase 1's baseline). Full gate (typecheck +
 server tests + web tests + web build) green at every commit in this pass.
 
+**Maya Chat → Galaxy Navigation (Model C)**, new/extended test files:
+- `analysis/galaxyEntity.test.ts` (+12, 19 total) — `buildNavigationCandidateList`: lists active
+  journeys/non-archived goals/bills correctly (done journeys excluded), bounded even with many
+  entities, space-scoped. `resolveNavigationIntent`: a valid candidate resolves; a nonexistent id
+  is rejected; an unsupported kind — including `"node"`, deliberately excluded since memory
+  navigation already has citations — is rejected; a real entity from ANOTHER space is rejected;
+  no candidates → no navigation; multiple candidates resolve in the model's own order, first
+  valid one wins, the rest are ignored; the reason always equals `navigationIntentFor`'s
+  descriptor state; a model-injected `reason`/`domain` on the candidate is silently ignored;
+  resolving navigation performs zero database writes.
+- `__tests__/chatNavigation.test.ts` (5, new) — full `chat()` → scripted-LLM-candidate → server
+  validation → `ChatResponse.navigation`, using a real in-memory DB (no mocking of the code under
+  test, matching this repo's established integration-test discipline): a valid candidate
+  produces a correct, real `NavigationIntent`; a nonexistent candidate never reaches the
+  response; no candidate → no navigation, no error; existing citation validation is completely
+  unaffected by navigation being present in the same response; a candidate from another space
+  never resolves end-to-end.
+- `web/src/api/graph.test.ts` (5, new) — `galaxyEntityKindFromRef`: correctly maps journey/
+  fin_bill/fin_goal refs, returns `null` for a memory ref (by design) and for an unrecognized
+  money kind rather than guessing.
+- `web/src/components/ChatDock.smoke.test.tsx` (+5) — a response carrying `navigation` renders a
+  click-to-navigate chip; clicking it calls `onNavigate` with the exact `NavigationIntent` and
+  never fires merely from rendering; reloading persisted chat history containing `navigation`
+  does NOT auto-fire it on mount (the loop guardrail); a click with no `onNavigate` provided
+  never throws; existing citation chips are completely unaffected.
+
+Server suite total after this pass: **683/683**. Web suite total: **318/318**. Full gate
+(typecheck + server tests + web tests + web build) green.
+
 ## ✅ Acceptance criteria
 
 **Phase 1** (unchanged, still holds):
@@ -462,6 +564,21 @@ server tests + web tests + web build) green at every commit in this pass.
     Scenario 9's node/Journey-count test).
 13. Full gate green (typecheck + 666 server tests + 308 web tests + web build); every new
     space-scoped mechanism has a direct isolation test.
-14. Every remaining gap (Maya-initiated navigation, on-device visual confirmation, causal
-    reasoning's Money/Wealth-only domain coverage, no clarification auto-expiry) is named
-    explicitly in "V1 limitations," not silently dropped.
+
+**Maya Chat → Galaxy Navigation (Model C)**, additionally:
+14. The LLM never becomes the authority for a navigation target — every proposed candidate is
+    independently re-resolved (space-scoped, kind-checked) via the SAME `resolveGalaxyEntity`
+    I3 already built before it can become a `NavigationIntent`; an invented, wrong-space, or
+    unsupported-kind proposal simply produces no navigation.
+15. A `NavigationIntent`'s `reason` always comes from `navigationIntentFor`'s already-computed
+    descriptor state — a model-injected reason/domain field is provably ignored (dedicated test).
+16. At most one navigation target per response; camera movement happens ONLY on an explicit user
+    click, never automatically and never replayed from persisted chat history on reload.
+17. Candidate-list generation is bounded (≤6 total) and reuses existing repos with zero new
+    relevance engine; resolution costs an extra DB lookup only when the model actually proposes
+    something, never on every message; zero additional LLM calls.
+18. Full gate green (typecheck + 683 server tests + 318 web tests + web build); existing
+    citation validation, chat retrieval, and every other I1–I3 mechanism verified unaffected.
+19. Every remaining gap (multi-target/auto-navigation, candidate domains beyond Journeys/Goals/
+    Bills, on-device visual confirmation, causal reasoning's Money/Wealth-only domain coverage,
+    no clarification auto-expiry) is named explicitly in "V1 limitations," not silently dropped.

@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type ClarificationInterpretation } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type ClarificationInterpretation, type GalaxyNavigationKind } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -122,6 +122,20 @@ const answerSchema = {
     },
     askBack: { type: Type.STRING },
     usedRoles: { type: Type.ARRAY, items: { type: Type.STRING } },
+    // Maya Chat → Galaxy Navigation — UNTRUSTED proposal only; the model may pick kind+id
+    // ONLY from the GALAXY ENTITIES list given in the prompt, never invent one. Optional
+    // (not in `required`), same treatment as askBack/usedRoles.
+    navigationCandidates: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          kind: { type: Type.STRING, enum: ["journey", "bill", "goal"] },
+          id: { type: Type.INTEGER },
+        },
+        required: ["kind", "id"],
+      },
+    },
   },
   required: ["answer", "citations", "mood"],
 };
@@ -304,7 +318,7 @@ export class GeminiProvider implements LlmProvider {
   async answer(question: string, context: ContextNode[], opts?: AnswerOptions): Promise<AnswerResult> {
     const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
-      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked),
+      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked, opts?.galaxyCandidates),
       answerSchema,
       0.85, // conversational warmth + variety
     );
@@ -312,6 +326,19 @@ export class GeminiProvider implements LlmProvider {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
       mood: typeof raw.mood === "string" ? raw.mood : undefined,
+      // Shape-checked here (defense in depth, same discipline as `citations` above); the
+      // AUTHORITATIVE check is `resolveGalaxyEntity` at the chat-integration call site —
+      // this only guards against a malformed/off-schema response, never decides trust.
+      navigationCandidates: Array.isArray(raw.navigationCandidates)
+        ? (raw.navigationCandidates as unknown as any[])
+            .filter(
+              (c): c is { kind: string; id: number } =>
+                !!c && typeof c === "object" && typeof c.id === "number" &&
+                ["journey", "bill", "goal"].includes(c.kind),
+            )
+            .slice(0, 2)
+            .map((c) => ({ kind: c.kind as GalaxyNavigationKind, id: c.id }))
+        : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
       usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
     };

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ChatMood, NodeRef } from "@brain/shared";
+import type { ChatMood, NodeRef, NavigationIntent } from "@brain/shared";
 import { useDialogA11y } from "../hooks/useDialogA11y.js";
 import { askChat, getSpaceId, ingestText, distillChat } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
@@ -26,6 +26,9 @@ interface ChatMessage {
   role: "you" | "soumaya";
   text: string;
   citations?: NodeRef[];
+  /** Maya Chat → Galaxy Navigation: a server-VALIDATED navigation target (never the model's
+   *  raw proposal) — rendered as one click-to-navigate chip, same philosophy as citations. */
+  navigation?: NavigationIntent;
   mood?: ChatMood;
   /** Her interview instinct: a clarifying question rendered as its own bubble. */
   ask?: boolean;
@@ -80,6 +83,7 @@ export function ChatDock({
   onFocus,
   onRecall,
   onCreated,
+  onNavigate,
 }: {
   spaceName?: string;
   onClose: () => void;
@@ -87,6 +91,10 @@ export function ChatDock({
   onRecall?: (ids: number[]) => void;
   /** Called with the new node ids after a message is saved as a memory. */
   onCreated?: (newIds: number[]) => void;
+  /** Maya Chat → Galaxy Navigation: called ONLY when the user clicks a navigation chip —
+   *  never automatically on receiving a response, and never on reload of persisted history
+   *  (this component never re-fires it from stored `messages`, only from the click handler). */
+  onNavigate?: (nav: NavigationIntent) => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
@@ -177,7 +185,7 @@ export function ChatDock({
       setMessages((m) => {
         const next: ChatMessage[] = [
           ...m,
-          { role: "soumaya", text: r.answer || "(no answer)", citations, mood: r.mood, applied },
+          { role: "soumaya", text: r.answer || "(no answer)", citations, navigation: r.navigation, mood: r.mood, applied },
         ];
         // Interview instinct: her clarifying question gets its own bubble so it
         // reads as HER asking, not a footnote.
@@ -505,6 +513,17 @@ export function ChatDock({
                       {c.label}
                     </button>
                   ))}
+                </div>
+              )}
+              {m.navigation && (
+                <div className="chatdock-cites">
+                  <button
+                    className="pill nav"
+                    onClick={() => onNavigate?.(m.navigation!)}
+                    title={m.navigation.reason}
+                  >
+                    {m.navigation.target.domain === "journey" ? "🧭" : "💵"} Go to {m.navigation.target.label ?? "this"}
+                  </button>
                 </div>
               )}
               {m.applied && m.applied.length > 0 && (

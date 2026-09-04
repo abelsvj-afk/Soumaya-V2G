@@ -1,4 +1,4 @@
-import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult, ClarificationInterpretation } from "@brain/shared";
+import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult, ClarificationInterpretation, GalaxyNavigationKind, GalaxyNavigationCandidate } from "@brain/shared";
 
 /** A previously-stored node passed to the LLM as context for extraction. */
 export interface ContextNode {
@@ -53,6 +53,10 @@ export interface AnswerOptions {
   /** True when her PREVIOUS turn already ended in a question — hard-forces no
    *  askBack this turn so she can't interrogate the user in a loop. */
   justAsked?: boolean;
+  /** Maya Chat → Galaxy Navigation: a small, bounded, id-tagged list of Journeys/Bills/Goals
+   *  the model MAY propose navigating to if genuinely relevant — she may choose ONLY from this
+   *  exact list, never an arbitrary/invented id. Absent/empty when nothing exists to offer. */
+  galaxyCandidates?: { kind: GalaxyNavigationKind; id: number; label: string }[];
 }
 
 /** Structured chat reply: the answer plus its emotional register and (optionally)
@@ -65,6 +69,11 @@ export interface AnswerResult {
   /** Names of the custom roles she ACTUALLY adopted this turn (she picks the
    *  fitting one(s); empty when none applied) — drives the honest applied chips. */
   usedRoles?: string[];
+  /** Maya Chat → Galaxy Navigation: UNTRUSTED candidate(s) she proposed navigating to, in her
+   *  own preferred order — NEVER authoritative. The caller resolves the first one that
+   *  validates via `resolveGalaxyEntity` (analysis/galaxyEntity.ts) into
+   *  `ChatResponse.navigation`; everything else is discarded. Absent/empty = no proposal. */
+  navigationCandidates?: GalaxyNavigationCandidate[];
 }
 
 /**

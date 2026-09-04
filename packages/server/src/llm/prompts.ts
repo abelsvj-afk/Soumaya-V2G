@@ -240,6 +240,16 @@ HARD RULES:
 - Ground answers in the provided MEMORIES and cite the node ids you used in
   "citations" (may be empty for pure conversation).
 - If the memories genuinely don't cover a factual question, say so plainly.
+
+GALAXY NAVIGATION (optional, rare — most turns leave this empty). If a GALAXY ENTITY
+listed below is the direct subject of your answer or is concretely where the user
+would need to go to act on what you just said, you may propose it in
+"navigationCandidates": an array of {"kind","id"} picked ONLY from the exact
+[kind:id] pairs given below, ordered by how confident you are, at most 2. NEVER
+invent a kind or id that isn't in that list — if nothing listed is genuinely, directly
+relevant, leave "navigationCandidates" as an empty array. This is a suggestion the
+app will independently verify; it is not a command and you do not control what
+happens with it.
 Output JSON only.`;
 
 export function buildAnswerPrompt(
@@ -248,6 +258,7 @@ export function buildAnswerPrompt(
   knowledge?: string,
   history?: string,
   justAsked?: boolean,
+  galaxyCandidates?: { kind: string; id: number; label: string }[],
 ): string {
   const memories =
     context.length > 0
@@ -267,7 +278,16 @@ export function buildAnswerPrompt(
   const noAsk = justAsked
     ? `\n\n[You asked a question on your last turn. This turn "askBack" MUST be "" — respond to what they said with substance, do not ask anything.]`
     : "";
-  return `MEMORIES:\n${memories}${kb}${convo}${noAsk}\n\nQUESTION: ${question}`;
+  // Maya Chat → Galaxy Navigation: the ONLY entities she may ever propose navigating to —
+  // a small, already-bounded list (analysis/galaxyEntity.ts's buildNavigationCandidateList),
+  // never the full Galaxy. Omitted entirely when there's nothing to offer, same as `kb`/`convo`.
+  const galaxy =
+    galaxyCandidates && galaxyCandidates.length > 0
+      ? `\n\nGALAXY ENTITIES YOU MAY NAVIGATE TO (optional — only propose if genuinely relevant):\n${galaxyCandidates
+          .map((g) => `[${g.kind}:${g.id}] ${g.label}`)
+          .join("\n")}`
+      : "";
+  return `MEMORIES:\n${memories}${kb}${convo}${galaxy}${noAsk}\n\nQUESTION: ${question}`;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { API, afetch } from "./http.js";
-import type { GalaxyEntityDescriptor, GalaxyEntityKind, NavigationIntent } from "@brain/shared";
+import type { GalaxyEntityDescriptor, GalaxyEntityKind, NavigationIntent, ProvenanceRef } from "@brain/shared";
 
 /**
  * Galaxy Entity Intelligence client (docs/specs/maya-intelligence-architecture.md, Part I3).
@@ -18,4 +18,20 @@ export async function galaxyEntity(
   } catch {
     return null;
   }
+}
+
+/**
+ * Maya Chat → Galaxy Navigation: a `NavigationIntent.target` is a `ProvenanceRef` (server-
+ * shaped identity), but `Graph3D.flyToGalaxyEntity` — the ONLY existing, proven camera-fly
+ * path for these bodies (I3) — takes the narrower click-facing `GalaxyEntityKind`. This is
+ * the one small, pure adapter between the two; a wrong mapping here would silently fly the
+ * camera to the wrong body, so it's kept as its own tested function rather than inlined.
+ * Memory (`domain:"memory"`) never maps to a Galaxy-fly kind — memory navigation already has
+ * its own complete mechanism (citation chips + `focusNode`), so this returns `null` for it.
+ */
+export function galaxyEntityKindFromRef(ref: ProvenanceRef): "journey" | "bill" | "goal" | null {
+  if (ref.domain === "journey") return "journey";
+  if (ref.kind === "fin_bill") return "bill";
+  if (ref.kind === "fin_goal") return "goal";
+  return null;
 }

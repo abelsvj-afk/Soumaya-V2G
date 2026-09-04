@@ -8,7 +8,8 @@ import { FinBucketRepo } from "../repositories/finBucket.repo.js";
 import { FinGoalRepo } from "../repositories/finGoal.repo.js";
 import { FinAllocationRepo } from "../repositories/finAllocation.repo.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
-import { resolveGalaxyEntity, navigationIntentFor } from "./galaxyEntity.js";
+import type { GalaxyNavigationCandidate } from "@brain/shared";
+import { resolveGalaxyEntity, navigationIntentFor, buildNavigationCandidateList, resolveNavigationIntent } from "./galaxyEntity.js";
 
 let handle: DbHandle;
 const embeddings = new HashEmbeddingProvider(EMBED_DIM);
@@ -101,5 +102,111 @@ describe("navigationIntentFor (I3)", () => {
     const intent = navigationIntentFor(descriptor);
     expect(intent.target).toEqual(descriptor.ref);
     expect(intent.reason).toBe(descriptor.state);
+  });
+});
+
+describe("buildNavigationCandidateList (Maya Chat -> Galaxy Navigation)", () => {
+  it("lists active journeys, non-archived goals, and bills, each capped, combined capped", () => {
+    const journeysRepo = new JourneysRepo(handle, SPACE);
+    const done = journeysRepo.create({ title: "Finished trip", status: "done" });
+    const active = journeysRepo.create({ title: "Owner-operator transition", status: "active" });
+    const bucket = new FinBucketRepo(handle, SPACE).create({ name: "Savings" });
+    const goal = new FinGoalRepo(handle, SPACE).create({ bucketId: bucket.id, name: "Truck down payment", targetCents: 500000 });
+    const bill = new FinBillRepo(handle, SPACE).create({ name: "Truck insurance", amountCents: 15000, frequency: "monthly", anchorDate: "2020-01-01" });
+
+    const list = buildNavigationCandidateList(handle, SPACE);
+    expect(list).toContainEqual({ kind: "journey", id: active.id, label: "Owner-operator transition" });
+    // Checked by kind+id together, not id alone — journeys/goals/bills are separate
+    // autoincrement tables, so a goal or bill could coincidentally share `done`'s id.
+    expect(list.some((c) => c.kind === "journey" && c.id === done.id)).toBe(false);
+    expect(list).toContainEqual({ kind: "goal", id: goal.id, label: "Truck down payment" });
+    expect(list).toContainEqual({ kind: "bill", id: bill.id, label: "Truck insurance" });
+  });
+
+  it("is bounded and never grows unbounded with many entities", () => {
+    const journeysRepo = new JourneysRepo(handle, SPACE);
+    for (let i = 0; i < 10; i++) journeysRepo.create({ title: `Journey ${i}`, status: "active" });
+    const bucket = new FinBucketRepo(handle, SPACE).create({ name: "Savings" });
+    const goalsRepo = new FinGoalRepo(handle, SPACE);
+    for (let i = 0; i < 10; i++) goalsRepo.create({ bucketId: bucket.id, name: `Goal ${i}` });
+    const billsRepo = new FinBillRepo(handle, SPACE);
+    for (let i = 0; i < 10; i++) billsRepo.create({ name: `Bill ${i}`, amountCents: 1000, frequency: "monthly", anchorDate: "2020-01-01" });
+
+    expect(buildNavigationCandidateList(handle, SPACE).length).toBeLessThanOrEqual(6);
+  });
+
+  it("is space-scoped", () => {
+    new JourneysRepo(handle, SPACE).create({ title: "Private journey", status: "active" });
+    expect(buildNavigationCandidateList(handle, "other-space")).toEqual([]);
+  });
+});
+
+describe("resolveNavigationIntent — the server-side authority (Model C)", () => {
+  const candidate = (over: Partial<GalaxyNavigationCandidate>): GalaxyNavigationCandidate => ({ kind: "journey", id: 1, ...over });
+
+  it("resolves a valid candidate into a real NavigationIntent", () => {
+    const journey = new JourneysRepo(handle, SPACE).create({ title: "Owner-operator transition", status: "active" });
+    const intent = resolveNavigationIntent(handle, SPACE, [candidate({ kind: "journey", id: journey.id })], NOW);
+    expect(intent).not.toBeNull();
+    expect(intent!.target).toEqual({ domain: "journey", kind: "journey", id: journey.id, label: "Owner-operator transition" });
+  });
+
+  it("rejects a nonexistent id — no navigation, never a fabrication", () => {
+    expect(resolveNavigationIntent(handle, SPACE, [candidate({ id: 999_999 })], NOW)).toBeNull();
+  });
+
+  it("rejects an unsupported kind, including 'node' — memory navigation already has its own mechanism", () => {
+    expect(resolveNavigationIntent(handle, SPACE, [candidate({ kind: "node" as any, id: 1 })], NOW)).toBeNull();
+    expect(resolveNavigationIntent(handle, SPACE, [candidate({ kind: "bogus" as any, id: 1 })], NOW)).toBeNull();
+  });
+
+  it("rejects a real entity from ANOTHER space — the model cannot reach cross-space data", () => {
+    const journey = new JourneysRepo(handle, "other-space").create({ title: "Not yours", status: "active" });
+    expect(resolveNavigationIntent(handle, SPACE, [candidate({ kind: "journey", id: journey.id })], NOW)).toBeNull();
+  });
+
+  it("no candidates -> no navigation", () => {
+    expect(resolveNavigationIntent(handle, SPACE, undefined, NOW)).toBeNull();
+    expect(resolveNavigationIntent(handle, SPACE, [], NOW)).toBeNull();
+  });
+
+  it("multiple candidates: preserves the model's order, resolves the FIRST valid one, ignores the rest", () => {
+    const journey = new JourneysRepo(handle, SPACE).create({ title: "Real journey", status: "active" });
+    const bucket = new FinBucketRepo(handle, SPACE).create({ name: "Savings" });
+    const goal = new FinGoalRepo(handle, SPACE).create({ bucketId: bucket.id, name: "Real goal" });
+    const intent = resolveNavigationIntent(
+      handle,
+      SPACE,
+      [candidate({ kind: "journey", id: 999_999 }), candidate({ kind: "journey", id: journey.id }), candidate({ kind: "goal", id: goal.id })],
+      NOW,
+    );
+    expect(intent!.target.kind).toBe("journey");
+    expect(intent!.target.id).toBe(journey.id);
+  });
+
+  it("the reason always comes from navigationIntentFor()'s descriptor state — never invented", () => {
+    const journey = new JourneysRepo(handle, SPACE).create({ title: "Owner-operator transition", status: "active" });
+    const descriptor = resolveGalaxyEntity(handle, SPACE, "journey", journey.id, NOW)!;
+    const intent = resolveNavigationIntent(handle, SPACE, [candidate({ kind: "journey", id: journey.id })], NOW);
+    expect(intent!.reason).toBe(descriptor.state);
+  });
+
+  it("the model cannot supply its own authoritative reason — extra fields on the candidate are ignored", () => {
+    const journey = new JourneysRepo(handle, SPACE).create({ title: "Owner-operator transition", status: "active" });
+    const injected = { kind: "journey", id: journey.id, reason: "I made this up", domain: "money" } as unknown as GalaxyNavigationCandidate;
+    const intent = resolveNavigationIntent(handle, SPACE, [injected], NOW);
+    expect(intent!.reason).not.toBe("I made this up");
+    expect(intent!.target.domain).toBe("journey"); // the model's injected "domain":"money" is ignored too
+  });
+
+  it("performs zero writes — resolving navigation never mutates the database", () => {
+    const journey = new JourneysRepo(handle, SPACE).create({ title: "Owner-operator transition", status: "active" });
+    const before = handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes`).get() as { c: number };
+    const beforeInsights = handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM insights`).get() as { c: number };
+    resolveNavigationIntent(handle, SPACE, [candidate({ kind: "journey", id: journey.id })], NOW);
+    const after = handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM nodes`).get() as { c: number };
+    const afterInsights = handle.sqlite.prepare(`SELECT COUNT(*) AS c FROM insights`).get() as { c: number };
+    expect(after.c).toBe(before.c);
+    expect(afterInsights.c).toBe(beforeInsights.c);
   });
 });

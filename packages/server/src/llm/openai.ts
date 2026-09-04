@@ -1,4 +1,4 @@
-import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult, type ClarificationInterpretation } from "@brain/shared";
+import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult, type ClarificationInterpretation, type GalaxyNavigationKind } from "@brain/shared";
 import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
@@ -463,12 +463,27 @@ export class OpenAiProvider implements LlmProvider {
         },
         askBack: { type: "string" },
         usedRoles: { type: "array", items: { type: "string" } },
+        // Maya Chat → Galaxy Navigation — UNTRUSTED proposal only; the model may pick kind+id
+        // ONLY from the GALAXY ENTITIES list given in the prompt, never invent one. "empty
+        // array = none" — same strict-schema convention as askBack/usedRoles in this file.
+        navigationCandidates: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              kind: { type: "string", enum: ["journey", "bill", "goal"] },
+              id: { type: "integer" },
+            },
+            required: ["kind", "id"],
+          },
+        },
       },
-      required: ["answer", "citations", "mood", "askBack", "usedRoles"],
+      required: ["answer", "citations", "mood", "askBack", "usedRoles", "navigationCandidates"],
     };
     const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
-      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked),
+      buildAnswerPrompt(question, context, opts?.knowledge, opts?.history, opts?.justAsked, opts?.galaxyCandidates),
       schema,
       "answer",
       0.85, // conversational warmth + variety
@@ -477,6 +492,19 @@ export class OpenAiProvider implements LlmProvider {
       answer: raw.answer ?? "",
       citations: Array.isArray(raw.citations) ? raw.citations : [],
       mood: typeof raw.mood === "string" ? raw.mood : undefined,
+      // Shape-checked here (defense in depth, same discipline as `citations` above); the
+      // AUTHORITATIVE check is `resolveGalaxyEntity` at the chat-integration call site —
+      // this only guards against a malformed/off-schema response, never decides trust.
+      navigationCandidates: Array.isArray(raw.navigationCandidates)
+        ? (raw.navigationCandidates as unknown as any[])
+            .filter(
+              (c): c is { kind: string; id: number } =>
+                !!c && typeof c === "object" && typeof c.id === "number" &&
+                ["journey", "bill", "goal"].includes(c.kind),
+            )
+            .slice(0, 2)
+            .map((c) => ({ kind: c.kind as GalaxyNavigationKind, id: c.id }))
+        : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
       usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
     };

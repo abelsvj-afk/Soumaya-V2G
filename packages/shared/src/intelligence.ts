@@ -200,3 +200,24 @@ export interface NavigationIntent {
   target: ProvenanceRef;
   reason: string;
 }
+
+/**
+ * Maya Chat → Galaxy Navigation. Non-memory Galaxy kinds a chat-driven navigation candidate may
+ * target — `"node"` is deliberately excluded: memory navigation already has a complete, working
+ * mechanism (citations + citation chips), so this stays additive rather than becoming a second,
+ * overlapping path to the same capability.
+ */
+export type GalaxyNavigationKind = Exclude<GalaxyEntityKind, "node">;
+
+/**
+ * An UNTRUSTED, LLM-proposed navigation suggestion — the model may propose one of these while
+ * answering, but it is NEVER authoritative. Deliberately weaker than `NavigationIntent`: no
+ * `reason`, no `domain`, nothing the model could use to manufacture its own authority. The
+ * server independently resolves it (`resolveGalaxyEntity`, space-scoped) before it can become a
+ * real `NavigationIntent` — an id the model invents that doesn't resolve is simply dropped, the
+ * exact discipline already applied to `AnswerResult.citations`.
+ */
+export interface GalaxyNavigationCandidate {
+  kind: GalaxyNavigationKind;
+  id: number;
+}

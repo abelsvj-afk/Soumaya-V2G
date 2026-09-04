@@ -469,6 +469,12 @@ export interface ChatResponse {
   appliedRoles?: string[];
   /** Names of the knowledge documents retrieved into this reply's context. */
   appliedDocs?: string[];
+  /** Maya Chat → Galaxy Navigation: a server-VALIDATED navigation target, present only when
+   *  the model proposed a Galaxy entity (journey/bill/goal) that actually resolved in this
+   *  space. Never built from the model's own words — `target`/`reason` both come from
+   *  `resolveGalaxyEntity`/`navigationIntentFor`'s already-computed, real state. Absent when
+   *  nothing was proposed or nothing the model proposed resolved. */
+  navigation?: import("./intelligence.js").NavigationIntent;
 }
 
 export interface DailyLog {

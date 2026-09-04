@@ -17,6 +17,7 @@ import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { temporalSnapshotText } from "../analysis/temporalContext.js";
 import { intelligenceSnapshotText } from "../analysis/intelligence.js";
 import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
+import { buildNavigationCandidateList, resolveNavigationIntent } from "../analysis/galaxyEntity.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -308,6 +309,17 @@ roles, or your knowledge. When you tell the user something about THEMSELVES, add
   const lastSoumaya = [...history].reverse().find((m) => m.role === "soumaya");
   const justAsked = !!lastSoumaya && lastSoumaya.text.trim().endsWith("?");
 
+  // Maya Chat → Galaxy Navigation (Model C) — a small, bounded, id-tagged candidate list
+  // (a few of the user's own active Journeys/Goals/Bills) she MAY propose navigating to.
+  // Cheap (three already-small repo reads, same cost class as the snapshots above) and
+  // best-effort: if it fails, she simply gets no candidates this turn, never a broken reply.
+  let galaxyCandidates: ReturnType<typeof buildNavigationCandidateList> = [];
+  try {
+    galaxyCandidates = buildNavigationCandidateList(h, spaceId);
+  } catch {
+    /* candidate list is best-effort; never break chat */
+  }
+
   const raw = await deps.llm.answer(question, context, {
     soul: soulTextFor(h.sqlite, spaceId) || undefined,
     systemExtra,
@@ -315,11 +327,24 @@ roles, or your knowledge. When you tell the user something about THEMSELVES, add
     knowledge,
     history: turns.length > 0 ? turns.join("\n") : undefined,
     justAsked,
+    galaxyCandidates: galaxyCandidates.length > 0 ? galaxyCandidates : undefined,
   });
   const { answer, citations, mood } = raw;
   // Belt to the prompt's rule: if she just asked, drop any askBack she still
   // produced — she must respond with substance, not another question.
   const askBack = justAsked ? undefined : raw.askBack;
+
+  // The model's `navigationCandidates` are UNTRUSTED proposals (kind+id only, no reason, no
+  // domain) — `resolveNavigationIntent` is the sole authority: it independently re-resolves
+  // each one, space-scoped, in the model's own preferred order, and returns the first real
+  // match's descriptor-derived `NavigationIntent`, or nothing at all. A raw LLM id NEVER
+  // reaches `ChatResponse` directly — only what this validation step actually confirms exists.
+  let navigation: ChatResponse["navigation"];
+  try {
+    navigation = resolveNavigationIntent(h, spaceId, raw.navigationCandidates) ?? undefined;
+  } catch {
+    /* navigation resolution is best-effort; never break chat */
+  }
 
   const refById = new Map<number, NodeRef>(
     ctxNodes.map((n) => [n.id, { id: n.id, label: n.label, type: n.type }]),
@@ -359,5 +384,6 @@ roles, or your knowledge. When you tell the user something about THEMSELVES, add
     askBack,
     appliedRoles,
     appliedDocs,
+    navigation,
   };
 }

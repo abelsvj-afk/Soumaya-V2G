@@ -1,9 +1,17 @@
-import { NODE_TYPE_LABEL, type GalaxyEntityDescriptor, type GalaxyEntityKind, type NavigationIntent } from "@brain/shared";
+import {
+  NODE_TYPE_LABEL,
+  type GalaxyEntityDescriptor,
+  type GalaxyEntityKind,
+  type GalaxyNavigationCandidate,
+  type GalaxyNavigationKind,
+  type NavigationIntent,
+} from "@brain/shared";
 import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { JourneysRepo } from "../repositories/journeys.repo.js";
 import { FinGoalRepo } from "../repositories/finGoal.repo.js";
+import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { moneySky } from "../finance/sky.js";
 import { toIsoDate, daysSince } from "../lib/time.js";
 
@@ -44,6 +52,70 @@ export function resolveGalaxyEntity(
  */
 export function navigationIntentFor(descriptor: GalaxyEntityDescriptor): NavigationIntent {
   return { target: descriptor.ref, reason: descriptor.state };
+}
+
+/** Each kind capped independently, then the combined list capped again — matches the same
+ *  small, explicit-bound discipline `analysis/causal.ts`'s `MAX_CAUSAL_LINKS`/`analysis/
+ *  intelligence.ts`'s `MAX_CONTRADICTION_CLAIMS` already established, not a new convention. */
+const MAX_CANDIDATES_PER_KIND = 3;
+const MAX_TOTAL_CANDIDATES = 6;
+
+export interface GalaxyCandidateEntry {
+  kind: GalaxyNavigationKind;
+  id: number;
+  label: string;
+}
+
+/**
+ * Maya Chat → Galaxy Navigation — the bounded, id-tagged candidate list offered to the LLM so
+ * it can propose a navigation target ONLY from real, already-known entities (never an arbitrary
+ * id). Deliberately NOT a relevance engine: this just lists a few of the user's own active
+ * Journeys/Goals/Bills via the EXACT SAME repos `finance/sky.ts`/`JourneysPanel` already use —
+ * no scoring, no embeddings, no Galaxy scan. Done journeys and archived goals are excluded by
+ * each repo's own existing default (nothing new here either).
+ */
+export function buildNavigationCandidateList(handle: DbHandle, spaceId: string = DEFAULT_SPACE): GalaxyCandidateEntry[] {
+  const out: GalaxyCandidateEntry[] = [];
+
+  const journeys = new JourneysRepo(handle, spaceId).list(false).slice(0, MAX_CANDIDATES_PER_KIND);
+  for (const j of journeys) out.push({ kind: "journey", id: j.id, label: j.title });
+
+  const goals = new FinGoalRepo(handle, spaceId).list().slice(0, MAX_CANDIDATES_PER_KIND);
+  for (const g of goals) out.push({ kind: "goal", id: g.id, label: g.name });
+
+  const bills = new FinBillRepo(handle, spaceId).list().slice(0, MAX_CANDIDATES_PER_KIND);
+  for (const b of bills) out.push({ kind: "bill", id: b.id, label: b.name });
+
+  return out.slice(0, MAX_TOTAL_CANDIDATES);
+}
+
+/**
+ * The server-side AUTHORITY for Maya Chat → Galaxy Navigation (Model C). `candidates` are the
+ * model's UNTRUSTED, ordered proposals — this tries them in the model's own preferred order and
+ * returns the `NavigationIntent` for the FIRST one that actually resolves (real, in THIS space,
+ * a supported kind), or `null` if none do. The model can never manufacture a `reason`, a
+ * `domain`, or reach another space's data through this path: every field on the returned
+ * `NavigationIntent` comes from `resolveGalaxyEntity`'s own already-validated descriptor via
+ * `navigationIntentFor` — nothing from `candidates` reaches the result except (indirectly, by
+ * having pointed at a real row) the `kind`/`id` that turn out to be real. `"node"` is
+ * deliberately never accepted here even though `resolveGalaxyEntity` supports it — memory
+ * navigation already has its own complete mechanism (citations), so this stays additive rather
+ * than a second, overlapping path to the same capability.
+ */
+export function resolveNavigationIntent(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  candidates: GalaxyNavigationCandidate[] | undefined,
+  now: Date = new Date(),
+): NavigationIntent | null {
+  if (!candidates || candidates.length === 0) return null;
+  for (const c of candidates.slice(0, MAX_CANDIDATES_PER_KIND)) {
+    if (!c || typeof c.id !== "number" || !Number.isFinite(c.id)) continue;
+    if (c.kind !== "journey" && c.kind !== "bill" && c.kind !== "goal") continue;
+    const descriptor = resolveGalaxyEntity(handle, spaceId, c.kind, c.id, now);
+    if (descriptor) return navigationIntentFor(descriptor);
+  }
+  return null;
 }
 
 function resolveNode(handle: DbHandle, spaceId: string, id: number, now: Date): GalaxyEntityDescriptor | null {
