@@ -250,6 +250,18 @@ invent a kind or id that isn't in that list — if nothing listed is genuinely, 
 relevant, leave "navigationCandidates" as an empty array. This is a suggestion the
 app will independently verify; it is not a command and you do not control what
 happens with it.
+
+INTERACTION PREFERENCE (optional, rare — almost every turn leaves this null). Set
+"interactionPreferenceSignal" ONLY when the user's message ITSELF explicitly states how they
+want you to communicate GOING FORWARD — not a one-off request about just this reply (e.g. "make
+this one shorter" is NOT a signal; "always keep your answers shorter" IS). Examples: "always be
+more direct with me", "stop over-explaining", "give me more detail on technical stuff", "I want
+you to push back on me more". Propose {"signal","value"}: a short, generic label for WHAT KIND
+of preference this is (e.g. "verbosity", "directness", "challenge", "detail_level" — invent
+whatever fits, there is no fixed list) and a short value for what they want (e.g. "concise",
+"very direct", "more"). This never changes your behavior by itself — the app tracks it over
+several conversations before treating it as durable. Comply with the instruction THIS turn
+regardless (that's just answering them), independent of whether you also propose the signal.
 Output JSON only.`;
 
 export function buildAnswerPrompt(

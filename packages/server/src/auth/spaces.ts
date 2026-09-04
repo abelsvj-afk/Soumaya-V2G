@@ -52,6 +52,7 @@ const TABLES_WITH_SPACE = [
   "journeys",
   "journey_link",
   "intelligence_clarifications",
+  "interaction_preferences",
 ] as const;
 
 function hash(passcode: string, salt: string): Buffer {

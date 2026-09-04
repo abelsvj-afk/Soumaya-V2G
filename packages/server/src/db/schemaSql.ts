@@ -551,4 +551,24 @@ export const BOOTSTRAP_SQL = `
       resolved_at TEXT
     );
     CREATE INDEX IF NOT EXISTS intelligence_clarifications_space_idx ON intelligence_clarifications(space_id, status, created_at DESC);
+
+    -- Maya Longitudinal Intelligence, Phase H (docs/specs/maya-longitudinal-intelligence.md,
+    -- Section 14) — LEARNED (observed) interaction/communication preferences, deliberately kept
+    -- separate from BOTH nodes (a preference is never a fact about the user's life) and
+    -- instruction_profiles (which are user-AUTHORED and explicit; these are OBSERVED from
+    -- repeated evidence). One row per (space_id, signal): value is the current best-evidenced
+    -- reading, confidence/evidence_count grow with repeated CONSISTENT evidence and reset
+    -- toward a fresh, weak baseline the moment new evidence conflicts with the stored value —
+    -- never an instant flip, never treated as more certain than the evidence supports.
+    CREATE TABLE IF NOT EXISTS interaction_preferences (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      space_id TEXT NOT NULL DEFAULT 'legacy',
+      signal TEXT NOT NULL,
+      value TEXT NOT NULL,
+      confidence REAL NOT NULL DEFAULT 0,
+      evidence_count INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS interaction_preferences_unique ON interaction_preferences(space_id, signal);
 `;

@@ -136,6 +136,18 @@ const answerSchema = {
         required: ["kind", "id"],
       },
     },
+    // Maya Longitudinal Intelligence, Phase H — UNTRUSTED proposal only; the server treats
+    // this as one piece of evidence, never authoritative. Optional/nullable, same treatment
+    // as navigationCandidates/askBack/usedRoles above.
+    interactionPreferenceSignal: {
+      type: Type.OBJECT,
+      nullable: true,
+      properties: {
+        signal: { type: Type.STRING },
+        value: { type: Type.STRING },
+      },
+      required: ["signal", "value"],
+    },
   },
   required: ["answer", "citations", "mood"],
 };
@@ -341,6 +353,12 @@ export class GeminiProvider implements LlmProvider {
         : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
       usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
+      interactionPreferenceSignal: (() => {
+        const sig = raw.interactionPreferenceSignal as unknown as { signal?: unknown; value?: unknown } | null | undefined;
+        return sig && typeof sig.signal === "string" && sig.signal.trim() && typeof sig.value === "string" && sig.value.trim()
+          ? { signal: sig.signal, value: sig.value }
+          : undefined;
+      })(),
     };
   }
 

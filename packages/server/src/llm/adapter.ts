@@ -1,4 +1,4 @@
-import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult, ClarificationInterpretation, GalaxyNavigationKind, GalaxyNavigationCandidate } from "@brain/shared";
+import type { ExtractionResult, RelationshipType, FinExtractionResult, PaystubExtractionResult, ClarificationInterpretation, GalaxyNavigationKind, GalaxyNavigationCandidate, InteractionPreferenceSignal } from "@brain/shared";
 
 /** A previously-stored node passed to the LLM as context for extraction. */
 export interface ContextNode {
@@ -74,6 +74,12 @@ export interface AnswerResult {
    *  validates via `resolveGalaxyEntity` (analysis/galaxyEntity.ts) into
    *  `ChatResponse.navigation`; everything else is discarded. Absent/empty = no proposal. */
   navigationCandidates?: GalaxyNavigationCandidate[];
+  /** Maya Longitudinal Intelligence, Phase H: an UNTRUSTED proposal that the user's message
+   *  itself explicitly stated a durable communication preference — never authoritative on its
+   *  own. The caller (`chat/graphrag.ts`) only ever treats this as ONE piece of evidence toward
+   *  a deterministically-accumulated preference (`analysis/interactionPreferences.ts`); it never
+   *  changes behavior directly. null/undefined = no such statement this turn (the common case). */
+  interactionPreferenceSignal?: InteractionPreferenceSignal | null;
 }
 
 /**

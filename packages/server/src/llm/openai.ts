@@ -478,8 +478,20 @@ export class OpenAiProvider implements LlmProvider {
             required: ["kind", "id"],
           },
         },
+        // Maya Longitudinal Intelligence, Phase H — UNTRUSTED proposal only, one piece of
+        // evidence toward a deterministically-accumulated preference, never authoritative on
+        // its own. "empty signal/value = none" — same strict-schema convention as askBack.
+        interactionPreferenceSignal: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            signal: { type: "string" },
+            value: { type: "string" },
+          },
+          required: ["signal", "value"],
+        },
       },
-      required: ["answer", "citations", "mood", "askBack", "usedRoles", "navigationCandidates"],
+      required: ["answer", "citations", "mood", "askBack", "usedRoles", "navigationCandidates", "interactionPreferenceSignal"],
     };
     const raw = await this.json<AnswerResult>(
       composeSystem(opts), // Layer 1 + About-Me + Layer 2 (custom instructions)
@@ -507,6 +519,12 @@ export class OpenAiProvider implements LlmProvider {
         : undefined,
       askBack: typeof raw.askBack === "string" && raw.askBack.trim() ? raw.askBack.trim() : undefined,
       usedRoles: Array.isArray(raw.usedRoles) ? raw.usedRoles.filter((x) => typeof x === "string") : undefined,
+      interactionPreferenceSignal: (() => {
+        const sig = raw.interactionPreferenceSignal as unknown as { signal?: unknown; value?: unknown } | undefined;
+        return sig && typeof sig.signal === "string" && sig.signal.trim() && typeof sig.value === "string" && sig.value.trim()
+          ? { signal: sig.signal, value: sig.value }
+          : undefined;
+      })(),
     };
   }
 

@@ -221,3 +221,20 @@ export interface GalaxyNavigationCandidate {
   kind: GalaxyNavigationKind;
   id: number;
 }
+
+/**
+ * Maya Longitudinal Intelligence, Phase H (docs/specs/maya-longitudinal-intelligence.md,
+ * Section 14) — an UNTRUSTED, LLM-proposed signal that the user's message ITSELF explicitly
+ * stated a durable communication preference ("always be more direct", "stop over-explaining") —
+ * never a one-off request about just this reply. Deliberately generic: `signal` names WHAT KIND
+ * of preference this is (e.g. "verbosity", "directness") and `value` what they want, with no
+ * fixed enum, so this never hard-codes a specific taxonomy of preferences. Like
+ * `GalaxyNavigationCandidate`, this is NEVER trusted directly — the server only uses it as ONE
+ * piece of evidence toward a deterministically-accumulated, confidence-scored preference (see
+ * `analysis/interactionPreferences.ts`); a single mention never rewrites how Maya behaves in
+ * future conversations on its own.
+ */
+export interface InteractionPreferenceSignal {
+  signal: string;
+  value: string;
+}

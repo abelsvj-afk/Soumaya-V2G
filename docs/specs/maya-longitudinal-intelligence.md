@@ -612,6 +612,65 @@ long as (2) is implemented as *additive* prompt guidance layered below Layer 1, 
 rewrite of the soul text itself. This is a real, if small, future capability — not attempted
 this pass.
 
+**Status: fixed (Phase H, shipped) — Path B, exactly the small generic extension this section
+already sketched.** Phase H's product-integration audit first confirmed the EXISTING explicit
+mechanisms are real and discoverable: `instruction_profiles` (named roles, freeform, via
+`CompanionSections.tsx`) and `identity.ts`'s per-space `soulTextFor`/`setSpaceSoul` (a freeform
+"how Soumaya should sound" override) already let a user EXPLICITLY set communication style today
+— confirmed working, not part of the gap. `analysis/persona/behavior.ts`'s `deriveBehavior` also
+already reads live, deterministic delivery signals (writing length, emotional trend) into every
+chat message — but that's about the USER's own recent state, not a durable record of what THEY
+told Maya about HOW to respond. The genuine, demonstrated gap was exactly what this section
+predicted: nothing accumulates OBSERVED evidence (as opposed to explicitly authored settings)
+into a durable, confidence-scored preference over multiple conversations.
+
+As-built: `interaction_preferences(space_id, signal, value, confidence, evidence_count,
+updated_at)` — one row per (space, signal), added to `TABLES_WITH_SPACE`. Evidence source: a new
+optional `AnswerResult.interactionPreferenceSignal` field on the SAME single `answer()` LLM call
+chat() already makes every message (the exact "propose, server decides" trust boundary Chat →
+Galaxy Navigation already established — `ANSWER_SYSTEM` instructs the model to propose one ONLY
+when the user's message ITSELF explicitly states a durable communication preference, never a
+one-off request about just that reply). This adds ZERO new LLM calls. `analysis/
+interactionPreferences.ts`'s `recordPreferenceSignal` treats it as evidence, never fact: a first
+mention starts at a low confidence (0.3) — below the surfacing bar — and a SECOND, CONSISTENT
+mention is what actually clears both a confidence threshold (≥0.5) and an evidence-count
+threshold (≥2) before it is surfaced into FUTURE conversations; a CONFLICTING value for the same
+signal resets to that same low, fresh baseline rather than instantly overwriting what was
+durably established — the newer claim has to earn its own repetition too. Confidence is capped
+at 0.9, never 1.0 ("certain"). `interactionPreferenceSnapshotText` (a tenth/eleventh
+`chat/graphrag.ts` snapshot, same null-when-empty contract as every other one) surfaces only
+preferences that have cleared both bars, explicitly hedged as "additive guidance, not a rule: an
+explicit instruction in THIS message always wins over this" — reusing the EXACT Section 14
+layering this document already specified: `systemExtra` (Layer 2) is assembled and passed to
+`composeSystem` strictly BELOW Layer 1 (`soulTextFor`)/About-Me, so nothing here can ever
+override the non-negotiable identity boundary. THIS-message compliance with an explicit
+instruction needs no code at all — the LLM already sees the user's own current message and
+follows it directly; this mechanism only governs whether a preference persists into future
+conversations, which is precisely the "temporary adaptation vs. durable trait" distinction the
+brief required.
+
+Deliberately NOT built (found unnecessary by the audit): detecting an IMPLICIT behavioral
+pattern without an explicit statement (e.g. "asked for shorter answers 3 times without ever
+saying so") — this would need either a fragile keyword heuristic or a new per-message LLM call,
+and the brief's own bias ("what problem genuinely requires learning, not where can we insert
+ML") argues against it until a real product need proves the explicit-statement channel
+insufficient; a UI surfacing what's been learned (real explainability value, but a separate
+product/design surface, not an intelligence-architecture gap); and any cross-signal preference
+hierarchy (domain-scoped preferences, recency-weighted blending beyond the simple reset-on-
+conflict rule above) — the brief's own "do not implement a complicated preference hierarchy
+unless demonstrated necessary" and nothing in the audit demonstrated it.
+
+**A real, PRE-EXISTING, unrelated performance characteristic was found and left alone (out of
+scope for this phase, not silently ignored):** `chat/graphrag.ts`'s "CURRENT APP STATE & SYSTEM
+TELEMETRY" block already calls `NodesRepo.all()` once per chat message (predates every phase in
+this document — a full-space read for total-memory-count/type-distribution/high-mass-hub
+telemetry). This is unrelated to interaction preferences and pre-dates Phase A; fixing it would
+be an unrelated change this phase was told not to make. Verified via `analysis/
+interactionPreferences.test.ts` (9 tests) and `__tests__/interactionPreferencesChat.test.ts` (5
+tests, real `chat()` calls) that this feature adds NO additional scan beyond that existing
+baseline, and that everything else (explicit recognition, weak-evidence insufficiency,
+reinforcement, conflict handling, factual non-interference, space isolation) holds.
+
 ## 15. External / Environmental Context Boundary (design only)
 
 No integration exists or is proposed. The boundary, if built later: any web/tool result
@@ -623,6 +682,26 @@ in `buildAnswerPrompt` today, distinct from `MEMORIES`. **This document does not
 building the integration** — only that IF it is built, it must never be merged into the
 `MEMORIES` block or `ProvenanceRef.domain` (which has no `"external"` value today and would need
 one).
+
+**Status: audited (Phase H) — Path C, architecture boundary confirmed, live integration
+deliberately deferred.** Phase H re-confirmed `webLookup(query)` is real, already-shipped
+(Gemini's Google Search grounding — `llm/gemini.ts`'s `async webLookup`, wrapped for graceful
+degradation by `ResilientLlmProvider`) and genuinely unused by `chat()`. The architecture question
+this section already answered (HOW to surface it safely, if built) needed no further design work.
+What remains is deliberately NOT decided here, because it is a product decision, not an
+architecture gap (the brief's own Stop Condition #7): whether to spend a real external API
+call — cost, latency, and reliability all real — automatically inside a personal life-tracking
+chat, when it should trigger relative to the single existing `answer()` call chat() already
+makes, and whether it needs the same gating this app already applies to its OTHER genuinely
+expensive optional capabilities (the autonomous research loop is explicitly "token-gated behind
+Research Mode"). Deciding "yes, wire it in, gated behind X" without a stated product need is
+exactly the speculative-infrastructure risk this phase was told to avoid. The existing `route()`
+capability (`LlmProvider.route`, today used only by the autonomy tool router,
+`agent/tools/router.ts`) was also considered as a way to decide "does this message need current
+information" — rejected for the same reason `chat()` doesn't call it today: it is itself an LLM
+call, and adding one to every chat message purely to decide whether to make a SECOND, more
+expensive one would violate this phase's own "no redundant LLM calls" performance rule. No code
+changed for this half of Phase H.
 
 ## 16. ML vs. LLM vs. Deterministic Responsibility Matrix
 
@@ -783,9 +862,12 @@ insufficient.
   `buildEmotionalTrajectoryAmong`) — see Section 10's Status note for the as-built design and
   why Journey/Life-Vision and work/transportation were NOT forced as extensions (no
   deterministic change detector exists for either). 14 new tests, full regression gate green.
-- **Phase H — Learned interaction model (Section 14) and external context (Section 15).**
-  Deliberately last: both require new persistence/integration decisions this document
-  intentionally leaves open, and neither is needed to prove the rest of the architecture.
+- **Phase H — Learned interaction model (Section 14, Path B, done) and external context
+  (Section 15, Path C, audited/deferred).** Also included a small product-integration audit of
+  Journeys (confirmed fully wired end-to-end, no fix needed) and Life Vision (real backend + UI
+  exist, discoverability weak — one small documentation fix made, no redesign). See Section 14's
+  and Section 15's own Status notes for the as-built decisions and why external context's live
+  wiring was deliberately left a product decision rather than built speculatively.
 
 No ML phase is proposed. Per Section 16, nothing in the gap matrix requires one yet.
 

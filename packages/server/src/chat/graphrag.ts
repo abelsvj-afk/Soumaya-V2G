@@ -17,6 +17,7 @@ import { cognitiveSnapshotText } from "../analysis/cognitive.js";
 import { temporalSnapshotText } from "../analysis/temporalContext.js";
 import { intelligenceSnapshotText } from "../analysis/intelligence.js";
 import { emotionalSnapshotText } from "../analysis/emotional.js";
+import { interactionPreferenceSnapshotText, recordPreferenceSignal } from "../analysis/interactionPreferences.js";
 import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
 import { buildNavigationCandidateList, resolveNavigationIntent } from "../analysis/galaxyEntity.js";
 import { UsageTracker } from "../usage.js";
@@ -264,6 +265,19 @@ Use this telemetry to guide the user! For example:
     /* emotional context is best-effort; never break chat */
   }
 
+  // Maya Longitudinal Intelligence, Phase H (docs/specs/maya-longitudinal-intelligence.md,
+  // Section 14): LEARNED communication preferences from PAST conversations — additive Layer-2
+  // guidance, never a rule, always outranked by an explicit instruction in THIS message. Reads
+  // only this space's own small preference table (analysis/interactionPreferences.ts); no scan,
+  // no new retrieval. Recording any NEW signal from THIS message happens after the answer call
+  // below, once the model has actually responded.
+  try {
+    const preferences = interactionPreferenceSnapshotText(h, spaceId);
+    if (preferences) systemExtra += `\n\n${preferences}`;
+  } catch {
+    /* preference context is best-effort; never break chat */
+  }
+
   // I2 — clarification → confirmed knowledge (docs/specs/maya-intelligence-architecture.md).
   // If this message answers a pending clarification, it's now a real memory (embedded,
   // linked back to its evidence) — surface it in THIS turn's context so she can acknowledge
@@ -343,6 +357,17 @@ roles, or your knowledge. When you tell the user something about THEMSELVES, add
     galaxyCandidates: galaxyCandidates.length > 0 ? galaxyCandidates : undefined,
   });
   const { answer, citations, mood } = raw;
+
+  // Maya Longitudinal Intelligence, Phase H — record any NEW preference evidence this message
+  // just produced. Best-effort, never blocks/breaks the reply; a single mention never changes
+  // future behavior by itself (analysis/interactionPreferences.ts enforces the evidence bar).
+  if (raw.interactionPreferenceSignal) {
+    try {
+      recordPreferenceSignal(h, spaceId, raw.interactionPreferenceSignal.signal, raw.interactionPreferenceSignal.value);
+    } catch {
+      /* preference recording is best-effort; never break chat */
+    }
+  }
   // Belt to the prompt's rule: if she just asked, drop any askBack she still
   // produced — she must respond with substance, not another question.
   const askBack = justAsked ? undefined : raw.askBack;
