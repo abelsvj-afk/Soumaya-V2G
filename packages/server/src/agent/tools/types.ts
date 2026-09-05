@@ -37,6 +37,14 @@ export interface ToolResult {
    *  (verbatim) instead of `summary`, so the web app's in-app event bridge can surface
    *  it as a toast even for a user with no external delivery channel linked. */
   message?: string;
+  /** Entity ids this result concerns (e.g. a Financial Goal id) — written verbatim into
+   *  `agent_logs.targets` (Phase X, docs/specs/soumaya-goal-trend-proactive-pilot.md) so
+   *  a future firing can check "have I already surfaced THIS specific entity recently,"
+   *  not just "has this tool fired recently." Omit (the default) to keep `targets` as
+   *  the existing `'[]'` — every pre-existing tool's logged rows are byte-identical to
+   *  before this field existed. Matches the exact `JSON.stringify([id])` shape
+   *  `analysis/cognitive.ts`'s `goal_completed` write already uses. */
+  targets?: number[];
 }
 
 export interface Tool {

@@ -30,9 +30,12 @@ function logAction(ctx: AppContext, spaceId: string, tool: string, reason: strin
     // real user-facing text — and that's logged verbatim so the web app's in-app event
     // bridge (App.tsx) can toast it even for a user with no external channel linked.
     const description = result.message ?? `${result.summary} — ${reason}`;
+    // Phase X: `result.targets` (optional, defaults to none) lets a tool record which
+    // entity it concerned — every pre-existing tool leaves it unset, so this is
+    // byte-identical to the old hardcoded '[]' for all of them.
     ctx.handle.sqlite
-      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets, created_at) VALUES (?, ?, ?, '[]', ?)`)
-      .run(spaceId, `tool:${tool}`, description, new Date(now).toISOString());
+      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets, created_at) VALUES (?, ?, ?, ?, ?)`)
+      .run(spaceId, `tool:${tool}`, description, JSON.stringify(result.targets ?? []), new Date(now).toISOString());
   } catch {
     /* best-effort logging */
   }

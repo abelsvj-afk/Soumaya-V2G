@@ -9,9 +9,22 @@ import { weeklyReviewTool } from "./weeklyReview.js";
 import { chartDiscoveryTool } from "./chartDiscovery.js";
 import { billRiskTool } from "./billRisk.js";
 import { financeFreshnessTool } from "./financeFreshness.js";
+import { goalFundingTrendTool } from "./goalFundingTrend.js";
 
 /**
  * The tools Soumaya can call on her own (docs/SOUMAYA_TOOLS.md). Add new tools here;
  * the router picks them up automatically. Order is the deterministic execution order.
  */
-export const TOOLS: Tool[] = [reminderTool, taskCreatorTool, orphanTool, reviewNudgeTool, checkinTool, webLookupTool, weeklyReviewTool, chartDiscoveryTool, billRiskTool, financeFreshnessTool];
+export const TOOLS: Tool[] = [
+  reminderTool,
+  taskCreatorTool,
+  orphanTool,
+  reviewNudgeTool,
+  checkinTool,
+  webLookupTool,
+  weeklyReviewTool,
+  chartDiscoveryTool,
+  billRiskTool,
+  financeFreshnessTool,
+  goalFundingTrendTool,
+];
