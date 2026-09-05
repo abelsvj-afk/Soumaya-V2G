@@ -70,9 +70,19 @@ import {
   getCandidates,
   burnFuel,
   type Health,
+  type ProactiveContext,
+  type ProactiveContextSource,
 } from "./api/client.js";
 
 type Panel = "search" | "ingest" | "dock" | null;
+
+// Phase Y/Z: which `tool:*` agent-log actions carry a Proactive → Chat handoff, and what
+// `ProactiveContextSource` each maps to. Adding a future third source is exactly one more
+// entry here — no new dispatch code, no new framework.
+const PROACTIVE_TOAST_SOURCE: Record<string, ProactiveContextSource> = {
+  "tool:goal_trend": "goal_trend",
+  "tool:bill_risk": "bill_risk",
+};
 
 export default function App() {
   const renderCount = useRef(0);
@@ -94,11 +104,11 @@ export default function App() {
   const [streak, setStreak] = useState<Streak | null>(null);
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
-  // Phase Y: one-shot proactive → Chat handoff. Set only from a real toast click
-  // (`kind:"chat"` action carrying `"goal_trend:<id>"`), consumed by ChatDock on the
+  // Phase Y/Z: one-shot proactive → Chat handoff. Set only from a real toast click
+  // (`kind:"chat"` action carrying `"<source>:<id>"`), consumed by ChatDock on the
   // very next message it actually sends, then cleared — never replayed, never
   // persisted, never inferred from anything the user typed.
-  const [pendingProactiveContext, setPendingProactiveContext] = useState<{ source: "goal_trend"; targetId: number } | null>(null);
+  const [pendingProactiveContext, setPendingProactiveContext] = useState<ProactiveContext | null>(null);
   const [showWealthFullscreen, setShowWealthFullscreen] = useState(false);
   const [showFinanceFullscreen, setShowFinanceFullscreen] = useState(false);
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
@@ -1023,15 +1033,17 @@ export default function App() {
       const toolLogs = logs.filter((l) => l.id > lastSeen && l.action.startsWith("tool:")).reverse();
       for (const l of toolLogs.slice(-2)) {
         const icon = l.description.match(/^\p{Extended_Pictographic}+/u)?.[0] ?? "🛰️";
-        // Phase Y: the goal_trend pilot's toast carries a structured Chat handoff —
-        // the goal id it already writes to `targets` (Phase X) — so tapping it opens
+        // Phase Y/Z: a proactive tool's toast carries a structured Chat handoff — the
+        // target id it already writes to `targets` (Phase X/Z) — so tapping it opens
         // Chat already knowing WHY, instead of the user having to explain the trigger
-        // back to her. Every other tool:* toast is completely unaffected.
+        // back to her. Any tool:* action not in this map is completely unaffected;
+        // adding a third source is exactly this one-line map entry, nothing more.
+        const source: ProactiveContextSource | undefined = PROACTIVE_TOAST_SOURCE[l.action];
         let action: ToastAction | undefined;
-        if (l.action === "tool:goal_trend") {
+        if (source) {
           try {
-            const goalId = (JSON.parse(l.targets) as unknown[])[0];
-            if (typeof goalId === "number") action = { kind: "chat", value: `goal_trend:${goalId}` };
+            const targetId = (JSON.parse(l.targets) as unknown[])[0];
+            if (typeof targetId === "number") action = { kind: "chat", value: `${source}:${targetId}` };
           } catch {
             /* malformed targets — falls back to a plain toast, no handoff */
           }
@@ -1174,11 +1186,11 @@ export default function App() {
       else if (a.kind === "tab" && a.value != null) { dismissObs(); setTab(String(a.value) as any); setPanel("dock"); }
       else if (a.kind === "panel" && a.value != null) { setPanel(String(a.value) as any); }
       else if (a.kind === "chat") {
-        // Phase Y: a goal_trend toast's "chat" action carries "goal_trend:<goalId>" —
-        // every other chat-kind action (there are none today, but any future one)
-        // falls through to opening Chat with no proactive context, unaffected.
-        const m = typeof a.value === "string" ? /^goal_trend:(\d+)$/.exec(a.value) : null;
-        if (m) setPendingProactiveContext({ source: "goal_trend", targetId: Number(m[1]) });
+        // Phase Y/Z: a proactive toast's "chat" action carries "<source>:<targetId>"
+        // (goal_trend or bill_risk) — any other chat-kind action (there are none today,
+        // but any future one) falls through to opening Chat with no proactive context.
+        const m = typeof a.value === "string" ? /^(goal_trend|bill_risk):(\d+)$/.exec(a.value) : null;
+        if (m) setPendingProactiveContext({ source: m[1] as ProactiveContextSource, targetId: Number(m[2]) });
         setShowChat(true);
       }
     };

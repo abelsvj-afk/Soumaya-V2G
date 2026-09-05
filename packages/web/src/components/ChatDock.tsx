@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatMood, NodeRef, NavigationIntent } from "@brain/shared";
 import { useDialogA11y } from "../hooks/useDialogA11y.js";
-import { askChat, getSpaceId, ingestText, distillChat } from "../api/client.js";
+import { askChat, getSpaceId, ingestText, distillChat, type ProactiveContext } from "../api/client.js";
 import { colorForType } from "../graph/theme.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
@@ -98,12 +98,12 @@ export function ChatDock({
    *  (this component never re-fires it from stored `messages`, only from the click handler). */
   onNavigate?: (nav: NavigationIntent) => void;
   /**
-   * Proactive → Chat handoff (Phase Y). Set ONLY when the user opened this dock from a
-   * real proactive toast (e.g. Phase X's goal_trend nudge) — a one-shot value, consumed
-   * by the very next message the user actually sends (see `onConsumeProactiveContext`),
-   * never replayed on later turns.
+   * Proactive → Chat handoff (Phase Y; Phase Z adds "bill_risk"). Set ONLY when the user
+   * opened this dock from a real proactive toast (e.g. a goal_trend or bill_risk nudge) —
+   * a one-shot value, consumed by the very next message the user actually sends (see
+   * `onConsumeProactiveContext`), never replayed on later turns.
    */
-  proactiveContext?: { source: "goal_trend"; targetId: number } | null;
+  proactiveContext?: ProactiveContext | null;
   /** Called once this dock has used `proactiveContext` for a send, so the caller can
    *  clear it — guarantees it's attached to exactly one outgoing message. */
   onConsumeProactiveContext?: () => void;

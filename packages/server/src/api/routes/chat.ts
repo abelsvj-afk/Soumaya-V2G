@@ -17,12 +17,15 @@ const ChatBody = z.object({
   // space (JourneysRepo.get is space-scoped) before using it for anything; an invalid or
   // cross-space id here just contributes zero extra candidates, never an error.
   journeyId: z.number().int().positive().optional(),
-  // Proactive -> Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md).
+  // Proactive -> Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md;
+  // Phase Z adds "bill_risk", docs/specs/soumaya-bill-risk-proactive-source.md).
   // Only ever set when the user opened Chat from a real proactive delivery (a toast
   // click) — chat() itself re-validates `targetId` against this space's real data
   // before using it for anything; an invalid/stale/cross-space value contributes
-  // nothing, never an error, same contract as journeyId above.
-  proactiveContext: z.object({ source: z.literal("goal_trend"), targetId: z.number().int().positive() }).optional(),
+  // nothing, never an error, same contract as journeyId above. The literal source
+  // enum is the ONLY per-source surface this contract needs — {source, targetId}
+  // itself is unchanged from Phase Y.
+  proactiveContext: z.object({ source: z.enum(["goal_trend", "bill_risk"]), targetId: z.number().int().positive() }).optional(),
 });
 
 const DistillBody = z.object({

@@ -655,6 +655,19 @@ export async function runContradictions(): Promise<Insight[]> {
   );
 }
 
+/**
+ * Proactive → Chat handoff sources (Phase Y: "goal_trend"; Phase Z adds "bill_risk",
+ * docs/specs/soumaya-bill-risk-proactive-source.md). Exported once here so client.ts,
+ * ChatDock.tsx, and App.tsx share one literal instead of three independently-typed
+ * copies now that there are two sources — still just a web-local type alias, not a new
+ * cross-package abstraction.
+ */
+export type ProactiveContextSource = "goal_trend" | "bill_risk";
+export interface ProactiveContext {
+  source: ProactiveContextSource;
+  targetId: number;
+}
+
 export async function askChat(
   question: string,
   /** Recent turns (oldest first) so she carries the conversation thread. */
@@ -665,7 +678,7 @@ export async function askChat(
    * click) — the server re-validates it against real data before using it for
    * anything, so an invalid/stale/cross-space value here just contributes nothing.
    */
-  proactiveContext?: { source: "goal_trend"; targetId: number },
+  proactiveContext?: ProactiveContext,
 ): Promise<ChatResponse> {
   return tracked(
     (async () => {

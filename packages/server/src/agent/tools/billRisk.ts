@@ -164,6 +164,10 @@ export const billRiskTool: Tool = {
 
     let delivered = false;
     try { await tc.notify(msg); delivered = true; } catch { /* router logs it regardless */ }
-    return { ok: true, summary: `bill-risk nudge for "${bill.name}" (${mode})`, delivered, message: msg };
+    // Phase Z: the same `agent_logs.targets` convention Phase X established for goal_trend —
+    // lets the Proactive → Chat handoff (analysis/proactiveContext.ts) resolve exactly which
+    // bill this nudge concerned. Purely additive: detect()'s own once-a-day dedup gate is
+    // untouched and unaffected by this field.
+    return { ok: true, summary: `bill-risk nudge for "${bill.name}" (${mode})`, delivered, message: msg, targets: [billId] };
   },
 };
