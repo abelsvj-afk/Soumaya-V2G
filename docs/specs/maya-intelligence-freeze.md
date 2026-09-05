@@ -185,50 +185,85 @@ re-litigate it without a new reality-test failure demonstrating a problem with i
 ## 7. Architecture boundary audit (duplicate-systems search)
 
 A dedicated read-only search of `packages/server/src` and `packages/shared/src` was run against
-the ten categories the task specifies. Summary (no accidental duplicates found in any category —
-every mechanism found is a single, already-intentional implementation):
+the ten categories the task specifies (cross-checked independently by a second pass over the same
+categories). Summary — **no accidental or competing duplicate found in any category**; every
+additional mechanism turned up below is a distinct, legitimate, already-intentional piece of the
+architecture, named explicitly here so the freeze record is complete rather than approximate:
 
 1. **Alternate/duplicate memory or entity stores** — none. The only vector tables are
-   `vec_nodes`, `vec_profiles`, `vec_journeys`, and the knowledge-doc chunk table — each backs a
-   distinct, already-documented feature (memories, instruction profiles, Journeys, uploaded
-   documents), not a duplicate of another. No second "entities"/"world_state" table exists.
+   `vec_nodes`, `vec_docs`, `vec_profiles`, `vec_journeys` (`db/vec.ts`) — each backs a distinct,
+   already-documented feature (memories, uploaded documents, instruction profiles, Journeys), not
+   a duplicate of another. `journeys`/`journey_link` explicitly LINK rather than copy content, and
+   `intelligence_clarifications` tracks only the question lifecycle — the resolved fact always
+   becomes a real `nodes` row, never a parallel fact store. No generic "entities"/"world_state"
+   table exists.
 2. **Duplicate entity resolution** — none beyond `analysis/cognitive.ts`'s
-   `linkCognitiveAnchor`/`applyCognitiveGravity` (name/alias + semantic-KNN linking) and
-   `analysis/galaxyEntity.ts`'s `resolveGalaxyEntity` (Galaxy-body lookup by kind+id, a different
-   job: rendering/navigation, not "who is this person").
+   `linkCognitiveAnchor`/`applyCognitiveGravity` (name/alias + semantic-KNN linking, in-text
+   ambiguous-mention resolution) and `analysis/galaxyEntity.ts`'s `resolveGalaxyEntity`
+   (Galaxy-body lookup by kind+id — a rendering/navigation job, not "who is this person"). Two
+   further mechanisms exist but solve different problems, not the same one twice:
+   `analysis/people.ts`'s `mergeDuplicatePeople`/`suggestPeople` (exact-label roster
+   de-duplication and "you mention this name often, add them" surfacing) and `analysis/dedup.ts`'s
+   `sweepDuplicates`/`mergeMemories` (near-identical MEMORY content dedup by embedding similarity —
+   not entity identity at all).
 3. **Duplicate temporal engines** — none. `analysis/temporal.ts` (pure classification),
    `analysis/temporalChange.ts` (period-over-period diffing), `analysis/temporalContext.ts`
    (cross-domain assembly + chat snapshot), `analysis/temporalChains.ts` (evolution-link
    detection, reused by Phase A's supersession work), and `lib/time.ts` (the one shared tolerant
    timestamp parser) are each a distinct layer, not competing implementations of the same job.
+   Two more date-arithmetic modules exist but answer different questions: `analysis/future.ts`'s
+   `upcomingEvents`/`rollPastEvents` drive a single node-kind's lifecycle transition
+   (`future_event` → `memory`) via raw SQL date math rather than classifying a `TemporalState`, and
+   `analysis/foresight.ts` predicts whether a recurring pattern is due soon — neither re-implements
+   `temporal.ts`'s single-fact classification. `shared/src/temporal.ts` is types-only, correctly
+   deferring all logic to `analysis/temporal*.ts`.
 4. **Duplicate causal engines** — none. `analysis/causal.ts`'s `possibleDownstreamEffects` is the
-   only causal-inference code in the repository.
-5. **Duplicate emotion systems** — none. `analysis/emotional.ts` (trajectory/pattern detection
-   over dated, valenced memories) and `shared`'s `analyzeSentiment` (a single message's valence at
-   ingestion time) are different jobs at different layers (longitudinal pattern vs. one-shot
-   sentiment tagging), not two implementations of the same thing.
-6. **Duplicate relevance/ranking systems** — none. `analysis/relevance.ts`'s `computeRelevance`
-   (durability/reinforcement/entropy-based tiering, standalone) and GraphRAG's own KNN+BM25+RRF
-   fusion (`chat/graphrag.ts`/`db/fts.ts`) serve different purposes (post-hoc relevance
-   classification vs. retrieval ranking) and are not wired together — consistent with §4's
-   documented non-integration, not an accidental duplicate.
-7. **New "world state" abstractions** — none found beyond the existing `nodes`/`edges` graph and
-   the named domain tables (finance, journeys, cognitive/mind).
-8. **Competing personality/persona state** — none. `persona/derive.ts`, `persona/behavior.ts`, and
-   `identity.ts` (`soulTextFor`/`getGroundedInsight`) are the only "who is this" mechanisms, each
-   with a distinct, non-overlapping role (derived facts about the user, recent-behavior delivery
-   cues, Soumaya's own authored character).
-9. **Redundant preference storage** — none. `interaction_preferences` (learned, evidence-gated
-   communication style) and `instruction_profiles` (explicit, user-authored custom roles) are
-   deliberately separate by design (Phase H's own "category error" reasoning — a learned pattern
-   isn't the same kind of thing as an explicit instruction) and use different tables/repos.
-10. **Autonomous/automatic navigation mechanisms** — none. The only path that can set
-    `ChatResponse.navigation` is `resolveNavigationIntent`, called from `chat()` against an
-    LLM-proposed candidate; the only path that moves the camera client-side is `ChatDock.tsx`'s
-    chip `onClick`. No timer, autonomy-sweep job, or background process navigates the Galaxy.
+   only causal-inference code in the repository; `analysis/intelligence.ts` calls it directly
+   rather than re-deriving causal links.
+5. **Duplicate emotion systems** — none. `analysis/emotional.ts` (longitudinal trajectory/pattern
+   detection over dated, valenced memories) and `analyzeSentiment` (`shared/src/dramatize.ts`, a
+   single message's valence at ingestion time, used by `llm/heuristic.ts`) are different jobs at
+   different layers, not two implementations of the same thing. A third mechanism,
+   `dramatize.ts`'s `toneFrom`/`moodFromTone`/`prosodyFor` (used in `chat/graphrag.ts` to pick the
+   chat REPLY's delivery tone/TTS prosody), is a real-time speech-delivery-affect model — it
+   internally reuses `analyzeSentiment` rather than re-inferring mood independently, and answers
+   "how should THIS reply sound," not "what pattern does this person's history show." **Noted
+   limitation, not a duplicate:** `buildEmotionalTrajectory`'s "steady" trend default on zero data
+   is a previously-flagged (in `shared/src/temporal.ts`'s own comment), unfixed rough edge — a
+   minor cosmetic default, not a correctness issue, and out of scope for this freeze.
+6. **Duplicate relevance/ranking systems** — none; the opposite issue, already documented in §3/§4:
+   `analysis/relevance.ts`'s `computeRelevance` has **zero production callers** — only its own test
+   file and `causal.test.ts` import it. GraphRAG's KNN+BM25+RRF fusion (`chat/graphrag.ts`,
+   `db/fts.ts`'s `fuseRrf`) is the only ranking mechanism actually wired into retrieval today. One
+   relevance module, one retrieval-fusion module, not wired together — consistent with the
+   deliberate non-integration §3/§4 already record, not an accidental duplicate.
+7. **New "world state" abstractions** — none. No table or module holds a generic mutable "current
+   state of the world" outside the `nodes`/`edges` graph and the named domain tables (finance,
+   journeys, cognitive/mind). `space_meta` is narrowly scoped to fuel/streak/presence/research-mode
+   toggles, not a world-state store.
+8. **Competing personality/persona state** — none. `user_persona` has exactly one writer
+   (`persona/derive.ts`'s `refreshPersona`/`derivePersona`, via `UserPersonaRepo`);
+   `persona/behavior.ts`'s `deriveBehavior` is a distinct, explicitly-documented, never-persisted
+   layer ("who they are" vs. "how to be with them right now"); `analysis/identity.ts` is a
+   different concept again (per-node confidence for a user-declared identity statement like "I am
+   a runner," not global persona storage); `identity.ts`'s `soulText`/`soulTextFor` is the sole
+   soul.md mechanism. No overlap between any of the four.
+9. **Redundant preference storage** — none. `interaction_preferences` has exactly one writer
+   (`analysis/interactionPreferences.ts`'s `recordPreferenceSignal`) and its own schema comment
+   states it's kept separate from both `nodes` and `instruction_profiles` by design (Phase H's
+   "category error" reasoning). No other table stores a preference/behavioral setting.
+10. **Autonomous/automatic navigation mechanisms** — none. Every navigation-adjacent path
+    (`api/routes/graph.ts`, `chat/graphrag.ts`) routes through `buildNavigationCandidateList` → an
+    explicitly-UNTRUSTED LLM proposal → `resolveNavigationIntent` as sole authority, itself built
+    only from `resolveGalaxyEntity`'s validated descriptor. `resolveNavigationIntent` deliberately
+    EXCLUDES the `"node"` kind (memories) specifically to avoid opening a second path to memory
+    navigation alongside citations — a defense-in-depth detail worth recording. No timer,
+    autonomy-sweep job, or background process navigates the Galaxy; the only camera-moving code
+    client-side is `ChatDock.tsx`'s chip `onClick`.
 
 **Conclusion: the architecture is clean.** No accidental duplicate or competing system was found
-in any of the ten audited categories.
+in any of the ten audited categories; every additional mechanism named above is legitimate and
+already serves a distinct, non-overlapping purpose.
 
 ## 8. Regression coverage audit
 
