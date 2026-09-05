@@ -3,6 +3,7 @@ import type { DbHandle } from "../db/client.js";
 import { DEFAULT_SPACE } from "../db/schema.js";
 import { NodesRepo } from "../repositories/nodes.repo.js";
 import { InsightsRepo } from "../repositories/insights.repo.js";
+import { buildCommunicationContext } from "../communication/context.js";
 
 /** YYYY-MM-DD prefix of a stored timestamp (CURRENT_TIMESTAMP or ISO). */
 const day = (ts: string | undefined): string => (ts ?? "").slice(0, 10);
@@ -18,25 +19,64 @@ const snippetOf = (content: string): string => {
  * Soumaya's one-line, in-character read on a memory — free (no LLM). Derived
  * from its emotional charge and weight so her take feels grounded in the body's
  * real gravity.
+ *
+ * Phase T (docs/specs/soumaya-proactive-communication-migration.md): `preferConcise` —
+ * an existing, evidence-gated learned verbosity preference read once by the caller
+ * (see `buildDailyDigest` below) — selects a shorter phrasing of the SAME
+ * classification. The emotionalWeight/importance read and the bucketing itself are
+ * completely unchanged; only sentence length varies, never the underlying fact.
  */
-function takeFor(n: GraphNode): string {
+function takeFor(n: GraphNode, preferConcise: boolean): string {
   const e = n.emotionalWeight ?? 0;
   const w = n.importance ?? 0.4;
   const heavy = w >= 0.7;
   const light = w <= 0.3;
   if (e <= -0.4) {
-    return heavy
-      ? "A dense, dark body — strong pull. I'd keep an orbit on this one; it bends the thoughts around it."
-      : "Reads cold from up here. Small for now, but worth a fly-by before it drifts.";
+    if (heavy) {
+      return preferConcise
+        ? "Dense and dark — worth an orbit."
+        : "A dense, dark body — strong pull. I'd keep an orbit on this one; it bends the thoughts around it.";
+    }
+    return preferConcise ? "Reads cold, still small." : "Reads cold from up here. Small for now, but worth a fly-by before it drifts.";
   }
   if (e >= 0.4) {
-    return heavy
-      ? "Burning bright and massive — a little sun. Other memories will start to circle it."
-      : "A warm little spark. Pleasant to pass through.";
+    if (heavy) {
+      return preferConcise ? "Bright and massive — a little sun." : "Burning bright and massive — a little sun. Other memories will start to circle it.";
+    }
+    return preferConcise ? "A warm little spark." : "A warm little spark. Pleasant to pass through.";
   }
-  if (heavy) return "Carries real mass. It's anchoring this sector.";
-  if (light) return "A faint drifter for now — let's see what it links to.";
+  if (heavy) return preferConcise ? "Carries real mass." : "Carries real mass. It's anchoring this sector.";
+  if (light) return preferConcise ? "A faint drifter." : "A faint drifter for now — let's see what it links to.";
   return "Steady signal, holding its lane.";
+}
+
+/**
+ * Phase T: the same shared CommunicationContext boundary billRisk (Phase S) and
+ * check_in use, applied to a periodic multi-item digest instead of a single-event
+ * nudge — proving the boundary generalizes to a third, structurally different
+ * consumer shape. Priority mirrors the other two pilots' own discipline: an explicit
+ * learned preference (concise) wins outright over a softer, pattern-driven tone, so
+ * the two never combine into a cross-product of variants. `leadGently` never NAMES
+ * the detected pattern — same epistemic rule as billRisk/check_in.
+ */
+function buildGreeting(newCount: number, preferConcise: boolean, leadGently: boolean): string {
+  const bodies = newCount === 1 ? "body" : "bodies";
+  if (preferConcise) return newCount > 0 ? `${newCount} new ${bodies} today.` : "Quiet pass today.";
+  if (leadGently) {
+    return newCount > 0
+      ? `A gentle pass today — ${newCount} new ${bodies} lit up. Take your time with these.`
+      : "A quiet pass today — nothing new, nothing urgent. Take it easy.";
+  }
+  return newCount > 0
+    ? `Made my rounds. ${newCount} new ${bodies} lit up in your galaxy today — here's what I logged.`
+    : "Quiet pass today — no new bodies on the charts. Here's what's still worth your attention.";
+}
+
+function buildClosing(bits: string[], preferConcise: boolean): string {
+  if (preferConcise) return bits.length > 0 ? `${bits.join("; ")}.` : "All quiet.";
+  return bits.length > 0
+    ? `${bits.join("; ")}. Course steady — I'll keep watch from up here.`
+    : "All quiet on the charts. I'll keep drifting and let you know what I find.";
 }
 
 /**
@@ -78,12 +118,21 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
   const today = new Date().toISOString().slice(0, 10);
   const nodesRepo = new NodesRepo(h, spaceId);
 
+  // Phase T: the shared, read-only communication boundary. The digest is a
+  // background/proactive surface (not chat's hot path, same precedent as billRisk),
+  // so it opts into the full-space emotional read. Every field here is a cheap
+  // deterministic SQL read — zero LLM calls, same as this generator's existing
+  // "NO LLM call" contract (see the doc comment on buildDailyDigest below).
+  const comm = buildCommunicationContext(h, spaceId, { includeFullSpaceEmotionalTrajectory: true });
+  const preferConcise = comm.preferences.some((p) => p.signal === "verbosity" && /concise|brief|short/i.test(p.value));
+  const leadGently = comm.emotionalPatterns?.some((p) => p.type === "Stress cycle" || p.type === "Burnout risk" || p.type === "Downswing") ?? false;
+
   // Fresh, real memories logged today (action items are summarized separately).
   const fresh: DigestEntry[] = nodesRepo
     .recent(60)
     .filter((n) => n.kind !== "action" && day(n.createdAt) === today)
     .slice(0, 8)
-    .map((n) => ({ node: refOf(n), snippet: snippetOf(n.content), take: takeFor(n) }));
+    .map((n) => ({ node: refOf(n), snippet: snippetOf(n.content), take: takeFor(n, preferConcise) }));
 
   const connections = new InsightsRepo(h, spaceId).recent(5);
   const expiredActions = expiredActionsToday(h, today, spaceId);
@@ -137,10 +186,7 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
   }
 
   const newCount = fresh.length;
-  const greeting =
-    newCount > 0
-      ? `Made my rounds. ${newCount} new ${newCount === 1 ? "body" : "bodies"} lit up in your galaxy today — here's what I logged.`
-      : "Quiet pass today — no new bodies on the charts. Here's what's still worth your attention.";
+  const greeting = buildGreeting(newCount, preferConcise, leadGently);
 
   const bits: string[] = [];
   if (connections.length > 0)
@@ -151,10 +197,7 @@ export function buildDailyDigest(h: DbHandle, spaceId: string = DEFAULT_SPACE): 
     bits.push(`${cooling.length} memor${cooling.length === 1 ? "y is" : "ies are"} going cold — drop by to warm ${cooling.length === 1 ? "it" : "them"}`);
   if (reminders.length > 0)
     bits.push(`${reminders.length} reminder${reminders.length === 1 ? "" : "s"} you set ${reminders.length === 1 ? "has" : "have"} come due`);
-  const closing =
-    bits.length > 0
-      ? `${bits.join("; ")}. Course steady — I'll keep watch from up here.`
-      : "All quiet on the charts. I'll keep drifting and let you know what I find.";
+  const closing = buildClosing(bits, preferConcise);
 
   return { date: today, greeting, fresh, connections, expiredActions, cooling, reminders, closing };
 }

@@ -1,10 +1,27 @@
 import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
+import { buildCommunicationContext, recentActionCount } from "../../communication/context.js";
 
 /**
  * Proactive check-ins (SOUMAYA_TOOLS.md tool #3). Beyond the once-a-day digest, she
  * reaches out WHEN something happens — a heavy emotional stretch, or two memories that
  * pull against each other (an unaddressed contradiction). Gentle + rate-limited: at
  * most one check-in per space per day. Deterministic + offline.
+ *
+ * Phase T pilot (docs/specs/soumaya-proactive-communication-migration.md) — the
+ * non-financial consumer proving `communication/context.ts` generalizes beyond
+ * billRisk (Phase S). detect()'s own heaviness/contradiction detection below is
+ * COMPLETELY UNCHANGED — this tool already performs its own emotional read (a raw
+ * 5-day mean-of-emotional_weight check, deliberately separate from
+ * `analysis/emotional.ts`'s pattern detector — a pre-existing signal that predates this
+ * phase and is left exactly as-is, per the phase's "preserve existing intelligence" rule).
+ * Because detect() already IS this surface's emotional signal, `run()` deliberately does
+ * NOT also read `CommunicationContext.emotionalPatterns` — doing so would mean two
+ * independent emotional reads feeding one message, which is redundant, not more
+ * intelligent (the "available vs. relevant" distinction this phase asks to preserve).
+ * Only `preferences` (learned verbosity/directness) and a repetition-awareness read
+ * (`recentActionCount` — has check-in already fired recently) shape HOW the
+ * already-detected signal is phrased. Zero new LLM calls; every default (no-evidence)
+ * branch below is byte-identical to the pre-Phase-T wording.
  */
 
 const HEAVY_WINDOW_MS = 1000 * 60 * 60 * 24 * 5; // look back 5 days
@@ -16,6 +33,36 @@ function toMs(iso: string): number {
   const z = s.endsWith("Z") || /[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
   const t = Date.parse(z);
   return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Deterministic message selection informed by CommunicationContext — kept outside the
+ * shared module on purpose, same reasoning as billRisk's own `buildBillRiskMessage`
+ * (domain-specific branching belongs with the tool that owns the message). Priority,
+ * most to least specific: an explicit learned preference (concise, then direct) wins
+ * outright; then repetition-awareness (heavy only — a contradiction is already deduped
+ * by insight pair, so "have we said this before" doesn't apply the same way); then the
+ * original default wording.
+ */
+function buildCheckinMessage(input: {
+  kind: "heavy" | "contradiction";
+  text: string;
+  preferConcise: boolean;
+  preferDirect: boolean;
+  alreadyCheckedInRecently: boolean;
+}): string {
+  const { kind, text, preferConcise, preferDirect, alreadyCheckedInRecently } = input;
+
+  if (kind === "contradiction") {
+    if (preferConcise) return `🌀 Pulling against each other: ${text}`;
+    if (preferDirect) return `🌀 Contradiction: ${text} Worth reconciling.`;
+    return `🌀 Two of your memories seem to pull against each other: ${text} Want to reconcile them together?`;
+  }
+
+  if (preferConcise) return "💙 Rough stretch lately. I'm here.";
+  if (alreadyCheckedInRecently) return "💙 Still a heavy stretch. I'm here whenever you want to talk it through.";
+  if (preferDirect) return "💙 It's been a heavy stretch. Want to talk it through?";
+  return "💙 The last little while looks like it's been heavy. I'm here whenever you want to talk it through — no pressure.";
 }
 
 export const checkinTool: Tool = {
@@ -61,12 +108,17 @@ export const checkinTool: Tool = {
   },
 
   async run(tc: ToolContext, args: Record<string, unknown>): Promise<ToolResult> {
-    const kind = String(args.kind);
+    const kind = args.kind === "contradiction" ? "contradiction" : "heavy";
     const text = String(args.text ?? "");
-    const msg =
-      kind === "heavy"
-        ? "💙 The last little while looks like it's been heavy. I'm here whenever you want to talk it through — no pressure."
-        : `🌀 Two of your memories seem to pull against each other: ${text} Want to reconcile them together?`;
+
+    // Phase T: no opts passed — emotionalPatterns stays null (zero extra query), by
+    // design (see the file-header comment for why this surface doesn't also read it).
+    const comm = buildCommunicationContext(tc.ctx.handle, tc.spaceId);
+    const preferConcise = comm.preferences.some((p) => p.signal === "verbosity" && /concise|brief|short/i.test(p.value));
+    const preferDirect = comm.preferences.some((p) => p.signal === "directness" && /direct|blunt/i.test(p.value));
+    const alreadyCheckedInRecently = recentActionCount(tc.ctx.handle, tc.spaceId, "tool:check_in", 7, new Date(tc.now)) >= 1;
+
+    const msg = buildCheckinMessage({ kind, text, preferConcise, preferDirect, alreadyCheckedInRecently });
     let delivered = false;
     try {
       await tc.notify(msg);
