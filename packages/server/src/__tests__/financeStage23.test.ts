@@ -4,6 +4,9 @@ import { FinAccountRepo } from "../repositories/finAccount.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
 import { FinExpenseRepo } from "../repositories/finExpense.repo.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
+import { FinGoalRepo } from "../repositories/finGoal.repo.js";
+import { FinBucketRepo } from "../repositories/finBucket.repo.js";
+import { FinAllocationRepo } from "../repositories/finAllocation.repo.js";
 import { editIncome, deleteIncome, editExpense, deleteExpense } from "../finance/mutations.js";
 import { financialSnapshotText } from "../finance/snapshot.js";
 import { getBudgetSummary } from "../finance/summary.js";
@@ -83,6 +86,42 @@ describe("financial snapshot (Stage 2)", () => {
     expect(text).toContain("Top spending categories");
     expect(text).toContain("groceries $110.00");
     expect(text).toContain("transport $25.00");
+  });
+
+  // Maya Reality Test (Phase J, docs/specs/maya-reality-test.md) finding: a Financial Goal
+  // created before any income/bill was ever logged had ZERO finance context in chat at all —
+  // the snapshot's own closing line told the LLM to "reason from... the user's goals" without a
+  // goal ever appearing anywhere above it. Fixed by counting goals toward "has data" and
+  // rendering their name/target/progress.
+  it("a Goal with no income/bills logged yet is no longer invisible to chat", () => {
+    const bucket = new FinBucketRepo(handle, "s").create({ name: "Truck Fund" });
+    new FinGoalRepo(handle, "s").create({ bucketId: bucket.id, name: "First truck", targetCents: 500000 });
+    const text = financialSnapshotText(handle, "s", new Date("2026-01-10T00:00:00Z"));
+    expect(text).not.toBeNull();
+    expect(text).toContain("Financial Goals");
+    expect(text).toContain("First truck: $0.00 of $5000.00 saved");
+  });
+
+  it("reports real savings progress toward a goal's target, and an open-ended goal's saved amount without fabricating a target", () => {
+    const bucket = new FinBucketRepo(handle, "s").create({ name: "Fleet" });
+    const goalRepo = new FinGoalRepo(handle, "s");
+    const funded = goalRepo.create({ bucketId: bucket.id, name: "Truck 1", targetCents: 500000 });
+    const openEnded = goalRepo.create({ bucketId: bucket.id, name: "Truck 2", targetCents: null });
+    new FinAllocationRepo(handle, "s").create({ goalId: funded.id, amountCents: 100000 });
+    const text = financialSnapshotText(handle, "s", new Date("2026-01-10T00:00:00Z"))!;
+    expect(text).toContain("Truck 1: $1000.00 of $5000.00 saved");
+    expect(text).toContain("Truck 2: $0.00 saved (no target amount set)");
+    void openEnded;
+  });
+
+  it("an archived goal still counts toward 'has data' but only real, active goals need to be reasoned about (archived goals are excluded upstream at the Goal-hierarchy layer, not here)", () => {
+    const bucket = new FinBucketRepo(handle, "s").create({ name: "Old plans" });
+    const goalRepo = new FinGoalRepo(handle, "s");
+    const goal = goalRepo.create({ bucketId: bucket.id, name: "Abandoned plan", targetCents: 100 });
+    goalRepo.archive(goal.id);
+    // financialSnapshotText's own `list()` call already excludes archived goals by default —
+    // an all-archived space with zero income/bills goes back to null, same as a truly empty one.
+    expect(financialSnapshotText(handle, "s", new Date("2026-01-10T00:00:00Z"))).toBeNull();
   });
 });
 

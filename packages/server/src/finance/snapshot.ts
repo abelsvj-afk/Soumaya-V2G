@@ -3,6 +3,8 @@ import { DEFAULT_SPACE } from "../db/schema.js";
 import { getBudgetSummary } from "./summary.js";
 import { FinBillRepo } from "../repositories/finBill.repo.js";
 import { FinIncomeRepo } from "../repositories/finIncome.repo.js";
+import { FinGoalRepo } from "../repositories/finGoal.repo.js";
+import { FinAllocationRepo } from "../repositories/finAllocation.repo.js";
 import { weekStart } from "./budget.js";
 import { toDay } from "./bills.js";
 import { weeklyBillLoadCents, weeklySurplusCents } from "./forecast.js";
@@ -16,7 +18,12 @@ import { weeklyBillLoadCents, weeklySurplusCents } from "./forecast.js";
 export function financialSnapshotText(handle: DbHandle, spaceId: string = DEFAULT_SPACE, now: Date = new Date()): string | null {
   const income = new FinIncomeRepo(handle, spaceId);
   const bills = new FinBillRepo(handle, spaceId).list();
-  const hasData = income.list(1).length > 0 || bills.length > 0;
+  const goals = new FinGoalRepo(handle, spaceId).list();
+  // Maya Reality Test (Phase J) finding: a user who set up a savings Goal before ever logging
+  // income/bills had ZERO finance context in chat — the snapshot's own closing line already told
+  // the LLM to "reason from... the user's goals" without a Goal ever having been included in
+  // `hasData` OR rendered anywhere below. Goals now count toward "has data" too.
+  const hasData = income.list(1).length > 0 || bills.length > 0 || goals.length > 0;
   if (!hasData) return null;
 
   const b = getBudgetSummary(handle, spaceId, now);
@@ -49,6 +56,21 @@ export function financialSnapshotText(handle: DbHandle, spaceId: string = DEFAUL
     .all(spaceId, monthAgo, today) as { category: string; total: number }[];
   const categories = categoryRows.length > 0 ? categoryRows.map((c) => `${c.category} ${d(c.total)}`).join(", ") : "none recorded";
 
+  // Financial Goals — the actual name/target/progress numbers, so "reason from... the user's
+  // goals" below has real data to reason FROM instead of nothing at all.
+  let goalsLine = "none set";
+  if (goals.length > 0) {
+    const totals = new FinAllocationRepo(handle, spaceId).totalsByGoal(goals.map((g) => g.id));
+    goalsLine = goals
+      .map((g) => {
+        const saved = totals.get(g.id) ?? 0;
+        return g.targetCents != null
+          ? `${g.name}: ${d(saved)} of ${d(g.targetCents)} saved`
+          : `${g.name}: ${d(saved)} saved (no target amount set)`;
+      })
+      .join(", ");
+  }
+
   return [
     "FINANCE SNAPSHOT (aggregated, deterministic — cite these numbers, do NOT recompute):",
     `- Balance: ${d(b.balanceCents)}; Buffer kept aside: ${d(b.bufferCents)}.`,
@@ -58,6 +80,7 @@ export function financialSnapshotText(handle: DbHandle, spaceId: string = DEFAUL
     `- Weekly bill load: ${d(weeklyBills)}; weekly surplus at current pace: ${d(surplus)}${surplus <= 0 ? " (not saving — earning barely covers bills)" : ""}.`,
     `- All recurring bills: ${allBills}.`,
     `- Top spending categories (last 30 days): ${categories}.`,
+    `- Financial Goals (savings buckets): ${goalsLine}.`,
     "For scenarios (can I afford X by when / when can I reach a goal / if I pick up extra shifts), reason from the weekly surplus and the user's goals. Be concrete + encouraging, never preachy; show the rough math (weeks ≈ target ÷ weekly surplus).",
   ].join("\n");
 }
