@@ -2,16 +2,89 @@ import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
 import { getBudgetSummary } from "../../finance/summary.js";
 import { FinBillRepo } from "../../repositories/finBill.repo.js";
 import { parseDay } from "../../finance/bills.js";
+import { buildCommunicationContext, recentActionCount } from "../../communication/context.js";
 
 /**
  * Bill-risk nudge (Financial OS, docs/financial-os/architecture.md §5) — Soumaya's proactive
  * money moment. When your cushion is thin against an upcoming NON-autopay bill, she warns you
  * BEFORE an overspend makes it short, in her own voice. Deterministic + offline: the numbers
  * come from the pure Budget Engine (LLM-free); at most one nudge per space per day.
+ *
+ * Phase S pilot (docs/specs/soumaya-shared-communication.md): this is the one proactive
+ * surface Phase R named as the clearest instance of "intelligent detection, static
+ * communication" — detect() correctly finds a real financial risk, but run() used to emit one
+ * of exactly two hardcoded sentences forever, regardless of anything else already known about
+ * the user. The DETECTION LOGIC BELOW IS COMPLETELY UNCHANGED — same thresholds, same Budget
+ * Engine, same autopay/tight-cushion math. Only the MESSAGE now consults the shared
+ * CommunicationContext (soul/behavior/preferences/emotional-pattern context, all already
+ * built and already used by Chat) plus one new, generic, communication-only signal
+ * (`recentActionCount` — has this nudge already fired lately) to select among a still fully
+ * deterministic set of phrasings, instead of a fixed pair. No LLM call was added: see
+ * `docs/specs/soumaya-shared-communication.md` §Performance for why a template remains the
+ * right choice for this pilot.
  */
 
 const DAY_MS = 86_400_000;
 const dollars = (cents: number): string => `$${Math.round(cents / 100)}`;
+
+/**
+ * Deterministic message selection informed by CommunicationContext. Kept OUTSIDE the shared
+ * context module on purpose — a different proactive surface (a future Journey-update nudge,
+ * say) would derive different branching from the SAME context shape, so this domain-specific
+ * decision belongs with the tool that owns the message, not baked into the reusable boundary.
+ *
+ * Priority, most to least specific (never a combinatorial cross-product of every flag —
+ * Phase S's own explicit warning against "configuration hell"):
+ *  1. `preferConcise` wins outright — the shortest possible form, no elaboration, regardless
+ *     of anything else (an explicit, evidence-gated learned preference is the strongest signal
+ *     this function has).
+ *  2. Otherwise, the OPENING clause is chosen by (in order) repetition-awareness, then
+ *     emotional-context gentleness, then the original default opener — softening tone, never
+ *     inventing or naming an emotion (Phase S §12: never turn a detected pattern into a claim
+ *     about how the user feels).
+ *  3. `preferDirect` drops the softening closer clause in favor of a plain, shorter ask.
+ */
+function buildBillRiskMessage(input: {
+  billName: string;
+  billAmountCents: number;
+  mode: "short" | "pace";
+  threshold: number;
+  leadGently: boolean;
+  preferConcise: boolean;
+  preferDirect: boolean;
+  alreadyNudgedRecently: boolean;
+}): string {
+  const { billName, billAmountCents, mode, threshold, leadGently, preferConcise, preferDirect, alreadyNudgedRecently } = input;
+  const amount = dollars(billAmountCents);
+  const amt = dollars(threshold);
+
+  if (preferConcise) {
+    // Shortest defensible form: the fact and the number, nothing else. Still preserves the
+    // mode distinction (already-short vs on-pace-but-tight) — never collapses a real
+    // certainty difference for the sake of brevity (Phase S §12).
+    return mode === "short"
+      ? `💸 ${billName}: short ${amt}.`
+      : `💸 ${billName} (${amount}): hold spending under ${amt} today.`;
+  }
+
+  const opener = alreadyNudgedRecently
+    ? "💸 Still tight —"
+    : leadGently
+      ? "💸 No pressure, but"
+      : "💸 Heads up —";
+
+  if (mode === "short") {
+    const closer = preferDirect
+      ? `Bring in ${amt} more before it's due, or move money to cover it.`
+      : `A little more income this week, or one extra shift, covers it.`;
+    return `${opener} you're ${amt} short for ${billName} (${amount}). ${closer}`;
+  }
+
+  const closer = preferDirect
+    ? `Keep today's spending under ${amt}.`
+    : `If you spend more than ${amt} today, it'll be short — worth holding back.`;
+  return `${opener} ${billName} (${amount}) is coming up. ${closer}`;
+}
 
 export const billRiskTool: Tool = {
   name: "bill_risk",
@@ -57,12 +130,37 @@ export const billRiskTool: Tool = {
     const billId = Number(args.billId);
     const bill = new FinBillRepo(tc.ctx.handle, tc.spaceId).get(billId);
     if (!bill) return { ok: false, summary: `bill ${billId} gone` };
-    const mode = String(args.mode ?? "pace");
+    const mode = args.mode === "short" ? "short" : "pace";
     const threshold = Number(args.threshold ?? 0);
 
-    const msg = mode === "short"
-      ? `💸 Heads up — you're ${dollars(threshold)} short for ${bill.name} (${dollars(bill.amountCents)}). A little more income this week, or one extra shift, covers it.`
-      : `💸 ${bill.name} (${dollars(bill.amountCents)}) is coming up. If you spend more than ${dollars(threshold)} today, it'll be short — worth holding back.`;
+    // Phase S: the shared, read-only communication boundary — the SAME soul/behavior/
+    // preference machinery Chat already consults on every turn. This is a background/
+    // proactive call (not the chat hot path), so it explicitly opts into the full-space
+    // emotional read (same precedent already established for the Digest panel's own
+    // buildEmotionalTrajectory call) rather than the chat-only bounded variant.
+    const comm = buildCommunicationContext(tc.ctx.handle, tc.spaceId, { includeFullSpaceEmotionalTrajectory: true });
+    // A communication-only signal (not a detection signal — detect()'s own once-a-day guard
+    // above is untouched): has this exact nudge already fired recently, so a repeat firing
+    // can acknowledge that instead of re-explaining from scratch every time.
+    const alreadyNudgedRecently = recentActionCount(tc.ctx.handle, tc.spaceId, "tool:bill_risk", 7, new Date(tc.now)) >= 1;
+
+    // These never NAME the detected emotional pattern or claim a fact about the user (Phase S
+    // §12) — they only soften HOW the same financial fact is delivered. A pattern already
+    // requires real repeated evidence to exist at all (analysis/emotional.ts's own bar).
+    const leadGently = comm.emotionalPatterns?.some((p) => p.type === "Stress cycle" || p.type === "Burnout risk" || p.type === "Downswing") ?? false;
+    const preferConcise = comm.preferences.some((p) => p.signal === "verbosity" && /concise|brief|short/i.test(p.value));
+    const preferDirect = comm.preferences.some((p) => p.signal === "directness" && /direct|blunt/i.test(p.value));
+
+    const msg = buildBillRiskMessage({
+      billName: bill.name,
+      billAmountCents: bill.amountCents,
+      mode,
+      threshold,
+      leadGently,
+      preferConcise,
+      preferDirect,
+      alreadyNudgedRecently,
+    });
 
     let delivered = false;
     try { await tc.notify(msg); delivered = true; } catch { /* router logs it regardless */ }
