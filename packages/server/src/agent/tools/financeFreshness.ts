@@ -2,6 +2,7 @@ import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
 import { FinIncomeRepo } from "../../repositories/finIncome.repo.js";
 import { FinAssetRepo } from "../../repositories/finAsset.repo.js";
 import { FinAssetSnapshotRepo } from "../../repositories/finAssetSnapshot.repo.js";
+import { buildCommunicationContext, recentActionCount } from "../../communication/context.js";
 
 /**
  * Finance-freshness nudge (docs/specs/income-net-worth-trend.md, Decision #4) — since income
@@ -12,6 +13,17 @@ import { FinAssetSnapshotRepo } from "../../repositories/finAssetSnapshot.repo.j
  *
  * Deliberately does not nag a user who's simply never used a feature: no income ever recorded,
  * or no asset ever added, is treated as "not applicable" rather than "stale."
+ *
+ * Phase U (docs/specs/soumaya-proactive-communication-migration-wave2.md) — detect()'s
+ * staleness thresholds/math below are COMPLETELY UNCHANGED. Two real, pre-existing gaps
+ * fixed here: (1) the assets-only branch never mentioned `assetDays` at all, even though
+ * detect() already computes it — restoring that magnitude changes that branch's default
+ * wording, which is exactly what this phase exists to do, not an unrelated tweak; (2) an
+ * asset that's never been snapshotted (`assetDays` arrives as the placeholder `0`) used to
+ * read identically to one snapshotted 31 days ago — now distinguished. This is a
+ * housekeeping nudge, not a money risk (see the doc comment above) — so, unlike billRisk,
+ * this consumer deliberately does NOT read `CommunicationContext.emotionalPatterns` (no
+ * domain-specific or plausible emotional relevance here). Zero new LLM calls.
  */
 const DAY_MS = 86_400_000;
 // Exported so analysis/temporal.ts (docs/specs/temporal-contextual-reasoning.md) reuses these
@@ -24,6 +36,50 @@ const NUDGE_COOLDOWN_DAYS = 7;
 
 function daysSince(dateIso: string, now: number): number {
   return Math.floor((now - new Date(`${dateIso}T00:00:00Z`).getTime()) / DAY_MS);
+}
+
+/**
+ * Deterministic message selection — domain-owned, same precedent as every other pilot's
+ * own `build*Message`. `assetDays === 0` while `assetStale` is true can ONLY mean the
+ * asset was never snapshotted (real staleness requires `assetDays > ASSET_STALE_DAYS`,
+ * i.e. > 30) — a safe inference from data detect() already encodes, not a new detector.
+ */
+function buildFinanceFreshnessMessage(input: {
+  incomeStale: boolean;
+  assetStale: boolean;
+  incomeDays: number;
+  assetDays: number;
+  preferConcise: boolean;
+  recurring: boolean;
+}): string {
+  const { incomeStale, assetStale, incomeDays, assetDays, preferConcise, recurring } = input;
+  const neverSnapshotted = assetStale && assetDays === 0;
+  const assetClause = neverSnapshotted
+    ? "your net worth accounts have never been snapshotted"
+    : `your net worth accounts haven't been updated in ${assetDays} days`;
+
+  if (preferConcise) {
+    const bits: string[] = [];
+    if (incomeStale) bits.push(`income ${incomeDays}d stale`);
+    if (assetStale) bits.push(neverSnapshotted ? "assets never snapshotted" : `assets ${assetDays}d stale`);
+    return `📈 ${bits.join(", ")}.`;
+  }
+
+  if (incomeStale && assetStale) {
+    const opener = recurring ? "Still running on old numbers" : "Your Growth chart is running on old numbers";
+    return `📈 ${opener} — income hasn't been logged in ${incomeDays} days and ${assetClause}. A couple minutes to catch both up keeps the picture honest.`;
+  }
+  if (incomeStale) {
+    if (!recurring) {
+      return `📈 It's been ${incomeDays} days since your last income entry — got a pay stub to add? Keeping this current is what makes your income line mean something.`;
+    }
+    return `📈 Still nothing new — it's been ${incomeDays} days since your last income entry. Keeping this current is what makes your income line mean something.`;
+  }
+  // assets only
+  const capitalized = `${assetClause[0]!.toUpperCase()}${assetClause.slice(1)}`;
+  return recurring
+    ? `📈 Still — ${assetClause} — a quick balance check keeps your Growth chart honest.`
+    : `📈 ${capitalized} — a quick balance check keeps your Growth chart honest.`;
 }
 
 export const financeFreshnessTool: Tool = {
@@ -74,15 +130,12 @@ export const financeFreshnessTool: Tool = {
     const incomeStale = !!args.incomeStale;
     const assetStale = !!args.assetStale;
     const incomeDays = Number(args.incomeDays ?? 0);
+    const assetDays = Number(args.assetDays ?? 0);
 
-    let msg: string;
-    if (incomeStale && assetStale) {
-      msg = `📈 Your Growth chart is running on old numbers — income hasn't been logged in ${incomeDays} days and your net worth accounts haven't been updated either. A couple minutes to catch both up keeps the picture honest.`;
-    } else if (incomeStale) {
-      msg = `📈 It's been ${incomeDays} days since your last income entry — got a pay stub to add? Keeping this current is what makes your income line mean something.`;
-    } else {
-      msg = `📈 Your net worth accounts haven't been updated in a while — a quick balance check keeps your Growth chart honest.`;
-    }
+    const comm = buildCommunicationContext(tc.ctx.handle, tc.spaceId);
+    const preferConcise = comm.preferences.some((p) => p.signal === "verbosity" && /concise|brief|short/i.test(p.value));
+    const recurring = recentActionCount(tc.ctx.handle, tc.spaceId, "tool:finance_freshness", 21, new Date(tc.now)) >= 1;
+    const msg = buildFinanceFreshnessMessage({ incomeStale, assetStale, incomeDays, assetDays, preferConcise, recurring });
 
     let delivered = false;
     try { await tc.notify(msg); delivered = true; } catch { /* router logs it regardless */ }

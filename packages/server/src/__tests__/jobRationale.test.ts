@@ -18,4 +18,21 @@ describe("rationaleFor", () => {
     // An unknown type falls through to the patrol copy (never crashes).
     expect(rationaleFor("mystery" as never, "x", "y").objective).toContain("patrol");
   });
+
+  it("Phase U bug fix: research's optional `detail` reaches `why`, matching the same factors text agent.ts already embeds in `description`", () => {
+    const withoutDetail = rationaleFor("research", "Alpha", "");
+    expect(withoutDetail.why).not.toContain("Prioritized for");
+
+    const withDetail = rationaleFor("research", "Alpha", "", "emotional intensity, contradiction");
+    expect(withDetail.why).toContain("Prioritized for emotional intensity, contradiction.");
+    // The rest of the rationale is unaffected by the fix.
+    expect(withDetail.objective).toBe(withoutDetail.objective);
+    expect(withDetail.benefit).toBe(withoutDetail.benefit);
+  });
+
+  it("`detail` is a no-op for every other job type (research-only, per its own doc comment)", () => {
+    for (const t of ["synthesis", "merging", "pruning", "harmonization", "sector_vibe", "calibration", "daily_log", "patrol"] as const) {
+      expect(rationaleFor(t, "x", "y", "some factor")).toEqual(rationaleFor(t, "x", "y"));
+    }
+  });
 });

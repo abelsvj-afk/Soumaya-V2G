@@ -1,9 +1,21 @@
 import type { Tool, ToolContext, ToolInvocation, ToolResult } from "./types.js";
+import { buildCommunicationContext, recentActionCount } from "../../communication/context.js";
 
 /**
  * Firing reminders — the first tool Soumaya calls on her own. `remind_at` used to be
  * stored and only shown passively; now she DELIVERS it at the time (Telegram if
  * linked, always logged), exactly once. Deterministic, free, offline.
+ *
+ * Phase U (docs/specs/soumaya-proactive-communication-migration-wave2.md) — detect()'s
+ * once-only firing/GRACE_MS retirement logic below is COMPLETELY UNCHANGED. Previously
+ * `overdueMs` was computed only to decide silent-retirement, then discarded before the
+ * message was built — the message read identically whether a reminder fired a minute
+ * late or three days late. `run()` now folds that same already-computed `overdueMs`
+ * into the wording (restoring intelligence that was being computed and thrown away, not
+ * adding new detection), plus the shared CommunicationContext's verbosity preference and
+ * a repetition signal (has more than one reminder already fired today). Zero new LLM
+ * calls; the true default (on-time, no preference, first reminder today) is
+ * byte-identical to the pre-Phase-U wording.
  */
 
 const MAX_PER_TICK = 5; // don't blast a backlog all at once
@@ -21,6 +33,26 @@ function toMs(iso: string): number {
   const z = s.endsWith("Z") || /[+-]\d\d:?\d\d$/.test(s) ? s : s + "Z";
   const t = Date.parse(z);
   return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Deterministic message selection — domain-owned, same precedent as every other
+ * pilot's own `build*Message` (billRisk/check_in/dailyDigest). Priority, most to
+ * least specific: an explicit concise preference wins outright; then genuine
+ * lateness (already computed by run(), just newly used); then same-day repetition
+ * (a communication-only signal — it never changes whether/when THIS reminder fires).
+ */
+function buildReminderMessage(input: { label: string; overdueMs: number; preferConcise: boolean; manyRemindersToday: boolean }): string {
+  const { label, overdueMs, preferConcise, manyRemindersToday } = input;
+  if (preferConcise) return `⏰ ${label}`;
+
+  const overdueHours = overdueMs / 3_600_000;
+  if (overdueHours >= 1) {
+    const overdueText = overdueHours >= 24 ? `${Math.round(overdueHours / 24)}d overdue` : `${Math.round(overdueHours)}h overdue`;
+    return `⏰ Running a little behind on this one — "${label}" (${overdueText}).`;
+  }
+  if (manyRemindersToday) return `⏰ Another one: "${label}"`;
+  return `⏰ Reminder: "${label}"`;
 }
 
 export const reminderTool: Tool = {
@@ -71,7 +103,10 @@ export const reminderTool: Tool = {
       return { ok: true, summary: `retired stale reminder "${row.label}" (${Math.round(overdueMs / 86_400_000)}d overdue)` };
     }
 
-    const msg = `⏰ Reminder: "${row.label}"`;
+    const comm = buildCommunicationContext(tc.ctx.handle, tc.spaceId);
+    const preferConcise = comm.preferences.some((p) => p.signal === "verbosity" && /concise|brief|short/i.test(p.value));
+    const manyRemindersToday = recentActionCount(tc.ctx.handle, tc.spaceId, "tool:fire_reminder", 1, new Date(tc.now)) >= 1;
+    const msg = buildReminderMessage({ label: row.label, overdueMs, preferConcise, manyRemindersToday });
     let delivered = false;
     try {
       await tc.notify(msg);

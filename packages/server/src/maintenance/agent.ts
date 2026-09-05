@@ -89,22 +89,26 @@ export function buildRationale(
   spaceId: string,
   type: JobType,
   targets: number[],
+  detail?: string,
 ): JobRationale {
   const nodesRepo = new NodesRepo(ctx.handle, spaceId);
   const a = labelOf(nodesRepo, targets[0]);
   const b = labelOf(nodesRepo, targets[1]);
-  return rationaleFor(type, a, b);
+  return rationaleFor(type, a, b, detail);
 }
 
-/** Assemble a job with its explainable rationale attached. */
+/** Assemble a job with its explainable rationale attached. `detail` (research-only —
+ *  see jobRationale.ts's own doc comment) carries the SAME scored-factors text already
+ *  embedded in `description`, so the rationale card and the description never disagree. */
 function mkJob(
   ctx: AppContext,
   spaceId: string,
   type: JobType,
   targets: number[],
   description: string,
+  detail?: string,
 ): AgentJob {
-  return { type, targets, description, rationale: buildRationale(ctx, spaceId, type, targets) };
+  return { type, targets, description, rationale: buildRationale(ctx, spaceId, type, targets, detail) };
 }
 
 /**
@@ -217,8 +221,9 @@ function researchGapJob(ctx: AppContext, spaceId: string): AgentJob | null {
   if (!(researchEnabled(ctx, spaceId) && !ctx.usage.overBudget() && economy.canRunJob())) return null;
   const pick = pickResearchTarget(ctx, spaceId);
   if (!pick) return null;
-  const why = pick.factors.length ? ` — prioritized for ${pick.factors.join(", ")}` : "";
-  return mkJob(ctx, spaceId, "research", [pick.id], `Gap-filling: deep-dive research on a high-priority memory${why}.`);
+  const factorsText = pick.factors.length ? pick.factors.join(", ") : undefined;
+  const why = factorsText ? ` — prioritized for ${factorsText}` : "";
+  return mkJob(ctx, spaceId, "research", [pick.id], `Gap-filling: deep-dive research on a high-priority memory${why}.`, factorsText);
 }
 
 /** Compact, cheap brain summary for the planner's decision. */
@@ -361,13 +366,15 @@ function selectJobInner(ctx: AppContext, spaceId: string): AgentJob | null {
   if (expansionOn) {
     const pick = pickResearchTarget(ctx, spaceId);
     if (pick) {
-      const why = pick.factors.length ? ` — prioritized for ${pick.factors.join(", ")}` : "";
+      const factorsText = pick.factors.length ? pick.factors.join(", ") : undefined;
+      const why = factorsText ? ` — prioritized for ${factorsText}` : "";
       return mkJob(
         ctx,
         spaceId,
         "research",
         [pick.id],
         `Gap-filling: deep-dive research on a high-priority memory${why}.`,
+        factorsText,
       );
     }
   }
