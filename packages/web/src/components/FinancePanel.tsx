@@ -60,8 +60,12 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 /** Shared body, rendered both embedded in RightDock's Money tab and inside
  *  FinanceFullscreen.tsx — mirrors WealthPanel/WealthFullscreen's split exactly. Only
  *  `embedded` differs: it shows the expand-to-fullscreen button, hidden when already
- *  full-screen. */
-export function FinancePanel({ embedded = true }: { embedded?: boolean } = {}) {
+ *  full-screen. `focusGoal` (Phase O, Galaxy entity detail focus) is optional and only
+ *  ever passed by RightDock's embedded Money tab — a Goal clicked in the 3D galaxy. */
+export function FinancePanel({
+  embedded = true,
+  focusGoal,
+}: { embedded?: boolean; focusGoal?: { id: number; nonce: number } | null } = {}) {
   const [sum, setSum] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [reservedOpen, setReservedOpen] = useState(false);
@@ -71,6 +75,13 @@ export function FinancePanel({ embedded = true }: { embedded?: boolean } = {}) {
   // can refresh just this number via the shared brain-finance-changed event.
   const [earmarkedCents, setEarmarkedCents] = useState<number | null>(null);
   const [wealthOpen, setWealthOpen] = useState(false);
+
+  // Galaxy entity detail focus (Phase O): a Goal lives inside Wealth, which is
+  // collapsed by default here — a focus request must force it open, or WealthPanel
+  // would never even mount to receive `focusGoal` itself.
+  useEffect(() => {
+    if (focusGoal) setWealthOpen(true);
+  }, [focusGoal?.nonce]);
 
   const refresh = async () => {
     setLoading(true);
@@ -206,7 +217,7 @@ export function FinancePanel({ embedded = true }: { embedded?: boolean } = {}) {
             </button>
           )}
         </div>
-        {wealthOpen && <WealthPanel />}
+        {wealthOpen && <WealthPanel focusGoal={focusGoal} />}
       </section>
 
       {/* ---- History: everything you added, editable + deletable ---- */}

@@ -12,7 +12,11 @@ import { suggestJourneys, hydrateJourneyLinks } from "../../analysis/journeyLink
  * Space-scoped + offline. See docs/VISION_2_JOURNEYS.md.
  */
 
-const LINK_KINDS = ["node", "task", "income", "expense", "bill", "insight", "doc", "chat", "achievement"] as const;
+// "goal" was missing here despite JourneysRepo.REF_TABLE (repo layer) already validating
+// goal -> fin_goal, and WealthPanel.tsx's <JourneyChips kind="goal"> already relying on it —
+// every route below rejected a real, already-supported Goal<->Journey link with a 400
+// (Phase N audit finding, fixed in Phase O: docs/specs/galaxy-entity-citizenship-audit.md §7).
+const LINK_KINDS = ["node", "task", "income", "expense", "bill", "insight", "doc", "chat", "achievement", "goal"] as const;
 
 const CreateBody = z.object({
   title: z.string().trim().min(1).max(80),

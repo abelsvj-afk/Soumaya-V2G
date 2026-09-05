@@ -78,6 +78,10 @@ interface Props {
   spaceName?: string;
   /** Refresh the galaxy after a constellation hub is created (Insights tab). */
   onPromoted?: () => void;
+  /** Galaxy entity detail focus (Phase O): a Journey/Goal clicked in the 3D galaxy,
+   *  passed straight through to the tab that already renders its detail card. */
+  focusJourney?: { id: number; nonce: number } | null;
+  focusGoal?: { id: number; nonce: number } | null;
 }
 
 // Each tab carries a human `name` (tooltip + accessible label) so the icon row is
@@ -146,6 +150,8 @@ export function RightDock({
   spaceId,
   spaceName = "Soumaya",
   onPromoted,
+  focusJourney,
+  focusGoal,
 }: Props) {
   const [unseenCount, setUnseenCount] = useState(0);
   // Progressive Discovery: Insights needs its own check (a server-side fetch —
@@ -361,8 +367,8 @@ export function RightDock({
           </div>
         )}
         {tab === "inbox" && <InboxPanel spaceId={spaceId ?? "default"} />}
-        {tab === "money" && <FinancePanel />}
-        {tab === "journeys" && <JourneysPanel onFocus={onFocus} />}
+        {tab === "money" && <FinancePanel focusGoal={focusGoal} />}
+        {tab === "journeys" && <JourneysPanel onFocus={onFocus} focusJourney={focusJourney} />}
         {tab === "awards" && (
           <div className="subtab-wrap">
             <div className="subtabs" role="tablist" aria-label="Progress view">

@@ -48,6 +48,38 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
+describe("WealthPanel — Galaxy entity detail focus (Phase O)", () => {
+  it("auto-expands the goal's bucket and scrolls to its card when focusGoal targets it", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const g = goal({ id: 7, bucketId: 2, name: "House down payment" });
+    getWealthSummary.mockResolvedValue(
+      summary({ buckets: [bucket({ id: 1, name: "Trucking" }), bucket({ id: 2, name: "House" })], goals: [g] }),
+    );
+
+    render(<WealthPanel focusGoal={{ id: 7, nonce: 1 }} />);
+
+    // The bucket the goal lives in ("House") should auto-expand without a click —
+    // the goal card becomes visible on its own.
+    await screen.findByText("House down payment");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("re-fires on a repeat click on the same goal (nonce bump), even with the bucket already open", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const g = goal({ id: 7, bucketId: 1, name: "First Truck" });
+    getWealthSummary.mockResolvedValue(summary({ buckets: [bucket({ id: 1 })], goals: [g] }));
+
+    const { rerender } = render(<WealthPanel focusGoal={{ id: 7, nonce: 1 }} />);
+    await screen.findByText("First Truck");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    rerender(<WealthPanel focusGoal={{ id: 7, nonce: 2 }} />);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+  });
+});
+
 describe("WealthPanel — empty state", () => {
   it("shows a nudge to start a bucket when there are none", async () => {
     getWealthSummary.mockResolvedValue(summary({}));

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import type { FinGoalWithProgress, WealthSummary } from "@brain/shared";
 import {
   getWealthSummary, createBucket, patchBucket, archiveBucket,
@@ -6,6 +6,7 @@ import {
 } from "../api/finance.js";
 import type { FinAllocation } from "@brain/shared";
 import { JourneyChips } from "./JourneyChips.js";
+import { prefersReducedMotion } from "../graph/motion.js";
 
 const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
@@ -17,12 +18,36 @@ const fmt = (cents: number): string => (cents / 100).toLocaleString(undefined, {
  *
  * Renders identically whether embedded (default) or wrapped in a full-screen overlay by the
  * parent — this component has no knowledge of which mode it's in.
+ *
+ * `focusGoal` (Phase O, Galaxy entity detail focus, optional) is a one-shot request from a
+ * Goal clicked in the 3D galaxy — expand its bucket and scroll to it.
  */
-export function WealthPanel() {
+export function WealthPanel({ focusGoal }: { focusGoal?: { id: number; nonce: number } | null } = {}) {
   const [summary, setSummary] = useState<WealthSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [newBucketName, setNewBucketName] = useState("");
   const [expandedBucket, setExpandedBucket] = useState<number | null>(null);
+  const focusedGoalRef = useRef<HTMLDivElement | null>(null);
+
+  // Step 1: find which bucket the focused Goal lives in and expand it (a Goal only ever
+  // renders nested under its bucket here). Re-runs if `summary` arrives after the focus
+  // request (e.g. the panel just mounted), and on every repeat click (`nonce`).
+  useEffect(() => {
+    if (!focusGoal || !summary) return;
+    const goal = summary.goals.find((g) => g.id === focusGoal.id);
+    if (goal) setExpandedBucket(goal.bucketId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusGoal?.nonce, summary]);
+
+  // Step 2: once the matching bucket is actually expanded (possibly by the effect above,
+  // possibly already open), the GoalCard is mounted and `focusedGoalRef` is attached —
+  // scroll to it. Split from step 1 because a bucket that only just opened doesn't have
+  // its GoalCard in the DOM until AFTER this render commits.
+  useEffect(() => {
+    if (!focusGoal) return;
+    focusedGoalRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedBucket, focusGoal?.nonce]);
 
   const refresh = async () => {
     setSummary(await getWealthSummary());
@@ -85,7 +110,13 @@ export function WealthPanel() {
                 <div className="wealth-bucket-body">
                   {goals.length === 0 && <p className="fin-muted">No goals in this bucket yet.</p>}
                   {goals.map((g) => (
-                    <GoalCard key={g.id} goal={g} deployableCents={summary.deployableCents} onChanged={refresh} />
+                    <GoalCard
+                      key={g.id}
+                      goal={g}
+                      deployableCents={summary.deployableCents}
+                      onChanged={refresh}
+                      focusRef={g.id === focusGoal?.id ? focusedGoalRef : undefined}
+                    />
                   ))}
                   <NewGoalForm bucketId={b.id} onCreated={refresh} />
                   <div className="wealth-bucket-actions">
@@ -165,10 +196,13 @@ function GoalCard({
   goal,
   deployableCents,
   onChanged,
+  focusRef,
 }: {
   goal: FinGoalWithProgress;
   deployableCents: number;
   onChanged: () => Promise<void>;
+  /** Galaxy entity detail focus (Phase O): set only on the ONE GoalCard being focused. */
+  focusRef?: RefObject<HTMLDivElement | null>;
 }) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
@@ -205,7 +239,7 @@ function GoalCard({
   }
 
   return (
-    <div className="wealth-goal">
+    <div ref={focusRef} className="wealth-goal">
       <div className="wealth-goal-head">
         <strong>{goal.name}</strong>
         {goal.targetDate && <span className="fin-muted">by {goal.targetDate}</span>}

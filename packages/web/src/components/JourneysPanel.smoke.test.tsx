@@ -37,6 +37,33 @@ function journey(over: Partial<Journey>): Journey {
   return { id: 1, title: "Recover Financially", icon: "💵", status: "active", progress: 0.3, linkCount: 0, ...over } as Journey;
 }
 
+describe("JourneysPanel — Galaxy entity detail focus (Phase O)", () => {
+  it("opens the matching card and scrolls to it when focusJourney targets it", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    getJourneys.mockResolvedValue([journey({ id: 1, title: "Recover Financially" }), journey({ id: 2, title: "Get Healthy" })]);
+
+    render(<JourneysPanel focusJourney={{ id: 2, nonce: 1 }} />);
+
+    // Opening shows the detail body (progress slider) without a manual click.
+    await screen.findByText("Mark complete");
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  it("re-fires on a repeat click on the same Journey (nonce bump)", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    getJourneys.mockResolvedValue([journey({ id: 1, title: "Recover Financially" })]);
+
+    const { rerender } = render(<JourneysPanel focusJourney={{ id: 1, nonce: 1 }} />);
+    await screen.findByText("Mark complete");
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    rerender(<JourneysPanel focusJourney={{ id: 1, nonce: 2 }} />);
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(2));
+  });
+});
+
 describe("JourneysPanel — loading trap", () => {
   it("shows a retry option instead of 'Loading' forever when the initial fetch fails", async () => {
     getJourneys.mockResolvedValue(null);

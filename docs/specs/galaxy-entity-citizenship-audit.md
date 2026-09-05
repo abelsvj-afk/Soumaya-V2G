@@ -451,3 +451,26 @@ the panel that already knows how to show that entity's full detail.
 a competing source of truth or destabilizing the locked Maya architecture?"* — Open the existing
 `JourneysPanel`/`WealthPanel` detail view, focused on the clicked entity, from the existing
 `onGalaxyEntityClick` handler. No new tables, no new types, no new Maya-pipeline code.
+
+## Phase O — implemented
+
+Both recommendations from §14/§18 shipped, exactly as scoped — no new inspector, no new entity
+model, no Maya changes.
+
+- **Galaxy entity detail focus**: `App.tsx`'s `onGalaxyEntityClick` now additionally sets a
+  one-shot `{ id, nonce }` focus request (`focusJourney`/`focusGoal` state, `nonce` bumped on
+  every click so a repeat click on the same entity still re-triggers) alongside the pre-existing
+  toast + `flyToGalaxyEntity` call, and switches to the matching dock tab. Threaded through
+  `RightDock.tsx` into `JourneysPanel.tsx` (each `JourneyCard` opens + `scrollIntoView`s itself
+  when it matches) and through `FinancePanel.tsx` (forces its collapsed "🧭 Wealth" section open)
+  into `WealthPanel.tsx` (expands the goal's bucket, then scrolls the matching `GoalCard` into
+  view once it mounts). `Bill` intentionally has no panel-focus target yet — out of scope for this
+  phase, kept at the pre-existing toast+fly-to only. Zero new components; both cards' existing
+  detail markup is reused unchanged.
+- **Journey-link fix**: added the missing `"goal"` entry to `journeys.ts`'s `LINK_KINDS`
+  (repo/DB already supported it — this was purely an HTTP-layer validation gap). Regression test
+  in `journeysGoalLinkRoute.test.ts` links/unlinks a real `fin_goal` row to a Journey over HTTP.
+- **Verification**: logic/automated verification — PASS (846 server + 342 web tests, typecheck
+  clean, web build succeeds). Real-device visual verification — PENDING (the standing Fly billing
+  hold still blocks a live deploy; scroll/expand behavior is DOM-logic-tested via
+  `Element.prototype.scrollIntoView` stubs, not eyeballed on a phone).

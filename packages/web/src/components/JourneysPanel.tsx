@@ -3,6 +3,7 @@ import type { Journey, JourneyLinkSummary } from "@brain/shared";
 import { getJourneys, createJourney, patchJourney, deleteJourney, journeyLinks } from "../api/journeys.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
+import { prefersReducedMotion } from "../graph/motion.js";
 
 /**
  * Journeys (Vision 2.0) — the highest-level organizer: a life chapter everything can belong to
@@ -18,7 +19,18 @@ const SUGGESTED = [
   { title: "Learn Something New", icon: "📚" },
 ];
 
-export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
+export function JourneysPanel({
+  onFocus,
+  focusJourney,
+}: {
+  onFocus?: (id: number) => void;
+  /** Galaxy entity detail focus (Phase O): a Journey hub clicked in the 3D galaxy —
+   *  expand and scroll to the matching card. `nonce` makes a repeat click on the same
+   *  Journey re-trigger too, without JourneyCard needing to report back that it
+   *  "consumed" the request (a done journey never has a hub to click, so this only
+   *  ever needs to match against the `active` list below). */
+  focusJourney?: { id: number; nonce: number } | null;
+}) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
   // Distinguishes "never loaded yet" from "the last load failed" — getJourneys()
   // returns null on ANY failure, and this used to be handed straight to setJourneys,
@@ -92,7 +104,7 @@ export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
         </div>
       )}
 
-      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} />)}
+      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} focusJourney={focusJourney} />)}
 
       {adding ? (
         <div className="jn-form">
@@ -128,10 +140,33 @@ export function JourneysPanel({ onFocus }: { onFocus?: (id: number) => void }) {
   );
 }
 
-function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => void; onFocus?: (id: number) => void }) {
+function JourneyCard({
+  j,
+  onChanged,
+  onFocus,
+  focusJourney,
+}: {
+  j: Journey;
+  onChanged: () => void;
+  onFocus?: (id: number) => void;
+  focusJourney?: { id: number; nonce: number } | null;
+}) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
   const [linksError, setLinksError] = useState(false);
+  const cardRef = useRef<HTMLDivElement | null>(null);
+
+  // Galaxy entity detail focus (Phase O): every JourneyCard in the `active` list is
+  // always mounted (unlike WealthPanel's goals, which sit behind a collapsed bucket),
+  // so this effect can expand + scroll directly — no second "wait for it to mount"
+  // step needed. Keyed on the nonce alone (not `j.id`) so a repeat click on the SAME
+  // Journey re-fires this effect too.
+  useEffect(() => {
+    if (!focusJourney || focusJourney.id !== j.id) return;
+    setOpen(true);
+    cardRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusJourney?.nonce]);
   const serverPct = Math.round((j.progress ?? 0) * 100);
   // Local, so the thumb moves with the finger instead of only after a round-trip —
   // the drag used to fire a PATCH per pixel (~100 requests for a full 0->100 drag),
@@ -193,7 +228,7 @@ function JourneyCard({ j, onChanged, onFocus }: { j: Journey; onChanged: () => v
   };
 
   return (
-    <div className={`jn-card ${j.status}`}>
+    <div ref={cardRef} className={`jn-card ${j.status}`}>
       <button className="jn-card-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         <span className="jn-icon">{j.icon ?? "🧭"}</span>
         <span className="jn-name">{j.title}</span>

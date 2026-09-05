@@ -124,6 +124,13 @@ export default function App() {
   // Until then, toasts are buffered so a celebration never hides behind the cards.
   const [obsSettled, setObsSettled] = useState(false);
   const [tab, setTab] = useState<DockTab>("details");
+  // Galaxy entity detail focus (Phase O): a one-shot "open this entity's existing
+  // domain panel and scroll to it" request. `nonce` is bumped on every click (even a
+  // repeat click on the same entity) so the receiving panel's effect always re-fires,
+  // without needing the panel to report back that it "consumed" the request.
+  const [focusJourney, setFocusJourney] = useState<{ id: number; nonce: number } | null>(null);
+  const [focusGoal, setFocusGoal] = useState<{ id: number; nonce: number } | null>(null);
+  const focusNonceRef = useRef(0);
 
   // Hangar system equipped states
   const [equippedShip, setEquippedShip] = useState<string>("default");
@@ -1429,6 +1436,20 @@ export default function App() {
             const flew = graphRef.current?.flyToGalaxyEntity(kind, id) ?? false;
             const icon = kind === "journey" ? "🧭" : "💵";
             pushToast(`${icon} ${r.descriptor.ref.label} — ${r.navigation.reason}`, icon, flew ? 7000 : 5000);
+            // Galaxy entity detail focus (Phase O, docs/specs/galaxy-entity-citizenship-audit.md
+            // §14/§18): the fly-to above already proved "that's a real thing" — this additionally
+            // opens the SAME domain panel/card that already shows its full detail (JourneysPanel/
+            // WealthPanel), instead of leaving the user with only a toast. Bill has no such panel
+            // focus target yet (out of scope for this phase) and keeps today's toast+fly-to only.
+            if (kind === "journey") {
+              setTab("journeys");
+              setPanel("dock");
+              setFocusJourney({ id, nonce: ++focusNonceRef.current });
+            } else if (kind === "goal") {
+              setTab("money");
+              setPanel("dock");
+              setFocusGoal({ id, nonce: ++focusNonceRef.current });
+            }
           });
         }}
         onSatelliteCount={setSatelliteCount}
@@ -2130,6 +2151,8 @@ export default function App() {
           streak={streak}
           spaceId={space?.id ?? ""}
           onPromoted={() => void refresh()}
+          focusJourney={focusJourney}
+          focusGoal={focusGoal}
         />
       )}
     </div>
