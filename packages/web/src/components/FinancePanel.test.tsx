@@ -161,6 +161,12 @@ describe("FinancePanel — Pay Stubs section (docs/specs/paystub-ingestion.md)",
     const { extractFileText } = await import("../lib/extractFileText.js");
     (extractFileText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ text: "Net Pay 900.00", name: "stub" });
     extractPaystubText.mockResolvedValue({ result: { netCents: 90000, earnings: [], deductions: [], confidence: 0.6 } });
+    confirmPaystub.mockResolvedValue({
+      data: {
+        paystub: { id: 1, netCents: 90000, earnings: [], deductions: [], hasSource: false, createdAt: "x" },
+        budget: { balanceCents: 90000, bufferCents: 0, reservedCents: 0, reserved: [], safeToSpendCents: 90000, shortfallCents: 0, weekEarnedCents: 90000, nextIncomeDate: "2026-04-01", avgWeeklyIncomeCents: 90000 },
+      },
+    });
 
     render(<FinancePanel />);
     await screen.findByText("Safe to Spend");
@@ -177,6 +183,35 @@ describe("FinancePanel — Pay Stubs section (docs/specs/paystub-ingestion.md)",
     fireEvent.click(screen.getByText("Save pay stub"));
     await waitFor(() => expect(confirmPaystub).toHaveBeenCalled());
     expect((confirmPaystub.mock.calls[0]![0] as { netCents: number }).netCents).toBe(90000);
+    // A successful save closes the draft back to the list view.
+    await waitFor(() => expect(screen.queryByText("Review your pay stub — confirm to save")).toBeNull());
+  });
+
+  it("a failed save surfaces the server's real reason and keeps the draft open with the user's entry intact (real 'still isn't saving' bug: the draft used to be discarded on any failure)", async () => {
+    const { extractFileText } = await import("../lib/extractFileText.js");
+    (extractFileText as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ text: "Net Pay 900.00", name: "stub" });
+    extractPaystubText.mockResolvedValue({ result: { netCents: 90000, earnings: [], deductions: [], confidence: 0.6 } });
+    confirmPaystub.mockResolvedValue({ error: "Original file too large (max 4.0 MB)." });
+
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    fireEvent.click(screen.getByText("📄 Pay Stubs"));
+    await screen.findByText("📤 Upload a pay stub");
+
+    const input = screen.getByText("📤 Upload a pay stub").closest("label")!.querySelector("input")!;
+    const file = new File(["dummy"], "stub.pdf", { type: "application/pdf" });
+    await act(async () => { fireEvent.change(input, { target: { files: [file] } }); });
+    await screen.findByText("Review your pay stub — confirm to save");
+
+    // Edit the employer field before saving — this must survive the failed save.
+    const employerInput = screen.getByLabelText("Employer") as HTMLInputElement;
+    fireEvent.change(employerInput, { target: { value: "Acme Trucking" } });
+
+    fireEvent.click(screen.getByText("Save pay stub"));
+    await screen.findByText(/Couldn't save — Original file too large/);
+    // The draft is still open (not discarded) and the user's typed edit is still there.
+    expect(screen.getByText("Review your pay stub — confirm to save")).toBeTruthy();
+    expect((screen.getByLabelText("Employer") as HTMLInputElement).value).toBe("Acme Trucking");
   });
 
   it("a failed extraction leaves Net pay EMPTY, not a misleading pre-filled 0.00", async () => {

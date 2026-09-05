@@ -924,8 +924,17 @@ function PaystubSection({ onChanged }: { onChanged: () => void }) {
     const input = draftToConfirmInput(d);
     if (!input) { setMsg("Net pay is required."); return; }
     const res = await confirmPaystub(input);
+    if (!res || "error" in res) {
+      // Keep the draft open on failure — closing it (the previous behavior) discarded
+      // everything the user just entered, so a real error meant re-typing the whole pay
+      // stub from scratch on every retry. Surface the server's actual reason instead of a
+      // generic "try again" that gives no hint of what's actually wrong.
+      const reason = res && "error" in res ? res.error : "unknown error";
+      setDraft((v) => (v ? { ...v, note: `Couldn't save — ${reason}` } : v));
+      return;
+    }
     setDraft(null);
-    setMsg(res ? "Pay stub saved" : "Couldn't save — try again.");
+    setMsg("Pay stub saved");
     await load();
     onChanged();
   };

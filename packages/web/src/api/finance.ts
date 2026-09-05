@@ -42,6 +42,38 @@ async function send<T>(path: string, method: string, body?: unknown): Promise<T 
   }
 }
 
+/**
+ * Same as send(), but surfaces the server's own error message on failure instead of collapsing
+ * every distinct failure (a specific validation issue, a 413 "file too large", a real 500) into
+ * a bare null. Used where the caller actually shows that reason to the user (paystub confirm) —
+ * a real, reported "it just says failed to save" complaint traced directly to this exact
+ * swallowing, since every route on this file already crafts a specific `{ error }` body.
+ */
+async function sendChecked<T>(path: string, method: string, body?: unknown): Promise<{ data: T } | { error: string }> {
+  try {
+    const res = await afetch(`${API}/finance${path}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!res.ok) {
+      let message = `Request failed (${res.status}).`;
+      try {
+        const errBody = (await res.json()) as { error?: string };
+        if (errBody && typeof errBody.error === "string" && errBody.error.trim()) message = errBody.error;
+      } catch {
+        /* non-JSON error body — keep the generic status message */
+      }
+      return { error: message };
+    }
+    const out = (await res.json()) as T;
+    try { window.dispatchEvent(new Event("brain-finance-changed")); } catch { /* no window */ }
+    return { data: out };
+  } catch {
+    return { error: "Network error — check your connection and try again." };
+  }
+}
+
 export const getFinanceSummary = () => getJson<FinanceSummary>("/summary");
 export const getMoneySky = () => getJson<MoneyStar[]>("/sky");
 
@@ -150,7 +182,8 @@ export interface PaystubConfirmInput {
   sourceMime?: string;
   sourceData?: string; // base64
 }
-export const confirmPaystub = (input: PaystubConfirmInput) => send<{ paystub: FinPaystub; budget: BudgetSummary }>("/paystub/confirm", "POST", input);
+export const confirmPaystub = (input: PaystubConfirmInput) =>
+  sendChecked<{ paystub: FinPaystub; budget: BudgetSummary }>("/paystub/confirm", "POST", input);
 export const listPaystubs = () => getJson<FinPaystub[]>("/paystub");
 export const getPaystub = (id: number) => getJson<FinPaystub>(`/paystub/${id}`);
 export const deletePaystub = (id: number) => send<{ ok: boolean }>(`/paystub/${id}`, "DELETE");
