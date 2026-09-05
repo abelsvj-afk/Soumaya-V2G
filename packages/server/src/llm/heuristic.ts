@@ -280,7 +280,7 @@ export class HeuristicProvider implements LlmProvider {
     return `This sector contains ${nodes.length} closely related memories, humming with un-synthesized potential.`;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], _persona?: string): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], _persona?: string, _soul?: string): Promise<string> {
     return `Stardate: ${new Date().toLocaleDateString()}. Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
   }
 }

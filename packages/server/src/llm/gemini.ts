@@ -10,7 +10,7 @@ import {
   composeSystem,
   RESEARCH_SYSTEM,
   SECTOR_SYSTEM,
-  LOG_SYSTEM,
+  composeLogSystem,
   CHRONICLE_SYSTEM,
   PLAN_SYSTEM,
   DISTILL_SYSTEM,
@@ -426,9 +426,9 @@ export class GeminiProvider implements LlmProvider {
     return raw.vibe;
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string, soul?: string): Promise<string> {
     const raw = await this.json<{ log: string }>(
-      persona ? `${LOG_SYSTEM}\n\nABOUT THE USER (be aware of who you serve, never become them):\n${persona}` : LOG_SYSTEM,
+      composeLogSystem({ persona, soul }),
       buildLogPrompt(newNodes, actions),
       logSchema,
     );

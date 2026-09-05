@@ -211,13 +211,13 @@ export class ResilientLlmProvider implements LlmProvider {
     }
   }
 
-  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string> {
-    if (this.blocked) return this.fallback.generateDailyLog(newNodes, actions, persona);
+  async generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string, soul?: string): Promise<string> {
+    if (this.blocked) return this.fallback.generateDailyLog(newNodes, actions, persona, soul);
     try {
-      return await withTimeout(this.primary.generateDailyLog(newNodes, actions, persona), this.timeoutMs, "generateDailyLog");
+      return await withTimeout(this.primary.generateDailyLog(newNodes, actions, persona, soul), this.timeoutMs, "generateDailyLog");
     } catch (err) {
       this.note(err, "generateDailyLog");
-      return this.fallback.generateDailyLog(newNodes, actions, persona);
+      return this.fallback.generateDailyLog(newNodes, actions, persona, soul);
     }
   }
 

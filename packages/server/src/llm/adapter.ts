@@ -143,8 +143,12 @@ export interface LlmProvider {
    *  statement about the user (dream cycles). Absent on heuristic → the caller's
    *  template fallback runs. */
   consolidate?(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }>;
-  /** Generate a daily log of the brain's evolution. `persona` = optional About-Me awareness. */
-  generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string): Promise<string>;
+  /** Generate a daily log of the brain's evolution. `persona` = optional About-Me
+   *  awareness (who the user is / how to communicate with them — behavior guidance,
+   *  learned preferences). `soul` = optional Soumaya identity text (soul.md), injected
+   *  under its OWN correctly-labeled slot — never blended into `persona`'s "about the
+   *  user" framing, so Soumaya's own voice is never mistaken for a user fact. */
+  generateDailyLog(newNodes: LinkCandidate[], actions: string[], persona?: string, soul?: string): Promise<string>;
   /** Optional: look up LIVE information on the web (grounded search) and return a
    *  concise answer with source URLs. Absent/returns null when unavailable (no key,
    *  offline, or blocked) — the web-lookup tool then simply does nothing. */

@@ -433,3 +433,24 @@ export function buildLogPrompt(newNodes: LinkCandidate[], actions: string[]): st
   const a = actions.map((a) => `- ${a}`).join("\n") || "(None)";
   return `NEW MEMORIES TODAY:\n${n}\n\nMAINTENANCE ACTIONS TODAY:\n${a}\n\nWrite the Captain's Log.`;
 }
+
+/**
+ * Compose the Captain's Log system prompt: Soumaya's own identity (soul) + who she's
+ * currently serving (persona — behavior guidance / learned communication preferences).
+ * Mirrors `composeSystem()`'s exact identity framing/wording (Phase V,
+ * docs/specs/soumaya-weekly-review-communication-integration.md) so Soumaya's voice
+ * stays ONE voice across Chat and this LLM-generated proactive surface — never a second
+ * Soul, and never blended into the "about the user" slot (`persona`), which would risk
+ * the LLM mistaking Soumaya's own character for a fact about the user. Used by both
+ * `daily_log` (maintenance) and `weekly_review` (tool) call sites of `generateDailyLog`.
+ */
+export function composeLogSystem(opts?: { persona?: string; soul?: string }): string {
+  let s = LOG_SYSTEM;
+  if (opts?.soul) {
+    s += `\n\nYOUR DEEPER CHARACTER — stay true to this voice, values, and boundaries:\n${opts.soul}`;
+  }
+  if (opts?.persona) {
+    s += `\n\nABOUT THE USER (be aware of who you serve, never become them):\n${opts.persona}`;
+  }
+  return s;
+}
