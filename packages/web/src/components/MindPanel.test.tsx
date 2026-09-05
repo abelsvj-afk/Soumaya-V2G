@@ -262,3 +262,39 @@ describe("MindPanel — regression: other cognitive kinds are unaffected", () =>
     expect(screen.queryByText("Financial Goals")).toBeNull();
   });
 });
+
+// Phase M (docs/specs/soumaya-product-audit.md, "Life Vision discoverability") — a single,
+// contextual entry point above the generic kind picker, using the SAME `kind`/`adding` state
+// and the SAME rendered per-kind section further down (no second Life Vision system, no new
+// route/tab).
+describe("MindPanel — Life Vision entry point (Phase M)", () => {
+  it("with no Life Vision yet, offers a direct way to create one without opening the flat picker", async () => {
+    getCognitive.mockResolvedValue([]);
+    render(<MindPanel onFocus={() => {}} />);
+    const entry = await screen.findByText("Set a Life Vision");
+    fireEvent.click(entry.closest("button")!);
+    // The exact same add-flow the flat picker already drives — no second data path.
+    expect(screen.getByText("Target date (optional)")).toBeTruthy();
+    expect(screen.getByPlaceholderText(/Name this life vision/i)).toBeTruthy();
+  });
+
+  it("with a Life Vision already mapped, shows it instead of the 'create one' prompt", async () => {
+    getCognitive.mockResolvedValue([vision({ label: "Own a small fleet" })]);
+    render(<MindPanel onFocus={() => {}} />);
+    await screen.findByText("Own a small fleet");
+    expect(screen.getByText("Your Life Vision")).toBeTruthy();
+    expect(screen.queryByText("Set a Life Vision")).toBeNull();
+  });
+
+  it("clicking an existing Life Vision's entry card scrolls to the same section rendered below (no duplicate data)", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    getCognitive.mockResolvedValue([vision({ label: "Own a small fleet" })]);
+    render(<MindPanel onFocus={() => {}} />);
+    const entry = await screen.findByText("Your Life Vision");
+    fireEvent.click(entry.closest("button")!);
+    expect(scrollIntoView).toHaveBeenCalled();
+    // The section it scrolled to is the ONE existing rendered list, not a second copy.
+    expect(screen.getAllByText("Own a small fleet")).toHaveLength(1);
+  });
+});

@@ -143,3 +143,62 @@ describe("NodeInspector — Life Vision archive", () => {
     expect(screen.getByText("📥 Archive (rest it)")).toBeTruthy();
   });
 });
+
+// Phase M (docs/specs/soumaya-product-audit.md, "NodeInspector identity") — every cognitive
+// kind used to collapse to one generic "Concept" chip; it now reuses COGNITIVE_META (the SAME
+// single source of truth the galaxy renderer/Legend/Mind panel already use — no new metadata).
+describe("NodeInspector — cognitive kind identity (Phase M)", () => {
+  it("a Life Vision shows its own icon/label, not the generic Concept chip", async () => {
+    const n = node({ id: 1, kind: "life_vision", type: "concept", label: "Own a small fleet" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    await screen.findByText("Own a small fleet");
+    expect(screen.getByText("🌅 Life Vision")).toBeTruthy();
+    expect(screen.queryByText("Concept")).toBeNull();
+  });
+
+  it("a Mind Goal shows its own icon/label, distinct from a Life Vision", async () => {
+    const n = node({ id: 1, kind: "goal", type: "concept", label: "Run a 5k" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    await screen.findByText("Run a 5k");
+    expect(screen.getByText("🎯 Goal")).toBeTruthy();
+    expect(screen.queryByText("🌅 Life Vision")).toBeNull();
+    expect(screen.queryByText("Concept")).toBeNull();
+  });
+
+  it("a plain memory (no cognitive kind) is unaffected — still the generic type chip", async () => {
+    const n = node({ id: 1, kind: undefined, type: "concept", label: "A regular thought" });
+    render(<NodeInspector node={n} graph={graph([n])} onFocus={() => {}} />);
+    await screen.findByText("A regular thought");
+    expect(screen.getByText("Concept")).toBeTruthy();
+  });
+
+  it("belief/moc special-cases are unaffected (regression)", async () => {
+    const belief = node({ id: 1, kind: "belief", label: "A belief" });
+    const { rerender } = render(<NodeInspector node={belief} graph={graph([belief])} onFocus={() => {}} />);
+    await screen.findByText("A belief");
+    expect(screen.getByText("🖤 Belief she formed")).toBeTruthy();
+
+    const moc = node({ id: 1, kind: "moc", label: "A hub" });
+    rerender(<NodeInspector node={moc} graph={graph([moc])} onFocus={() => {}} />);
+    expect(screen.getByText("🌌 Constellation")).toBeTruthy();
+  });
+
+  it("shows a read-only progress bar for a kind with hasProgress, none for one without", async () => {
+    const goal = node({ id: 1, kind: "goal", label: "Run a 5k", progress: 0.4 });
+    const { container, rerender } = render(<NodeInspector node={goal} graph={graph([goal])} onFocus={() => {}} />);
+    await screen.findByText("Run a 5k");
+    expect(container.querySelector(".mind-progress .mind-pct")?.textContent).toBe("40%");
+
+    const idea = node({ id: 1, kind: "idea", label: "A new idea", progress: 0.4 });
+    rerender(<NodeInspector node={idea} graph={graph([idea])} onFocus={() => {}} />);
+    await screen.findByText("A new idea");
+    expect(container.querySelector(".mind-progress")).toBeNull(); // idea has no hasProgress in COGNITIVE_META
+  });
+
+  it("a skill's progress bar also shows its mastery tier", async () => {
+    const skill = node({ id: 1, kind: "skill", label: "Spanish", progress: 0.75 });
+    render(<NodeInspector node={skill} graph={graph([skill])} onFocus={() => {}} />);
+    await screen.findByText("Spanish");
+    expect(screen.getByText("Skilled")).toBeTruthy(); // skillTier(0.75) === "Skilled"
+  });
+});

@@ -30,6 +30,7 @@ import { HelpPanel } from "./components/HelpPanel.js";
 import { WealthFullscreen } from "./components/WealthFullscreen.js";
 import { FinanceFullscreen } from "./components/FinanceFullscreen.js";
 import { Legend } from "./components/Legend.js";
+import { WelcomeIntro } from "./components/WelcomeIntro.js";
 import { LensesPanel } from "./components/LensesPanel.js";
 import { LensChips } from "./components/LensChips.js";
 import { GalaxyViews } from "./components/GalaxyViews.js";
@@ -108,6 +109,10 @@ export default function App() {
   const [awayDigest, setAwayDigest] = useState<AwayDigest | null>(null);
   // The Observatory home overlay — fades in once, after the cinematic fly-in settles.
   const [showObs, setShowObs] = useState(false);
+  // Phase M first-launch framing (docs/specs/soumaya-product-audit.md) — a single, one-time
+  // "what is Soumaya / the companion / the Galaxy" card, shown before the Observatory/Legend
+  // reveals so a genuinely new space doesn't stack three separate "welcome" surfaces at once.
+  const [showIntro, setShowIntro] = useState(false);
   // Deep-space focus mode (#2): a distraction-free reading session — dims the chrome,
   // calms ambient motion, and quiets non-essential toasts. Ephemeral (not persisted).
   const [focusMode, setFocusMode] = useState(false);
@@ -841,11 +846,38 @@ export default function App() {
     return () => window.clearInterval(iv);
   }, []);
 
+  // Phase M: first-launch framing, once per space ever (not per app open, like Observatory
+  // below) — checked immediately so it appears BEFORE the Observatory/Legend reveals rather
+  // than stacking with them. A returning space (key already set) never sees this again.
+  useEffect(() => {
+    if (!space || !loaded) return;
+    const key = `brain.introSeen.${space.id}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      setShowIntro(true);
+    } catch {
+      /* private mode — skip the one-time framing rather than error */
+    }
+  }, [space?.id, loaded]);
+
+  const dismissIntro = () => {
+    setShowIntro(false);
+    if (space) {
+      try {
+        localStorage.setItem(`brain.introSeen.${space.id}`, "1");
+      } catch {
+        /* private mode */
+      }
+    }
+  };
+
   // Reveal the Observatory home once per app open, AFTER the cinematic fly-in
   // has settled — never touches the intro itself, and won't pop over a panel
-  // the user already opened during the swoop.
+  // the user already opened during the swoop. Also waits out the first-launch
+  // framing card above so a brand-new space never sees two "welcome" surfaces
+  // stacked at once — its 3.2s countdown starts once that card is dismissed.
   useEffect(() => {
-    if (obsShownRef.current || !space || !loaded) return;
+    if (obsShownRef.current || !space || !loaded || showIntro) return;
 
     // The intro animation takes ~3.2s from the point of triggering in Graph3D.
     // Triggering now ensures it follows the intro, regardless of load time.
@@ -855,7 +887,7 @@ export default function App() {
       else setObsSettled(true); // a panel's already open → Observatory won't show; release toasts
     }, 3400);
     return () => window.clearTimeout(t);
-  }, [space, loaded, panel]);
+  }, [space, loaded, panel, showIntro]);
 
   // Buffer celebratory toasts until the Observatory gate resolves (so they don't
   // pop behind the cards). Signed-out never gates. Flushes on settle.
@@ -901,9 +933,10 @@ export default function App() {
   }, [space?.id, loaded]);
 
   // First-run: show the visual legend ONCE per brain (after data loads) so a new
-  // user learns the galaxy's language up front; thereafter it's the 🗺️ FAB.
+  // user learns the galaxy's language up front; thereafter it's the 🗺️ FAB. Also waits
+  // out the first-launch framing card (same reasoning as the Observatory effect above).
   useEffect(() => {
-    if (!space || !loaded) return;
+    if (!space || !loaded || showIntro) return;
     const key = `brain.legendSeen.${space.id}`;
     try {
       if (localStorage.getItem(key)) return;
@@ -915,7 +948,7 @@ export default function App() {
     } catch {
       /* private mode */
     }
-  }, [space?.id, loaded]);
+  }, [space?.id, loaded, showIntro]);
 
   // Close the Observatory and release any buffered toasts. The 🔭 FAB reopens it.
   const dismissObs = useCallback(() => {
@@ -1615,6 +1648,7 @@ export default function App() {
       )}
 
       {showLegend && <Legend onClose={() => setShowLegend(false)} />}
+      {showIntro && space && <WelcomeIntro companionName={space.name || "Soumaya"} onClose={dismissIntro} />}
 
       {showLenses && space && (
         <LensesPanel

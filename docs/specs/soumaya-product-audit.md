@@ -287,6 +287,17 @@ defensible for a single-column phone-first layout, not itself a problem. Concret
 - A handful of small (22–32px) touch targets exist (task reorder arrows, chat-bubble save button,
   Observatory close/search) — minor, mostly secondary actions.
 
+**Update (Phase M, docs/specs/product-coherence.md):** the two findings above that named the
+primary chat input specifically are fixed — `.chatdock-input textarea` is now `1rem` (16px), and
+`.chatdock-mic`/`.chatdock-send` are now 44px touch targets; `ChatDock.tsx` now listens to
+`window.visualViewport` and lifts/shrinks the dock to stay clear of an on-screen keyboard, exposed
+as two CSS custom properties (`--keyboard-inset`, `--vv-height`) the existing `bottom`/`height`
+rules already consume. **What remains unverified**: this environment cannot run real iOS/Android
+Safari — the fix is verified by code/unit-test only (a simulated `visualViewport` resize; see
+`ChatDock.smoke.test.tsx`'s "mobile input" tests), not by an actual on-device keyboard. The other
+inputs this finding named (tag input, finance draft-review fields) were left unchanged — they
+were out of Phase M's four scoped areas.
+
 ## 13. Performance observations (product-level, not the already-optimized Galaxy render loop)
 
 - Each `RightDock` panel independently fetches its own data on mount with no cross-tab cache —
@@ -320,23 +331,23 @@ specific, fixable seams in an otherwise coherent whole.
 
 ## 15. Prioritized findings
 
-| # | Finding | Severity | Category | Confidence |
-|---|---|---|---|---|
-| 1 | Life Vision discoverability (flat picker, no promotion, no dedicated empty state) | P1 | Discoverability | Confirmed |
-| 2 | NodeInspector shows generic "Concept" for all 10 cognitive kinds, ignoring `COGNITIVE_META` | P1 | UI / Data-model-underuse | Confirmed |
-| 3 | Journeys/Financial Goals are second-class Galaxy citizens (sprites, no NodeInspector, no fly-to from their own panels) | P1 | Architecture / UX | Confirmed |
-| 4 | `journey_link` never consulted by Maya's retrieval (Journey D breaks) | P1/P2 | Integration (bounded fix would touch locked Maya code — needs its own scoped spec) | Confirmed |
-| 5 | No first-launch product framing (what is Soumaya/Maya/Galaxy) | P1 | Onboarding | Confirmed |
-| 6 | iOS zoom-on-focus on primary chat input + several other real inputs (<16px font) | P1 | Mobile | Confirmed (device symptom needs validation) |
-| 7 | No keyboard-aware viewport handling for fixed chat/dock | P1/P2 | Mobile | Needs validation |
-| 8 | No domain-level "what Maya used" transparency beyond citation chips | P2 | Trust / UX | Confirmed |
-| 9 | No clickable quick-start chat prompts | P2 | Discoverability | Confirmed |
-| 10 | Hand-maintained z-index/offset table — fragile for future additions | P2 | Architecture / Maintainability | Confirmed (risk is Likely) |
-| 11 | TimelineView N+1 photo-fetch burst | P2 | Performance / Mobile | Confirmed |
-| 12 | No cross-tab data cache in RightDock panels | P2/P3 | Performance | Confirmed |
-| 13 | `fin_goal_link` orphaned legacy table | P3 | Data model / cleanup | Confirmed |
-| 14 | Tight color clustering among orange/gold cognitive kinds | P3 | UI | Confirmed |
-| 15 | Debt/Credit absent as tracked entities | P2 | Product strategy (scope question, not a bug) | Confirmed |
+| # | Finding | Severity | Category | Confidence | Status |
+|---|---|---|---|---|---|
+| 1 | Life Vision discoverability (flat picker, no promotion, no dedicated empty state) | P1 | Discoverability | Confirmed | **Fixed (Phase M)** — a contextual entry card in MindPanel, above the flat picker |
+| 2 | NodeInspector shows generic "Concept" for all 10 cognitive kinds, ignoring `COGNITIVE_META` | P1 | UI / Data-model-underuse | Confirmed | **Fixed (Phase M)** — reuses `COGNITIVE_META` directly, no new metadata |
+| 3 | Journeys/Financial Goals are second-class Galaxy citizens (sprites, no NodeInspector, no fly-to from their own panels) | P1 | Architecture / UX | Confirmed | Deferred — out of Phase M's scope (Galaxy rendering architecture) |
+| 4 | `journey_link` never consulted by Maya's retrieval (Journey D breaks) | P1/P2 | Integration (bounded fix would touch locked Maya code — needs its own scoped spec) | Confirmed | Deferred — explicitly out of scope for Phase M; needs its own architectural review |
+| 5 | No first-launch product framing (what is Soumaya/Maya/Galaxy) | P1 | Onboarding | Confirmed | **Fixed (Phase M)** — a single, one-time, dismissible framing card |
+| 6 | iOS zoom-on-focus on primary chat input + several other real inputs (<16px font) | P1 | Mobile | Confirmed (device symptom needs validation) | **Fixed (Phase M)** for the primary chat input specifically (now 16px); the other inputs named in this finding (tag input, finance draft fields) are unchanged — out of Phase M's scoped area |
+| 7 | No keyboard-aware viewport handling for fixed chat/dock | P1/P2 | Mobile | Needs validation | **Fixed (Phase M)** via `window.visualViewport`; real-device confirmation still outstanding (see §12 update below) |
+| 8 | No domain-level "what Maya used" transparency beyond citation chips | P2 | Trust / UX | Confirmed | Deferred — needs its own design pass |
+| 9 | No clickable quick-start chat prompts | P2 | Discoverability | Confirmed | Deferred — not in Phase M's four scoped areas |
+| 10 | Hand-maintained z-index/offset table — fragile for future additions | P2 | Architecture / Maintainability | Confirmed (risk is Likely) | Deferred — no live bug, process risk only |
+| 11 | TimelineView N+1 photo-fetch burst | P2 | Performance / Mobile | Confirmed | Deferred — not in Phase M's four scoped areas |
+| 12 | No cross-tab data cache in RightDock panels | P2/P3 | Performance | Confirmed | Deferred |
+| 13 | `fin_goal_link` orphaned legacy table | P3 | Data model / cleanup | Confirmed | Deferred — explicitly not to be touched this phase |
+| 14 | Tight color clustering among orange/gold cognitive kinds | P3 | UI | Confirmed | Deferred — a Galaxy-visual change, not attempted (preserve the aesthetic per Phase M's own rule) |
+| 15 | Debt/Credit absent as tracked entities | P2 | Product strategy (scope question, not a bug) | Confirmed | Deferred — a product-strategy question, not a Phase M implementation item |
 | 16 | People has no dedicated screen (same pattern as Life Vision, milder) | P3 | Discoverability | Confirmed |
 
 ## 16. Recommended next phase

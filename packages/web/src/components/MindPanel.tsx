@@ -488,6 +488,43 @@ export function MindPanel({
         orbit over time.
       </p>
 
+      {/* Phase M (docs/specs/soumaya-product-audit.md, "Life Vision discoverability") — a
+          Life Vision is the top of the Life OS hierarchy (Vision -> Financial Goals -> Money)
+          but was previously just the last of ten equal-weight options in the kind picker below,
+          with no dedicated empty state. This card gives it a clear, contextual entry point
+          without a new tab, route, or data source — it only sets the SAME `kind`/`adding` state
+          the existing picker already uses, or scrolls to the SAME section already rendered below. */}
+      <div className="mind-vision-entry">
+        {(byKind.get("life_vision")?.length ?? 0) > 0 ? (
+          <button
+            className="mind-vision-card"
+            onClick={() => document.getElementById("mind-section-life_vision")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            <span className="mind-vision-icon">{COGNITIVE_META.life_vision.icon}</span>
+            <span className="mind-vision-text">
+              <b>Your Life Vision</b>
+              <span>{byKind.get("life_vision")!.length === 1 ? "See it and its funding progress" : `${byKind.get("life_vision")!.length} visions — see them below`}</span>
+            </span>
+            <span className="mind-vision-go" aria-hidden="true">↓</span>
+          </button>
+        ) : (
+          <button
+            className="mind-vision-card"
+            onClick={() => {
+              setKind("life_vision");
+              setAdding(true);
+            }}
+          >
+            <span className="mind-vision-icon">{COGNITIVE_META.life_vision.icon}</span>
+            <span className="mind-vision-text">
+              <b>Set a Life Vision</b>
+              <span>{COGNITIVE_META.life_vision.blurb}</span>
+            </span>
+            <span className="mind-vision-go" aria-hidden="true">＋</span>
+          </button>
+        )}
+      </div>
+
       {suggestions.length > 0 && (
         <div className="mind-suggest">
           <span className="mind-suggest-label">People you mention — add them?</span>
@@ -577,7 +614,7 @@ export function MindPanel({
       )}
 
       {COGNITIVE_KINDS.filter((k) => byKind.has(k)).map((k) => (
-        <section key={k} className="mind-section">
+        <section key={k} id={`mind-section-${k}`} className="mind-section">
           <h3 style={{ color: COGNITIVE_META[k].color }}>
             {COGNITIVE_META[k].icon} {COGNITIVE_META[k].label}s
           </h3>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { type GraphData, type GraphNode, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType, FUEL_JOB_COST } from "@brain/shared";
+import { type GraphData, type GraphNode, type CognitiveKind, CELESTIAL_ICON, CELESTIAL_LABEL, CELESTIAL_CLASSES, NODE_TYPE_LABEL, normalizeNodeType, FUEL_JOB_COST, COGNITIVE_META, skillTier } from "@brain/shared";
 import { deleteNode, archiveNode, setImportance, synthesizeNode, answerResearch, requestMaintenance, ingestText } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { playSfx } from "../graph/sfx.js";
@@ -212,10 +212,28 @@ export function NodeInspector({ node, graph, onFocus, onChanged, onDeleted, onIs
         <span className="chip" style={{ background: "#ffe9a8", color: "#1a1400" }} title="A constellation hub — a Map of Content">
           🌌 Constellation
         </span>
+      ) : node.kind && node.kind in COGNITIVE_META ? (
+        // Cognitive layer (Mind tab) kinds carry their own identity in COGNITIVE_META — the
+        // SAME single source of truth the galaxy renderer, Legend, and Mind panel already use —
+        // reused here rather than falling through to the generic "Concept" type chip every
+        // cognitive kind previously shared (Phase L finding: NodeInspector flattened all ten
+        // kinds to one indistinguishable label despite this metadata already existing).
+        <span className="chip" style={{ background: COGNITIVE_META[node.kind as CognitiveKind].color }} title={COGNITIVE_META[node.kind as CognitiveKind].blurb}>
+          {COGNITIVE_META[node.kind as CognitiveKind].icon} {COGNITIVE_META[node.kind as CognitiveKind].label}
+        </span>
       ) : (
         <span className="chip" style={{ background: colorForType(node.type) }}>
           {NODE_TYPE_LABEL[normalizeNodeType(node.type)]}
         </span>
+      )}
+      {node.kind && node.kind in COGNITIVE_META && COGNITIVE_META[node.kind as CognitiveKind].hasProgress && (
+        <div className="mind-progress" title="Progress on this Mind item — edit it from the Mind tab">
+          {node.kind === "skill" && <span className="mind-tier">{skillTier(node.progress ?? 0)}</span>}
+          <span className="mind-bar">
+            <span style={{ width: `${Math.round((node.progress ?? 0) * 100)}%`, background: COGNITIVE_META[node.kind as CognitiveKind].color }} />
+          </span>
+          <span className="mind-pct">{Math.round((node.progress ?? 0) * 100)}%</span>
+        </div>
       )}
       {node.origin === "agent" && node.kind !== "belief" && node.kind !== "moc" && (
         <span className="chip provenance-chip" title="Soumaya authored this — a constellation hub she charted">

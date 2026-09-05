@@ -197,3 +197,47 @@ describe("ChatDock — clearing a conversation is destructive and needs confirma
     expect(screen.queryByText("Keep me")).toBeNull();
   });
 });
+
+// Phase M (docs/specs/soumaya-product-audit.md, "mobile chat input/keyboard behavior").
+describe("ChatDock — mobile input", () => {
+  it("a multiline message still sends via the send button, and the input clears after", async () => {
+    askChat.mockResolvedValue({ answer: "Got it.", citations: [] });
+    const { container } = render(<ChatDock onClose={() => {}} onFocus={() => {}} />);
+    const textarea = await screen.findByPlaceholderText(/Message/);
+    fireEvent.change(textarea, { target: { value: "line one\nline two" } });
+    expect((textarea as HTMLTextAreaElement).value).toBe("line one\nline two");
+    const sendBtn = container.querySelector(".chatdock-send")! as HTMLButtonElement;
+    await act(async () => { sendBtn.click(); });
+    await waitFor(() => expect(askChat).toHaveBeenCalledWith("line one\nline two", expect.anything()));
+    expect((textarea as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("lifts itself above an on-screen keyboard via window.visualViewport, and settles back down when it closes", async () => {
+    const listeners: Record<string, (() => void)[]> = { resize: [], scroll: [] };
+    const vv = {
+      height: 800,
+      offsetTop: 0,
+      addEventListener: (type: string, fn: () => void) => listeners[type]!.push(fn),
+      removeEventListener: (type: string, fn: () => void) => {
+        listeners[type] = listeners[type]!.filter((f) => f !== fn);
+      },
+    };
+    Object.defineProperty(window, "visualViewport", { value: vv, configurable: true });
+    Object.defineProperty(window, "innerHeight", { value: 800, configurable: true });
+
+    const { container } = render(<ChatDock onClose={() => {}} onFocus={() => {}} />);
+    const dock = await waitFor(() => container.querySelector(".chatdock")! as HTMLElement);
+    expect(dock.style.getPropertyValue("--keyboard-inset")).toBe("0px");
+
+    // The keyboard opens: visualViewport shrinks by 300px, nothing else changes.
+    vv.height = 500;
+    act(() => { for (const fn of listeners.resize!) fn(); });
+    expect(dock.style.getPropertyValue("--keyboard-inset")).toBe("300px");
+    expect(dock.style.getPropertyValue("--vv-height")).toBe("500px");
+
+    // The keyboard closes: back to 0.
+    vv.height = 800;
+    act(() => { for (const fn of listeners.resize!) fn(); });
+    expect(dock.style.getPropertyValue("--keyboard-inset")).toBe("0px");
+  });
+});

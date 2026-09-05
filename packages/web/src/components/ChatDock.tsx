@@ -347,6 +347,36 @@ export function ChatDock({
   const dockRef = useRef<HTMLDivElement>(null);
   useDialogA11y(dockRef, () => void handleClose());
 
+  // Phase M (docs/specs/soumaya-product-audit.md, "mobile chat input/keyboard behavior") —
+  // `.chatdock` is `position: fixed` with a hardcoded `bottom` offset, so on iOS/Android the
+  // on-screen keyboard can cover or clip it (the layout viewport doesn't shrink the way
+  // `100vh`/`dvh` assumes). `window.visualViewport` reports the ACTUAL visible area once the
+  // keyboard opens; we lift the dock by exactly however much space the keyboard has taken,
+  // via one CSS custom property the existing `bottom: calc(...)` rule already understands
+  // (no new positioning system, no framework — this is a no-op with the keyboard closed).
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const apply = () => {
+      const covered = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      const el = dockRef.current;
+      if (!el) return;
+      el.style.setProperty("--keyboard-inset", `${covered}px`);
+      // Also caps the dock's own height to the ACTUAL visible area (see the height rule
+      // below) — lifting the dock above a tall keyboard is only half the fix; without this
+      // a short visible area (small phone + a tall keyboard) could still push the dock's
+      // top edge off-screen instead of the dock simply getting shorter.
+      el.style.setProperty("--vv-height", `${vv.height}px`);
+    };
+    apply();
+    vv.addEventListener("resize", apply);
+    vv.addEventListener("scroll", apply);
+    return () => {
+      vv.removeEventListener("resize", apply);
+      vv.removeEventListener("scroll", apply);
+    };
+  }, []);
+
   const approveProposal = async (text: string, i: number) => {
     try {
       const r = await ingestText(text);
