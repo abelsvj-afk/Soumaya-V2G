@@ -75,8 +75,14 @@ const ExpenseBody = z
 
 const PaystubLineItemBody = z
   .object({
-    label: z.string().trim().min(1).max(80),
-    amountCents: posCents,
+    label: z.string().trim().min(1).max(160),
+    // Signed, not posCents: a real pay stub can carry a negative line item — a chargeback,
+    // a retro/mileage correction, a deduction refund/reversal — especially common on
+    // accessorial-heavy trucking stubs. Rejecting the whole document over one legitimate
+    // negative adjustment line was a confirmed false-positive (Phase W audit); the
+    // top-level netCents/grossCents stay posCents below since a stub's actual net/gross
+    // pay is never legitimately negative.
+    amountCents: cents,
     quantity: z.number().nonnegative().max(1_000_000).optional(),
     rateCents: posCents.optional(),
     ytdCents: posCents.optional(),
@@ -106,6 +112,35 @@ const PaystubConfirmBody = z
   })
   .strict();
 const MAX_PAYSTUB_SOURCE_BYTES = 4_000_000; // 4 MB decoded — matches MAX_ATTACHMENT_BYTES
+
+// Friendly field names for the paystub error message below — never leaks a stack trace or
+// internal type name, just names the part of the document that had a problem (Phase W §21).
+const PAYSTUB_FIELD_LABELS: Record<string, string> = {
+  netCents: "net pay",
+  grossCents: "gross pay",
+  hours: "hours",
+  hourlyRateCents: "hourly rate",
+  payDate: "pay date",
+  periodStart: "pay period start date",
+  periodEnd: "pay period end date",
+  employer: "employer",
+  ytdGrossCents: "year-to-date gross",
+  ytdNetCents: "year-to-date net",
+};
+
+/** Turn the first zod issue from a failed PaystubConfirmBody parse into a plain-language
+ *  description of WHAT was wrong, instead of a bare "Invalid pay stub" — e.g. "the amount
+ *  on earnings line 3" rather than the raw path `earnings.2.amountCents`. */
+function describePaystubIssue(issue: z.ZodIssue): string {
+  const top = String(issue.path[0] ?? "");
+  if (top === "earnings" || top === "deductions") {
+    const idx = typeof issue.path[1] === "number" ? issue.path[1] + 1 : undefined;
+    const sub = String(issue.path[2] ?? "");
+    const subLabel = sub === "amountCents" ? "amount" : sub === "label" ? "label" : sub || "entry";
+    return idx ? `the ${subLabel} on ${top} line ${idx}` : `a ${top} line`;
+  }
+  return PAYSTUB_FIELD_LABELS[top] ?? (top || "the pay stub");
+}
 
 const AssetBody = z.object({ kind: z.enum(["savings", "investment", "retirement", "other"]), label: z.string().trim().min(1).max(80) }).strict();
 const AssetPatch = AssetBody.partial();
@@ -329,7 +364,11 @@ export function financeRoutes(ctx: AppContext): Router {
 
   r.post("/paystub/confirm", (req, res) => {
     const p = PaystubConfirmBody.safeParse(req.body);
-    if (!p.success) return bad(res, "Invalid pay stub", p.error.issues);
+    if (!p.success) {
+      const first = p.error.issues[0];
+      const msg = first ? `This pay stub has a problem with ${describePaystubIssue(first)}.` : "Invalid pay stub";
+      return bad(res, msg, p.error.issues);
+    }
     const { sourceData, ...rest } = p.data;
     let source = sourceData;
     if (source) {

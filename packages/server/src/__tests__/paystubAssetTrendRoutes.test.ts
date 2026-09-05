@@ -119,6 +119,144 @@ describe("pay stub routes", () => {
   });
 });
 
+describe("pay stub validation flexibility (Phase W)", () => {
+  // The confirmed root cause: PaystubLineItemBody.amountCents required nonnegative and
+  // .label capped at 80 chars — a legitimate negative adjustment/chargeback line, or a
+  // manually-edited verbose line-item label, rejected the ENTIRE pay stub even though
+  // netCents/grossCents and every other field were perfectly valid. Different jobs were
+  // never actually forced into one rigid required-field schema (earnings/deductions were
+  // already flexible arrays) — these two specific false positives were the real bug.
+
+  it("1. truck driver pay stub: trucking-specific earnings (mileage, detention, layover, a negative retro correction) with no hourly fields at all", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", {
+      employer: "XYZ Trucking",
+      payDate: "2026-03-01",
+      netCents: 145_000,
+      grossCents: 180_000,
+      earnings: [
+        { label: "Line-haul miles", amountCents: 130_000, quantity: 2500, rateCents: 52 },
+        { label: "Detention pay", amountCents: 15_000 },
+        { label: "Layover pay", amountCents: 10_000 },
+        { label: "Retro mileage correction", amountCents: -3_000 }, // negative — a real chargeback/correction
+      ],
+      deductions: [
+        { label: "Federal tax", amountCents: 20_000 },
+        { label: "Escrow refund", amountCents: -1_500 }, // negative deduction — a refund/reversal
+      ],
+      // hours / hourlyRateCents intentionally absent — not applicable to this pay structure
+    });
+    expect(status).toBe(200);
+    const paystub = (body as { paystub: FinPaystub }).paystub;
+    expect(paystub.hours).toBeNull();
+    expect(paystub.earnings).toHaveLength(4);
+  });
+
+  it("2. hourly employee pay stub: hours/hourlyRateCents populated, trucking-specific concepts simply don't exist on this document", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", {
+      employer: "Retail Co",
+      netCents: 72_000,
+      grossCents: 90_000,
+      hours: 80,
+      hourlyRateCents: 1_800,
+      earnings: [
+        { label: "Regular", amountCents: 72_000 },
+        { label: "Overtime", amountCents: 18_000 },
+      ],
+      deductions: [{ label: "Federal tax", amountCents: 18_000 }],
+    });
+    expect(status).toBe(200);
+    expect((body as { paystub: FinPaystub }).paystub.hours).toBe(80);
+  });
+
+  it("3. salary employee pay stub: salary + deductions only, no hourly or trucking fields", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", {
+      employer: "Software Inc",
+      netCents: 310_000,
+      grossCents: 400_000,
+      earnings: [{ label: "Salary", amountCents: 400_000 }],
+      deductions: [
+        { label: "Federal tax", amountCents: 70_000 },
+        { label: "401k", amountCents: 20_000 },
+      ],
+    });
+    expect(status).toBe(200);
+    expect((body as { paystub: FinPaystub }).paystub.hourlyRateCents).toBeNull();
+  });
+
+  it("4. a truly invalid pay stub (no net pay at all) is rejected with a SPECIFIC error message, not the bare generic string", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", { earnings: [], deductions: [] });
+    expect(status).toBe(400);
+    expect((body as { error: string }).error).toMatch(/net pay/i);
+    expect((body as { error: string }).error).not.toBe("Invalid pay stub");
+  });
+
+  it("5. an entirely absent optional field (employer) still saves successfully", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", { netCents: 50_000, earnings: [], deductions: [] });
+    expect(status).toBe(200);
+    expect((body as { paystub: FinPaystub }).paystub.employer).toBeNull();
+  });
+
+  it("6. an explicit zero (zero hours, zero quantity) is preserved as 0, not treated as missing", async () => {
+    const { body } = await post("/api/finance/paystub/confirm", {
+      netCents: 60_000,
+      hours: 0,
+      earnings: [{ label: "Salary", amountCents: 60_000, quantity: 0 }],
+      deductions: [],
+    });
+    const paystub = (body as { paystub: FinPaystub }).paystub;
+    expect(paystub.hours).toBe(0);
+    expect(paystub.earnings[0]!.quantity).toBe(0);
+  });
+
+  it("7. a genuinely missing hours field is never silently converted to 0", async () => {
+    const { body } = await post("/api/finance/paystub/confirm", { netCents: 60_000, earnings: [], deductions: [] });
+    expect((body as { paystub: FinPaystub }).paystub.hours).toBeNull();
+  });
+
+  it("accepts a negative line-item amount (chargeback/retro correction) — the confirmed false-positive this phase fixes", async () => {
+    const { status, body } = await post("/api/finance/paystub/confirm", {
+      netCents: 100_000,
+      earnings: [{ label: "Retro mileage correction", amountCents: -2_500 }],
+      deductions: [],
+    });
+    expect(status).toBe(200);
+    expect((body as { paystub: FinPaystub }).paystub.earnings[0]!.amountCents).toBe(-2_500);
+  });
+
+  it("accepts a line-item label longer than the old 80-char cap (a verbose, manually-edited accessorial-pay description)", async () => {
+    const longLabel = "Non-Taxable Per Diem Reimbursement for Interstate Line-Haul Miles Driven This Pay Period";
+    expect(longLabel.length).toBeGreaterThan(80);
+    const { status } = await post("/api/finance/paystub/confirm", {
+      netCents: 100_000,
+      earnings: [{ label: longLabel, amountCents: 5_000 }],
+      deductions: [],
+    });
+    expect(status).toBe(200);
+  });
+
+  it("still rejects a negative top-level net pay — financial safety: only line-item amounts may be negative, never the stub's actual net/gross pay", async () => {
+    const { status } = await post("/api/finance/paystub/confirm", { netCents: -100, earnings: [], deductions: [] });
+    expect(status).toBe(400);
+  });
+
+  it("a deduction reversal correctly reduces the derived FinIncome.taxCents rather than corrupting it", async () => {
+    const { body } = await post("/api/finance/paystub/confirm", {
+      netCents: 90_000,
+      earnings: [],
+      deductions: [
+        { label: "Federal tax", amountCents: 20_000 },
+        { label: "Prior-period deduction refund", amountCents: -20_000 },
+      ],
+    });
+    const paystub = (body as { paystub: FinPaystub }).paystub;
+    // Net deductions sum to 0 here — confirmPaystub() stores taxCents as null (not a
+    // nonsensical 0-or-negative value) when the deductions net out to <= 0.
+    const income = await get(`/api/finance/income`);
+    const row = (income.body as { taxCents: number | null }[]).find((r) => (r as any).id === paystub.incomeId);
+    expect(row?.taxCents ?? null).toBeNull();
+  });
+});
+
 describe("asset (net worth) routes", () => {
   it("creates an asset, logs a snapshot, lists both, then archives (not hard-deletes)", async () => {
     const created = await post("/api/finance/assets", { kind: "savings", label: "Emergency fund" });
