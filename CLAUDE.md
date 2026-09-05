@@ -337,6 +337,41 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
      explicitly exempt (you deliberately selected or flew to it — it must stay readable regardless
      of what's technically between the camera and it). Needs on-device re-confirmation once a
      deploy is possible.
+- **Views/Lens floating in the middle of the screen — CONFIRMED via real on-device screenshots
+  (2026-09-05), FIXED** (index.css `.gv-wrap`, GalaxyViews.tsx, LensChips.tsx): two screenshots
+  from the same device at different sessions showed the "🌌 Views ▸" toggle and the pinned-Lens
+  quick-switch chips rendered in wildly different vertical positions, sometimes floating mid-
+  screen over the sun. Root cause: `.gv-wrap` was anchored `bottom: 300px` (a fixed distance from
+  the bottom edge) while `.fuel-gauge`/`.streak-ember` — the button cluster it's meant to visually
+  group with — are anchored `top: 50%` (viewport-vertical-center-relative). Those two anchor
+  families drift apart whenever the real rendered viewport height differs between sessions (e.g.
+  Android Chrome's collapsing/expanding address bar) — a concrete case of the exact "hand-
+  maintained pixel-offset table" fragility already flagged elsewhere in this doc and in Phase L's
+  product audit. Fixed per explicit user direction: (1) re-anchored `.gv-wrap` to
+  `top: calc(50% + 100px)`, joining the SAME anchor family as `.fuel-gauge`/`.streak-ember` so it
+  moves in lockstep with that cluster regardless of viewport height, instead of re-tuning another
+  standalone bottom-offset constant; (2) eliminated the second independently-floating overlay
+  entirely — the pinned-Lens chips (formerly their own `<LensChips>` in App.tsx) now render as an
+  in-flow `.lens-list` INSIDE the Views dropdown (GalaxyViews.tsx), so there is only one floating
+  element in this area, not two that can drift apart. `.gv-chips`'s `max-height` was recalculated
+  from a flat `40vh` to `calc(50vh - 156px)` to prevent the now-downward-growing dropdown from
+  overflowing short devices. The exact `+100px` offset is estimated from `.fuel-gauge`'s own CSS
+  layout math, not pixel-measured on-device — flagged for confirmation, but the structural fix
+  (shared anchor family; one floating element instead of two) is what actually closes the bug.
+  Needs on-device re-confirmation once a deploy is possible.
+- **Nebula backdrop "cut out" color patch — CONFIRMED via real on-device screenshot (2026-09-05),
+  FIXED** (graph/backdropBake.ts `bakeBackdrop`): the baked nebula/galaxy-glow backdrop showed a
+  hard-edged, wrongly-toned color patch (a geometric "cut out" shape) instead of smoothly fading
+  to black. Root cause: `WebGLCubeRenderTarget`'s texture defaults to `NoColorSpace` (correct for
+  a texture feeding further linear-space processing) but this one is assigned directly to
+  `scene.background` for direct display — exactly like the `CanvasTexture`s in `nodeObject.ts` and
+  `skybox.ts`, which both already set `colorSpace = THREE.SRGBColorSpace` for that reason. Missing
+  it here meant the additively-blended, overlapping sprites baked into this texture displayed with
+  the wrong color-space interpretation, most visible exactly where several sprites summed into a
+  bright patch. Fixed by adding `target.texture.colorSpace = THREE.SRGBColorSpace;` right after
+  the render target is constructed, matching the established codebase convention exactly rather
+  than attempting a more speculative shader/geometry change. Needs on-device re-confirmation once
+  a deploy is possible.
 - **Fly billing hold, ongoing since 2026-08-29:** most of the above (and everything shipped since)
   still hasn't been visually verified on a real device via this app's own deploy pipeline. On
   2026-09-03 the owner sent real on-device screenshots of two screens (Observatory, the galaxy

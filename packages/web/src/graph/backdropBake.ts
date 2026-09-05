@@ -43,6 +43,17 @@ export function bakeBackdrop(
   for (const o of sources) bakeScene.add(o);
 
   const target = new THREE.WebGLCubeRenderTarget(faceSize, { generateMipmaps: false });
+  // A render target's texture defaults to `NoColorSpace` (correct when it feeds further
+  // linear-space processing) — but THIS one is assigned directly to `scene.background` for
+  // direct display, exactly like the CanvasTextures in skybox.ts/nodeObject.ts, which both
+  // explicitly set `colorSpace = SRGBColorSpace` for that reason. Missing it here means the
+  // additively-blended, overlapping sprites baked into this texture get displayed with the
+  // WRONG color-space interpretation — most visible exactly where several sprites summed
+  // into a bright patch, producing a harsh, wrongly-toned region with a hard edge against
+  // the correctly-near-black surrounding sky (a real, on-device-screenshotted "cut out"
+  // color patch). This was a real oversight, not a stylistic choice: every other
+  // direct-display texture in this file's sibling modules already sets this.
+  target.texture.colorSpace = THREE.SRGBColorSpace;
   // CubeCamera doesn't need to be added to any scene — with no parent it updates its own
   // matrixWorld from its local transform directly (see three.js CubeCamera.update()).
   const cubeCamera = new THREE.CubeCamera(1, 20000, target);

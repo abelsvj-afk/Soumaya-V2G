@@ -41,6 +41,6 @@ describe("LensChips", () => {
     vi.spyOn(api, "getLenses").mockResolvedValue([]);
     const { container } = render(<LensChips activeLens={null} onOpen={vi.fn()} onExit={vi.fn()} />);
     await waitFor(() => expect(api.getLenses).toHaveBeenCalled());
-    expect(container.querySelector(".lens-chips")).toBeNull();
+    expect(container.querySelector(".lens-list")).toBeNull();
   });
 });

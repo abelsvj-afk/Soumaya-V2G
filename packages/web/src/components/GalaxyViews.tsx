@@ -4,6 +4,7 @@ import { getMoneySky } from "../api/finance.js";
 import { getJourneys } from "../api/journeys.js";
 import { createLens } from "../api/lenses.js";
 import { pushToast } from "./Toasts.js";
+import { LensChips } from "./LensChips.js";
 
 /**
  * Galaxy Views (mobile performance pivot) — view ONE category of the galaxy at a time instead
@@ -150,6 +151,11 @@ export function GalaxyViews({
           {activeView && <button className="gv-chip gv-all" onClick={onExit}>★ Show all</button>}
         </div>
       )}
+      {/* Pinned Smart Lenses live in this SAME dropdown now, not their own floating overlay
+          (see .lens-list's CSS comment) — Views and Lens are already "two legitimate,
+          complementary tools" per this file's own header comment, so this is a real,
+          coherent grouping rather than an arbitrary place to hide it. */}
+      {open && <LensChips activeLens={activeView} onOpen={onOpen} onExit={onExit} hidden={!open} />}
     </div>
   );
 }

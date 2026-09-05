@@ -81,6 +81,20 @@ describe("bakeBackdrop", () => {
     expect(b.disposeSpy).toHaveBeenCalledTimes(1);
   });
 
+  // Real, on-device bug report: the baked nebula/galaxy backdrop showed a hard-edged,
+  // wrongly-toned color patch ("cut out" shape) instead of smoothly fading to black — this
+  // texture is assigned directly to scene.background (direct display, like the CanvasTextures
+  // in skybox.ts/nodeObject.ts, which both already set this), so it needs the SAME color
+  // space those already use; without it, the additively-summed bright regions where sprites
+  // overlap are the most visibly wrong (matching the reported symptom).
+  it("sets the render target texture's colorSpace for correct direct display (matches skybox.ts/nodeObject.ts's convention)", () => {
+    const scene = new THREE.Scene();
+    const { sprite } = fakeSprite();
+    const baked = bakeBackdrop(fakeRenderer(), scene, [sprite], 64);
+
+    expect(baked.target.texture.colorSpace).toBe(THREE.SRGBColorSpace);
+  });
+
   it("disposeBakedBackdrop frees the render target", () => {
     const scene = new THREE.Scene();
     const { sprite } = fakeSprite();

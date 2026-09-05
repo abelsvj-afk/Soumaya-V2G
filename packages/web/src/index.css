@@ -4658,35 +4658,26 @@ button:not(.fab) { transition: transform 0.08s ease, background 0.15s ease, bord
 .focus-mode .lens-banner { opacity: 0.08; transition: opacity 0.5s ease; }
 .focus-mode .lens-banner:hover { opacity: 1; }
 
-/* Pinned-lens quick chips — one-tap switching, bottom-center over the galaxy. Centered
-   with up to min(80vw,520px) of width means on a typical phone this row's edges reach
-   into BOTH the left (.fab-dock etc.) and right (.fab-ingest etc.) FAB columns — those
-   stack continuously from 18px to 288px on each side (see the .gv-wrap comment below),
-   so there is no vertical slot within that stack this can sit in without covering a FAB
-   on one side or the other. 350px sits above the entire FAB column (see .gv-wrap, at
-   300px) with clearance for the Views toggle's own collapsed height in between. */
-.lens-chips {
-  position: absolute; bottom: calc(350px + env(safe-area-inset-bottom));
-  left: 50%; transform: translateX(-50%); z-index: 44;
-  display: flex; gap: 6px; max-width: min(80vw, 520px);
-  overflow-x: auto; padding: 4px; scrollbar-width: none;
+/* Pinned lenses — a plain in-flow LIST rendered INSIDE the Views dropdown (`.gv-chips`'
+   sibling, inside `.gv-wrap`; see `GalaxyViews.tsx`), not a separately floating/positioned
+   overlay. A real, on-device screenshot showed this previously as its own
+   `position:absolute` row, centered independently of — and therefore able to visually
+   collide with — the Views toggle, since the two floated on unrelated anchor math (see
+   `.gv-wrap`'s CSS comment for the confirmed root cause of that specific bug). Moving it
+   into the SAME dropdown as Views removes the whole class of "two independently-floating
+   elements can drift apart" bug rather than re-tuning another standalone pixel offset. */
+.lens-list { display: flex; flex-direction: column; gap: 4px; width: 100%; margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--glass-border); }
+.lens-list-label { font-size: 0.7rem; opacity: 0.65; padding: 0 2px; }
+.lens-list-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
+  padding: 7px 12px; border-radius: 999px; cursor: pointer;
+  background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border);
+  color: var(--text); font-size: 0.82rem; font-weight: 600; min-height: 38px;
 }
-.lens-chips::-webkit-scrollbar { display: none; }
-.lens-chip {
-  display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
-  padding: 6px 10px; border-radius: 999px; cursor: pointer;
-  background: var(--glass); border: 1px solid var(--glass-border);
-  backdrop-filter: blur(14px); color: var(--text); font-size: 12px; font-weight: 600;
-  max-width: 180px;
-}
-.lens-chip .lens-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.lens-chip .lens-chip-count {
-  font-variant-numeric: tabular-nums; font-size: 11px; color: #7af9ff; opacity: 0.9;
-}
-.lens-chip.on { border-color: var(--accent); background: rgba(122, 249, 255, 0.2); color: var(--accent); }
-.lens-chip.on .lens-chip-count { color: var(--accent); }
-.focus-mode .lens-chips { opacity: 0.08; transition: opacity 0.5s ease; }
-.focus-mode .lens-chips:hover { opacity: 1; }
+.lens-list-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lens-list-count { font-variant-numeric: tabular-nums; font-size: 0.72rem; color: #7af9ff; opacity: 0.9; flex: 0 0 auto; }
+.lens-list-item.on { border-color: var(--accent); background: rgba(122, 249, 255, 0.14); color: var(--accent); }
+.lens-list-item.on .lens-list-count { color: var(--accent); }
 
 /* Right-side-up / level-camera button — shown only while following the ship. Sits in
    the bottom-right nav column, above the ⚙️ settings FAB. */
@@ -5086,27 +5077,43 @@ button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
 }
 
 /* ---- Galaxy Views (mobile perf: render one category at a time) ---- */
-/* The left FAB column stacks continuously from 18px to 288px (dock 18-64, recenter
-   74-120, music 130-176, .focus-cluster 186-230, .fab-focus-toggle 242-288 — each pair
-   of rows only 10-12px apart), so there is no gap in that column tall enough to hold
-   this toggle without covering (and stealing clicks from) whichever FAB shares its
-   band — this previously happened against .focus-cluster once that control's position
-   drifted to 186px without this value being re-checked. 300px clears the ENTIRE left
-   column instead of trying to thread a specific gap that can silently close again the
-   next time a FAB is repositioned. z-index stays above .fab so it's never ambiguous. */
-.gv-wrap { position: fixed; left: 12px; bottom: 300px; z-index: 45; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
-@supports (padding: env(safe-area-inset-bottom)) {
-  .gv-wrap { bottom: calc(300px + env(safe-area-inset-bottom)); }
-}
+/* Real, on-device bug (reported with screenshots from two different sessions on the same
+   phone): this toggle would sometimes render mid-screen, overlapping the sun, instead of
+   near the bottom. Root cause, confirmed by reading the actual CSS rather than guessing:
+   .fuel-gauge/.streak-ember (the group this button visually sits under) are anchored to
+   `top: 50%` (the viewport's vertical CENTER, via translateY(-50%)/calc(50% - Npx)) — a
+   value that moves in real pixels whenever the browser's actual visible height changes
+   (Android's collapsing/expanding address bar, a taller/shorter phone, immersive-mode
+   differences — all of which change `100%`/`50%` in absolute pixels). This toggle was
+   instead anchored to `bottom: 300px`, a FIXED distance from the bottom edge that does
+   NOT move with viewport height. Two anchors that both look "roughly near the fuel gauge"
+   on one test device will visibly drift apart from each other the moment the real visible
+   height differs even slightly — exactly the symptom reported. The fix is structural, not
+   a new pixel constant: this toggle now shares the SAME `top: 50%`-relative anchor family
+   as .fuel-gauge/.streak-ember, so it is genuinely GROUPED with them (moves as one unit
+   with the fuel gauge, never drifts independently) rather than merely coincidentally
+   close on one specific screen. The vertical gap below the fuel gauge's own center
+   (roughly: 18px icon + 5px gap + 128px tube + 5px gap + 14px value ≈ 170px tall, so
+   ~85px from center to its bottom edge, plus a small clearance) is estimated from the
+   fuel gauge's own CSS below, not pixel-measured on a device — flag for on-device
+   confirmation of the exact gap, per this repo's own "prove visual changes on-device"
+   discipline; the STRUCTURAL fix (shared anchor family) is what actually closes the bug
+   regardless of the exact offset chosen. z-index stays above .fab so it's never ambiguous. */
+.gv-wrap { position: fixed; left: 12px; top: calc(50% + 100px); z-index: 45; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; max-width: 70vw; }
 .gv-toggle { background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border); color: var(--text);
   border-radius: 999px; padding: 8px 14px; min-height: 40px; font-size: 0.85rem; font-weight: 700; cursor: pointer; backdrop-filter: blur(6px); }
 .gv-toggle.open { border-color: rgba(122,220,255,0.5); }
 .gv-chips {
   display: flex; flex-wrap: wrap; gap: 6px; max-width: 72vw; animation: finFade 0.2s ease both;
   /* Capped + scrollable rather than growing indefinitely — up to 8 categories plus the
-     money/journeys/save-as-lens/show-all chips can wrap to several rows; an unbounded
-     height would push the top of the list off-screen on a short device. */
-  max-height: 40vh; overflow-y: auto; scrollbar-width: thin;
+     money/journeys/save-as-lens/show-all chips (and now the pinned-lens list below them)
+     can wrap to several rows. .gv-wrap now grows DOWNWARD from a top-anchor (see its own
+     comment) instead of upward from a bottom-anchor, so this cap is sized off the actual
+     remaining space to the bottom of the viewport (50vh - 100px, matching .gv-wrap's own
+     `top: calc(50% + 100px)`, minus room for the toggle button + gap above it) rather than
+     a flat 40vh — an unbounded/mis-capped height here would push content off the bottom
+     of a short device instead of the old bug's "off the top". */
+  max-height: calc(50vh - 156px); overflow-y: auto; scrollbar-width: thin;
 }
 .gv-chip { display: inline-flex; align-items: center; gap: 6px; background: rgba(12,16,34,0.82); border: 1px solid var(--glass-border);
   color: var(--text); border-radius: 999px; padding: 7px 12px; min-height: 38px; font-size: 0.82rem; cursor: pointer; backdrop-filter: blur(6px); }

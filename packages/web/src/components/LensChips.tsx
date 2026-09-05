@@ -3,10 +3,18 @@ import type { Lens } from "@brain/shared";
 import { getLenses, lensNodes } from "../api/lenses.js";
 
 /**
- * On-galaxy quick chips for PINNED Smart Lenses — one-tap switching between your saved
- * views without opening the panel. The active lens is highlighted; tapping it again
- * exits. Live counts re-sync on ingest and whenever lenses change in the panel. Hidden
- * when there are no pinned lenses (so it never adds chrome you didn't ask for).
+ * PINNED Smart Lenses — one-tap switching between your saved views without opening the
+ * full Lenses panel. The active lens is highlighted; tapping it again exits. Live counts
+ * re-sync on ingest and whenever lenses change in the panel. Renders nothing when there
+ * are no pinned lenses (so it never adds chrome you didn't ask for).
+ *
+ * Rendered as a plain in-flow LIST inside the Views dropdown (`GalaxyViews.tsx`), not as
+ * its own floating overlay — a real, on-device bug report showed this previously as an
+ * independently `position:absolute`-anchored row that could visually collide with the
+ * Views toggle (see `.gv-wrap`'s CSS comment for the root cause) whenever the two floating
+ * elements' unrelated anchor math didn't line up on a given device. Living inside the SAME
+ * dropdown as Views removes that whole class of collision — there is only one floating
+ * element now, not two independently-positioned ones.
  */
 export function LensChips({
   activeLens,
@@ -27,10 +35,10 @@ export function LensChips({
     [],
   );
   useEffect(() => {
-    // While hidden (any full panel/chat/Observatory open), the chips aren't
-    // shown at all — there's no reason to keep fetching on every memory add.
-    // Re-running this effect when `hidden` flips back to false refreshes once
-    // on the way back in, so it's never stale when it reappears.
+    // While hidden (the Views dropdown is collapsed, or a full panel/chat/Observatory is
+    // open), there's no reason to keep fetching on every memory add. Re-running this
+    // effect when `hidden` flips back to false refreshes once on the way back in, so it's
+    // never stale when it reappears.
     if (hidden) return;
     refresh();
     const on = () => refresh();
@@ -54,19 +62,21 @@ export function LensChips({
   };
 
   return (
-    <div className="lens-chips" role="toolbar" aria-label="Pinned lenses">
+    <div className="lens-list" role="list" aria-label="Pinned lenses">
+      <div className="lens-list-label">📌 Pinned Lenses</div>
       {pinned.map((l) => {
         const on = activeLens === l.name;
         return (
           <button
             key={l.id}
-            className={`lens-chip ${on ? "on" : ""}`}
+            className={`lens-list-item ${on ? "on" : ""}`}
             onClick={() => void tap(l)}
             aria-pressed={on}
+            role="listitem"
             title={on ? `Exit “${l.name}”` : `View “${l.name}”`}
           >
-            <span className="lens-chip-name">{l.name}</span>
-            <span className="lens-chip-count">{on ? "✕" : (l.count ?? 0)}</span>
+            <span className="lens-list-name">{l.name}</span>
+            <span className="lens-list-count">{on ? "✕" : (l.count ?? 0)}</span>
           </button>
         );
       })}

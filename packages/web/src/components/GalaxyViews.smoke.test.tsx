@@ -3,8 +3,12 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import type { GraphNode } from "@brain/shared";
 
 const createLens = vi.fn().mockResolvedValue({ id: 1, name: "Goals", query: { kinds: ["goal"] }, pinned: false });
+// GalaxyViews now renders <LensChips> inside its dropdown (Phase M — see .lens-list's CSS
+// comment), which also imports from ../api/lenses.js — getLenses/lensNodes need mocking too.
 vi.mock("../api/lenses.js", () => ({
   createLens: (...a: unknown[]) => createLens(...a),
+  getLenses: vi.fn().mockResolvedValue([]),
+  lensNodes: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("../api/finance.js", () => ({ getMoneySky: vi.fn().mockResolvedValue([]) }));
 vi.mock("../api/journeys.js", () => ({ getJourneys: vi.fn().mockResolvedValue([]) }));
@@ -46,5 +50,26 @@ describe("GalaxyViews — Save as Lens bridge", () => {
     );
     screen.getByText(/Views/).click();
     expect(screen.queryByText(/Save as Lens/)).toBeNull();
+  });
+});
+
+// Phase M (real on-device screenshot bug report): pinned lenses previously rendered as
+// their own independently-floating overlay that could visually collide with this dropdown
+// (see .gv-wrap's CSS comment for the confirmed root cause). They now render as a plain
+// list INSIDE this dropdown instead of as a second floating element.
+describe("GalaxyViews — pinned lenses render inside this dropdown, not a separate overlay", () => {
+  it("shows nothing lens-related while the dropdown is collapsed", () => {
+    render(<GalaxyViews nodes={[goalNode(1)]} activeView={null} onOpen={vi.fn()} onExit={vi.fn()} />);
+    expect(screen.queryByText("📌 Pinned Lenses")).toBeNull();
+  });
+
+  it("shows the pinned-lens list once the dropdown is opened", async () => {
+    const { getLenses } = await import("../api/lenses.js");
+    vi.mocked(getLenses).mockResolvedValue([{ id: 9, name: "Linked to Girlfriend", query: {}, pinned: true, count: 4 }]);
+    const { container } = render(<GalaxyViews nodes={[goalNode(1)]} activeView={null} onOpen={vi.fn()} onExit={vi.fn()} />);
+    screen.getByText(/Views/).click();
+    await screen.findByText("Linked to Girlfriend");
+    // Confirms it's a DOM descendant of .gv-wrap (the one dropdown), not a sibling overlay.
+    expect(container.querySelector(".gv-wrap .lens-list")).not.toBeNull();
   });
 });

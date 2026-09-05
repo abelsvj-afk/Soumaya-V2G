@@ -32,7 +32,6 @@ import { FinanceFullscreen } from "./components/FinanceFullscreen.js";
 import { Legend } from "./components/Legend.js";
 import { WelcomeIntro } from "./components/WelcomeIntro.js";
 import { LensesPanel } from "./components/LensesPanel.js";
-import { LensChips } from "./components/LensChips.js";
 import { GalaxyViews } from "./components/GalaxyViews.js";
 import { getMoneySky } from "./api/finance.js";
 import { galaxyEntity, galaxyEntityKindFromRef } from "./api/graph.js";
@@ -1658,17 +1657,11 @@ export default function App() {
         />
       )}
 
-      {/* One-tap pinned-lens switching, right on the galaxy. */}
-      {space && (
-        <LensChips
-          activeLens={activeLens}
-          onOpen={openLens}
-          onExit={exitLens}
-          hidden={panel !== null || showChat || showObs}
-        />
-      )}
-
-      {/* Galaxy category views — render one category at a time (lighter on a cheap phone). */}
+      {/* Galaxy category views — render one category at a time (lighter on a cheap phone).
+          Pinned-lens quick-switching (formerly its own floating <LensChips> here) now
+          renders INSIDE this dropdown — see GalaxyViews.tsx and .lens-list's CSS comment
+          for why: two independently-floating overlays could visually collide on some
+          devices, confirmed by a real on-device screenshot. */}
       {space && (
         <GalaxyViews
           nodes={view.nodes as GraphNode[]}
