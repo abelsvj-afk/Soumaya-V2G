@@ -12,6 +12,11 @@ const ChatBody = z.object({
     .array(z.object({ role: z.enum(["you", "soumaya"]), text: z.string().max(4000) }))
     .max(16)
     .optional(),
+  // Explicit Journey-scoped retrieval experiment (docs/specs/journey-aware-retrieval-experiment.md).
+  // Only ever a real, user-selected Journey id — chat() itself re-validates it belongs to this
+  // space (JourneysRepo.get is space-scoped) before using it for anything; an invalid or
+  // cross-space id here just contributes zero extra candidates, never an error.
+  journeyId: z.number().int().positive().optional(),
 });
 
 const DistillBody = z.object({
@@ -78,6 +83,7 @@ export function chatRoutes(ctx: AppContext): Router {
       DEFAULT_CHAT,
       spaceOf(res),
       parsed.data.history ?? [],
+      parsed.data.journeyId ?? null,
     );
     res.json(result);
   });

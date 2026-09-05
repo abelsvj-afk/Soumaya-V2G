@@ -20,6 +20,7 @@ import { emotionalSnapshotText } from "../analysis/emotional.js";
 import { interactionPreferenceSnapshotText, recordPreferenceSignal } from "../analysis/interactionPreferences.js";
 import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
 import { buildNavigationCandidateList, resolveNavigationIntent } from "../analysis/galaxyEntity.js";
+import { JourneysRepo } from "../repositories/journeys.repo.js";
 import { UsageTracker } from "../usage.js";
 import { EconomyRepo } from "../economy.js";
 import type { EmbeddingProvider } from "../embeddings/adapter.js";
@@ -41,6 +42,16 @@ const AUTO_PROFILE_THRESHOLD = 0.35;
 /** A knowledge-doc chunk must be at least this related to the message to be
  *  injected — otherwise docs leak into every reply regardless of topic. */
 const KNOWLEDGE_THRESHOLD = 0.3;
+// Explicit Journey-scoped retrieval experiment (docs/specs/journey-aware-retrieval-experiment.md,
+// following the measured Class B gap in docs/specs/journey-aware-retrieval-audit.md). A Journey's
+// own `journey_link`-linked memory ids never enter GraphRAG's seed->hop candidate set on their
+// own — this is the one additive candidate source, gated on an EXPLICIT, caller-supplied
+// journeyId (never inferred from question text; the audit's own ambiguity finding argues
+// directly against free-text Journey guessing). Cap picked deliberately close to (but distinct
+// from) opts.k(=6) — a Journey's own story is a real, bounded signal, not license to dump its
+// entire history into every turn; 8 is enough to plausibly span early/mid/late memories (the
+// audit's own temporal scenario used 3) without meaningfully growing the context budget.
+const JOURNEY_CANDIDATE_CAP = 8;
 
 /**
  * GraphRAG: embed the question -> KNN seeds -> expand neighborhoods via recursive
@@ -55,6 +66,13 @@ export async function chat(
   /** Recent turns (oldest first) so the reply continues the thread instead of
    *  starting an amnesiac one-shot — the #1 "she feels generic" cause. */
   history: { role: "you" | "soumaya"; text: string }[] = [],
+  /**
+   * Explicit Journey-scoped retrieval experiment. ONLY set when the caller has a verified
+   * Journey the user actually selected (e.g. a future "ask about this Journey" UI) — never
+   * inferred from `question`'s text. `null`/omitted (the default, every existing caller)
+   * reproduces prior behavior exactly: zero extra repository reads, zero extra candidates.
+   */
+  journeyId: number | null = null,
 ): Promise<ChatResponse> {
   const vec = await deps.embeddings.embed(question);
   // Hybrid seeds: vector KNN fused with BM25 keyword hits (RRF) — questions that
@@ -68,6 +86,27 @@ export async function chat(
   for (const sid of seedIds) {
     ids.add(sid);
     for (const hop of multiHopNeighbors(h.sqlite, sid, opts.depth)) ids.add(hop.nodeId);
+  }
+
+  // Explicit Journey-scoped candidates — additive only, never a replacement for the retrieval
+  // above. `JourneysRepo.get` is space-scoped (returns null for a wrong-space or nonexistent
+  // id), so an invalid/cross-space journeyId silently contributes nothing rather than leaking
+  // another space's linked memories or breaking the turn — same "best-effort, never break chat"
+  // contract every other snapshot in this function already follows. `ids` is a Set, so a linked
+  // memory already surfaced by ordinary retrieval is a no-op add — deduplication is free here,
+  // not a separate mechanism. Ranking is untouched: these ids join the SAME candidate pool the
+  // seed/hop ids already populate, then flow through the existing, unmodified context-assembly
+  // and LLM-citation path below exactly like any other candidate.
+  if (journeyId != null) {
+    const journeysRepo = new JourneysRepo(h, spaceId);
+    if (journeysRepo.get(journeyId)) {
+      const linkedNodeIds = journeysRepo
+        .links(journeyId)
+        .filter((l) => l.kind === "node")
+        .slice(0, JOURNEY_CANDIDATE_CAP)
+        .map((l) => l.refId);
+      for (const id of linkedNodeIds) ids.add(id);
+    }
   }
 
   const nodesRepo = new NodesRepo(h, spaceId);
