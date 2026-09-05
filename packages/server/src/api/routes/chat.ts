@@ -17,6 +17,12 @@ const ChatBody = z.object({
   // space (JourneysRepo.get is space-scoped) before using it for anything; an invalid or
   // cross-space id here just contributes zero extra candidates, never an error.
   journeyId: z.number().int().positive().optional(),
+  // Proactive -> Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md).
+  // Only ever set when the user opened Chat from a real proactive delivery (a toast
+  // click) — chat() itself re-validates `targetId` against this space's real data
+  // before using it for anything; an invalid/stale/cross-space value contributes
+  // nothing, never an error, same contract as journeyId above.
+  proactiveContext: z.object({ source: z.literal("goal_trend"), targetId: z.number().int().positive() }).optional(),
 });
 
 const DistillBody = z.object({
@@ -84,6 +90,7 @@ export function chatRoutes(ctx: AppContext): Router {
       spaceOf(res),
       parsed.data.history ?? [],
       parsed.data.journeyId ?? null,
+      parsed.data.proactiveContext ?? null,
     );
     res.json(result);
   });

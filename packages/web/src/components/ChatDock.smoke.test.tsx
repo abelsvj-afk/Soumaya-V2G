@@ -208,7 +208,7 @@ describe("ChatDock — mobile input", () => {
     expect((textarea as HTMLTextAreaElement).value).toBe("line one\nline two");
     const sendBtn = container.querySelector(".chatdock-send")! as HTMLButtonElement;
     await act(async () => { sendBtn.click(); });
-    await waitFor(() => expect(askChat).toHaveBeenCalledWith("line one\nline two", expect.anything()));
+    await waitFor(() => expect(askChat).toHaveBeenCalledWith("line one\nline two", expect.anything(), undefined));
     expect((textarea as HTMLTextAreaElement).value).toBe("");
   });
 

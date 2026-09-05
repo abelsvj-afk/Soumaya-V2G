@@ -84,6 +84,8 @@ export function ChatDock({
   onRecall,
   onCreated,
   onNavigate,
+  proactiveContext,
+  onConsumeProactiveContext,
 }: {
   spaceName?: string;
   onClose: () => void;
@@ -95,6 +97,16 @@ export function ChatDock({
    *  never automatically on receiving a response, and never on reload of persisted history
    *  (this component never re-fires it from stored `messages`, only from the click handler). */
   onNavigate?: (nav: NavigationIntent) => void;
+  /**
+   * Proactive → Chat handoff (Phase Y). Set ONLY when the user opened this dock from a
+   * real proactive toast (e.g. Phase X's goal_trend nudge) — a one-shot value, consumed
+   * by the very next message the user actually sends (see `onConsumeProactiveContext`),
+   * never replayed on later turns.
+   */
+  proactiveContext?: { source: "goal_trend"; targetId: number } | null;
+  /** Called once this dock has used `proactiveContext` for a send, so the caller can
+   *  clear it — guarantees it's attached to exactly one outgoing message. */
+  onConsumeProactiveContext?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
@@ -174,8 +186,13 @@ export function ChatDock({
     const trimmed = history.slice(-32);
     setMessages((m) => [...m, { role: "you", text: q }]);
     setBusy(true);
+    // One-shot: attach to exactly this send, then tell the caller to clear it — a
+    // later message in the same session must never silently carry stale proactive
+    // framing forward.
+    const ctxForThisSend = proactiveContext ?? undefined;
+    if (ctxForThisSend) onConsumeProactiveContext?.();
     try {
-      const r = await askChat(q, trimmed);
+      const r = await askChat(q, trimmed, ctxForThisSend);
       const citations = r.citations ?? [];
       // Visibility: which of your Companion roles/docs actually shaped this reply.
       const applied = [

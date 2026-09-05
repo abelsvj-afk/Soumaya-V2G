@@ -41,7 +41,7 @@ import { playSfx } from "./graph/sfx.js";
 import { useCountUp } from "./hooks/useCountUp.js";
 import { usePolledCount } from "./hooks/usePolledCount.js";
 import { LoginScreen } from "./components/LoginScreen.js";
-import { Toasts, pushToast, cleanupNotifications, setToastsPaused, setToastsQuiet } from "./components/Toasts.js";
+import { Toasts, pushToast, cleanupNotifications, setToastsPaused, setToastsQuiet, type ToastAction } from "./components/Toasts.js";
 import { PerfHUD } from "./components/PerfHUD.js";
 import { setFocusCalm } from "./graph/motion.js";
 import { ACHIEVEMENTS, unlockedIds, loadUnlocked, achvKey } from "./components/achievements.js";
@@ -94,6 +94,11 @@ export default function App() {
   const [streak, setStreak] = useState<Streak | null>(null);
   // Floating chat with Soumaya (opened by the 💬 FAB).
   const [showChat, setShowChat] = useState(false);
+  // Phase Y: one-shot proactive → Chat handoff. Set only from a real toast click
+  // (`kind:"chat"` action carrying `"goal_trend:<id>"`), consumed by ChatDock on the
+  // very next message it actually sends, then cleared — never replayed, never
+  // persisted, never inferred from anything the user typed.
+  const [pendingProactiveContext, setPendingProactiveContext] = useState<{ source: "goal_trend"; targetId: number } | null>(null);
   const [showWealthFullscreen, setShowWealthFullscreen] = useState(false);
   const [showFinanceFullscreen, setShowFinanceFullscreen] = useState(false);
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
@@ -1018,7 +1023,20 @@ export default function App() {
       const toolLogs = logs.filter((l) => l.id > lastSeen && l.action.startsWith("tool:")).reverse();
       for (const l of toolLogs.slice(-2)) {
         const icon = l.description.match(/^\p{Extended_Pictographic}+/u)?.[0] ?? "🛰️";
-        pushToast(l.description, icon, 9000, l.action === "tool:bill_risk" ? "high" : "normal");
+        // Phase Y: the goal_trend pilot's toast carries a structured Chat handoff —
+        // the goal id it already writes to `targets` (Phase X) — so tapping it opens
+        // Chat already knowing WHY, instead of the user having to explain the trigger
+        // back to her. Every other tool:* toast is completely unaffected.
+        let action: ToastAction | undefined;
+        if (l.action === "tool:goal_trend") {
+          try {
+            const goalId = (JSON.parse(l.targets) as unknown[])[0];
+            if (typeof goalId === "number") action = { kind: "chat", value: `goal_trend:${goalId}` };
+          } catch {
+            /* malformed targets — falls back to a plain toast, no handoff */
+          }
+        }
+        pushToast(l.description, icon, 9000, l.action === "tool:bill_risk" ? "high" : "normal", action);
       }
 
       // Mind-tab lifecycle transitions the autonomy loop makes on its own (a goal
@@ -1155,7 +1173,14 @@ export default function App() {
       if (a.kind === "focus" && a.value != null) { focus(Number(a.value)); }
       else if (a.kind === "tab" && a.value != null) { dismissObs(); setTab(String(a.value) as any); setPanel("dock"); }
       else if (a.kind === "panel" && a.value != null) { setPanel(String(a.value) as any); }
-      else if (a.kind === "chat") { setShowChat(true); }
+      else if (a.kind === "chat") {
+        // Phase Y: a goal_trend toast's "chat" action carries "goal_trend:<goalId>" —
+        // every other chat-kind action (there are none today, but any future one)
+        // falls through to opening Chat with no proactive context, unaffected.
+        const m = typeof a.value === "string" ? /^goal_trend:(\d+)$/.exec(a.value) : null;
+        if (m) setPendingProactiveContext({ source: "goal_trend", targetId: Number(m[1]) });
+        setShowChat(true);
+      }
     };
     window.addEventListener("brain-toast-action", onAction);
     return () => window.removeEventListener("brain-toast-action", onAction);
@@ -2066,6 +2091,8 @@ export default function App() {
           onFocus={(id) => focus(id)}
           onRecall={(ids) => graphRef.current?.fireRecall(ids)}
           onCreated={(ids) => void refresh(ids)}
+          proactiveContext={pendingProactiveContext}
+          onConsumeProactiveContext={() => setPendingProactiveContext(null)}
           onNavigate={(nav) => {
             // Maya Chat → Galaxy Navigation: user clicked the chip — this is the ONLY
             // trigger, never automatic. Same imperative path + safety as a direct click

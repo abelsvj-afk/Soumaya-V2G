@@ -19,6 +19,7 @@ import { intelligenceSnapshotText } from "../analysis/intelligence.js";
 import { emotionalSnapshotText } from "../analysis/emotional.js";
 import { interactionPreferenceSnapshotText, recordPreferenceSignal } from "../analysis/interactionPreferences.js";
 import { resolveClarificationFromMessage } from "../analysis/clarificationResolution.js";
+import { proactiveContextSnapshotText, type ProactiveContextInput } from "../analysis/proactiveContext.js";
 import { buildNavigationCandidateList, resolveNavigationIntent } from "../analysis/galaxyEntity.js";
 import { JourneysRepo } from "../repositories/journeys.repo.js";
 import { UsageTracker } from "../usage.js";
@@ -73,6 +74,16 @@ export async function chat(
    * reproduces prior behavior exactly: zero extra repository reads, zero extra candidates.
    */
   journeyId: number | null = null,
+  /**
+   * Proactive → Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md).
+   * Set ONLY when the user opened Chat from a real proactive delivery (e.g. Phase X's
+   * goal_trend toast) — never inferred from `question`'s text, same discipline as
+   * `journeyId` above. `analysis/proactiveContext.ts` re-validates it against THIS
+   * space's real data and re-derives the SAME existing intelligence that triggered the
+   * proactive event; an invalid/stale/cross-space value silently contributes nothing,
+   * never an error, never a broken turn.
+   */
+  proactiveContext: ProactiveContextInput | null = null,
 ): Promise<ChatResponse> {
   const vec = await deps.embeddings.embed(question);
   // Hybrid seeds: vector KNN fused with BM25 keyword hits (RRF) — questions that
@@ -328,6 +339,16 @@ Use this telemetry to guide the user! For example:
     }
   } catch {
     /* clarification resolution is best-effort; never break chat */
+  }
+
+  // Phase Y — proactive → Chat handoff. Same best-effort, null-safe contract as every
+  // snapshot above: a failure here (or an invalid/stale/cross-space target) simply
+  // adds nothing, never breaks the turn.
+  try {
+    const proactive = proactiveContextSnapshotText(h, spaceId, proactiveContext);
+    if (proactive) systemExtra += `\n\n${proactive}`;
+  } catch {
+    /* proactive context is best-effort; never break chat */
   }
 
   // Evidence-based self-insight discipline (docs/ADAPTIVE_SELF_RESEARCH.md). Soumaya's

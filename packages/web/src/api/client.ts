@@ -659,13 +659,24 @@ export async function askChat(
   question: string,
   /** Recent turns (oldest first) so she carries the conversation thread. */
   history: { role: "you" | "soumaya"; text: string }[] = [],
+  /**
+   * Proactive → Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md).
+   * Only ever set when the user opened Chat from a real proactive delivery (a toast
+   * click) — the server re-validates it against real data before using it for
+   * anything, so an invalid/stale/cross-space value here just contributes nothing.
+   */
+  proactiveContext?: { source: "goal_trend"; targetId: number },
 ): Promise<ChatResponse> {
   return tracked(
     (async () => {
       const res = await afetch(`${API}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history: history.slice(-8) }),
+        body: JSON.stringify({
+          question,
+          history: history.slice(-8),
+          ...(proactiveContext ? { proactiveContext } : {}),
+        }),
       });
       return res.json() as Promise<ChatResponse>;
     })(),
