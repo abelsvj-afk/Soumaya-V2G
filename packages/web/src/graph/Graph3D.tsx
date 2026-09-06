@@ -980,9 +980,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // node positions each frame — so disable the force-engine layout entirely
       // (no charge/gravity tug-of-war, no collapse). Links are kept only as
       // visual tethers between the orbiting bodies.
-      fg.d3Force("charge")?.strength(0);
+      //
+      // Force-simulation audit (docs/specs/soumaya-galaxy-force-simulation-audit.md):
+      // charge/link used to be neutered via .strength(0) rather than removed like
+      // center — but zeroing strength doesn't stop either force's real per-tick work
+      // (charge still rebuilds its Barnes-Hut octree every tick; link still loops
+      // every link every tick), even though the output was always fully discarded
+      // (every node is fx/fy/fz-pinned by orbits.ts, so d3-force's own tick() never
+      // applies a force's velocity to a pinned node's position). Removing them
+      // outright — the same pattern already used for center — drops that wasted
+      // work with zero effect on any rendered position: the simulation/tickFrame()
+      // loop itself (which also drives the position sync orbits.ts's motion relies
+      // on) is untouched; only these two now-empty force slots are gone.
+      fg.d3Force("charge", null);
       fg.d3Force("center", null);
-      fg.d3Force("link")?.strength(0);
+      fg.d3Force("link", null);
 
       // Zoom-out ceiling is driven each frame by maxDistRef (sized to the galaxy)
       // so you can admire it all but never zoom past the star field. Smooth,
