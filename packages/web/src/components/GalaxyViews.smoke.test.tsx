@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import type { GraphNode } from "@brain/shared";
 
@@ -12,12 +12,27 @@ vi.mock("../api/lenses.js", () => ({
 }));
 vi.mock("../api/finance.js", () => ({ getMoneySky: vi.fn().mockResolvedValue([]) }));
 vi.mock("../api/journeys.js", () => ({ getJourneys: vi.fn().mockResolvedValue([]) }));
+// Phase AC.1: GalaxyViews now reads getSpaceId() once, on mount, to key its one-time
+// first-use-open localStorage flag (see the dedicated describe block below). Fixed here so
+// every OTHER test in this file — which all predate that feature and assert the panel starts
+// collapsed — gets a deterministic, already-known space id to mark "already seen" against.
+vi.mock("../api/client.js", () => ({ getSpaceId: () => "gv-test-space" }));
 const pushToast = vi.fn();
 vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
 
 import { GalaxyViews } from "./GalaxyViews.js";
 
-afterEach(cleanup);
+// Every pre-existing test in this file assumes GalaxyViews starts collapsed — true for any
+// RETURNING view of a space, which is what they're actually testing. Pre-marking the one-time
+// flag as "seen" here preserves that intent instead of coupling every unrelated test to the
+// new first-use behavior (covered on its own, with a clean localStorage, below).
+beforeEach(() => {
+  localStorage.setItem("brain.viewsSeen.gv-test-space", "1");
+});
+afterEach(() => {
+  cleanup();
+  localStorage.clear();
+});
 
 function goalNode(id: number): GraphNode {
   return { id, label: `goal ${id}`, type: "concept", kind: "goal", content: "", createdAt: "2026-01-01T00:00:00Z" } as GraphNode;
@@ -71,5 +86,28 @@ describe("GalaxyViews — pinned lenses render inside this dropdown, not a separ
     await screen.findByText("Linked to Girlfriend");
     // Confirms it's a DOM descendant of .gv-wrap (the one dropdown), not a sibling overlay.
     expect(container.querySelector(".gv-wrap .lens-list")).not.toBeNull();
+  });
+});
+
+// Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md): the audit found this panel
+// collapsed by default with no first-run cue. Opened once automatically, per space, the very
+// first time it ever mounts — every test above pre-marks the flag "seen" to test ordinary
+// (returning-user) behavior; these two specifically exercise the one-time flag itself.
+describe("GalaxyViews — first-use discoverability", () => {
+  it("opens itself automatically the very first time this space renders it", () => {
+    localStorage.removeItem("brain.viewsSeen.gv-test-space"); // undo this file's own beforeEach
+    const { container } = render(<GalaxyViews nodes={[goalNode(1)]} activeView={null} onOpen={vi.fn()} onExit={vi.fn()} />);
+    expect(container.querySelector(".gv-chips")).not.toBeNull();
+    expect(localStorage.getItem("brain.viewsSeen.gv-test-space")).toBe("1");
+  });
+
+  it("stays collapsed on every render after the first", () => {
+    localStorage.removeItem("brain.viewsSeen.gv-test-space");
+    const { container, unmount } = render(<GalaxyViews nodes={[goalNode(1)]} activeView={null} onOpen={vi.fn()} onExit={vi.fn()} />);
+    expect(container.querySelector(".gv-chips")).not.toBeNull(); // first mount: auto-opened
+    unmount();
+
+    const second = render(<GalaxyViews nodes={[goalNode(1)]} activeView={null} onOpen={vi.fn()} onExit={vi.fn()} />);
+    expect(second.container.querySelector(".gv-chips")).toBeNull(); // second mount: back to normal
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FinBill, BillFrequency, FinIncome, FinExpense, FinPaystub, PaystubExtractionResult, PaystubLineItem, FinAsset, FinAssetKind, IncomePoint, NetWorthPoint } from "@brain/shared";
 import type { FinExtractionResult } from "@brain/shared";
 import { useCountUp } from "../hooks/useCountUp.js";
@@ -16,6 +16,7 @@ import { JourneyChips } from "./JourneyChips.js";
 import { WealthPanel } from "./WealthPanel.js";
 import { GrowthTrendChart, type ChartSeries } from "./GrowthTrendChart.js";
 import { extractFileText } from "../lib/extractFileText.js";
+import { prefersReducedMotion } from "../graph/motion.js";
 
 /** A dollar amount that DIALS to its value (never snaps) — respects reduced-motion. */
 function Money({ cents, className }: { cents: number; className?: string }) {
@@ -61,11 +62,14 @@ const today = (): string => new Date().toISOString().slice(0, 10);
  *  FinanceFullscreen.tsx — mirrors WealthPanel/WealthFullscreen's split exactly. Only
  *  `embedded` differs: it shows the expand-to-fullscreen button, hidden when already
  *  full-screen. `focusGoal` (Phase O, Galaxy entity detail focus) is optional and only
- *  ever passed by RightDock's embedded Money tab — a Goal clicked in the 3D galaxy. */
+ *  ever passed by RightDock's embedded Money tab — a Goal clicked in the 3D galaxy.
+ *  `focusBill` (Phase AC.1) is the same mechanism for a Bill clicked in the Money Sky —
+ *  threaded straight through to BillManager, which owns its own open/scroll state. */
 export function FinancePanel({
   embedded = true,
   focusGoal,
-}: { embedded?: boolean; focusGoal?: { id: number; nonce: number } | null } = {}) {
+  focusBill,
+}: { embedded?: boolean; focusGoal?: { id: number; nonce: number } | null; focusBill?: { id: number; nonce: number } | null } = {}) {
   const [sum, setSum] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [reservedOpen, setReservedOpen] = useState(false);
@@ -182,7 +186,7 @@ export function FinancePanel({
             </li>
           ))}
         </ul>
-        <BillManager onChanged={refresh} />
+        <BillManager onChanged={refresh} focusBill={focusBill} />
       </section>
 
       {/* ---- What can I afford? (Stage 3 Forecast Engine, Zero-AI) ---- */}
@@ -547,19 +551,38 @@ function SnapImport({ onDone }: { onDone: (committed: number) => void }) {
 }
 
 // ---- Recurring bill manager ----
-function BillManager({ onChanged }: { onChanged: () => void }) {
+/** `focusBill` (Phase AC.1, Galaxy entity detail focus): a Bill clicked in the Money
+ *  Sky — mirrors WealthPanel's `focusGoal` handling exactly (force-open, then scroll to
+ *  the matching row once it's actually mounted). */
+function BillManager({ onChanged, focusBill }: { onChanged: () => void; focusBill?: { id: number; nonce: number } | null }) {
   const [open, setOpen] = useState(false);
   const [bills, setBills] = useState<FinBill[]>([]);
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [freq, setFreq] = useState<BillFrequency>("monthly");
   const [anchor, setAnchor] = useState(today());
+  const focusedBillRef = useRef<HTMLLIElement | null>(null);
 
   const load = async () => {
     const list = await (await import("../api/finance.js")).listBills();
     setBills(list ?? []);
   };
   useEffect(() => { if (open) void load(); }, [open]);
+
+  // Step 1: a focus request forces this normally-collapsed section open — without
+  // this, BillManager (and the bill's own row) would never mount at all.
+  useEffect(() => {
+    if (focusBill) setOpen(true);
+  }, [focusBill?.nonce]);
+
+  // Step 2: once `bills` has actually loaded (async, after `open` flips true) and the
+  // matching row is mounted, scroll to it. Re-runs whenever `bills` changes so it
+  // doesn't fire before the list — and the ref it depends on — actually exist.
+  useEffect(() => {
+    if (!focusBill || !open) return;
+    focusedBillRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusBill?.nonce, bills, open]);
 
   const add = async () => {
     const c = toCents(amount);
@@ -576,7 +599,7 @@ function BillManager({ onChanged }: { onChanged: () => void }) {
         <div className="fin-bill-edit">
           <ul className="fin-bill-list">
             {bills.map((bl) => (
-              <li key={bl.id}>
+              <li key={bl.id} ref={bl.id === focusBill?.id ? focusedBillRef : undefined}>
                 <div className="fin-bill-row">
                   <span>{bl.name}</span><span className="fin-muted">{bl.frequency}</span><strong>{fmt(bl.amountCents)}</strong>
                   <button className="fin-secondary" onClick={async () => { await deleteBill(bl.id); await load(); onChanged(); }}>Remove</button>

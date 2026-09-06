@@ -86,6 +86,8 @@ export function ChatDock({
   onNavigate,
   proactiveContext,
   onConsumeProactiveContext,
+  journeyId,
+  onConsumeJourneyContext,
 }: {
   spaceName?: string;
   onClose: () => void;
@@ -107,6 +109,15 @@ export function ChatDock({
   /** Called once this dock has used `proactiveContext` for a send, so the caller can
    *  clear it — guarantees it's attached to exactly one outgoing message. */
   onConsumeProactiveContext?: () => void;
+  /**
+   * Journey-scoped Chat (Phase AC.1, docs/specs/soumaya-connective-tissue-onboarding.md).
+   * Set ONLY when the user chose "Ask Soumaya about this" from a specific Journey — a
+   * one-shot value, same contract as `proactiveContext` above: consumed by the very next
+   * message actually sent (see `onConsumeJourneyContext`), never replayed on later turns.
+   */
+  journeyId?: number | null;
+  /** Called once this dock has used `journeyId` for a send, so the caller can clear it. */
+  onConsumeJourneyContext?: () => void;
 }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     try {
@@ -188,11 +199,13 @@ export function ChatDock({
     setBusy(true);
     // One-shot: attach to exactly this send, then tell the caller to clear it — a
     // later message in the same session must never silently carry stale proactive
-    // framing forward.
+    // framing (or Journey scoping) forward.
+    const journeyForThisSend = journeyId ?? undefined;
+    if (journeyForThisSend) onConsumeJourneyContext?.();
     const ctxForThisSend = proactiveContext ?? undefined;
     if (ctxForThisSend) onConsumeProactiveContext?.();
     try {
-      const r = await askChat(q, trimmed, ctxForThisSend);
+      const r = await askChat(q, trimmed, journeyForThisSend, ctxForThisSend);
       const citations = r.citations ?? [];
       // Visibility: which of your Companion roles/docs actually shaped this reply.
       const applied = [

@@ -3982,6 +3982,24 @@ button {
   cursor: pointer;
 }
 .welcome-start:hover { background: rgba(122, 200, 255, 0.22); }
+/* Phase AC.1: a lighter-weight secondary link to the existing Help manual — never
+   competes visually with the primary "Let's go" dismiss action. */
+.welcome-help-link {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 10px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #9db3d8;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.welcome-help-link:hover { color: #cfe0ff; }
 .legend-scroll section { margin-top: 14px; }
 .legend-scroll h3 {
   margin: 0 0 6px; font-size: 0.72rem; letter-spacing: 0.06em;

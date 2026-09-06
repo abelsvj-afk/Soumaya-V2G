@@ -673,6 +673,14 @@ export async function askChat(
   /** Recent turns (oldest first) so she carries the conversation thread. */
   history: { role: "you" | "soumaya"; text: string }[] = [],
   /**
+   * Explicit Journey-scoped retrieval (Phase Q server-side; Phase AC.1 wires the client).
+   * Only ever a real, user-selected Journey id (e.g. "Ask Soumaya about this" from a
+   * JourneyCard) — never inferred from `question`'s text. The server re-validates it
+   * belongs to this space before using it for anything; an invalid/cross-space id here
+   * just contributes zero extra candidates, never an error.
+   */
+  journeyId?: number,
+  /**
    * Proactive → Chat handoff (Phase Y, docs/specs/soumaya-proactive-chat-handoff.md).
    * Only ever set when the user opened Chat from a real proactive delivery (a toast
    * click) — the server re-validates it against real data before using it for
@@ -688,6 +696,7 @@ export async function askChat(
         body: JSON.stringify({
           question,
           history: history.slice(-8),
+          ...(journeyId ? { journeyId } : {}),
           ...(proactiveContext ? { proactiveContext } : {}),
         }),
       });

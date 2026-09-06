@@ -223,6 +223,28 @@ describe("JourneysPanel — marking a Journey complete is celebrated", () => {
   });
 });
 
+// Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md) — Journey -> Chat.
+describe("JourneysPanel — Ask Soumaya about this Journey", () => {
+  it("does not render the button when onAskJourney isn't provided", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1 })]);
+    render(<JourneysPanel />);
+    const head = await screen.findByText("Recover Financially");
+    act(() => head.click());
+    expect(screen.queryByText(/Ask Soumaya/)).toBeNull();
+  });
+
+  it("calls onAskJourney with the id and title, not some other scoping mechanism", async () => {
+    getJourneys.mockResolvedValue([journey({ id: 1, title: "Recover Financially" })]);
+    const onAskJourney = vi.fn();
+    render(<JourneysPanel onAskJourney={onAskJourney} />);
+    const head = await screen.findByText("Recover Financially");
+    act(() => head.click());
+    const askBtn = await screen.findByText(/Ask Soumaya/);
+    act(() => askBtn.click());
+    expect(onAskJourney).toHaveBeenCalledWith({ id: 1, title: "Recover Financially" });
+  });
+});
+
 describe("JourneysPanel — checked writes", () => {
   it("toasts and does not clear the form when creating a Journey fails", async () => {
     getJourneys.mockResolvedValue([]);

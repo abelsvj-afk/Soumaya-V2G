@@ -109,6 +109,11 @@ export default function App() {
   // very next message it actually sends, then cleared — never replayed, never
   // persisted, never inferred from anything the user typed.
   const [pendingProactiveContext, setPendingProactiveContext] = useState<ProactiveContext | null>(null);
+  // Phase AC.1: one-shot Journey-scoped Chat handoff — mirrors pendingProactiveContext
+  // exactly, just keyed by a Journey id instead of a proactive source. Set only from a
+  // real "Ask Soumaya about this" click in JourneysPanel; consumed by ChatDock on the
+  // very next message it actually sends, then cleared.
+  const [pendingJourneyId, setPendingJourneyId] = useState<number | null>(null);
   const [showWealthFullscreen, setShowWealthFullscreen] = useState(false);
   const [showFinanceFullscreen, setShowFinanceFullscreen] = useState(false);
   const [chatPulse, setChatPulse] = useState(false); // she's hailing — pulse the FAB
@@ -145,6 +150,9 @@ export default function App() {
   // without needing the panel to report back that it "consumed" the request.
   const [focusJourney, setFocusJourney] = useState<{ id: number; nonce: number } | null>(null);
   const [focusGoal, setFocusGoal] = useState<{ id: number; nonce: number } | null>(null);
+  // Phase AC.1: same pattern for a Bill clicked in the Money Sky — closes the one
+  // remaining Galaxy click-through gap (Goal/Journey already had this).
+  const [focusBill, setFocusBill] = useState<{ id: number; nonce: number } | null>(null);
   const focusNonceRef = useRef(0);
 
   // Hangar system equipped states
@@ -1486,6 +1494,12 @@ export default function App() {
               setTab("money");
               setPanel("dock");
               setFocusGoal({ id, nonce: ++focusNonceRef.current });
+            } else if (kind === "bill") {
+              // Phase AC.1: closes the one remaining Galaxy click-through gap — a Bill
+              // now gets the same panel-focus treatment Journey/Goal already had.
+              setTab("money");
+              setPanel("dock");
+              setFocusBill({ id, nonce: ++focusNonceRef.current });
             }
           });
         }}
@@ -1705,7 +1719,19 @@ export default function App() {
       )}
 
       {showLegend && <Legend onClose={() => setShowLegend(false)} />}
-      {showIntro && space && <WelcomeIntro companionName={space.name || "Soumaya"} onClose={dismissIntro} />}
+      {showIntro && space && (
+        <WelcomeIntro
+          companionName={space.name || "Soumaya"}
+          onClose={dismissIntro}
+          onSeeHelp={() => {
+            // Phase AC.1: Help discoverability — a new user can reach the existing
+            // Help manual in one tap from the very first screen they see, instead of
+            // needing to already know the 🧰 Tools menu exists.
+            dismissIntro();
+            setHelp(true);
+          }}
+        />
+      )}
 
       {showLenses && space && (
         <LensesPanel
@@ -2105,6 +2131,8 @@ export default function App() {
           onCreated={(ids) => void refresh(ids)}
           proactiveContext={pendingProactiveContext}
           onConsumeProactiveContext={() => setPendingProactiveContext(null)}
+          journeyId={pendingJourneyId}
+          onConsumeJourneyContext={() => setPendingJourneyId(null)}
           onNavigate={(nav) => {
             // Maya Chat → Galaxy Navigation: user clicked the chip — this is the ONLY
             // trigger, never automatic. Same imperative path + safety as a direct click
@@ -2192,6 +2220,15 @@ export default function App() {
           onPromoted={() => void refresh()}
           focusJourney={focusJourney}
           focusGoal={focusGoal}
+          focusBill={focusBill}
+          onAskJourney={(j) => {
+            // Phase AC.1 — Journey → Chat: reuses the exact one-shot handoff pattern
+            // Phase Y/Z already established for proactiveContext, just keyed by a
+            // Journey id instead of a proactive source. No new scoping system.
+            setPendingJourneyId(j.id);
+            setShowChat(true);
+            pushToast(`🧭 Opening chat about "${j.title}"`, "🧭", 3500);
+          }}
         />
       )}
     </div>

@@ -198,6 +198,34 @@ describe("ChatDock — clearing a conversation is destructive and needs confirma
   });
 });
 
+// Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md) — Journey-scoped Chat,
+// mirroring the exact one-shot contract already proven for proactiveContext.
+describe("ChatDock — Journey-scoped Chat handoff", () => {
+  it("threads journeyId into askChat's 3rd argument and consumes it after exactly one send", async () => {
+    askChat.mockResolvedValue({ answer: "Here's your journey.", citations: [] });
+    const onConsumeJourneyContext = vi.fn();
+    render(
+      <ChatDock onClose={() => {}} onFocus={() => {}} journeyId={42} onConsumeJourneyContext={onConsumeJourneyContext} />,
+    );
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "how's it going?" } });
+    fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    await waitFor(() => expect(askChat).toHaveBeenCalledWith("how's it going?", expect.anything(), 42, undefined));
+    expect(onConsumeJourneyContext).toHaveBeenCalledTimes(1);
+  });
+
+  it("ordinary Chat with no journeyId sends undefined and never calls the consume callback", async () => {
+    askChat.mockResolvedValue({ answer: "Got it.", citations: [] });
+    const onConsumeJourneyContext = vi.fn();
+    render(<ChatDock onClose={() => {}} onFocus={() => {}} onConsumeJourneyContext={onConsumeJourneyContext} />);
+    const box = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(box, { target: { value: "just a normal question" } });
+    fireEvent.keyDown(box, { key: "Enter", code: "Enter" });
+    await waitFor(() => expect(askChat).toHaveBeenCalledWith("just a normal question", expect.anything(), undefined, undefined));
+    expect(onConsumeJourneyContext).not.toHaveBeenCalled();
+  });
+});
+
 // Phase M (docs/specs/soumaya-product-audit.md, "mobile chat input/keyboard behavior").
 describe("ChatDock — mobile input", () => {
   it("a multiline message still sends via the send button, and the input clears after", async () => {
@@ -208,7 +236,7 @@ describe("ChatDock — mobile input", () => {
     expect((textarea as HTMLTextAreaElement).value).toBe("line one\nline two");
     const sendBtn = container.querySelector(".chatdock-send")! as HTMLButtonElement;
     await act(async () => { sendBtn.click(); });
-    await waitFor(() => expect(askChat).toHaveBeenCalledWith("line one\nline two", expect.anything(), undefined));
+    await waitFor(() => expect(askChat).toHaveBeenCalledWith("line one\nline two", expect.anything(), undefined, undefined));
     expect((textarea as HTMLTextAreaElement).value).toBe("");
   });
 

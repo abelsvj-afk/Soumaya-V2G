@@ -22,6 +22,7 @@ const SUGGESTED = [
 export function JourneysPanel({
   onFocus,
   focusJourney,
+  onAskJourney,
 }: {
   onFocus?: (id: number) => void;
   /** Galaxy entity detail focus (Phase O): a Journey hub clicked in the 3D galaxy —
@@ -30,6 +31,10 @@ export function JourneysPanel({
    *  "consumed" the request (a done journey never has a hub to click, so this only
    *  ever needs to match against the `active` list below). */
   focusJourney?: { id: number; nonce: number } | null;
+  /** Journey → Chat (Phase AC.1, docs/specs/soumaya-connective-tissue-onboarding.md):
+   *  "Ask Soumaya about this" — reuses the existing Chat/journeyId contract (Phase Q
+   *  server-side), never a second scoping system. */
+  onAskJourney?: (journey: { id: number; title: string }) => void;
 }) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
   // Distinguishes "never loaded yet" from "the last load failed" — getJourneys()
@@ -104,7 +109,7 @@ export function JourneysPanel({
         </div>
       )}
 
-      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} focusJourney={focusJourney} />)}
+      {active.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} focusJourney={focusJourney} onAskJourney={onAskJourney} />)}
 
       {adding ? (
         <div className="jn-form">
@@ -133,7 +138,7 @@ export function JourneysPanel({
       {done.length > 0 && (
         <details className="jn-done">
           <summary>Completed ({done.length})</summary>
-          {done.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} />)}
+          {done.map((j) => <JourneyCard key={j.id} j={j} onChanged={refresh} onFocus={onFocus} onAskJourney={onAskJourney} />)}
         </details>
       )}
     </div>
@@ -145,11 +150,13 @@ function JourneyCard({
   onChanged,
   onFocus,
   focusJourney,
+  onAskJourney,
 }: {
   j: Journey;
   onChanged: () => void;
   onFocus?: (id: number) => void;
   focusJourney?: { id: number; nonce: number } | null;
+  onAskJourney?: (journey: { id: number; title: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
@@ -259,6 +266,11 @@ function JourneyCard({
             <strong>{pct}%</strong>
           </div>
           <div className="jn-detail-actions">
+            {onAskJourney && (
+              <button className="jn-secondary" onClick={() => onAskJourney({ id: j.id, title: j.title })}>
+                💬 Ask Soumaya
+              </button>
+            )}
             {j.status !== "done" ? (
               <button className="jn-secondary" onClick={() => void setStatus("done")}>Mark complete</button>
             ) : (

@@ -3,6 +3,7 @@ import type { GraphNode } from "@brain/shared";
 import { getMoneySky } from "../api/finance.js";
 import { getJourneys } from "../api/journeys.js";
 import { createLens } from "../api/lenses.js";
+import { getSpaceId } from "../api/client.js";
 import { pushToast } from "./Toasts.js";
 import { LensChips } from "./LensChips.js";
 
@@ -50,7 +51,25 @@ export function GalaxyViews({
   onExit: () => void;
   hidden?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  // Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md): the audit found this
+  // collapsed-by-default with no first-run cue, despite the underlying Views/Lens split
+  // already being resolved in-code (see the file header comment). Rather than adding a new
+  // onboarding surface, this reuses the exact per-space localStorage pattern App.tsx already
+  // uses for the one-time Welcome/Legend reveals — opened once, automatically, the very first
+  // time a space's galaxy ever renders this control, then behaves exactly as before (a plain
+  // toggle the user controls) for every session after.
+  const [open, setOpen] = useState(() => {
+    try {
+      const key = `brain.viewsSeen.${getSpaceId() ?? "default"}`;
+      if (!localStorage.getItem(key)) {
+        localStorage.setItem(key, "1");
+        return true;
+      }
+    } catch {
+      /* storage unavailable — falls back to the prior collapsed-by-default behavior */
+    }
+    return false;
+  });
   const [moneyCount, setMoneyCount] = useState(0);
   const [journeyCount, setJourneyCount] = useState(0);
   const [savingLens, setSavingLens] = useState(false);

@@ -4,8 +4,25 @@
  * localStorage, same pattern as the existing one-time Legend reveal in App.tsx) — a single,
  * short, dismissible card, not a multi-step tour. Copy is deliberately literal about what each
  * part actually does — no claim of omniscience, no implication the Galaxy holds everything.
+ *
+ * Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md): the audit found this screen
+ * named "goals, money, people, and journeys" only in passing inside the first bullet — a new
+ * user had no way to learn Money/Wealth, Life Vision, and Journeys are real, separate places to
+ * go, not just words in a sentence. Added one more bullet naming them concretely, plus a link to
+ * the full Help manual (`onSeeHelp`) for anyone who wants more than this one-screen framing —
+ * deliberately NOT expanded into a tour or manual itself.
  */
-export function WelcomeIntro({ companionName, onClose }: { companionName: string; onClose: () => void }) {
+export function WelcomeIntro({
+  companionName,
+  onClose,
+  onSeeHelp,
+}: {
+  companionName: string;
+  onClose: () => void;
+  /** Optional: dismisses this card AND opens the existing Help manual in one tap.
+   *  Omit to fall back to a plain dismiss (the button simply doesn't render). */
+  onSeeHelp?: () => void;
+}) {
   return (
     <div className="welcome-overlay" role="dialog" aria-label="Welcome to Soumaya" onClick={onClose}>
       <div className="welcome-card" onClick={(e) => e.stopPropagation()}>
@@ -25,7 +42,17 @@ export function WelcomeIntro({ companionName, onClose }: { companionName: string
             <b>The Galaxy</b> is the living map of it: each memory becomes a star, sized by how
             much it matters and linked to the goals, people, and money it relates to.
           </li>
+          <li>
+            <b>Money, Life Vision, and Journeys</b> are real tabs, not just words — track what you
+            earn and owe, name what you're ultimately building toward, and group it all into the
+            life chapters (journeys) it actually belongs to.
+          </li>
         </ul>
+        {onSeeHelp && (
+          <button className="welcome-help-link" onClick={onSeeHelp}>
+            📖 Show me the full map in Help
+          </button>
+        )}
         <button className="welcome-start" onClick={onClose}>Let's go →</button>
       </div>
     </div>

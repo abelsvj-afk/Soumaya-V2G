@@ -41,4 +41,25 @@ describe("WelcomeIntro", () => {
     render(<WelcomeIntro companionName="Soumaya" onClose={() => {}} />);
     expect(screen.getByRole("dialog", { name: "Welcome to Soumaya" })).toBeTruthy();
   });
+
+  // Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md): the audit found this
+  // screen never named Money/Wealth, Life Vision, or Journeys as real, separate places to go.
+  it("names Money, Life Vision, and Journeys as real product surfaces, not just words in a sentence", () => {
+    render(<WelcomeIntro companionName="Soumaya" onClose={() => {}} />);
+    expect(screen.getByText("Money, Life Vision, and Journeys", { exact: false })).toBeTruthy();
+  });
+
+  it("omits the Help link entirely when onSeeHelp isn't provided", () => {
+    render(<WelcomeIntro companionName="Soumaya" onClose={() => {}} />);
+    expect(screen.queryByText(/Show me the full map/)).toBeNull();
+  });
+
+  it("the Help link, when provided, is reachable in one tap and fires onSeeHelp without closing via onClose", () => {
+    const onClose = vi.fn();
+    const onSeeHelp = vi.fn();
+    render(<WelcomeIntro companionName="Soumaya" onClose={onClose} onSeeHelp={onSeeHelp} />);
+    fireEvent.click(screen.getByText(/Show me the full map/));
+    expect(onSeeHelp).toHaveBeenCalledTimes(1);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

@@ -10,10 +10,12 @@ const confirmPaystub = vi.fn();
 const listAssets = vi.fn();
 const getIncomeTrend = vi.fn();
 const getNetWorthTrend = vi.fn();
+const listBills = vi.fn();
 vi.mock("../api/finance.js", () => ({
   getFinanceSummary: (...a: unknown[]) => getFinanceSummary(...a),
   getWealthSummary: (...a: unknown[]) => getWealthSummary(...a),
   setBalance: vi.fn(), addIncome: vi.fn(), addExpense: vi.fn(), createBill: vi.fn(), deleteBill: vi.fn(),
+  listBills: (...a: unknown[]) => listBills(...a),
   markOccurrencePaid: vi.fn(), ingestPaste: vi.fn(), ingestImage: vi.fn(), confirmIngest: vi.fn(),
   listIncome: vi.fn().mockResolvedValue([]), listExpense: vi.fn().mockResolvedValue([]),
   editIncome: vi.fn(), deleteIncome: vi.fn(), editExpense: vi.fn(), deleteExpense: vi.fn(),
@@ -63,6 +65,7 @@ beforeEach(() => {
   listAssets.mockResolvedValue([]);
   getIncomeTrend.mockResolvedValue([]);
   getNetWorthTrend.mockResolvedValue([]);
+  listBills.mockResolvedValue([]);
 });
 afterEach(() => cleanup());
 
@@ -257,6 +260,35 @@ describe("FinancePanel — Pay Stubs section (docs/specs/paystub-ingestion.md)",
     await screen.findByText("Net pay is required.");
     expect(confirmPaystub).not.toHaveBeenCalled();
     expect(screen.getByText("Review your pay stub — confirm to save")).toBeTruthy();
+  });
+});
+
+// Phase AC.1 (docs/specs/soumaya-connective-tissue-onboarding.md) — Galaxy Bill click closes
+// the one remaining dead end (Goal/Journey already had panel-focus; Bill only had toast+fly-to).
+describe("FinancePanel — Galaxy entity detail focus for a Bill (Phase AC.1)", () => {
+  it("force-opens 'Manage recurring bills' and scrolls to the matching bill when focusBill targets it", async () => {
+    listBills.mockResolvedValue([
+      { id: 1, name: "Rent", amountCents: 120000, frequency: "monthly", anchorDate: "2026-01-01", autopay: false },
+      { id: 2, name: "Water", amountCents: 4000, frequency: "monthly", anchorDate: "2026-01-05", autopay: false },
+    ]);
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    render(<FinancePanel focusBill={{ id: 2, nonce: 1 }} />);
+    await screen.findByText("Safe to Spend");
+
+    // "Manage recurring bills" is collapsed by default — this must open on its own.
+    await screen.findByText("Water");
+    expect(screen.getByText("Rent")).toBeTruthy();
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
+  });
+
+  it("stays collapsed with no focusBill, same as before this phase", async () => {
+    listBills.mockResolvedValue([{ id: 1, name: "Rent", amountCents: 120000, frequency: "monthly", anchorDate: "2026-01-01", autopay: false }]);
+    render(<FinancePanel />);
+    await screen.findByText("Safe to Spend");
+    expect(screen.queryByText("Rent")).toBeNull();
+    expect(listBills).not.toHaveBeenCalled();
   });
 });
 
