@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { AppContext } from "../../context.js";
 import { chat, DEFAULT_CHAT } from "../../chat/graphrag.js";
+import { recordProactiveDiscussion } from "../../analysis/proactiveContext.js";
 import { spaceOf } from "../middleware.js";
 
 const ChatBody = z.object({
@@ -95,6 +96,14 @@ export function chatRoutes(ctx: AppContext): Router {
       parsed.data.journeyId ?? null,
       parsed.data.proactiveContext ?? null,
     );
+    // Phase AB (docs/specs/soumaya-proactive-discussion-occurrence.md): only reached once
+    // chat() has already returned a real answer for this turn — the smallest defensible
+    // definition of "a proactive-context Chat interaction occurred." Re-validates the SAME
+    // way chat() itself just did; a failure or invalid/stale/cross-space target writes
+    // nothing and never affects this response (see the function's own doc comment).
+    if (parsed.data.proactiveContext) {
+      recordProactiveDiscussion(ctx.handle, spaceOf(res), parsed.data.proactiveContext);
+    }
     res.json(result);
   });
   return r;

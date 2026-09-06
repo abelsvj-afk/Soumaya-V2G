@@ -22,12 +22,22 @@ import { parseDay } from "../finance/bills.js";
  * or a stale/forged id) or the underlying evidence no longer holds, this returns `null` —
  * Chat proceeds completely normally with no proactive framing, never a broken turn.
  *
- * Ephemeral by construction: nothing here is ever written to `nodes`, `agent_logs`,
- * or any other table — it's a pure read, computed fresh per call, never persisted.
+ * `proactiveContextSnapshotText()` itself remains ephemeral by construction: nothing in it is
+ * ever written to `nodes`, `agent_logs`, or any other table — it's a pure read, computed fresh
+ * per call, never persisted. (Phase AB's `recordProactiveDiscussion()`, below, is the one
+ * deliberate exception — see its own doc comment.)
  *
  * Phase Z confirms `{source, targetId}` generalizes cleanly: both sources reduce to "a
  * space-scoped integer id on a table with its own `get(id)` repo method." Only the dispatch
  * below and the route's zod literal needed to grow — no new payload shape, no framework.
+ *
+ * Phase AB (docs/specs/soumaya-proactive-discussion-occurrence.md) adds exactly one durable
+ * fact on top of all this: `recordProactiveDiscussion()` writes a single `agent_logs` row —
+ * `action = 'chat:proactive_discussion'`, `targets = [targetId]` — the moment a REAL,
+ * successfully-answered `/api/chat` exchange carried a validated proactive context. This is
+ * NOT a transcript, NOT a summary, and NOT proof of anything beyond "this exchange happened
+ * for this entity at this time." It is entirely separate from, and never interferes with, the
+ * proactive tools' own `tool:goal_trend`/`tool:bill_risk` firing/dedup rows.
  */
 
 export type ProactiveContextSource = "goal_trend" | "bill_risk";
@@ -109,4 +119,58 @@ function billRiskContextText(handle: DbHandle, spaceId: string, billId: number, 
   const days = Math.max(1, Math.round((parseDay(reserved.dueDate).getTime() - parseDay(today).getTime()) / DAY_MS));
   const perDay = Math.floor(budget.safeToSpendCents / days);
   return `PROACTIVE CONTEXT (why this conversation was initiated): You reached out to the user first this conversation because their spending pace needs to stay under ${dollars(perDay)}/day to keep "${bill.name}" (due ${reserved.dueDate}) covered — the cushion is genuinely thin right now, not a guess. This is why you're speaking with them right now. Explain naturally in your own words if they ask; don't force the topic if they've clearly come to talk about something else.`;
+}
+
+/**
+ * Phase AB — the durable discussion-occurrence primitive
+ * (docs/specs/soumaya-proactive-discussion-occurrence.md). Closes the gap the Phase AA audit
+ * identified: `{source, targetId}` explains WHY a Chat turn was opened, but until now that
+ * fact vanished the instant the response was sent — nothing recorded that the exchange ever
+ * happened. This function is the one deliberate exception to this module's ephemeral design.
+ *
+ * Call this ONLY after `chat()` has already returned a real answer for this turn — i.e. from
+ * `api/routes/chat.ts`, once `await chat(...)` has resolved without throwing, never from
+ * inside `chat/graphrag.ts` itself. `chat()`'s final `deps.llm.answer(...)` call is NOT
+ * wrapped in a try/catch — a provider failure there throws out of `chat()` and the route never
+ * reaches `res.json()` — so recording any earlier (e.g. inside `proactiveContextSnapshotText`,
+ * which runs BEFORE that call) would risk a false "discussion occurred" record for a turn that
+ * actually failed. Calling this after `chat()` succeeds is the smallest defensible definition
+ * of "a real proactive-context Chat interaction occurred."
+ *
+ * Reuses the EXACT SAME validation `proactiveContextSnapshotText()` already performs (space
+ * scoping via each source's own repo `.get()`, the same "does the signal still hold" check) —
+ * not a second resolution path. An invalid/stale/cross-space/unknown-source context therefore
+ * produces the same `null` outcome here as it does for the chat framing itself, and no
+ * `agent_logs` row is written — never a false record.
+ *
+ * Stores ONLY `{space_id, action: 'chat:proactive_discussion', targets: [targetId], created_at}`
+ * — the source name in `description` for a human skimming `agent_logs`, nothing else. No bill
+ * name, no amount, no message text, no LLM answer, no transcript. This proves exactly one
+ * thing — "a real, successfully-answered proactive-context exchange happened for this entity
+ * at this time" — and nothing more: not that the user agreed, took action, resolved the issue,
+ * or even read the reply. It is entirely separate from the originating `tool:goal_trend`/
+ * `tool:bill_risk` row (a different `action` string, read by no existing dedup query — see the
+ * repo-wide `agent_logs` action inventory in the Phase AB spec) and must never be confused with
+ * or substituted for it.
+ *
+ * Best-effort by design: any failure here (including a failure inside the reused validation)
+ * is swallowed — an observational record must never turn an otherwise-successful chat reply
+ * into a broken response.
+ */
+export function recordProactiveDiscussion(
+  handle: DbHandle,
+  spaceId: string = DEFAULT_SPACE,
+  input: ProactiveContextInput | null | undefined,
+  now: Date = new Date(),
+): void {
+  if (!input) return;
+  try {
+    const text = proactiveContextSnapshotText(handle, spaceId, input, now);
+    if (!text) return; // same invalid/stale/cross-space outcome as the chat framing — no record
+    handle.sqlite
+      .prepare(`INSERT INTO agent_logs (space_id, action, description, targets, created_at) VALUES (?, 'chat:proactive_discussion', ?, ?, ?)`)
+      .run(spaceId, `proactive-context Chat exchange occurred (${input.source})`, JSON.stringify([input.targetId]), now.toISOString());
+  } catch {
+    /* observational only — must never affect the chat response it's attached to */
+  }
 }
