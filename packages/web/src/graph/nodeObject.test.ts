@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import * as THREE from "three";
-import { makeNodeObject, releaseNodeTextures } from "./nodeObject.js";
+import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
 import type { GraphNode } from "@brain/shared";
 
 /**
@@ -156,5 +156,72 @@ describe("nodeObject — Stage 7 label/glow texture refcounting", () => {
     const obj = makeNodeObject(node("planet", { label, id: 601 }));
     releaseNodeTextures(obj);
     expect(() => releaseNodeTextures(obj)).not.toThrow(); // refcount floor, no negative underflow
+  });
+});
+
+/**
+ * Performance Program Round 3 (memory scaling audit): nodeThreeObjCacheRef's cache key
+ * used to include raw `entropy` — a continuously-drifting float — so it invalidated on
+ * almost every `refresh()` even when nothing visually meaningful changed. Fixed by
+ * bucketing entropy (see `bucketEntropy`/`nodeVisualCacheKey` in nodeObject.ts) instead of
+ * dropping it outright, since entropy DOES affect the constructed object's color tint and
+ * pulse vitality. These tests pin the two halves of that trade-off directly against the
+ * exported key function, with no THREE/canvas machinery involved.
+ */
+describe("nodeObject — Round 3 node-object cache key (entropy bucketing)", () => {
+  function baseNode(over: Partial<GraphNode> = {}): GraphNode {
+    return {
+      id: 1,
+      label: "Ping the dentist",
+      type: "memory" as any,
+      content: "",
+      createdAt: new Date().toISOString(),
+      celestial: "planet",
+      importance: 0.5,
+      degree: 2,
+      kind: undefined,
+      color: "#88aaff",
+      entropy: 0,
+      ...over,
+    } as GraphNode;
+  }
+
+  it("Test A — a small, insignificant entropy drift (same bucket) reuses cache identity", () => {
+    const a = nodeVisualCacheKey(baseNode({ entropy: 0.4 }));
+    const b = nodeVisualCacheKey(baseNode({ entropy: 0.42 })); // a typical refresh-to-refresh drift is ~0.002; this is generous and still same-bucket
+    expect(a).toBe(b);
+  });
+
+  it("Test A — undefined/null entropy and exact-zero entropy also collapse together", () => {
+    const a = nodeVisualCacheKey(baseNode({ entropy: undefined }));
+    const b = nodeVisualCacheKey(baseNode({ entropy: 0 }));
+    expect(a).toBe(b);
+  });
+
+  it("Test B — a materially different entropy (crossing several buckets) still invalidates the cache", () => {
+    const cold = nodeVisualCacheKey(baseNode({ entropy: 0.9 }));
+    const warm = nodeVisualCacheKey(baseNode({ entropy: 0.1 }));
+    expect(cold).not.toBe(warm);
+  });
+
+  it("Test B — a memory being 'tended' (entropy resets to 0) is a real, distinct event", () => {
+    const stale = nodeVisualCacheKey(baseNode({ entropy: 0.6 }));
+    const tended = nodeVisualCacheKey(baseNode({ entropy: 0 }));
+    expect(stale).not.toBe(tended);
+  });
+
+  it("Test B — every other construction-relevant field still fully distinguishes identity", () => {
+    const base = baseNode();
+    const key = nodeVisualCacheKey(base);
+    expect(nodeVisualCacheKey(baseNode({ label: "Something else" }))).not.toBe(key);
+    expect(nodeVisualCacheKey(baseNode({ importance: 0.9 }))).not.toBe(key);
+    expect(nodeVisualCacheKey(baseNode({ degree: 7 }))).not.toBe(key);
+    expect(nodeVisualCacheKey(baseNode({ color: "#ff0000" }))).not.toBe(key);
+    expect(nodeVisualCacheKey(baseNode({ kind: "action" as any }))).not.toBe(key);
+  });
+
+  it("Test B — entropy is clamped to [0,1] before bucketing (out-of-range input can't collapse into the wrong bucket)", () => {
+    expect(nodeVisualCacheKey(baseNode({ entropy: -5 }))).toBe(nodeVisualCacheKey(baseNode({ entropy: 0 })));
+    expect(nodeVisualCacheKey(baseNode({ entropy: 5 }))).toBe(nodeVisualCacheKey(baseNode({ entropy: 1 })));
   });
 });

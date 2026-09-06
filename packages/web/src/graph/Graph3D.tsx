@@ -14,7 +14,7 @@ import * as THREE from "three";
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D } from "./graph3dHelpers.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
-import { makeNodeObject, releaseNodeTextures } from "./nodeObject.js";
+import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
 import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
@@ -2891,7 +2891,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         return strength >= LINK_LOD_CUTOFF;
       }}
       nodeThreeObject={(node: any) => {
-        const cacheKey = `${node.label}_${node.importance}_${node.degree}_${node.entropy}_${node.color || ""}_${node.kind}`;
+        // Performance Program Round 3: cache identity is computed by nodeVisualCacheKey
+        // (nodeObject.ts), which buckets `entropy` instead of using it raw — see that
+        // function's doc comment for why.
+        const cacheKey = nodeVisualCacheKey(node);
         const cached = nodeThreeObjCacheRef.current.get(node.id);
         let obj;
         if (cached && cached.key === cacheKey) {

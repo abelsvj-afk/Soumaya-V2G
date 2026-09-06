@@ -346,6 +346,36 @@ function getMoonTexture(): THREE.CanvasTexture {
   return cachedMoonTexture;
 }
 
+// Performance Program Round 3 (memory scaling audit): the cache-key granularity for
+// `entropy`. Entropy genuinely affects this file's output (see the "Cooling tint" and
+// `vitality` code below — it drifts the body's color and pulse brightness), so it can't
+// be dropped from node-object cache identity outright. But it's a continuously-drifting
+// float (days-since-last-tended over a multi-week window), so including its raw value in
+// a cache key means the key differs on almost every `refresh()` even though the visible
+// difference is imperceptible — a typical refresh-to-refresh drift is ~0.002, two orders
+// of magnitude smaller than one bucket here. Bucketing collapses that noise while still
+// forcing a rebuild once entropy has moved far enough to matter (including the moment it
+// resets to 0 when a memory is "tended" — a real, meaningful, deliberately-visible event).
+const ENTROPY_CACHE_BUCKET = 0.05;
+
+function bucketEntropy(raw: number | null | undefined): number {
+  const clamped = Math.max(0, Math.min(1, raw ?? 0));
+  return Math.round(clamped / ENTROPY_CACHE_BUCKET) * ENTROPY_CACHE_BUCKET;
+}
+
+/**
+ * Cache-key identity for a node's Three.js object (consumed by Graph3D's
+ * `nodeThreeObjCacheRef`): every field below is read by `makeNodeObject` in a way that
+ * changes its constructed geometry/material/color/label or which branch (action vs.
+ * celestial body) it takes — so a change in any of them SHOULD invalidate the cache.
+ * `entropy` is the one exception, bucketed via `bucketEntropy` rather than included raw
+ * or dropped entirely (see the comment above) — every other field is unchanged from
+ * before this fix.
+ */
+export function nodeVisualCacheKey(node: GraphNode): string {
+  return `${node.label}_${node.importance}_${node.degree}_${bucketEntropy(node.entropy)}_${node.color || ""}_${node.kind}`;
+}
+
 /**
  * Build a node as a celestial body. Mass (derived server-side from importance +
  * connections + emotion) sets size and class. Bodies are textured spheres so a
