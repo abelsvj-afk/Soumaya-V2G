@@ -11,7 +11,7 @@ import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
-import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D } from "./graph3dHelpers.js";
+import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid } from "./graph3dHelpers.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
@@ -2911,8 +2911,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const cacheKey = nodeVisualCacheKey(node);
         const cached = nodeThreeObjCacheRef.current.get(node.id);
         let obj;
-        if (cached && cached.key === cacheKey) {
-          obj = cached.obj;
+        // Cache-disposal desync fix (docs/specs/soumaya-galaxy-cache-disposal-audit.md): a
+        // matching key alone isn't enough — three-forcegraph's own internal node cache can be
+        // cleared (and its Object3Ds disposed) independently of this cache, so also require the
+        // cached object to still be attached to the scene (see isNodeCacheEntryValid's doc
+        // comment for the full mechanism).
+        if (isNodeCacheEntryValid(cached, cacheKey)) {
+          obj = cached!.obj; // isNodeCacheEntryValid only returns true when `cached` is defined
         } else {
           if (cached) {
             releaseNodeTextures(cached.obj); // Stage 7: release the superseded build's label/glow claims

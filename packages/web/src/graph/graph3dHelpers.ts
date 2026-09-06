@@ -22,6 +22,33 @@ export const linkKey = (l: any): string => {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
 };
 
+/**
+ * Whether a cached node Object3D is still safe to reuse from Graph3D's own
+ * `nodeThreeObjCacheRef` (docs/specs/soumaya-galaxy-cache-disposal-audit.md). That cache is a
+ * completely separate structure from three-forcegraph's OWN internal node cache, which can be
+ * cleared independently of any change to the node data itself — e.g. an unmemoized
+ * `nodeThreeObject`/`nodeThreeObjectExtend` prop reference on a React re-render, or one of the
+ * `fg.refresh()` calls already elsewhere in Graph3D.tsx. When that happens, three-forcegraph
+ * disposes (geometry/material/texture) every currently-tracked node's Object3D via its own
+ * `onRemoveObj` wrapper — which always calls `scene.remove(obj)` immediately before disposing
+ * it — and then, in the same synchronous pass, re-requests an object for the very same (data-
+ * unchanged) node id. Without this check, a still-matching cache key would hand back the exact
+ * Object3D whose GPU resources were just freed a moment earlier, and three-forcegraph would
+ * re-add it to the live scene.
+ *
+ * Three.js's own `dispose()` never sets a detectable flag (it only ever dispatches an event —
+ * confirmed against the installed version), so there's no "is this disposed?" property to read.
+ * `obj.parent === null` is the reliable, always-public substitute: three-forcegraph's removal
+ * path is guaranteed (by the exact wrapper that calls it) to detach the object from the scene
+ * before disposing it, so a still-cached entry with no parent is proof it was already torn down.
+ */
+export function isNodeCacheEntryValid(
+  cached: { obj: THREE.Object3D; key: string } | undefined,
+  cacheKey: string,
+): boolean {
+  return !!cached && cached.key === cacheKey && cached.obj.parent !== null;
+}
+
 export function updateFigurine(
   group: THREE.Group,
   type: string,
