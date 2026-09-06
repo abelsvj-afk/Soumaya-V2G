@@ -1172,8 +1172,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let raf = 0;
     let last = performance.now() * 0.001;
     let lastFrameMs = 0; // FPS-cap gate (adaptive graphics)
-    let lastDist = 0;
-    let lastRefreshTime = 0;
     let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
     let starBlur = 0;
     // Stage 6: a DEDICATED (not perfStats') "did the camera move" flag for the adaptive
@@ -1237,18 +1235,27 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (burned > 0.05 && onFuelBurnRef.current) onFuelBurnRef.current(Math.round(burned * 100) / 100);
       }
 
-      // Make link curvature/opacity zoom-bias live:
-      // Track camera distance and periodically refresh link styles when zooming/scrolling
-      const camera = fgRef.current?.camera();
-      if (camera) {
-        const dist = camera.position.length();
-        const nowMs = performance.now();
-        if (Math.abs(dist - lastDist) > 35 && nowMs - lastRefreshTime > 250) {
-          lastDist = dist;
-          lastRefreshTime = nowMs;
-          fgRef.current?.refresh?.();
-        }
-      }
+      // REMOVED (FPS regression fix): this used to call fgRef.current?.refresh?.() on a
+      // 250ms/35-unit camera-distance throttle to keep link curvature/opacity/width "live"
+      // while zooming or panning. Verified against the installed three-forcegraph source
+      // that none of the three properties actually need it:
+      //  - Curvature: calcLinkCurve() (three-forcegraph's own per-frame link-position-sync
+      //    loop, unconditional, no _flushObjects/hasAnyPropChanged gate) already calls the
+      //    linkCurvature accessor — which reads live camera distance — every real frame.
+      //  - Width (curved/tube links, i.e. once zoomed out past 800 units): the same
+      //    per-frame loop rebuilds each curved link's TubeGeometry every frame, reading the
+      //    linkWidth accessor fresh each time — already live with no refresh() involved.
+      //  - Color/opacity (and width for straight/close links): linkColor is still an
+      //    inline, unmemoized prop (Round "ForceGraph callback stabilization" only
+      //    memoized nodeThreeObject/linkWidth) — its identity already changes on every
+      //    Graph3D render, which already re-triggers three-forcegraph's cheap link
+      //    material/geometry digest independent of camera distance.
+      // fg.refresh() itself sets _flushObjects = true, which unconditionally clears AND
+      // disposes every currently-tracked node's AND link's Object3D before rebuilding them
+      // from scratch — on a 250ms camera-movement throttle, this was forcing a full Galaxy
+      // rebuild several times a second during any camera motion, the confirmed cause of the
+      // "freeze, one frame, freeze" FPS collapse. Removing it changes no visual behavior:
+      // every property it was keeping live is already kept live by the mechanisms above.
 
       // Ambient "alive" shimmer on idle threads — suppressed under reduced-motion,
       // where the resting galaxy should stay calm rather than constantly flowing (#3b).
