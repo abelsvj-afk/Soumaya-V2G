@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -2870,6 +2871,55 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     [data],
   );
 
+  // Perf: stabilize the two <ForceGraph3D> callback props that three-forcegraph's own
+  // internal node/link object caches key their invalidation on
+  // (docs/specs/soumaya-galaxy-react-prop-identity-audit.md). Passed inline, these were fresh
+  // closures on every Graph3D render — including renders wholly unrelated to the Galaxy's own
+  // data (e.g. App.tsx's useCountUp tween) — which react-kapsule observes as "changed" by
+  // reference and forwards to three-forcegraph, wiping and rebuilding every currently-tracked
+  // node/link Object3D (nodeDataMapper.clear()/linkDataMapper.clear() → _deallocate()) for no
+  // visual reason. Confirmed safe by the audit: nodeThreeObject closes only over refs
+  // (nodeThreeObjCacheRef, gfxRef), so `[]` is correct with no stale-closure risk. linkWidth
+  // transitively reads `activeId` (via shouldRenderLink) — NOT a ref — so it must depend on
+  // `[activeId]`; memoizing it with `[]` would freeze hover/selection-driven link width at
+  // whatever it was on first render, a real correctness bug, not merely a missed optimization.
+  const nodeThreeObjectCb = useCallback((node: any) => {
+    // Performance Program Round 3: cache identity is computed by nodeVisualCacheKey
+    // (nodeObject.ts), which buckets `entropy` instead of using it raw — see that
+    // function's doc comment for why.
+    const cacheKey = nodeVisualCacheKey(node);
+    const cached = nodeThreeObjCacheRef.current.get(node.id);
+    let obj;
+    // Cache-disposal desync fix (docs/specs/soumaya-galaxy-cache-disposal-audit.md): a
+    // matching key alone isn't enough — three-forcegraph's own internal node cache can be
+    // cleared (and its Object3Ds disposed) independently of this cache, so also require the
+    // cached object to still be attached to the scene (see isNodeCacheEntryValid's doc
+    // comment for the full mechanism).
+    if (isNodeCacheEntryValid(cached, cacheKey)) {
+      obj = cached!.obj; // isNodeCacheEntryValid only returns true when `cached` is defined
+    } else {
+      if (cached) {
+        releaseNodeTextures(cached.obj); // Stage 7: release the superseded build's label/glow claims
+        disposeObject3D(cached.obj); // free the superseded build's VRAM
+      }
+      obj = makeNodeObject(node, gfxRef.current?.detailTier ?? "quality");
+      nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
+    }
+    return obj;
+  }, []);
+
+  const linkWidthCb = useCallback(
+    (l: any) => {
+      if (!shouldRenderLink(l)) return 0;
+      // The LINE itself is the glow. A tended connection swells into a fat, bright
+      // tube (quadratic in activity, so the bloom pass lights it up), then thins back
+      // to a clean resting filament over ~3 days. Cold links stay slim but visible.
+      const activity = getLinkActivity(l);
+      return 0.7 + (l.weight ?? 0.4) * 0.9 + activity * activity * 5;
+    },
+    [activeId],
+  );
+
   return (
     <ForceGraph3D
       ref={fgRef}
@@ -2904,30 +2954,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         const strength = (l.weight ?? 0.4) + getLinkActivity(l);
         return strength >= LINK_LOD_CUTOFF;
       }}
-      nodeThreeObject={(node: any) => {
-        // Performance Program Round 3: cache identity is computed by nodeVisualCacheKey
-        // (nodeObject.ts), which buckets `entropy` instead of using it raw — see that
-        // function's doc comment for why.
-        const cacheKey = nodeVisualCacheKey(node);
-        const cached = nodeThreeObjCacheRef.current.get(node.id);
-        let obj;
-        // Cache-disposal desync fix (docs/specs/soumaya-galaxy-cache-disposal-audit.md): a
-        // matching key alone isn't enough — three-forcegraph's own internal node cache can be
-        // cleared (and its Object3Ds disposed) independently of this cache, so also require the
-        // cached object to still be attached to the scene (see isNodeCacheEntryValid's doc
-        // comment for the full mechanism).
-        if (isNodeCacheEntryValid(cached, cacheKey)) {
-          obj = cached!.obj; // isNodeCacheEntryValid only returns true when `cached` is defined
-        } else {
-          if (cached) {
-            releaseNodeTextures(cached.obj); // Stage 7: release the superseded build's label/glow claims
-            disposeObject3D(cached.obj); // free the superseded build's VRAM
-          }
-          obj = makeNodeObject(node, gfxRef.current?.detailTier ?? "quality");
-          nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
-        }
-        return obj;
-      }}
+      nodeThreeObject={nodeThreeObjectCb}
       nodeLabel={(n: any) => {
         const proc = isNodeProcessing(n.id) ? " ⚙️ (Writing...)" : "";
         return `${n.label}${proc} · ${String(n.type).replace(/_/g, " ")}`;
@@ -2972,14 +2999,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (!lit) opacity = 0.32;
         return `rgba(${r}, ${g}, ${b}, ${Math.min(1, opacity).toFixed(2)})`;
       }}
-      linkWidth={(l: any) => {
-        if (!shouldRenderLink(l)) return 0;
-        // The LINE itself is the glow. A tended connection swells into a fat, bright
-        // tube (quadratic in activity, so the bloom pass lights it up), then thins back
-        // to a clean resting filament over ~3 days. Cold links stay slim but visible.
-        const activity = getLinkActivity(l);
-        return 0.7 + (l.weight ?? 0.4) * 0.9 + activity * activity * 5;
-      }}
+      linkWidth={linkWidthCb}
       linkCurvature={(l: any) => {
         const activity = getLinkActivity(l);
         const camera = fgRef.current?.camera();
