@@ -49,6 +49,20 @@ export function isNodeCacheEntryValid(
   return !!cached && cached.key === cacheKey && cached.obj.parent !== null;
 }
 
+/**
+ * Whether the adaptive-graphics path should actually call `renderer.setPixelRatio()`.
+ * `WebGLRenderer.setPixelRatio()` has no internal early-out — it unconditionally calls
+ * `setSize()`, which resizes the WebGL drawing buffer (a real GPU-pipeline stall on some
+ * devices/drivers), regardless of whether the new value differs from the current one.
+ * The Stage 6 adaptive controller can re-resolve graphics settings on every rung change
+ * (including a rung whose resolved `pixelRatio` happens to equal the previous one, e.g.
+ * adjacent rungs sharing a `pixelRatioCap`, or a descend-then-ascend flap), so the call
+ * site must gate on the EFFECTIVE value actually changing, not just on "a rung changed."
+ */
+export function shouldApplyPixelRatio(lastApplied: number | null, next: number): boolean {
+  return lastApplied !== next;
+}
+
 export function updateFigurine(
   group: THREE.Group,
   type: string,

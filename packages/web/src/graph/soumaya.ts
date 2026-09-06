@@ -438,6 +438,20 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
   let ou = new THREE.Vector3(1, 0, 0);
   let ov = new THREE.Vector3(0, 0, 1);
 
+  // Scratch vectors for the per-frame curve-following branch of `update()` (the "flying
+  // between tasks" state, one of her most common). THREE.Curve's getPoint(At)/getTangent(At)
+  // accept an optional target to write into instead of allocating — reused here every
+  // frame instead of letting each call construct a fresh Vector3. (getTangent's own
+  // internal two-point sample still allocates internally; that's three.js's own Curve
+  // implementation, not something a call-site scratch vector can avoid.)
+  const curvePosScratch = new THREE.Vector3();
+  const curvePrevPosScratch = new THREE.Vector3();
+  const tangentScratch = new THREE.Vector3();
+  const tangentPrevScratch = new THREE.Vector3();
+  const turnScratch = new THREE.Vector3();
+  const upAxisScratch = new THREE.Vector3();
+  const lookAtScratch = new THREE.Vector3();
+
   // Pre-planning queues & unified priority order
   const plannedMaintenance: MaintenanceJob[] = [];
   const taskOrder: string[] = [];
@@ -1186,17 +1200,17 @@ export function makeSoumaya(initialSkin = "default"): SoumayaHandle {
         } else {
           const e = smooth(t);
           const ePrev = smooth(prevT);
-          const p = curve.getPointAt(e);
-          const pPrev = curve.getPointAt(ePrev);
+          const p = curve.getPointAt(e, curvePosScratch);
+          const pPrev = curve.getPointAt(ePrev, curvePrevPosScratch);
           currentVel = p.distanceTo(pPrev) / dt;
 
           group.position.copy(p);
-          const tangent = curve.getTangentAt(Math.min(0.999, e));
-          group.lookAt(p.clone().add(tangent));
+          const tangent = curve.getTangentAt(Math.min(0.999, e), tangentScratch);
+          group.lookAt(lookAtScratch.copy(p).add(tangent));
 
-          const tanPrev = curve.getTangentAt(Math.min(0.999, Math.max(0, ePrev)));
-          const turn = new THREE.Vector3().crossVectors(tanPrev, tangent);
-          const up = new THREE.Vector3(0, 1, 0).applyQuaternion(group.quaternion);
+          const tanPrev = curve.getTangentAt(Math.min(0.999, Math.max(0, ePrev)), tangentPrevScratch);
+          const turn = turnScratch.crossVectors(tanPrev, tangent);
+          const up = upAxisScratch.set(0, 1, 0).applyQuaternion(group.quaternion);
           const signed = turn.dot(up);
           const targetBank = Math.max(-0.6, Math.min(0.6, -signed * 14));
           bank += (targetBank - bank) * Math.min(1, dt * 3);

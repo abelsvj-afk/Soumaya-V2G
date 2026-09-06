@@ -12,7 +12,7 @@ import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
-import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid } from "./graph3dHelpers.js";
+import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
@@ -524,6 +524,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // plain ref, not React state — it's sampled/updated on a 2s cadence inside the tick
   // loop, not something the render tree needs to react to.
   const adaptiveStateRef = useRef<AdaptiveState | null>(null);
+  // The last pixelRatio value actually applied to the renderer. `setPixelRatio()` has no
+  // internal early-out (it unconditionally resizes the WebGL drawing buffer), so every
+  // call site that hot-applies a rung/settings change must gate on this instead of
+  // assuming "the rung changed" implies "the effective pixel ratio changed" — see
+  // `shouldApplyPixelRatio` (graph3dHelpers.ts).
+  const lastAppliedPixelRatioRef = useRef<number | null>(null);
   // Stage 4 light pool: a FIXED-size set of PointLights reassigned to the nearest stars
   // on a throttle, instead of one Light per star toggled by `.visible` (see the pool's
   // creation site for why a fixed count matters).
@@ -733,6 +739,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // (a 3× retina phone renders 9× the pixels). This alone prevents most freezes.
     try {
       fg.renderer().setPixelRatio(gfx.pixelRatio);
+      lastAppliedPixelRatioRef.current = gfx.pixelRatio;
       // Frame-timing instrument (Stage 0): patches renderer.render so we can measure the
       // true present cadence and draw-submission cost. react-force-graph owns the render
       // loop, so this is the only place a frame's completion is observable to us.
@@ -1143,6 +1150,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // Ship-task → React sync cadence (see the throttle note in the tick).
     let taskSyncT = 0;
     let fuelBurnT = 0;
+    // Journey-hub / Money-sky sprite "breathing"/pulse update cadence. Each hub/star's
+    // userData.update(t) is a pure function of absolute elapsed time (no accumulated
+    // per-frame delta), so sampling it less often doesn't introduce drift or a visible
+    // jump — it's just a coarser, still-correct sample of the same continuous curve.
+    // 10Hz is comfortably smooth for periods in the ~1.3-12s range these use (measured
+    // from their own sine multipliers) while cutting the unconditional per-frame cost
+    // that scales with Journey/bill count (soumaya-galaxy-performance-audit-2.md).
+    let auxSkyT = 0;
     const idlePulse = () => {
       const f = fgRef.current;
       if (!f?.emitParticle) return;
@@ -1329,10 +1344,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             // one-time scene construction (same "needs a reload" precedent as star
             // count/bloom elsewhere in this file). Persisting means next launch at
             // least starts on the learned detailTier instead of re-climbing from zero.
-            try {
-              fgRef.current?.renderer?.().setPixelRatio(g.pixelRatio);
-            } catch {
-              /* renderer mid-teardown */
+            //
+            // Only actually call setPixelRatio() when the EFFECTIVE value changed.
+            // WebGLRenderer.setPixelRatio() has no internal early-out — it always calls
+            // setSize(), resizing the WebGL drawing buffer — so a rung change whose
+            // resolved pixelRatio happens to match the previous one (adjacent rungs can
+            // share a pixelRatioCap, and a descend-then-ascend flap can round-trip back
+            // to the same value) would otherwise still pay for a real buffer resize with
+            // nothing visually different to show for it.
+            if (shouldApplyPixelRatio(lastAppliedPixelRatioRef.current, g.pixelRatio)) {
+              try {
+                fgRef.current?.renderer?.().setPixelRatio(g.pixelRatio);
+                lastAppliedPixelRatioRef.current = g.pixelRatio;
+              } catch {
+                /* renderer mid-teardown */
+              }
             }
           }
           savePersistedRung(adaptiveStateRef.current, ADAPTIVE_MODEL_VERSION);
@@ -1540,8 +1566,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // per-sprite rotations above, which are frame-rate-dependent and don't currently
       // honor prefers-reduced-motion — not replicating that gap in new code.
       if (bakedBackdropRef.current) scene.backgroundRotation.y += motionDt * 0.006;
-      s.moneysky?.children.forEach((o: any) => o.userData?.update?.(now));
-      s.journeyhubs?.children.forEach((o: any) => o.userData?.update?.(now));
+      // Throttled to 10Hz (see auxSkyT's declaration) and skipped entirely while the
+      // layer is invisible (a Lens/View isolate toggles .visible — three.js visibility
+      // only gates the draw call, not this manual per-child work, so without this check
+      // the update kept running, unconditionally, purely to recompute an opacity/scale
+      // nothing is currently drawing).
+      auxSkyT -= dt;
+      if (auxSkyT <= 0) {
+        auxSkyT = 0.1;
+        if (s.moneysky?.visible) s.moneysky.children.forEach((o: any) => o.userData?.update?.(now));
+        if (s.journeyhubs?.visible) s.journeyhubs.children.forEach((o: any) => o.userData?.update?.(now));
+      }
       s.nebulae?.children.forEach((o: any) => o.userData?.update?.(now));
       s.comets?.children.forEach((o: any) => o.userData?.update?.(now));
       burstsRef.current?.group?.children.forEach((o: any) => o.userData?.update?.());
@@ -2165,10 +2200,15 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       const rung = RUNG_TABLE[adaptiveStateRef.current?.rung ?? 0];
       const g = resolveGraphics(s, rung);
       gfxRef.current = g;
-      try {
-        (fgRef.current as any)?.renderer?.().setPixelRatio(g.pixelRatio);
-      } catch {
-        /* renderer may be mid-teardown */
+      // Same guard as the adaptive controller's own hot-apply site: only resize the
+      // WebGL drawing buffer when the effective pixel ratio actually changed.
+      if (shouldApplyPixelRatio(lastAppliedPixelRatioRef.current, g.pixelRatio)) {
+        try {
+          (fgRef.current as any)?.renderer?.().setPixelRatio(g.pixelRatio);
+          lastAppliedPixelRatioRef.current = g.pixelRatio;
+        } catch {
+          /* renderer may be mid-teardown */
+        }
       }
     };
     window.addEventListener("brain-graphics-change", apply);

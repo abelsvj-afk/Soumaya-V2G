@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
-import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid } from "./graph3dHelpers.js";
+import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
 
 /** Locks the pure Graph3D helpers extracted in D4. (updateFigurine/disposeObject3D
  *  need a WebGL/GLTF context, so they're exercised by the app, not here.) */
@@ -66,5 +66,36 @@ describe("graph3dHelpers — isNodeCacheEntryValid (cache disposal desync fix)",
     // check is purely structural (`.parent`), not tied to any Galaxy-specific setup.
     const obj = new THREE.Group();
     expect(isNodeCacheEntryValid({ obj, key: "k1" }, "k1")).toBe(false);
+  });
+});
+
+/**
+ * Adaptive-graphics pixel-ratio churn fix: WebGLRenderer.setPixelRatio() has no internal
+ * early-out (it unconditionally calls setSize(), resizing the WebGL drawing buffer), so the
+ * call sites in Graph3D.tsx must gate on the EFFECTIVE value actually changing rather than
+ * assuming "the rung changed" implies "the pixel ratio changed."
+ */
+describe("graph3dHelpers — shouldApplyPixelRatio (pixel-ratio churn fix)", () => {
+  it("no prior applied value (first apply) -> should apply", () => {
+    expect(shouldApplyPixelRatio(null, 1.5)).toBe(true);
+  });
+
+  it("same value as last applied -> should NOT apply, even across repeated calls", () => {
+    expect(shouldApplyPixelRatio(1.5, 1.5)).toBe(false);
+    expect(shouldApplyPixelRatio(1, 1)).toBe(false);
+  });
+
+  it("a genuinely different value -> should apply", () => {
+    expect(shouldApplyPixelRatio(1, 1.25)).toBe(true);
+    expect(shouldApplyPixelRatio(2, 1)).toBe(true);
+  });
+
+  it("adjacent rungs sharing a pixelRatioCap resolve to the same value -> suppressed", () => {
+    // RUNG_TABLE has rungs 0/1 both mapping to detailTier "performance" but different
+    // pixelRatioCap (1.0 vs 1.25) — this test instead pins the general contract those
+    // rungs rely on: a rung CHANGE whose resolved pixelRatio happens to be unchanged
+    // (e.g. a descend-then-ascend round trip back to a previously-applied value) must
+    // not re-trigger a buffer resize.
+    expect(shouldApplyPixelRatio(1.25, 1.25)).toBe(false);
   });
 });
