@@ -982,13 +982,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // visual tethers between the orbiting bodies.
       //
       // REGRESSION NOTE (docs/specs/soumaya-galaxy-force-removal-regression.md): a prior
-      // attempt changed charge/link from .strength(0) to full removal (d3Force(name, null)),
-      // reasoning that a zero-strength force still does real per-tick computation for no
-      // visual effect. That reasoning about the CPU cost was correct, but removing the
-      // "link" force this way broke the Galaxy — celestial bodies and their connecting
-      // lines disappeared. Do NOT change these back to `d3Force(name, null)` without first
-      // reading that document; `center` is the one force safe to fully remove.
-      fg.d3Force("charge")?.strength(0);
+      // attempt also removed "link" this way, which broke the Galaxy — three-forcegraph
+      // relies on the link force's own initialization to normalize link source/target IDs
+      // into node object references, and nothing else in the stack does that. `link` MUST
+      // stay as .strength(0), never d3Force("link", null).
+      //
+      // `charge` has no such dependency — a dedicated safety audit
+      // (docs/specs/soumaya-galaxy-charge-force-audit.md) traced the installed
+      // three-forcegraph/3d-force-graph source directly and confirmed charge is never read
+      // outside its own registration and one guarded, never-fired numDimensions handler, and
+      // never mutates a node/link object the renderer depends on — so it's safe to fully
+      // remove (like `center`) rather than merely zero its strength, dropping the Barnes-Hut
+      // octree rebuild that still ran every tick even at strength 0.
+      fg.d3Force("charge", null);
       fg.d3Force("center", null);
       fg.d3Force("link")?.strength(0);
 
