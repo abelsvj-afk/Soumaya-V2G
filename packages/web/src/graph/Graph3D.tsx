@@ -21,7 +21,7 @@ import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
-import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot } from "./perfStats.js";
+import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot, registerGalaxyCounts } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
@@ -609,6 +609,36 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const labelCandidatesRef = useRef<{ id: number; d: number }[]>([]);
   const visibleLabelIdsRef = useRef<Set<number>>(new Set());
   const lastLabelCapFrameRef = useRef(-999);
+
+  // Perf HUD Phase 1 measurement (soumaya-galaxy-rendering-architecture-audit.md):
+  // register a pull-based counts provider so the HUD can show "tracked" (fetched)
+  // vs. "visible" (post-cluster-isolate) node/link counts — the exact distinction
+  // needed to compare a large View against a small cluster View. Only ever invoked
+  // from perfStats.snapshot(), i.e. at the HUD's existing 2Hz poll — never from
+  // either render loop, so this is zero per-frame cost. Independent of the big
+  // mount effect below on purpose: it only reads already-existing refs, so it
+  // doesn't need to participate in that effect's setup/teardown at all.
+  useEffect(() => {
+    registerGalaxyCounts(() => {
+      const nodes = dataRef.current.nodes as any[];
+      const links = dataRef.current.links as any[];
+      const cluster = clusterRef.current;
+      const visibleLinks = cluster
+        ? links.filter((l) => cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target))).length
+        : links.length; // note: doesn't additionally account for the distance/activity link LOD (shouldRenderLink) — see the audit doc
+      return {
+        trackedNodes: nodes.length,
+        visibleNodes: cluster ? cluster.size : nodes.length,
+        trackedLinks: links.length,
+        visibleLinks,
+        visibleLabels: visibleLabelIdsRef.current.size,
+        lightPoolSize: starLightPoolRef.current.length,
+        journeyObjects: sceneryRef.current.journeyhubs?.children.length ?? 0,
+        moneyObjects: sceneryRef.current.moneysky?.children.length ?? 0,
+      };
+    });
+    return () => registerGalaxyCounts(null);
+  }, []);
   // Link LOD hysteresis: whether we're currently in the "fully zoomed in, every link
   // draws" state. A single hard threshold re-checked every frame flickers links on/off
   // whenever the camera orbits near that exact distance; this only flips once the camera

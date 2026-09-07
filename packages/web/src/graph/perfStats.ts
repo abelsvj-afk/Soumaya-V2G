@@ -68,6 +68,45 @@ let renderer: THREE.WebGLRenderer | null = null;
  *  renderer is instrumented too, instead of silently going quiet. */
 const patchedRenderers = new WeakSet<THREE.WebGLRenderer>();
 
+/**
+ * Galaxy object counts (Phase 1 measurement task, soumaya-galaxy-rendering-
+ * architecture-audit.md). These distinguish "how much data was fetched" from
+ * "how much is actually tracked/visible right now" — the exact distinction
+ * needed to compare a large View against a cluster-isolated small View.
+ *
+ * Pull-based, not push-based: Graph3D registers a getter once at mount
+ * (reading its own already-existing refs — dataRef, clusterRef,
+ * visibleLabelIdsRef, starLightPoolRef, sceneryRef — nothing new is tracked
+ * per-frame). The getter is only ever INVOKED from snapshot(), i.e. at
+ * PerfHUD's existing 2Hz poll — never from either render loop, so this adds
+ * zero per-frame cost. A cluster-filtered link count does one O(links) array
+ * filter, but only when this is called, at most twice a second.
+ */
+export interface GalaxyCounts {
+  /** Total nodes/links currently fetched (before any cluster-isolate filter). */
+  trackedNodes: number;
+  trackedLinks: number;
+  /** After the current cluster-isolate filter, if any (matches nodeVisibility/
+   *  linkVisibility's own semantics) — this is what actually reaches
+   *  three-forcegraph's tracked object set in Graph3D.tsx today. */
+  visibleNodes: number;
+  visibleLinks: number;
+  /** Bodies currently showing a label (already capped — MAX_VISIBLE_LABELS). */
+  visibleLabels: number;
+  /** Fixed-size star-light pool (Stage 4) — does not scale with node count. */
+  lightPoolSize: number;
+  /** Journey-hub / Money-sky sprite counts (2 objects each per Journey/bill). */
+  journeyObjects: number;
+  moneyObjects: number;
+}
+
+let galaxyCountsProvider: (() => GalaxyCounts) | null = null;
+
+/** Graph3D calls this once at mount (and with `null` on unmount). */
+export function registerGalaxyCounts(fn: (() => GalaxyCounts) | null): void {
+  galaxyCountsProvider = fn;
+}
+
 /** Camera-motion flag: idle frames are cheap and lie, so the controller must ignore them. */
 let movedRecently = false;
 
@@ -97,6 +136,8 @@ export interface PerfSnapshot {
   drawInfo: { calls: number; triangles: number; lines: number; points: number } | null;
   memory: { geometries: number; textures: number } | null;
   programs: number | null;
+  /** null until Graph3D has registered a provider (see registerGalaxyCounts). */
+  galaxyCounts: GalaxyCounts | null;
 }
 
 /** Bracket the start of our per-frame scene work. Safe to call unconditionally. */
@@ -209,6 +250,7 @@ export function snapshot(): PerfSnapshot {
       : null,
     memory: info ? { geometries: info.memory.geometries, textures: info.memory.textures } : null,
     programs: info?.programs?.length ?? null,
+    galaxyCounts: galaxyCountsProvider ? galaxyCountsProvider() : null,
   };
 }
 

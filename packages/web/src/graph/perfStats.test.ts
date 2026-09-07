@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { beginTick, endTick, attachRenderer, snapshot, reset, markMoved } from "./perfStats.js";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { beginTick, endTick, attachRenderer, snapshot, reset, markMoved, registerGalaxyCounts } from "./perfStats.js";
 
 /**
  * The frame-timing instrument (Performance Program, Stage 0). Every later stage is
@@ -177,5 +177,42 @@ describe("perfStats", () => {
   it("restores the real clock", () => {
     performance.now = realNow;
     expect(typeof performance.now()).toBe("number");
+  });
+
+  describe("galaxyCounts (Phase 1 measurement — soumaya-galaxy-rendering-architecture-audit.md)", () => {
+    afterEach(() => registerGalaxyCounts(null)); // don't leak a provider into other tests
+
+    it("is null until Graph3D registers a provider", () => {
+      expect(snapshot().galaxyCounts).toBeNull();
+    });
+
+    it("pulls fresh values from the registered provider on every snapshot() call, not once", () => {
+      let calls = 0;
+      registerGalaxyCounts(() => {
+        calls++;
+        return {
+          trackedNodes: 300, trackedLinks: 1200, visibleNodes: 300, visibleLinks: 1200,
+          visibleLabels: 24, lightPoolSize: 6, journeyObjects: 4, moneyObjects: 8,
+        };
+      });
+      const first = snapshot().galaxyCounts;
+      const second = snapshot().galaxyCounts;
+      expect(first).toEqual({
+        trackedNodes: 300, trackedLinks: 1200, visibleNodes: 300, visibleLinks: 1200,
+        visibleLabels: 24, lightPoolSize: 6, journeyObjects: 4, moneyObjects: 8,
+      });
+      expect(second).toEqual(first);
+      expect(calls).toBe(2); // pull-based: invoked on demand, not cached across calls
+    });
+
+    it("reverts to null once unregistered (e.g. Graph3D unmount)", () => {
+      registerGalaxyCounts(() => ({
+        trackedNodes: 1, trackedLinks: 1, visibleNodes: 1, visibleLinks: 1,
+        visibleLabels: 1, lightPoolSize: 1, journeyObjects: 0, moneyObjects: 0,
+      }));
+      expect(snapshot().galaxyCounts).not.toBeNull();
+      registerGalaxyCounts(null);
+      expect(snapshot().galaxyCounts).toBeNull();
+    });
   });
 });

@@ -99,6 +99,8 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
         renderP50: cur.render.p50, renderP95: cur.render.p95,
         presentP50: cur.present.p50, gapMs: cur.gapMs, fps: cur.fps,
         droppedPct: cur.droppedPct, calls: cur.drawInfo?.calls, textures: cur.memory?.textures,
+        trackedNodes: cur.galaxyCounts?.trackedNodes, trackedLinks: cur.galaxyCounts?.trackedLinks,
+        visibleNodes: cur.galaxyCounts?.visibleNodes, visibleLinks: cur.galaxyCounts?.visibleLinks,
       });
     };
     const onHide = () => { if (document.visibilityState === "hidden") dump(); };
@@ -134,6 +136,12 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       `draw calls ${n0(s.drawInfo?.calls ?? 0)}  tris ${n0(s.drawInfo?.triangles ?? 0)}  lines ${n0(s.drawInfo?.lines ?? 0)}  points ${n0(s.drawInfo?.points ?? 0)}`,
       `geometries ${n0(s.memory?.geometries ?? 0)}  textures ${n0(s.memory?.textures ?? 0)}  programs ${s.programs ?? "?"}`,
       heapRate != null ? `heap +${heapRate.toFixed(2)} MB/s` : `heap n/a`,
+      s.galaxyCounts
+        ? `tracked ${n0(s.galaxyCounts.trackedNodes)} nodes / ${n0(s.galaxyCounts.trackedLinks)} links  visible ${n0(s.galaxyCounts.visibleNodes)} nodes / ${n0(s.galaxyCounts.visibleLinks)} links`
+        : `tracked/visible nodes+links: N/A`,
+      s.galaxyCounts
+        ? `labels ${n0(s.galaxyCounts.visibleLabels)}  lights ${n0(s.galaxyCounts.lightPoolSize)}  journey ${n0(s.galaxyCounts.journeyObjects)}  money ${n0(s.galaxyCounts.moneyObjects)}`
+        : `labels/lights/journey/money: N/A`,
       `nodes ${n0(nodeCount ?? 0)}  dpr ${window.devicePixelRatio}  ${navigator.userAgent}`,
     ].join("\n");
     navigator.clipboard?.writeText(text).then(
@@ -161,12 +169,33 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       <Row k="frame" v={`${ms(s.present.p50)}ms · ${s.fps.toFixed(0)}fps`} hint="Wall-clock gap between rendered frames — the true presentation cadence." />
       <Row k="gap" v={`${ms(s.gapMs)}ms`} hint="present p95 minus render p95. Large = the GPU itself is the bottleneck, not our JS." />
       <Row k="dropped" v={`${s.droppedPct.toFixed(1)}%`} hint="Frames that took over 25ms to arrive — visible hitches." />
-      <Row k="calls" v={n0(s.drawInfo?.calls ?? 0)} hint="Draw calls per frame." />
-      <Row k="tris" v={n0(s.drawInfo?.triangles ?? 0)} />
+      <Row k="calls" v={n0(s.drawInfo?.calls ?? 0)} hint="Draw calls per frame — one per Object3D submitted to the GPU (no instancing/batching exists in this renderer today, so this scales directly with tracked node+link+aux object count)." />
+      <Row k="tris" v={`${n0(s.drawInfo?.triangles ?? 0)} · ln ${n0(s.drawInfo?.lines ?? 0)} · pt ${n0(s.drawInfo?.points ?? 0)}`} hint="Triangles / lines / points submitted per frame." />
       <Row k="tex" v={`${n0(s.memory?.textures ?? 0)} · geo ${n0(s.memory?.geometries ?? 0)}`} hint="Live GPU textures / geometries. Should plateau, not climb." />
       <Row k="programs" v={String(s.programs ?? "?")} hint="Shader programs. Churn here means recompile stalls." />
       {heapRate != null && <Row k="heap" v={`+${heapRate.toFixed(2)} MB/s`} hint="Allocation rate. This is what the per-frame allocation work drives down." />}
       <Row k="nodes" v={n0(nodeCount ?? 0)} />
+      {s.galaxyCounts ? (
+        <>
+          <Row
+            k="tracked"
+            v={`${n0(s.galaxyCounts.trackedNodes)}n / ${n0(s.galaxyCounts.trackedLinks)}l`}
+            hint="Total nodes/links currently fetched, before any cluster-isolate (small View) filter."
+          />
+          <Row
+            k="visible"
+            v={`${n0(s.galaxyCounts.visibleNodes)}n / ${n0(s.galaxyCounts.visibleLinks)}l`}
+            hint="After the current cluster-isolate filter (if any) — what's actually tracked by three-forcegraph right now. Compare this against 'tracked' when switching between a large and a small/cluster View."
+          />
+          <Row
+            k="aux"
+            v={`${n0(s.galaxyCounts.visibleLabels)} labels · ${n0(s.galaxyCounts.lightPoolSize)} lights · ${n0(s.galaxyCounts.journeyObjects)} journey · ${n0(s.galaxyCounts.moneyObjects)} money`}
+            hint="Visible label sprites (already capped), the fixed star-light pool size, and Journey-hub / Money-sky sprite counts."
+          />
+        </>
+      ) : (
+        <Row k="tracked/visible" v="N/A" hint="Galaxy counts provider not registered (Graph3D not mounted?)." />
+      )}
       <div className="ph-actions">
         <button onClick={copy}>{copied ? "copied ✓" : "copy"}</button>
         <button onClick={() => { reset(); setS(snapshot()); }} title="Clear the rolling window — do this after changing a setting.">reset</button>
