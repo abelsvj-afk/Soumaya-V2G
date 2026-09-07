@@ -13,6 +13,7 @@ import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
+import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
@@ -335,6 +336,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // id → node map for O(1) lookups in the per-link accessors (see getLinkActivity).
   const nodeByIdRef = useRef<Map<number, any>>(new Map());
   const nodeThreeObjCacheRef = useRef<Map<number, { obj: THREE.Object3D; key: string }>>(new Map());
+  // Reused curved-link tube geometries (linkTube.ts) — see linkPositionUpdateCb below.
+  const curvedLinkGeometryRef = useRef(new CurvedLinkGeometryCache());
   const orbitsRef = useRef(makeOrbitSystem());
   useEffect(() => {
     dataRef.current = data;
@@ -2967,6 +2970,36 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     [activeId],
   );
 
+  // Extracted (unchanged logic) so linkPositionUpdateCb below can compute the exact
+  // same curvature three-forcegraph itself would have used, without duplicating the
+  // formula — both this function and the <ForceGraph3D linkCurvature> prop call it.
+  const computeLinkCurvature = (l: any) => {
+    const activity = getLinkActivity(l);
+    const camera = fgRef.current?.camera();
+    const dist = camera ? camera.position.length() : 1200;
+
+    // At macro zoom (> 800 distance), links curve significantly with organic wavy variance per link
+    if (dist > 800) {
+      const linkSeed = l.id || 0;
+      const baseCurvature = 0.25 + Math.abs(Math.sin(linkSeed * 1.7)) * 0.15;
+      return baseCurvature + activity * 0.18;
+    }
+
+    return 0.12 + activity * 0.16; // active lines wander/curve more organically
+  };
+
+  // Perf: reuse curved-link tube geometry across frames instead of the per-frame
+  // rebuild three-forcegraph's own layoutTick() otherwise does for every curved link
+  // (see linkTube.ts's doc comment — this is the confirmed dominant cause of the
+  // data-dependent 0-1 FPS collapse on a large/full Galaxy View, per the Round 4
+  // regression audit). Returning true from linkPositionUpdate tells three-forcegraph
+  // to skip its own calcLinkCurve()+geometry-rebuild for a link entirely.
+  const linkPositionUpdateCb = useCallback(
+    (obj: any, pos: LinkPositions, link: any) =>
+      curvedLinkGeometryRef.current.update(obj, pos, link, linkWidthCb(link), computeLinkCurvature(link)),
+    [linkWidthCb],
+  );
+
   return (
     <ForceGraph3D
       ref={fgRef}
@@ -3047,20 +3080,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         return `rgba(${r}, ${g}, ${b}, ${Math.min(1, opacity).toFixed(2)})`;
       }}
       linkWidth={linkWidthCb}
-      linkCurvature={(l: any) => {
-        const activity = getLinkActivity(l);
-        const camera = fgRef.current?.camera();
-        const dist = camera ? camera.position.length() : 1200;
-        
-        // At macro zoom (> 800 distance), links curve significantly with organic wavy variance per link
-        if (dist > 800) {
-          const linkSeed = l.id || 0;
-          const baseCurvature = 0.25 + (Math.abs(Math.sin(linkSeed * 1.7)) * 0.15);
-          return baseCurvature + activity * 0.18;
-        }
-        
-        return 0.12 + activity * 0.16; // active lines wander/curve more organically
-      }}
+      linkCurvature={computeLinkCurvature}
+      linkPositionUpdate={linkPositionUpdateCb}
       // Knowledge packets: only a few dots, and only while real info is actually
       // flowing — i.e. right after Soumaya tends a link (very high activity). The GLOW
       // (above) is the persistent signal; the dots are the occasional "data in transit".
