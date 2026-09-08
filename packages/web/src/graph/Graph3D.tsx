@@ -14,6 +14,7 @@ import * as THREE from "three";
 // (Post-MVP D4 split); behaviour unchanged.
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
+import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
@@ -194,6 +195,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   }, [selectedId]);
 
   const fgRef = useRef<any>(null);
+  // Galaxy Performance Isolation Mode (TEMPORARY diagnostic — see perfDiag.ts). Reads
+  // `?galaxyDiag=1&...` once (cached in that module), so `diag.enabled` is false and
+  // every category defaults to true unless the URL explicitly turns diagnostic mode
+  // on — every call site below is a no-op change in that default case.
+  const diag = getGalaxyDiagConfig();
   const [hoverId, setHoverId] = useState<number | null>(null);
   // When set, only these node ids (a memory + its orbiting system) are shown.
   const [cluster, setCluster] = useState<Set<number> | null>(null);
@@ -708,6 +714,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   fg.__brainInited = true;
 
   const scene: THREE.Scene = fg.scene();
+  // Galaxy Performance Isolation Mode: a plain-DOM readout, independent of PerfHUD
+  // (not currently visible on-device — this must not depend on whatever is wrong
+  // with that component). See perfDiag.ts's module doc for the full mechanism.
+  const unmountDiagOverlay = diag.enabled ? mountGalaxyDiagOverlay(diag) : null;
   const controls = fg.controls?.();
   // See the far galaxies + the nebula skybox shell (~12000 out).
   const pcam = fg.camera() as THREE.PerspectiveCamera;
@@ -797,7 +807,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // camera flies. Unused slots get `intensity = 0` (never removed/hidden).
     // detailTier, not tier: Stage 6's adaptive controller (auto mode) can move this
     // independently of the coarse detected tier once it measures real headroom.
-    const starLightPoolSize = gfx.detailTier === "quality" ? 6 : gfx.detailTier === "balanced" ? 4 : 3;
+    // Galaxy Performance Isolation Mode: GLOW/LIGHTING off means zero pool lights
+    // exist at all — simpler and safer than fighting the throttled reassignment scan
+    // (which already handles pool.length === 0 gracefully), and it's still the same
+    // "fixed pool size, never mutated mid-session" contract this pool depends on.
+    const starLightPoolSize =
+      diag.enabled && !diag.glow ? 0 : gfx.detailTier === "quality" ? 6 : gfx.detailTier === "balanced" ? 4 : 3;
     const starLightPool: THREE.PointLight[] = [];
     for (let i = 0; i < starLightPoolSize; i++) {
       const l = new THREE.PointLight(0xffffff, 0, 100, 2);
@@ -885,6 +900,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const grp = makeMoneySky(stars);
           sceneryRef.current.moneysky = grp;
           scene.add(grp);
+          // Galaxy Performance Isolation Mode: AUXILIARY OBJECTS off. Re-applied on
+          // every rebuild (finance changes) since `grp` is a fresh object each time.
+          if (diag.enabled && !diag.aux) grp.visible = false;
           scaleSceneryRef.current();
         };
         void rebuildMoneySky();
@@ -903,6 +921,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const grp = makeJourneyHubs(journeys);
           sceneryRef.current.journeyhubs = grp;
           scene.add(grp);
+          // Galaxy Performance Isolation Mode: AUXILIARY OBJECTS off. Re-applied on
+          // every rebuild (journey changes) since `grp` is a fresh object each time.
+          if (diag.enabled && !diag.aux) grp.visible = false;
           scaleSceneryRef.current();
         };
         void rebuildJourneyHubs();
@@ -967,9 +988,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       subAgents = makeSubAgents();
       subAgentsRef.current = subAgents;
       scene.add(subAgents.group);
+      // Galaxy Performance Isolation Mode: AUXILIARY OBJECTS off — just hides the
+      // already-created groups (not disposed, not removed from the scene, no data/
+      // simulation change), matching every other diagnostic category's approach.
+      if (diag.enabled && !diag.aux) {
+        visitors.group.visible = false;
+        satellites.group.visible = false;
+        subAgents.group.visible = false;
+      }
       // Bloom is expensive post-processing — skip it entirely on Performance/weak
       // devices (a major GPU + VRAM saving), else add it at the resolved strength.
-      bloomRef.current = gfx.bloom ? addBloom(fg, { strength: gfx.bloomStrength }) : null;
+      // Galaxy Performance Isolation Mode: bloom is explicitly "bloom-related Galaxy
+      // glow" per the diagnostic spec, so GLOW/LIGHTING off skips it regardless of
+      // the resolved graphics setting.
+      bloomRef.current =
+        diag.enabled && !diag.glow ? null : gfx.bloom ? addBloom(fg, { strength: gfx.bloomStrength }) : null;
 
       // Click detection for Soumaya's ship
       const canvas = fg.renderer().domElement;
@@ -1800,7 +1833,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
           // Process titles regardless of parent culling
           if (child.userData?.isSectorTitle) {
-            child.visible = isMacroView && !occludedBySun;
+            // Galaxy Performance Isolation Mode: same reasoning as the other LOD/label
+            // visibility guards in this loop — see the isFidelity/isMacro comment above.
+            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : isMacroView && !occludedBySun;
             if (child.visible) {
               const mat = child.material as THREE.SpriteMaterial;
               mat.opacity = 0.92;
@@ -1836,9 +1871,19 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             continue;
           }
 
-          // LOD Swapping
-          if (child.userData?.isFidelity) child.visible = !isMacroView;
-          if (child.userData?.isMacro) child.visible = isMacroView;
+          // LOD Swapping. Galaxy Performance Isolation Mode note: this unconditionally
+          // reassigns .visible every frame for near/far LOD, which would otherwise
+          // fight the one-time diagnostic hide applied at construction time
+          // (nodeThreeObjectCb) whenever the camera crosses the macro-view distance —
+          // `diag.enabled &&` short-circuits before the (still allocation-free)
+          // shouldHideNodeChild check runs, so the normal (non-diagnostic) path pays
+          // only one extra cached-boolean read per applicable child, same as before.
+          if (child.userData?.isFidelity) {
+            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : !isMacroView;
+          }
+          if (child.userData?.isMacro) {
+            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : isMacroView;
+          }
 
           if (isCulled) {
             // A hasSectorTitle hub bypasses the top-level cull-hide above (so its title
@@ -1869,7 +1914,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               // sector title fades in is fine; a gap where nothing is shown is not.
               const labelFadeFar = o.userData?.hasSectorTitle ? MACRO_DIST + MACRO_HYST : FADE_FAR;
               const labelVis = (isMacroView && !isSelected) || capped || occludedBySun ? 0 : Math.min(1, Math.max(0, (labelFadeFar - dist) / (labelFadeFar - FADE_NEAR)));
-              child.visible = labelVis > 0.02;
+              // Galaxy Performance Isolation Mode: same reasoning as the LOD-swap guard
+              // above — this line otherwise reassigns label visibility every frame,
+              // fighting the one-time diagnostic hide. `diag.enabled &&` short-circuits
+              // to zero added cost in the normal (non-diagnostic) path.
+              child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : labelVis > 0.02;
               if (child.visible) {
                 const mat = child.material as THREE.SpriteMaterial;
                 mat.opacity = labelVis * 0.95;
@@ -2136,6 +2185,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
     return () => {
       cancelAnimationFrame(raf);
+      unmountDiagOverlay?.();
       engine?.dispose();
       if (finChangeHandlerRef.current) window.removeEventListener("brain-finance-changed", finChangeHandlerRef.current);
       if (journeyChangeHandlerRef.current) window.removeEventListener("brain-journeys-changed", journeyChangeHandlerRef.current);
@@ -2983,6 +3033,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         disposeObject3D(cached.obj); // free the superseded build's VRAM
       }
       obj = makeNodeObject(node, gfxRef.current?.detailTier ?? "quality");
+      // Galaxy Performance Isolation Mode: applied ONCE here at construction time
+      // (not per frame) — a freshly-built node's children are classified via tags
+      // nodeObject.ts already sets for other reasons (see shouldHideNodeChild), and
+      // hidden (not removed/disposed) for any diagnostically-disabled category. This
+      // result gets cached below like any other node build, so it costs nothing on
+      // subsequent cache hits.
+      if (diag.enabled) {
+        for (const child of obj.children) {
+          if (shouldHideNodeChild(child, diag)) child.visible = false;
+        }
+      }
       nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });
     }
     return obj;
@@ -3041,6 +3102,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       cooldownTime={9999999}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) => {
+        // Galaxy Performance Isolation Mode: LINKS off. Uses the exact same mechanism
+        // three-forcegraph already uses for a cluster isolate (§6 of the rendering-
+        // architecture audit) — a link failing this filter is fully excluded from
+        // three-forcegraph's own tracked object set, not merely `.visible = false`'d.
+        if (diag.enabled && !diag.links) return false;
         // Isolate-system view filters to the selected cluster.
         if (cluster) return cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target));
         // LEVEL-OF-DETAIL: on a DENSE brain, drawing every faint filament at macro zoom
