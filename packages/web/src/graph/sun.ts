@@ -13,6 +13,34 @@ import { gltfLoader } from "./gltf.js";
 export const SUN_RADIUS = 460; // base render radius (world units)
 export const SUN_RADIUS_MAX = 600; // clamp — orbits clear THIS so bodies never clip the sun
 
+/**
+ * Make one of the sun model's glTF materials safe to render, in both senses.
+ *
+ * `envMapIntensity = 0`: the sun reads as uniformly self-luminous, never as a reflective
+ * studio object. With the scene-wide PMREM environment map applied, its PBR materials were
+ * catching a visible reflected highlight from the environment's room geometry (the reported
+ * "square block of light" on the sun). Other bodies still get the ambient sheen.
+ *
+ * `transmission = 0` — THE CRITICAL ONE. `sun.glb` ships `KHR_materials_transmission` with
+ * `transmissionFactor: 1`, which `GLTFLoader` maps onto `MeshPhysicalMaterial.transmission`.
+ * In three.js, ANY material with `transmission > 0` diverts the entire frame through
+ * `renderTransmissionPass()`: a full-resolution multisampled half-float render target that
+ * is cleared, has the scene background drawn into it, has EVERY opaque object re-rendered
+ * into it, is then MSAA-resolved and has a complete mipmap chain regenerated — all inside
+ * `renderer.render()`, before the visible frame is drawn at all. The sun is the only
+ * transmissive object in the galaxy, so this single material was buying that whole pass for
+ * the entire scene, on every frame, at every graphics tier, with no setting able to turn it
+ * off. The sun still reads correctly without it: the material stays emissive, and the sun
+ * keeps its additive corona sprite and its own point light.
+ *
+ * See docs/specs/soumaya-galaxy-large-render-forensic-audit.md.
+ */
+export function neutralizeSunMaterial(mat: THREE.Material): void {
+  const m = mat as THREE.MeshPhysicalMaterial;
+  if ("envMapIntensity" in m) m.envMapIntensity = 0;
+  if ("transmission" in m && m.transmission > 0) m.transmission = 0;
+}
+
 export function makeSun(): THREE.Object3D {
   const group = new THREE.Group();
   let currentRadius = SUN_RADIUS;
@@ -80,14 +108,10 @@ export function makeSun(): THREE.Object3D {
         mixer.timeScale = 0.08; // the baked clip spins fast — slow it way down
         for (const clip of gltf.animations) mixer.clipAction(clip).play();
       }
-      // The sun is meant to read as uniformly self-luminous, never as a reflective studio
-      // object — with the scene-wide PMREM environment map applied, its PBR materials were
-      // catching a visible reflected highlight from the environment's room geometry (the
-      // reported "square block of light" on the sun). Zero its envMapIntensity so it stays
-      // emissive-only; other bodies still get the ambient sheen from the environment map.
       model.traverse((obj) => {
-        const mat = (obj as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-        if (mat && "envMapIntensity" in mat) mat.envMapIntensity = 0;
+        const mat = (obj as THREE.Mesh).material;
+        if (!mat) return;
+        for (const m of Array.isArray(mat) ? mat : [mat]) neutralizeSunMaterial(m);
       });
       fallback.visible = false;
       group.add(model);
