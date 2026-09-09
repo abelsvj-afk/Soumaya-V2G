@@ -15,6 +15,7 @@ import * as THREE from "three";
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
+import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
@@ -200,13 +201,33 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // every category defaults to true unless the URL explicitly turns diagnostic mode
   // on — every call site below is a no-op change in that default case.
   const diag = getGalaxyDiagConfig();
+  // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
+  // architecture.md). Both read a cached URL param once per page load (same pattern as
+  // `diag` above); `boundedLinksOn` defaults to false, so this whole feature is inert
+  // unless a real-device A/B test explicitly opts in via `?boundedLinks=1`.
+  const boundedLinksOn = isBoundedLinksEnabled();
+  const detailedLinkBudget = getDetailedLinkBudget();
+  // The currently-selected Detailed-tier link set, or null when bounded selection is
+  // off/not yet computed — `linkVisibility` below falls back to today's exact unbounded
+  // behavior whenever this is null, so the feature is fully inert by default. Recomputed
+  // only on explicit events (see `recomputeDetailedLinksRef` below), never per frame.
+  const detailedLinkIdsRef = useRef<Set<string> | null>(null);
+  // `recomputeDetailedLinks` itself is defined much further down (it needs
+  // `getLinkActivity`/`nodeByIdRef`, both declared later in this large component) — the
+  // effects below call through this ref rather than the function directly so their
+  // position in the file doesn't matter: the ref is reassigned to the real function on
+  // every render, well before React actually RUNS any effect after that render commits.
+  const recomputeDetailedLinksRef = useRef<() => void>(() => {});
   const [hoverId, setHoverId] = useState<number | null>(null);
   // When set, only these node ids (a memory + its orbiting system) are shown.
   const [cluster, setCluster] = useState<Set<number> | null>(null);
   // Mirror the cluster into a ref so the render loop can scope Soumaya + the fleet to the
   // VISIBLE bodies only (she shouldn't fly off to tend things hidden by a lens/category view).
   const clusterRef = useRef<Set<number> | null>(null);
-  useEffect(() => { clusterRef.current = cluster; }, [cluster]);
+  useEffect(() => {
+    clusterRef.current = cluster;
+    recomputeDetailedLinksRef.current();
+  }, [cluster]);
   // Hover wins; otherwise the selected node drives the highlight (mobile = no hover).
   const activeId = hoverId ?? selectedId ?? null;
   // Ref mirror for callbacks captured once (the imperative handle only rebuilds on
@@ -214,6 +235,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const activeIdRef = useRef<number | null>(null);
   useEffect(() => {
     activeIdRef.current = activeId;
+    recomputeDetailedLinksRef.current();
   }, [activeId]);
   const insetRef = useRef(false);
   useEffect(() => {
@@ -361,6 +383,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     }
     const prevById = nodeByIdRef.current; // last frame's nodes (for detecting deletions)
     nodeByIdRef.current = new Map((data.nodes as any[]).map((n: any) => [n.id, n]));
+    // Phase 2.1: the graph data itself changed, so the Detailed-link selection (if the
+    // bounded-links flag is on) needs to be recomputed against the new node/link set.
+    recomputeDetailedLinksRef.current();
     orbitsRef.current.rebuild(data.nodes as any[], data.links as any[]);
     sunRef.current?.userData?.setBrainScale?.(data.nodes.length); // core-self size (clamped)
     // Place the station just outside the bodies (so planets never pass through it)
@@ -641,6 +666,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         lightPoolSize: starLightPoolRef.current.length,
         journeyObjects: sceneryRef.current.journeyhubs?.children.length ?? 0,
         moneyObjects: sceneryRef.current.moneysky?.children.length ?? 0,
+        // Phase 2.1 (soumaya-galaxy-bounded-render-architecture.md): the Detailed-link
+        // selection's own state, for the real-device A/B comparison this phase's design
+        // explicitly requires. Read-only — this callback only ever runs from
+        // perfStats.snapshot()'s 2Hz poll, so this adds zero per-frame cost, matching
+        // every other field on this object.
+        boundedLinksEnabled: boundedLinksOn,
+        detailedLinkBudget,
+        detailedLinks: detailedLinkIdsRef.current ? detailedLinkIdsRef.current.size : visibleLinks,
       };
     });
     return () => registerGalaxyCounts(null);
@@ -2348,7 +2381,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     followKindRef.current = null;
     if (shouldCalmMotion()) {
       fg.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 0); // no swoop
-      scheduleTimeout(() => { followRef.current = n.id; }, 60);
+      // recomputeDetailedLinksRef: covers the `focusNode` imperative-handle path (e.g.
+      // chat navigation), which flies here WITHOUT going through onSelect/selectedId —
+      // without this, that node's own links wouldn't be promoted into the Detailed
+      // budget until some unrelated event happened to trigger a recompute.
+      scheduleTimeout(() => { followRef.current = n.id; recomputeDetailedLinksRef.current(); }, 60);
     } else {
       // Cinematic ARC: bend the path through a lifted waypoint (pushed outward from the
       // Sun + up) so the camera swoops in rather than sliding along a dead-straight line.
@@ -2363,7 +2400,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       scheduleTimeout(() => {
         fgRef.current?.cameraPosition({ x: camPos.x, y: camPos.y, z: camPos.z }, target, 640);
       }, 400);
-      scheduleTimeout(() => { followRef.current = n.id; }, 1080);
+      scheduleTimeout(() => { followRef.current = n.id; recomputeDetailedLinksRef.current(); }, 1080);
     }
   };
 
@@ -2597,6 +2634,50 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     if (repaired) act = Math.max(act, Math.exp(-(nowMs - repaired) / (3 * 24 * 3600 * 1000)));
     return act;
   };
+
+  // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
+  // architecture.md §15 Phase 2 / soumaya-galaxy-large-small-workload-diff-audit.md).
+  // Reuses the SAME weight/activity signals `linkColor`/`linkWidthCb` already compute
+  // above, plus the existing `cluster`/`activeId`/`node.importance` state — no new
+  // intelligence, no new per-link query. Deliberately event-driven: called only from the
+  // data/cluster/activeId effects near the top of this component and from `flyTo` below,
+  // NEVER from tick()/the rAF loop, per the architecture doc's explicit "never put a
+  // full link-ranking pass in the uncapped RAF loop" requirement. A no-op (clears the ref
+  // to null) unless `?boundedLinks=1` is set, so `linkVisibility` falls back to today's
+  // exact unbounded behavior by default — this is a feature-flagged, real-device-A/B-only
+  // change in this phase, not yet a default-on production behavior change.
+  const recomputeDetailedLinks = () => {
+    if (!boundedLinksOn) {
+      detailedLinkIdsRef.current = null;
+      return;
+    }
+    const links = dataRef.current.links as any[];
+    const byId = nodeByIdRef.current;
+    const input: LinkSelectionInput[] = links.map((l) => ({
+      key: linkKey(l),
+      sourceId: linkEnd(l.source),
+      targetId: linkEnd(l.target),
+      weight: l.weight ?? 0.4,
+      activity: getLinkActivity(l),
+    }));
+    // "Active" = whatever the existing isLit()/shouldRenderLink() machinery already
+    // treats as focused (hover-or-selection, via `activeIdRef`), plus whatever node is
+    // currently camera-followed — both id spaces already exist in this file; nothing new
+    // is computed here.
+    const activeNodeIds = new Set<number>();
+    if (activeIdRef.current != null) activeNodeIds.add(activeIdRef.current);
+    if (followRef.current != null) activeNodeIds.add(followRef.current);
+    const nodeImportance = new Map<number, number>();
+    for (const [id, n] of byId) nodeImportance.set(id, (n as any)?.importance ?? 0);
+    detailedLinkIdsRef.current = selectDetailedLinks(input, {
+      budget: detailedLinkBudget,
+      activeNodeIds,
+      clusterIds: clusterRef.current,
+      nodeImportance,
+      previousDetailedKeys: detailedLinkIdsRef.current ?? undefined,
+    });
+  };
+  recomputeDetailedLinksRef.current = recomputeDetailedLinks;
 
   useImperativeHandle(
     ref,
@@ -3108,7 +3189,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         // three-forcegraph's own tracked object set, not merely `.visible = false`'d.
         if (diag.enabled && !diag.links) return false;
         // Isolate-system view filters to the selected cluster.
-        if (cluster) return cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target));
+        if (cluster && !(cluster.has(linkEnd(l.source)) && cluster.has(linkEnd(l.target)))) return false;
+        // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
+        // architecture.md). `detailedLinkIdsRef` is null unless `?boundedLinks=1` is
+        // set (see recomputeDetailedLinks above), so this branch is a complete no-op by
+        // default — every line below is byte-for-byte the same as before this phase.
+        // When enabled, a link NOT in the current Detailed selection is excluded from
+        // three-forcegraph's tracked object set entirely — BEFORE any TubeGeometry/Mesh
+        // is ever constructed for it (the actual expensive step the architecture audit
+        // identified), not built-then-hidden. Documented, deliberate limitation for this
+        // phase: an excluded link has no Simplified-tier fallback yet — it is fully
+        // invisible while this flag is on, not merely dimmed; that fallback is the next
+        // phase's job (soumaya-galaxy-bounded-render-architecture.md §5/§15 Phase 3).
+        const detailed = detailedLinkIdsRef.current;
+        if (detailed && !detailed.has(linkKey(l))) return false;
+        if (cluster) return true; // isolate view: every remaining (in-cluster, budget-cleared) link draws
         // LEVEL-OF-DETAIL: on a DENSE brain, drawing every faint filament at macro zoom
         // is what makes a big galaxy lag on a phone. So when there are many links AND the
         // camera is pulled back, draw only the STRONGER / actively-tended connections;

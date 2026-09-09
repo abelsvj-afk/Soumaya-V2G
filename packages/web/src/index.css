@@ -5159,15 +5159,26 @@ button.jn-link-row:hover { background: rgba(122,249,255,0.1); }
 }
 
 /* ---- Perf HUD (Performance Program, Stage 0) ----
-   The measurement instrument. `contain: strict` isolates it from the page's layout/paint
-   so the readout can never itself become a measurable cost, and there's deliberately no
-   backdrop-filter here (that's a real compositor expense — exactly what we're hunting). */
+   The measurement instrument. Isolated from the page's layout/paint so the readout can
+   never itself become a measurable cost, and there's deliberately no backdrop-filter here
+   (that's a real compositor expense — exactly what we're hunting).
+   ROOT CAUSE OF "PerfHUD not visible on-device" (found while diagnosing Phase 2.1's
+   real-device A/B blocker): this rule used `contain: strict` (= size + layout + style +
+   paint) together with `height: auto`. Per the CSS Containment spec, `contain: size`
+   sizes an element AS IF it had no content whenever another property (like an explicit
+   height) doesn't already pin its size — with only `height: auto` here, that collapsed
+   this box to 0 height on every browser, and `contain: paint`'s clipping then hid every
+   row/button that would have overflowed that 0-height box. The element was correctly
+   mounted, positioned, and z-ordered the entire time — it was just clipped to nothing.
+   Fixed by dropping `size` from the containment (→ `contain: content`, i.e. layout+style+
+   paint only) so the box sizes from its own content again, while keeping the layout/paint
+   isolation this was written for. */
 .perf-hud {
   position: fixed;
   top: calc(8px + env(safe-area-inset-top, 0px));
   left: 8px;
   z-index: 90; /* above the FAB tier (40/45) — it must never be the thing that's hidden */
-  contain: strict;
+  contain: content;
   width: 178px;
   height: auto;
   padding: 6px 8px;

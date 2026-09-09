@@ -101,6 +101,8 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
         droppedPct: cur.droppedPct, calls: cur.drawInfo?.calls, textures: cur.memory?.textures,
         trackedNodes: cur.galaxyCounts?.trackedNodes, trackedLinks: cur.galaxyCounts?.trackedLinks,
         visibleNodes: cur.galaxyCounts?.visibleNodes, visibleLinks: cur.galaxyCounts?.visibleLinks,
+        detailedLinks: cur.galaxyCounts?.detailedLinks, detailedLinkBudget: cur.galaxyCounts?.detailedLinkBudget,
+        boundedLinksEnabled: cur.galaxyCounts?.boundedLinksEnabled,
       });
     };
     const onHide = () => { if (document.visibilityState === "hidden") dump(); };
@@ -142,6 +144,9 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       s.galaxyCounts
         ? `labels ${n0(s.galaxyCounts.visibleLabels)}  lights ${n0(s.galaxyCounts.lightPoolSize)}  journey ${n0(s.galaxyCounts.journeyObjects)}  money ${n0(s.galaxyCounts.moneyObjects)}`
         : `labels/lights/journey/money: N/A`,
+      s.galaxyCounts?.detailedLinkBudget != null
+        ? `detailed links ${n0(s.galaxyCounts.detailedLinks ?? 0)} / budget ${n0(s.galaxyCounts.detailedLinkBudget)}  bounded:${s.galaxyCounts.boundedLinksEnabled ? "ON" : "OFF"}`
+        : `detailed links: N/A`,
       `nodes ${n0(nodeCount ?? 0)}  dpr ${window.devicePixelRatio}  ${navigator.userAgent}`,
     ].join("\n");
     navigator.clipboard?.writeText(text).then(
@@ -192,6 +197,13 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
             v={`${n0(s.galaxyCounts.visibleLabels)} labels · ${n0(s.galaxyCounts.lightPoolSize)} lights · ${n0(s.galaxyCounts.journeyObjects)} journey · ${n0(s.galaxyCounts.moneyObjects)} money`}
             hint="Visible label sprites (already capped), the fixed star-light pool size, and Journey-hub / Money-sky sprite counts."
           />
+          {s.galaxyCounts.detailedLinkBudget != null && (
+            <Row
+              k="detailed"
+              v={`${n0(s.galaxyCounts.detailedLinks ?? 0)}l / budget ${n0(s.galaxyCounts.detailedLinkBudget)} (bounded ${s.galaxyCounts.boundedLinksEnabled ? "ON" : "OFF"})`}
+              hint="Phase 2.1: links currently allowed the expensive curved-tube Detailed representation vs. the configured ?linkBudget cap. 'bounded OFF' means ?boundedLinks=1 isn't set — every visible link still gets Detailed treatment exactly as before this phase."
+            />
+          )}
         </>
       ) : (
         <Row k="tracked/visible" v="N/A" hint="Galaxy counts provider not registered (Graph3D not mounted?)." />

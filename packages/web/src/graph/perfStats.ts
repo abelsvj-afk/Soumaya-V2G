@@ -98,6 +98,20 @@ export interface GalaxyCounts {
   /** Journey-hub / Money-sky sprite counts (2 objects each per Journey/bill). */
   journeyObjects: number;
   moneyObjects: number;
+  /**
+   * Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
+   * architecture.md, soumaya-galaxy-large-small-workload-diff-audit.md). Optional so
+   * existing GalaxyCounts producers/fixtures (e.g. tests) don't need updating just
+   * because this phase added new fields — Graph3D's real provider always supplies them.
+   */
+  /** Whether `?boundedLinks=1` is currently active for this session. */
+  boundedLinksEnabled?: boolean;
+  /** The configured Detailed-link budget (see `getDetailedLinkBudget()` in
+   *  renderModel.ts) — reported even when disabled, since it's just a number. */
+  detailedLinkBudget?: number;
+  /** Links currently allowed the expensive curved-tube Detailed representation. Equals
+   *  `visibleLinks` whenever bounded selection is disabled (no restriction applied). */
+  detailedLinks?: number;
 }
 
 let galaxyCountsProvider: (() => GalaxyCounts) | null = null;
