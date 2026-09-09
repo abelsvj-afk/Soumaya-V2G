@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
-import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
+import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
 
 /** Locks the pure Graph3D helpers extracted in D4. (updateFigurine/disposeObject3D
  *  need a WebGL/GLTF context, so they're exercised by the app, not here.) */
@@ -97,5 +97,30 @@ describe("graph3dHelpers — shouldApplyPixelRatio (pixel-ratio churn fix)", () 
     // (e.g. a descend-then-ascend round trip back to a previously-applied value) must
     // not re-trigger a buffer resize.
     expect(shouldApplyPixelRatio(1.25, 1.25)).toBe(false);
+  });
+});
+
+/**
+ * Regression coverage for the second render-cost finding in
+ * soumaya-galaxy-large-render-forensic-audit.md §8.2: the hover-highlight effect used to
+ * force `transparent = true` on every node child unconditionally, including opaque-by-
+ * construction body meshes, which pushed every body into three.js's transparent queue
+ * (no early-Z rejection) even when nothing was selected and nothing needed to fade.
+ */
+describe("graph3dHelpers — highlightMaterialState (early-Z restoration fix)", () => {
+  it("a lit body is restored to fully opaque, not left transparent for no reason", () => {
+    expect(highlightMaterialState(true, true)).toEqual({ transparent: false, opacity: 1 });
+  });
+
+  it("a dimmed body still needs real alpha blending to fade", () => {
+    expect(highlightMaterialState(true, false)).toEqual({ transparent: true, opacity: 0.12 });
+  });
+
+  it("a lit non-body child (label/glow/ring/belt) stays transparent, unchanged from before", () => {
+    expect(highlightMaterialState(false, true)).toEqual({ transparent: true, opacity: 1 });
+  });
+
+  it("a dimmed non-body child stays transparent at the same reduced opacity as before", () => {
+    expect(highlightMaterialState(false, false)).toEqual({ transparent: true, opacity: 0.12 });
   });
 });

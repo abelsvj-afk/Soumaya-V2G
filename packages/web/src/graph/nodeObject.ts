@@ -307,6 +307,7 @@ function makeMacroBody(color: string, size: number, starLike: boolean): THREE.Me
     }),
   );
   mesh.userData.isMacro = true;
+  mesh.userData.isBody = true; // opaque by construction — see makeNodeObject's isBody comment
   // Self-rotation at macro distance too (the tick rotates any child with .spin).
   mesh.userData.spin = true;
   mesh.userData.spinSpeed = 0.003 + 0.02 / (size + 4);
@@ -401,6 +402,7 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
       }),
     );
     core.userData.spin = true;
+    core.userData.isBody = true; // opaque by construction — see makeNodeObject's isBody comment
     core.userData.pulse = { base: 1.0, amp: 0.8, speed: 3.2, phase: (node.id % 7) * 0.6 }; // fast, urgent
     g.add(core);
     const ring = new THREE.Mesh(
@@ -537,6 +539,13 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
           ? getGeometry("sphere", size, 32, 24)
           : getGeometry("sphere", size, 24, 16);
   const mesh = new THREE.Mesh(geom, material);
+  // Opaque by construction (none of the material branches above set `transparent: true`) —
+  // tagged explicitly so Graph3D's hover-highlight effect knows this material is safe to
+  // keep opaque while lit, instead of the previous unconditional `transparent = true` on
+  // every node child (which pushed every body into three.js's back-to-front transparent
+  // queue, defeating early-Z for all of them, all the time — see
+  // docs/specs/soumaya-galaxy-large-render-forensic-audit.md §8.2).
+  mesh.userData.isBody = true;
   mesh.userData.pulse = {
     base: baseBrightness,
     amp: isStarLike ? 0.25 : isPlanetLike ? 0.12 : 0.06,

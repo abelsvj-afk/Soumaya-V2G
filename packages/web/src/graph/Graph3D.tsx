@@ -12,7 +12,7 @@ import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
-import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio } from "./graph3dHelpers.js";
+import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
 import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
@@ -2332,6 +2332,16 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   }, []);
 
   // Hover highlighting: dim node groups that aren't the focus or its neighbors.
+  //
+  // This effect used to force `transparent = true` on EVERY node child unconditionally,
+  // including opaque-by-construction bodies, and including when `activeId === null`
+  // (nothing selected — the default, most common state, where `isLit()` returns true for
+  // everyone and the dimming has no visual effect at all). That moved every body into
+  // three.js's back-to-front TRANSPARENT render queue permanently, which has no early-Z
+  // rejection — an occluded body still paid its full per-pixel shader cost. See
+  // docs/specs/soumaya-galaxy-large-render-forensic-audit.md §8.2/§22.
+  // `highlightMaterialState` (graph3dHelpers.ts) restores a lit body to its natural opaque
+  // state instead; a dimmed body still gets real alpha blending, exactly as before.
   useEffect(() => {
     const fg = fgRef.current;
     if (!fg?.scene) return;
@@ -2342,8 +2352,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       o.traverse((child: any) => {
         const mat = child.material;
         if (!mat) return;
-        mat.transparent = true;
-        mat.opacity = lit ? 1 : 0.12;
+        const { transparent, opacity } = highlightMaterialState(!!child.userData?.isBody, lit);
+        mat.transparent = transparent;
+        mat.opacity = opacity;
         if (mat.emissiveIntensity != null) mat.emissiveIntensity = lit ? 0.85 : 0.08;
       });
     });

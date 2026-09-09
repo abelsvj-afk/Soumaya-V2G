@@ -50,6 +50,28 @@ export function isNodeCacheEntryValid(
 }
 
 /**
+ * The target `{transparent, opacity}` for one node-child material during hover
+ * highlighting. `isBodyMaterial` marks a body opaque-by-construction (mesh.userData.isBody —
+ * stars/planets/moons/asteroids/action cores/macro spheres): none of their materials set
+ * `transparent: true` themselves, so a LIT one is restored to its natural opaque state
+ * instead of being left in three.js's transparent render queue (which has no early-Z
+ * rejection) for no visual reason. A DIMMED body still needs real alpha blending to fade,
+ * so that case is transparent exactly as before. Everything else (labels, glow/corona
+ * sprites, rings, asteroid-belt points) is already `transparent: true` by its own
+ * construction with its own tuned base opacity — unchanged in either state.
+ * See docs/specs/soumaya-galaxy-large-render-forensic-audit.md §8.2/§22.
+ */
+export function highlightMaterialState(
+  isBodyMaterial: boolean,
+  lit: boolean,
+): { transparent: boolean; opacity: number } {
+  return {
+    transparent: isBodyMaterial ? !lit : true,
+    opacity: lit ? 1 : 0.12,
+  };
+}
+
+/**
  * Whether the adaptive-graphics path should actually call `renderer.setPixelRatio()`.
  * `WebGLRenderer.setPixelRatio()` has no internal early-out — it unconditionally calls
  * `setSize()`, which resizes the WebGL drawing buffer (a real GPU-pipeline stall on some

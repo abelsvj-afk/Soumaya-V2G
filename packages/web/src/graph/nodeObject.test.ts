@@ -99,6 +99,63 @@ describe("nodeObject — Stage 4 geometry segment diet", () => {
 });
 
 /**
+ * Galaxy render forensic audit §8.2/§22: the full-detail body, its macro-LOD sibling, and
+ * an action item's core are all opaque by construction (none of their materials set
+ * `transparent: true`) — Graph3D's hover-highlight effect uses `userData.isBody` to know
+ * it's safe to restore these to fully opaque while lit, instead of leaving them in
+ * three.js's transparent render queue (no early-Z rejection) unconditionally. Rings,
+ * glow/corona sprites, labels, and asteroid belts must NOT carry this tag — they are
+ * genuinely transparent by design with their own tuned base opacity.
+ */
+describe("nodeObject — isBody tagging (early-Z restoration fix)", () => {
+  it("the full-detail celestial mesh and its macro-LOD sibling are both tagged isBody", () => {
+    let fullDetailIsBody = false;
+    let macroIsBody = false;
+    makeNodeObject(node("planet")).traverse((o: any) => {
+      if (o.isMesh && o.userData?.isFidelity && o.geometry?.type === "SphereGeometry") {
+        fullDetailIsBody = !!o.userData.isBody;
+      }
+      if (o.isMesh && o.userData?.isMacro) macroIsBody = !!o.userData.isBody;
+    });
+    expect(fullDetailIsBody).toBe(true);
+    expect(macroIsBody).toBe(true);
+  });
+
+  it("an action item's core mesh is tagged isBody", () => {
+    let coreIsBody = false;
+    makeNodeObject({ id: 2, label: "do thing", type: "memory" as any, content: "", createdAt: new Date().toISOString(), kind: "action" } as GraphNode).traverse(
+      (o: any) => {
+        if (o.isMesh && o.userData?.spin && o.geometry?.type === "OctahedronGeometry") coreIsBody = !!o.userData.isBody;
+      },
+    );
+    expect(coreIsBody).toBe(true);
+  });
+
+  it("a gas-giant ring and a star's glow sprite are NOT tagged isBody — they're transparent by design", () => {
+    // Ring gating is hashed on node id (1/5 chance) — id chosen so `(id*2654435761)>>>0 % 5 === 0`.
+    let ringId = 0;
+    while (((ringId * 2654435761) >>> 0) % 5 !== 0) ringId++;
+    let sawRing = false;
+    makeNodeObject(node("gas_giant", { id: ringId })).traverse((o: any) => {
+      if (o.isMesh && o.geometry?.type === "RingGeometry") {
+        sawRing = true;
+        expect(o.userData.isBody).toBeUndefined();
+      }
+    });
+    expect(sawRing).toBe(true);
+
+    let sawGlow = false;
+    makeNodeObject(node("star")).traverse((o: any) => {
+      if (o.isSprite && o.userData?.glowCacheKey != null) {
+        sawGlow = true;
+        expect(o.userData.isBody).toBeUndefined();
+      }
+    });
+    expect(sawGlow).toBe(true);
+  });
+});
+
+/**
  * Performance Program Stage 7: labelTexCache/glowTexCache never evicted anything —
  * one canvas texture per unique label string (or glow color+size) forever, real VRAM
  * that only ever grew. Fixed with reference counting rather than a blind size-capped
