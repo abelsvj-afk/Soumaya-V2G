@@ -188,34 +188,84 @@ export function selectDetailedLinks(
 
 let boundedLinksCache: boolean | null = null;
 
-/** `?boundedLinks=1` enables Phase 2.1's bounded Detailed-link selection for a real-
- *  device A/B comparison. Defaults to OFF (today's exact unbounded behavior) so this is
- *  fully inert unless explicitly opted into. Cached per page load — reload after
- *  changing the URL, matching the existing `perfDiag`/`PerfHUD` convention. */
+const BOUNDED_LINKS_KEY = "galaxy.boundedLinks";
+const LINK_BUDGET_KEY = "galaxy.linkBudget";
+
+/**
+ * Enables Phase 2.1's bounded Detailed-link selection for a real-device A/B comparison.
+ * Defaults to OFF (today's exact unbounded behavior) so this is fully inert unless
+ * explicitly opted into. Two ways to opt in, checked in this order:
+ *   1. `?boundedLinks=1` in the URL (unchanged from the original implementation) — also
+ *      persists to localStorage so it "sticks" across reloads, matching `perfHudEnabled`.
+ *   2. The "Bounded detailed links" toggle in Settings (`setBoundedLinksEnabled`), for
+ *      anyone who can't edit the URL (e.g. an installed PWA with no visible address bar).
+ * Cached per page load — same reasoning as `perfHudEnabled`/`getGalaxyDiagConfig`: every
+ * consumer treats this as a one-time, mount-time check, never a per-frame branch. The
+ * Settings toggle reloads the page immediately after writing, so "cached per load" never
+ * leaves the UI showing a stale value.
+ */
 export function isBoundedLinksEnabled(): boolean {
   if (boundedLinksCache !== null) return boundedLinksCache;
   try {
-    boundedLinksCache = new URLSearchParams(window.location.search).get("boundedLinks") === "1";
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("boundedLinks")) {
+      boundedLinksCache = params.get("boundedLinks") === "1";
+      localStorage.setItem(BOUNDED_LINKS_KEY, boundedLinksCache ? "1" : "0");
+    } else {
+      boundedLinksCache = localStorage.getItem(BOUNDED_LINKS_KEY) === "1";
+    }
   } catch {
     boundedLinksCache = false;
   }
   return boundedLinksCache;
 }
 
+/** Settings-panel setter for `isBoundedLinksEnabled` — writes the persisted flag. Callers
+ *  (SettingsPanel) reload the page right after calling this, so the in-memory cache update
+ *  here is a courtesy for same-session callers, not relied on as a live toggle. */
+export function setBoundedLinksEnabled(on: boolean): void {
+  try {
+    localStorage.setItem(BOUNDED_LINKS_KEY, on ? "1" : "0");
+  } catch {
+    /* private mode */
+  }
+  boundedLinksCache = on;
+}
+
 let linkBudgetCache: number | null = null;
 
-/** `?linkBudget=NNN` overrides `DEFAULT_DETAILED_LINK_BUDGET` for the current page load —
- *  the "easy to change later" mechanism for real-device tuning without a redeploy. An
- *  absent or invalid value falls back to the default. Cached per page load, same
- *  reasoning as `isBoundedLinksEnabled`. */
+/**
+ * Overrides `DEFAULT_DETAILED_LINK_BUDGET` for the current page load — the "easy to
+ * change later" mechanism for real-device tuning without a redeploy. Checked in the same
+ * order as `isBoundedLinksEnabled`: `?linkBudget=NNN` in the URL (persists to localStorage
+ * too), else the Settings-panel value (`setDetailedLinkBudget`), else the default. An
+ * absent or invalid value at any step falls back to the default.
+ */
 export function getDetailedLinkBudget(): number {
   if (linkBudgetCache !== null) return linkBudgetCache;
   try {
-    const raw = new URLSearchParams(window.location.search).get("linkBudget");
-    const parsed = raw != null ? Number.parseInt(raw, 10) : NaN;
-    linkBudgetCache = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_DETAILED_LINK_BUDGET;
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("linkBudget")) {
+      const parsed = Number.parseInt(params.get("linkBudget")!, 10);
+      linkBudgetCache = Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_DETAILED_LINK_BUDGET;
+      localStorage.setItem(LINK_BUDGET_KEY, String(linkBudgetCache));
+    } else {
+      const stored = Number.parseInt(localStorage.getItem(LINK_BUDGET_KEY) ?? "", 10);
+      linkBudgetCache = Number.isFinite(stored) && stored >= 0 ? stored : DEFAULT_DETAILED_LINK_BUDGET;
+    }
   } catch {
     linkBudgetCache = DEFAULT_DETAILED_LINK_BUDGET;
   }
   return linkBudgetCache;
+}
+
+/** Settings-panel setter for `getDetailedLinkBudget` — same reload-after-write contract
+ *  as `setBoundedLinksEnabled`. */
+export function setDetailedLinkBudget(budget: number): void {
+  try {
+    localStorage.setItem(LINK_BUDGET_KEY, String(Math.max(0, Math.floor(budget))));
+  } catch {
+    /* private mode */
+  }
+  linkBudgetCache = Math.max(0, Math.floor(budget));
 }

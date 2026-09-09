@@ -11,6 +11,7 @@ const pushToast = vi.fn();
 vi.mock("./Toasts.js", () => ({ pushToast: (...a: unknown[]) => pushToast(...a) }));
 
 import { SettingsPanel } from "./SettingsPanel.js";
+import { setBoundedLinksEnabled } from "../graph/renderModel.js";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -57,6 +58,36 @@ describe("SettingsPanel — Lite mode warns before discarding an unsaved profile
     const liteToggle = screen.getByText(/Lite mode/).closest("label")!.querySelector("button")!;
     act(() => { liteToggle.click(); });
     expect(asked).toBe(false);
+  });
+});
+
+describe("SettingsPanel — bounded detailed links (Phase 2.1 in-app toggle)", () => {
+  // renderModel.ts caches isBoundedLinksEnabled() at module scope for the page's life
+  // (by design — see its own doc comment); force a known OFF starting point before each
+  // of these tests rather than relying on execution order or localStorage.clear() alone,
+  // since the in-memory cache survives across tests within this one file/process.
+  beforeEach(() => setBoundedLinksEnabled(false));
+
+  it("is reachable without a URL — toggling flips state and warns before an unsaved-edit reload", async () => {
+    render(<SettingsPanel onClose={() => {}} />);
+    const nameInput = await screen.findByPlaceholderText("Your name (anything)") as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "New Name" } });
+
+    let asked = false;
+    (window as unknown as { confirm: () => boolean }).confirm = () => { asked = true; return true; };
+    const toggle = screen.getByText(/Bounded detailed links/).closest("label")!.querySelector("button")!;
+    act(() => { toggle.click(); });
+    expect(asked).toBe(true);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows a budget picker only once bounded mode is on", async () => {
+    render(<SettingsPanel onClose={() => {}} />);
+    await screen.findByPlaceholderText("Your name (anything)");
+    expect(screen.queryByText("Detailed-link budget")).toBeNull();
+    const toggle = screen.getByText(/Bounded detailed links/).closest("label")!.querySelector("button")!;
+    act(() => { toggle.click(); });
+    expect(screen.getByText("Detailed-link budget")).toBeTruthy();
   });
 });
 

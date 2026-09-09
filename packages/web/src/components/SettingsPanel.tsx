@@ -23,6 +23,13 @@ import {
   type Level,
 } from "../graph/graphicsConfig.js";
 import { perfHudEnabled, setPerfHudEnabled } from "./PerfHUD.js";
+import {
+  isBoundedLinksEnabled,
+  setBoundedLinksEnabled,
+  getDetailedLinkBudget,
+  setDetailedLinkBudget,
+  DEFAULT_DETAILED_LINK_BUDGET,
+} from "../graph/renderModel.js";
 import { pushToast } from "./Toasts.js";
 import { loadPersistedRung, RUNG_TABLE, ADAPTIVE_MODEL_VERSION } from "../graph/adaptiveController.js";
 
@@ -75,6 +82,13 @@ export function SettingsPanel({
   const [reduceMotion, setRm] = useState(prefersReducedMotion());
   const [diagnosticsOn, setDiagnosticsOn] = useState(isDiagnosticsEnabled());
   const [perfHudOn, setPerfHudOn] = useState(perfHudEnabled());
+  // Phase 2.1 real-device A/B (soumaya-galaxy-bounded-render-architecture.md) — was
+  // URL-param-only (?boundedLinks=1&linkBudget=NNN), which is unusable for anyone who
+  // can't edit the address bar (an installed PWA, a phone browser without a visible
+  // URL field). Both toggles reload immediately after writing, matching this file's own
+  // "lite mode" toggle convention — Graph3D reads these once at mount, not live.
+  const [boundedLinksOn, setBoundedLinksOnState] = useState(isBoundedLinksEnabled());
+  const [linkBudget, setLinkBudgetState] = useState(String(getDetailedLinkBudget()));
   const [diagReport, setDiagReport] = useState<string | null>(null);
   const voiceSupported = isVoiceSupported();
   // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
@@ -412,6 +426,47 @@ export function SettingsPanel({
               <span className="knob" />
             </button>
           </label>
+          <label className="settings-toggle">
+            <span>
+              Bounded detailed links <em>(experimental)</em>
+              <em>
+                {boundedLinksOn
+                  ? `ON — caps the Galaxy to ${linkBudget} fully-detailed connections; the rest are hidden for now.`
+                  : "OFF — every connection renders in full detail, even on a very large brain."}
+              </em>
+            </span>
+            <span className="gfx-when reload">reload</span>
+            <button
+              className={`switch ${boundedLinksOn ? "on" : ""}`}
+              onClick={() => {
+                // Same guard as Lite mode below — a reload wipes an unsaved Display
+                // name/Gamer tag edit with no warning otherwise.
+                if (profileDirty && !confirm("You have an unsaved profile change that will be lost. Continue?")) return;
+                const next = !boundedLinksOn;
+                setBoundedLinksOnState(next);
+                setBoundedLinksEnabled(next);
+                setTimeout(() => window.location.reload(), 150);
+              }}
+              aria-pressed={boundedLinksOn}
+            >
+              <span className="knob" />
+            </button>
+          </label>
+          {boundedLinksOn && (
+            <div className="gfx-row">
+              <span>Detailed-link budget <em className="gfx-when reload">reload</em></span>
+              <Seg
+                value={linkBudget}
+                options={["200", "300", String(DEFAULT_DETAILED_LINK_BUDGET)]}
+                onPick={(v) => {
+                  if (profileDirty && !confirm("You have an unsaved profile change that will be lost. Continue?")) return;
+                  setLinkBudgetState(v);
+                  setDetailedLinkBudget(Number(v));
+                  setTimeout(() => window.location.reload(), 150);
+                }}
+              />
+            </div>
+          )}
           <p className="settings-note" style={{ fontSize: "11px", opacity: 0.6, margin: "8px 0 0" }}>
             <b>instant</b> changes apply right away (watch the FPS above); <b>reload</b> ones take effect next open.
           </p>

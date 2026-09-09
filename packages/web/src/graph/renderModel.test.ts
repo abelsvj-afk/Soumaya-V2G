@@ -118,6 +118,7 @@ describe("isBoundedLinksEnabled / getDetailedLinkBudget (URL config)", () => {
   beforeEach(() => {
     vi.resetModules();
     setSearch("");
+    localStorage.clear();
   });
 
   it("defaults to disabled, with the default budget", async () => {
@@ -152,5 +153,46 @@ describe("isBoundedLinksEnabled / getDetailedLinkBudget (URL config)", () => {
     const first = isBoundedLinksEnabled();
     setSearch("");
     expect(isBoundedLinksEnabled()).toBe(first);
+  });
+
+  it("setBoundedLinksEnabled persists to localStorage, readable with no URL param (Settings-panel path)", async () => {
+    const { setBoundedLinksEnabled } = await import("./renderModel.js");
+    setBoundedLinksEnabled(true);
+    vi.resetModules();
+    const { isBoundedLinksEnabled } = await import("./renderModel.js");
+    expect(isBoundedLinksEnabled()).toBe(true);
+  });
+
+  it("setDetailedLinkBudget persists to localStorage, readable with no URL param (Settings-panel path)", async () => {
+    const { setDetailedLinkBudget } = await import("./renderModel.js");
+    setDetailedLinkBudget(300);
+    vi.resetModules();
+    const { getDetailedLinkBudget } = await import("./renderModel.js");
+    expect(getDetailedLinkBudget()).toBe(300);
+  });
+
+  it("a URL param takes precedence over a stored Settings-panel value", async () => {
+    const { setBoundedLinksEnabled, setDetailedLinkBudget } = await import("./renderModel.js");
+    setBoundedLinksEnabled(true);
+    setDetailedLinkBudget(300);
+    vi.resetModules();
+    setSearch("?boundedLinks=0&linkBudget=200");
+    const { isBoundedLinksEnabled, getDetailedLinkBudget } = await import("./renderModel.js");
+    expect(isBoundedLinksEnabled()).toBe(false);
+    expect(getDetailedLinkBudget()).toBe(200);
+  });
+
+  it("a corrupt stored budget value falls back to the default", async () => {
+    localStorage.setItem("galaxy.linkBudget", "not-a-number");
+    const { getDetailedLinkBudget, DEFAULT_DETAILED_LINK_BUDGET } = await import("./renderModel.js");
+    expect(getDetailedLinkBudget()).toBe(DEFAULT_DETAILED_LINK_BUDGET);
+  });
+
+  it("setDetailedLinkBudget clamps a negative/fractional value", async () => {
+    const { setDetailedLinkBudget } = await import("./renderModel.js");
+    setDetailedLinkBudget(-5.7);
+    vi.resetModules();
+    const { getDetailedLinkBudget } = await import("./renderModel.js");
+    expect(getDetailedLinkBudget()).toBe(0);
   });
 });
