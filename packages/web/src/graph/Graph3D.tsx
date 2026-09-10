@@ -3190,8 +3190,33 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       backgroundColor={BG}
       showNavInfo={false}
       warmupTicks={0}
-      cooldownTicks={9999999}
-      cooldownTime={9999999}
+      // Galaxy render recovery pass (2026-09-10): this used to run the D3 force
+      // simulation FOREVER (9999999 ticks/ms — i.e. never stops). That is pure waste:
+      // orbits.ts's own doc comment states its whole design premise — "Positions are
+      // written to node.fx/fy/fz each frame so the force engine leaves them alone" —
+      // meaning whatever the simulation computes is discarded every single frame,
+      // regardless of how long it keeps ticking. The only registered force is `link`
+      // at strength 0 (charge/center were already removed, d24f7cc, the one PROVEN
+      // real-device win), so continuing to tick it forever computes work for 941 links
+      // that no code ever reads. A real-device measurement (Xclipse 530, hardware-
+      // accelerated) after cutting render-path draw calls by ~84% still showed present
+      // (frame-to-frame) time stuck at ~1.8s while render() itself dropped to 14.6ms
+      // median -- i.e. the stall moved from INSIDE renderer.render() to somewhere in
+      // three-forcegraph's OTHER per-frame work, which our own tick()/render()
+      // instrumentation cannot see. tickFrame()'s own d3-simulation branch
+      // (state.layout.tick(), three-forcegraph.mjs) is the one candidate in that path
+      // that scales with total (not just visible/tracked) link count and has never
+      // been bounded in this program -- unlike the charge-force removal, this is safe
+      // to test without repeating the KNOWN regression (soumaya-galaxy-force-removal-
+      // regression.md): endpoint-id resolution happens via forceLink().links()'s
+      // SETTER call, not via ticking, and three-forcegraph's own resetCountdown()
+      // (three-forcegraph.mjs) reheats this exact allotment on every graphData change,
+      // so the resolution mechanism is untouched -- only the ONGOING, already-
+      // discarded per-frame tick work stops once settled. A small nonzero allotment
+      // (not 0) is kept as a conservative margin against any other code path that
+      // might read a link's resolved endpoints before orbits.ts's own first update.
+      cooldownTicks={30}
+      cooldownTime={2000}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) => {
         // Galaxy Performance Isolation Mode: LINKS off. Uses the exact same mechanism
