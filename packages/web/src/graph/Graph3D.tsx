@@ -3192,14 +3192,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       warmupTicks={0}
       cooldownTicks={9999999}
       cooldownTime={9999999}
-      // TEMPORARY EXPERIMENT (docs/specs/soumaya-galaxy-link-resolution-decoupling-audit.md
-      // §16) — falsification test for the recursive scene-wide hover raycaster identified
-      // in three-render-objects' renderObjs.tick(), which runs ~20x/sec regardless of
-      // camera/pointer motion and is invisible to PerfHUD's render timing. This disables
-      // ALL node hover/click/tooltip interaction for the duration of this test only.
-      // MUST BE REMOVED before this branch is used for anything but this one real-device
-      // A/B check — not a permanent change, not committed.
-      enablePointerInteraction={false}
       nodeVisibility={(n: any) => !cluster || cluster.has(n.id)}
       linkVisibility={(l: any) => {
         // Galaxy Performance Isolation Mode: LINKS off. Uses the exact same mechanism
