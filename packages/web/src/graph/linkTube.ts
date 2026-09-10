@@ -34,6 +34,44 @@ import * as THREE from "three";
  * assigned there) -- so no separate disposal path or cache-eviction logic is
  * needed here; three-forcegraph's existing disposal already covers it.
  *
+ * CRITICAL, previously-undiscovered gap this file did NOT close (Galaxy recovery
+ * pass, 2026-09-10): three-forcegraph's own object DIGEST (separate from the per-
+ * frame position loop above -- this one runs inside `onUpdateObj`, driven by
+ * React prop changes, not animation frames) independently gate-checks every
+ * link's CURRENT `obj.geometry` on every digest pass:
+ *
+ *   if (!obj.geometry.type.match(/^Cylinder(Buffer)?Geometry$/) ||
+ *       obj.geometry.parameters.radiusTop !== r ||
+ *       obj.geometry.parameters.radialSegments !== numSegments) {
+ *     obj.geometry.dispose();
+ *     obj.geometry = cylinderGeometries[linkWidth];
+ *   }
+ *
+ * This app's `linkColor` prop is a deliberately unmemoized inline closure (see
+ * Graph3D.tsx's own comment on that prop) SPECIFICALLY so its identity changes on
+ * every Graph3D render, re-triggering this digest to pick up live activity-driven
+ * color/opacity -- but that digest has NO IDEA this module manages link geometry
+ * itself. `entry.geometry` is a plain `THREE.BufferGeometry` (`.type ===
+ * "BufferGeometry"`, no `.parameters`), so the FIRST check term is always true
+ * (short-circuiting the `||` before `.parameters` is ever read, so no crash) --
+ * meaning EVERY digest pass, for EVERY tube-rendered link, called `.dispose()` on
+ * THIS EXACT geometry object (the one cached and reused above) and swapped
+ * `mesh.geometry` to a shared flat cylinder. The self-healing reassignment above
+ * (`mesh.geometry = entry.geometry`) then re-attaches the very geometry that was
+ * JUST disposed a moment earlier -- restoring the correct REFERENCE, but three.js
+ * had already removed it from `WebGLGeometries`' cache on dispose, so the next
+ * render silently re-uploads the ENTIRE geometry (position + normal + uv + index
+ * buffers) from scratch, every time -- exactly the "no `.dispose()`, no GPU buffer
+ * reallocation, just a partial upload" guarantee this file's own header claims,
+ * defeated by a code path this file never accounted for. Confirmed no core
+ * three.js code branches on `Geometry.type` (it is a pure serialization/duck-
+ * typing string), so `create()`/`update()` below deliberately spoof `.type` and
+ * `.parameters` to make three-forcegraph's own check pass, permanently. This
+ * does not touch how three-forcegraph applies COLOR/OPACITY/MATERIAL (a
+ * completely separate branch in the same `onUpdateObj`, unaffected by this fix)
+ * -- only the geometry-identity check this module's own reused geometry was
+ * never being recognized by.
+ *
  * Known, deliberately-accepted residual costs (not eliminated by this module,
  * and not new -- both already present in the current, unmodified per-frame
  * TubeGeometry construction this replaces):
@@ -66,9 +104,20 @@ const TUBULAR_SEGMENTS = 30;
 // around the tube's cross-section). This app never sets `linkResolution` on
 // <ForceGraph3D>, so the library default applies -- if that ever changes,
 // this constant must change with it for visual parity.
-const RADIAL_SEGMENTS = 6;
+export const RADIAL_SEGMENTS = 6;
 const VERTS_PER_RING = RADIAL_SEGMENTS + 1;
 const VERTEX_COUNT = (TUBULAR_SEGMENTS + 1) * VERTS_PER_RING;
+
+/**
+ * three-forcegraph's digest rounds `linkWidth` before computing the radius it compares
+ * against (`Math.ceil(widthAccessor(link) * 10) / 10`, three-forcegraph.mjs's onUpdateObj).
+ * Replicated here so the spoofed `geometry.parameters.radiusTop` set below matches EXACTLY
+ * what that digest will compute from the same raw width — see the module doc's "CRITICAL"
+ * section for why this match has to be exact.
+ */
+export function digestRoundedRadius(width: number): number {
+  return Math.ceil(width * 10) / 10 / 2;
+}
 
 // This app never sets `linkCurveRotation`, so it's always three-forcegraph's
 // default (0). A rotation of exactly 0 is the identity transform (cos 0 = 1,
@@ -147,6 +196,15 @@ export class CurvedLinkGeometryCache {
     geometry.setAttribute("position", positionAttr);
     geometry.setAttribute("normal", normalAttr);
     geometry.setAttribute("uv", uv);
+    // Spoof three-forcegraph's own digest-time compatibility check (see the module doc's
+    // "CRITICAL" section) so it never disposes/reassigns this geometry. `radiusTop` is a
+    // placeholder here — `update()` below keeps it in sync with the link's real width on
+    // every frame, well before any digest can observe a stale value (see module doc).
+    (geometry as { type: string }).type = "CylinderGeometry";
+    (geometry as unknown as { parameters: { radiusTop: number; radialSegments: number } }).parameters = {
+      radiusTop: 0,
+      radialSegments: RADIAL_SEGMENTS,
+    };
     return {
       geometry,
       positionAttr,
@@ -220,6 +278,12 @@ export class CurvedLinkGeometryCache {
     curve.updateArcLengths();
 
     const radius = width / 2;
+    // Keep the spoofed digest-compatibility check (see create()) in sync with the link's
+    // CURRENT width every frame, using three-forcegraph's own rounding formula — this runs
+    // far more often than the digest itself (an animation frame vs. a React render), so by
+    // the time any digest checks it, the value is always current. See module doc.
+    (entry.geometry as unknown as { parameters: { radiusTop: number } }).parameters.radiusTop =
+      digestRoundedRadius(width);
     // Same call three-forcegraph's own TubeGeometry constructor makes (see
     // module doc for its unavoidable internal allocation cost).
     const frames = curve.computeFrenetFrames(TUBULAR_SEGMENTS, false);
