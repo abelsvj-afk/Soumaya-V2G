@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
-import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar } from "./graph3dHelpers.js";
+import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar, pickNearestIds } from "./graph3dHelpers.js";
 
 /** Locks the pure Graph3D helpers extracted in D4. (updateFigurine/disposeObject3D
  *  need a WebGL/GLTF context, so they're exercised by the app, not here.) */
@@ -180,5 +180,55 @@ describe("graph3dHelpers — computeGlowFar (node-glow render-stall fix)", () =>
     const a = computeGlowFar(700, false, false, DIST, HYST);
     const b = computeGlowFar(700, false, false, DIST, HYST);
     expect(a).toBe(b);
+  });
+});
+
+/**
+ * Bounded full-fidelity body population (MAX_FIDELITY_BODIES in Graph3D.tsx). Every
+ * automated in-session diagnostic run agreed that a mostly-macro galaxy renders in
+ * ~9-15ms/frame while a mostly-full-fidelity one costs ~1400-2900ms, regardless of
+ * which decoration was nominally being isolated — and the owner's own observation is
+ * that opening a Lens/View (fewer bodies on screen, nothing else) makes it instantly
+ * usable. A distance threshold can't bound that; a COUNT cap can.
+ */
+describe("graph3dHelpers — pickNearestIds (bounded full-fidelity population)", () => {
+  const none = new Set<number>();
+
+  it("keeps only the N nearest ids", () => {
+    const got = pickNearestIds([{ id: 1, d: 50 }, { id: 2, d: 10 }, { id: 3, d: 30 }], 2, none);
+    expect(got).toEqual(new Set([2, 3]));
+  });
+
+  it("returns everything when there are fewer candidates than the cap", () => {
+    const got = pickNearestIds([{ id: 7, d: 5 }], 10, none);
+    expect(got).toEqual(new Set([7]));
+  });
+
+  it("returns an empty set for a zero cap, and never exceeds the cap", () => {
+    const many = Array.from({ length: 100 }, (_, i) => ({ id: i, d: i }));
+    expect(pickNearestIds(many, 0, none).size).toBe(0);
+    expect(pickNearestIds(many, 12, none).size).toBe(12);
+  });
+
+  it("is sticky: an incumbent keeps its slot against a marginally-nearer rival", () => {
+    // Incumbent 1 at d=100 reads as 85; rival 2 at d=90 does not beat that.
+    const got = pickNearestIds([{ id: 1, d: 100 }, { id: 2, d: 90 }], 1, new Set([1]));
+    expect(got).toEqual(new Set([1]));
+  });
+
+  it("stickiness still yields to a CLEAR overtake, so it can't freeze the set forever", () => {
+    // Incumbent 1 at d=100 reads as 85; rival 2 at d=50 clearly beats that.
+    const got = pickNearestIds([{ id: 1, d: 100 }, { id: 2, d: 50 }], 1, new Set([1]));
+    expect(got).toEqual(new Set([2]));
+  });
+
+  it("does not mutate the caller's candidate array (it's a reused per-frame scratch buffer)", () => {
+    const candidates = [{ id: 1, d: 50 }, { id: 2, d: 10 }];
+    pickNearestIds(candidates, 1, none);
+    expect(candidates.map((c) => c.id)).toEqual([1, 2]); // original order intact
+  });
+
+  it("handles an empty candidate list", () => {
+    expect(pickNearestIds([], 12, none).size).toBe(0);
   });
 });

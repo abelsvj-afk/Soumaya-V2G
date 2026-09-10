@@ -12,7 +12,7 @@ import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
-import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar } from "./graph3dHelpers.js";
+import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar, pickNearestIds } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay, type GalaxyDiagConfig } from "./perfDiag.js";
 import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
@@ -835,6 +835,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const labelCandidatesRef = useRef<{ id: number; d: number }[]>([]);
   const visibleLabelIdsRef = useRef<Set<number>>(new Set());
   const lastLabelCapFrameRef = useRef(-999);
+  // Simultaneous full-fidelity body cap (see MAX_FIDELITY_BODIES below) — the same
+  // nearest-N shape as the label cap above, recomputed in the same throttle window.
+  const fidelityCandidatesRef = useRef<{ id: number; d: number }[]>([]);
+  const visibleFidelityIdsRef = useRef<Set<number>>(new Set());
 
   // Perf HUD Phase 1 measurement (soumaya-galaxy-rendering-architecture-audit.md):
   // register a pull-based counts provider so the HUD can show "tracked" (fetched)
@@ -1417,6 +1421,29 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     // comment above, was to keep the galaxy from populating everything on screen at once).
     // This caps it to the nearest N regardless of how many bodies are within fade range.
     const MAX_VISIBLE_LABELS = perfTier === "performance" ? 10 : perfTier === "balanced" ? 16 : 24;
+    // Hard cap on how many bodies may render their FULL-FIDELITY representation
+    // (procedural shader mesh + glow/corona sprite + ring + asteroid belt) at once.
+    // Everything past the cap falls back to the macro-LOD sphere that already exists.
+    //
+    // This is the one conclusion every automated in-session diagnostic run agreed on,
+    // whichever individual decoration it was nominally isolating: a mostly-macro galaxy
+    // renders in ~9-15ms/frame, a mostly-full-fidelity one in ~1400-2900ms. The
+    // per-condition attributions were never reproducible (rings "0.01x" in one run,
+    // asteroid belt "0.00x" in another and "2.30x" in the next) because the galaxy is
+    // in constant orbital motion against a fixed camera, so the macro/fidelity split
+    // drifts DURING a measurement window and dominates whatever was being toggled —
+    // e.g. the rings-off window recorded 271 draws / 345k tris, which is an all-macro
+    // galaxy, not a galaxy missing its handful of rings (only two RingGeometry call
+    // sites exist, worth at most a few dozen objects and ~100 tris each; they cannot
+    // account for -787 draws / -189k tris).
+    //
+    // It also matches the owner's own repeated real-world observation: opening a
+    // Lens/View — which does nothing but put fewer bodies on screen — makes the Galaxy
+    // instantly usable. A distance threshold alone (MACRO_DIST) could never guarantee
+    // that, because its cost still scales with however many bodies happen to fall
+    // inside it; that's why retuning MACRO_DIST repeatedly failed to fix the collapse.
+    // A COUNT cap is bounded by construction, at any camera position, on any dataset.
+    const MAX_FIDELITY_BODIES = perfTier === "performance" ? 12 : perfTier === "balanced" ? 20 : 32;
     // Small screens show these zoomed-out sector names much smaller — give them a boost so
     // they're actually readable on a phone (the "can't read the names when zoomed out" bug).
     const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 760;
@@ -1993,6 +2020,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           lastLabelCapFrameRef.current = frameCount;
           const candidates = labelCandidatesRef.current;
           candidates.length = 0;
+          const fidelityCandidates = fidelityCandidatesRef.current;
+          fidelityCandidates.length = 0;
           const wasVisible = visibleLabelIdsRef.current; // read before it's cleared below
           for (const o of graphGroup.children as any[]) {
             const id = o.userData?.nodeId;
@@ -2001,6 +2030,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             if (!n || n.x == null || isNaN(n.x)) continue;
             tmp.set(n.x, n.y, n.z ?? 0);
             const d = tmp.distanceTo(camera.position);
+            // Fidelity cap candidates are UNFILTERED by distance (unlike labels, which
+            // are only eligible inside their fade range) — the cap's whole job is to
+            // rank every body and keep only the nearest N in full detail.
+            fidelityCandidates.push({ id, d });
             // A hasSectorTitle body's own label now fades out at MACRO_DIST + MACRO_HYST
             // (see labelFadeFar below), not the ordinary FADE_FAR — it must stay eligible
             // for the crowd cap that far out too, or this filter would exclude it from
@@ -2023,6 +2056,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const visible = visibleLabelIdsRef.current;
           visible.clear();
           for (let i = 0; i < Math.min(MAX_VISIBLE_LABELS, candidates.length); i++) visible.add(candidates[i]!.id);
+          // Nearest-N full-fidelity cap, same sticky ranking as the label cap (see
+          // pickNearestIds in graph3dHelpers.ts for why stickiness matters here).
+          visibleFidelityIdsRef.current = pickNearestIds(
+            fidelityCandidates,
+            MAX_FIDELITY_BODIES,
+            visibleFidelityIdsRef.current,
+          );
         }
 
         // Reassign the fixed star-light pool (Stage 4) to the nearest N stars, same
@@ -2082,8 +2122,17 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           // object itself (persists across frames for this node) rather than a separate
           // ref map, since `o` is the same Object3D instance while the node stays mounted.
           const wasMacroView = o.userData.isMacroView ?? false;
+          // Bounded full-fidelity population (MAX_FIDELITY_BODIES): a body outside the
+          // nearest-N set renders as the macro sphere no matter how close it is, so the
+          // expensive representation can never scale with how many bodies happen to sit
+          // inside MACRO_DIST. The selected body and the followed body are exempt at any
+          // distance — active-node emphasis must never be capped away.
+          const fidelityCapped =
+            !isSelected && id !== followRef.current && !visibleFidelityIdsRef.current.has(id);
           const isMacroView =
-            !isSelected && (wasMacroView ? dist > MACRO_DIST - MACRO_HYST : dist > MACRO_DIST + MACRO_HYST);
+            !isSelected &&
+            (fidelityCapped ||
+              (wasMacroView ? dist > MACRO_DIST - MACRO_HYST : dist > MACRO_DIST + MACRO_HYST));
           o.userData.isMacroView = isMacroView;
           // Same hysteresis pattern as isMacroView immediately above, just a tighter
           // threshold applied only to the glow/corona sprite child (see GLOW_DIST and

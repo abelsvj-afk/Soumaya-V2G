@@ -99,6 +99,42 @@ export function computeGlowFar(
 }
 
 /**
+ * Nearest-N selection with stickiness — the shared primitive behind the Galaxy's
+ * "only N of these at once" caps.
+ *
+ * Full-fidelity node bodies are the single most expensive thing this scene renders:
+ * every automated in-session diagnostic run this investigation produced agrees that a
+ * mostly-macro galaxy costs ~9-15ms/frame while a mostly-full-fidelity one costs
+ * ~1400-2900ms/frame, regardless of which individual decoration (rings, glow, belt,
+ * composer) was being isolated at the time. It also matches the owner's own long-
+ * standing observation that opening a Lens/View — which simply puts fewer bodies on
+ * screen — makes the Galaxy instantly usable. So the population has to be BOUNDED,
+ * not merely distance-thresholded: a distance threshold's cost still scales with
+ * however many bodies happen to sit inside it, which is exactly how MACRO_DIST kept
+ * being retuned without ever fixing the collapse.
+ *
+ * `sticky` mirrors the label cap's own long-standing behaviour: a body that already
+ * holds a slot reads as ~15% nearer than it is, so a rival has to CLEARLY overtake it
+ * rather than marginally, which stops two bodies either side of the Nth-nearest
+ * boundary from swapping every throttle window on ordinary camera drift.
+ */
+export function pickNearestIds(
+  candidates: { id: number; d: number }[],
+  max: number,
+  alreadyVisible: Set<number>,
+  sticky = 0.85,
+): Set<number> {
+  const ranked = [...candidates].sort((a, b) => {
+    const da = alreadyVisible.has(a.id) ? a.d * sticky : a.d;
+    const db = alreadyVisible.has(b.id) ? b.d * sticky : b.d;
+    return da - db;
+  });
+  const out = new Set<number>();
+  for (let i = 0; i < Math.min(max, ranked.length); i++) out.add(ranked[i]!.id);
+  return out;
+}
+
+/**
  * Whether the adaptive-graphics path should actually call `renderer.setPixelRatio()`.
  * `WebGLRenderer.setPixelRatio()` has no internal early-out — it unconditionally calls
  * `setSize()`, which resizes the WebGL drawing buffer (a real GPU-pipeline stall on some
