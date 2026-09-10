@@ -15,6 +15,7 @@ import * as THREE from "three";
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
+import { isSweepActive, getSweepDiagConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
 import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
@@ -199,14 +200,52 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // Galaxy Performance Isolation Mode (TEMPORARY diagnostic — see perfDiag.ts). Reads
   // `?galaxyDiag=1&...` once (cached in that module), so `diag.enabled` is false and
   // every category defaults to true unless the URL explicitly turns diagnostic mode
-  // on — every call site below is a no-op change in that default case.
-  const diag = getGalaxyDiagConfig();
+  // on — every call site below is a no-op change in that default case. A render-
+  // isolation sweep in progress (galaxySweep.ts — the no-URL-typing, Settings-button
+  // alternative for a device that can't edit the address bar) takes priority when
+  // active, driving the same underlying category flags across a sequence of page
+  // reloads instead of a single manually-typed URL.
+  const diag = getSweepDiagConfig() ?? getGalaxyDiagConfig();
   // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
   // architecture.md). Both read a cached URL param once per page load (same pattern as
   // `diag` above); `boundedLinksOn` defaults to false, so this whole feature is inert
   // unless a real-device A/B test explicitly opts in via `?boundedLinks=1`.
   const boundedLinksOn = isBoundedLinksEnabled();
   const detailedLinkBudget = getDetailedLinkBudget();
+
+  // Render-isolation sweep measurement (galaxySweep.ts). If a sweep is mid-flight, this
+  // page load's `diag` config above already has exactly one category (or none, for the
+  // baseline step) hidden. After a warmup window (let the scene finish its own deferred/
+  // idle-callback construction so an early step isn't penalized by one-time load cost)
+  // plus a measurement window, take a real perfStats sample and hand it to
+  // recordSweepMeasurement — which either reloads onto the next step or, on the last
+  // step, finalizes the report. Entirely inert (returns immediately) when no sweep is
+  // running, which is every normal page load.
+  useEffect(() => {
+    if (!isSweepActive()) return;
+    let cancelled = false;
+    let measureTimer: number | undefined;
+    const warmupTimer = window.setTimeout(() => {
+      if (cancelled) return;
+      resetPerfStats();
+      measureTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        const snap = perfSnapshot();
+        recordSweepMeasurement({
+          presentP50: snap.present.p50,
+          presentP95: snap.present.p95,
+          renderP50: snap.render.p50,
+          tickP50: snap.tick.p50,
+          drawCalls: snap.drawInfo?.calls ?? null,
+        });
+      }, SWEEP_MEASURE_MS);
+    }, SWEEP_WARMUP_MS);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(warmupTimer);
+      if (measureTimer !== undefined) window.clearTimeout(measureTimer);
+    };
+  }, []);
   // The currently-selected Detailed-tier link set, or null when bounded selection is
   // off/not yet computed — `linkVisibility` below falls back to today's exact unbounded
   // behavior whenever this is null, so the feature is fully inert by default. Recomputed

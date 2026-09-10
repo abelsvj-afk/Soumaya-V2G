@@ -46,6 +46,10 @@ function makeRing() {
 const tickRing = makeRing();
 const renderRing = makeRing();
 const presentRing = makeRing();
+/** Actual GPU execution time per render() call, in ms — see attachRenderer's GPU timer
+ *  query section below. Stays empty (never sampled) on a device/browser without
+ *  `EXT_disjoint_timer_query_webgl2`. */
+const gpuRing = makeRing();
 /** Reused for percentile sorting so snapshot() allocates nothing per call. */
 const scratch = new Float32Array(RING);
 
@@ -138,8 +142,19 @@ export interface PerfSnapshot {
   render: Stat3;
   /** Wall-clock gap between real render() calls — the true presentation cadence. */
   present: Stat3;
-  /** present.p95 - render.p95. Large => GPU/fill-rate bound. Small => submission-bound. */
+  /** present.p95 - render.p95. Large => GPU/fill-rate bound. Small => submission-bound.
+   *  UNRELIABLE under GPU back-pressure — see `gpu` below for the direct measurement. */
   gapMs: number;
+  /** Real GPU execution time per render() call, from `EXT_disjoint_timer_query_webgl2`
+   *  (`null` if the device/browser doesn't support it, or no query has resolved yet).
+   *  This is the direct answer to "is render() slow because of real GPU work, or
+   *  because the CPU call itself is blocked on driver/queue back-pressure?" — a small
+   *  `gpu` alongside a huge `render` means the stall is NOT actual fragment/vertex
+   *  work, however counterintuitive that looks next to `gapMs`. */
+  gpu: Stat3 | null;
+  /** Whether GPU timer queries are supported on this device/browser at all — `false`
+   *  means `gpu` will stay `null` forever, not just "no samples yet". */
+  gpuTimingSupported: boolean;
   /** Frames per second actually presented (from the median present gap). */
   fps: number;
   droppedPct: number;
@@ -215,17 +230,97 @@ export function getRendererPixelRatio(): number | null {
   return renderer?.getPixelRatio() ?? null;
 }
 
+/**
+ * GPU timer queries (`EXT_disjoint_timer_query_webgl2`) — the decisive answer to
+ * whether `render`'s cost is CPU submission/driver stall or genuine GPU execution
+ * time. `render` (above) only measures how long the synchronous `renderer.render()`
+ * JS call takes; on some platforms (notably ANGLE's Vulkan backend, used by this
+ * app's real Android test devices) that call can itself BLOCK on GPU back-pressure,
+ * making a real GPU-bound frame look identical, from JS alone, to "the CPU is doing
+ * a second of real work" — they are NOT distinguishable without asking the GPU
+ * directly how long it actually spent executing the commands.
+ *
+ * A `TIME_ELAPSED_EXT` query brackets one `render()` call's GPU work; the result is
+ * NOT available synchronously (the GPU is usually still several frames behind), so
+ * queries are polled — never blocked on — at the start of each subsequent render()
+ * call via `QUERY_RESULT_AVAILABLE` before ever touching `QUERY_RESULT` (reading the
+ * latter before the former is true would force exactly the synchronous stall this
+ * exists to avoid). A small bounded queue (not just the single most recent query)
+ * tolerates the GPU running a few frames behind without ever unbounded-growing if a
+ * query never resolves (a lost context, a browser without real support despite
+ * advertising the extension).
+ */
+const MAX_PENDING_GPU_QUERIES = 8;
+let gpuExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
+let gpuGl: WebGL2RenderingContext | null = null;
+let gpuUnsupported = false;
+const pendingGpuQueries: WebGLQuery[] = [];
+
+function pollGpuQueries(): void {
+  if (!gpuGl || !gpuExt) return;
+  // A disjoint event (e.g. a display mode change mid-frame) means the GPU clock may
+  // have been reset — every currently-pending result is now meaningless, per spec.
+  if (gpuGl.getParameter(gpuExt.GPU_DISJOINT_EXT)) {
+    for (const q of pendingGpuQueries) gpuGl.deleteQuery(q);
+    pendingGpuQueries.length = 0;
+    return;
+  }
+  while (pendingGpuQueries.length > 0) {
+    const q = pendingGpuQueries[0]!;
+    if (!gpuGl.getQueryParameter(q, gpuGl.QUERY_RESULT_AVAILABLE)) break; // still in flight
+    const nanos = gpuGl.getQueryParameter(q, gpuGl.QUERY_RESULT) as number;
+    push(gpuRing, nanos / 1e6);
+    gpuGl.deleteQuery(q);
+    pendingGpuQueries.shift();
+  }
+}
+
 export function attachRenderer(r: THREE.WebGLRenderer): void {
   renderer = r; // newest renderer owns the `info` counters we report
   if (patchedRenderers.has(r)) return;
   patchedRenderers.add(r);
 
+  if (!gpuUnsupported && !gpuExt) {
+    try {
+      const gl = r.getContext();
+      // Only WebGL2 contexts expose the `_webgl2` variant of this extension; the
+      // WebGL1 `EXT_disjoint_timer_query` has a different (harder to use safely,
+      // callback-shaped) API and isn't worth supporting for a diagnostic-only tool.
+      if ("createQuery" in gl) {
+        const ext = (gl as WebGL2RenderingContext).getExtension("EXT_disjoint_timer_query_webgl2");
+        if (ext) {
+          gpuGl = gl as WebGL2RenderingContext;
+          gpuExt = { TIME_ELAPSED_EXT: ext.TIME_ELAPSED_EXT, GPU_DISJOINT_EXT: ext.GPU_DISJOINT_EXT };
+        } else {
+          gpuUnsupported = true;
+        }
+      } else {
+        gpuUnsupported = true;
+      }
+    } catch {
+      gpuUnsupported = true;
+    }
+  }
+
   const orig = r.render.bind(r);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (r as any).render = (scene: THREE.Scene, camera: THREE.Camera) => {
+    pollGpuQueries();
+
+    let query: WebGLQuery | null = null;
+    if (gpuGl && gpuExt && pendingGpuQueries.length < MAX_PENDING_GPU_QUERIES) {
+      query = gpuGl.createQuery();
+      gpuGl.beginQuery(gpuExt.TIME_ELAPSED_EXT, query);
+    }
+
     const t0 = performance.now();
     orig(scene, camera);
     const t1 = performance.now();
+
+    if (query) {
+      gpuGl!.endQuery(gpuExt!.TIME_ELAPSED_EXT);
+      pendingGpuQueries.push(query);
+    }
 
     push(renderRing, t1 - t0);
     if (lastPresent !== 0) {
@@ -279,6 +374,7 @@ export function snapshot(): PerfSnapshot {
   // stats() reuses `scratch`, so each ring must be fully read out before the next call.
   const render = stats(renderRing);
   const present = stats(presentRing);
+  const gpu = gpuRing.filled > 0 ? stats(gpuRing) : null;
   const fps = present.p50 > 0 ? 1000 / present.p50 : 0;
 
   const info = renderer?.info ?? null;
@@ -290,6 +386,8 @@ export function snapshot(): PerfSnapshot {
     render,
     present,
     gapMs: Math.max(0, present.p95 - render.p95),
+    gpu,
+    gpuTimingSupported: gpuExt !== null,
     fps,
     droppedPct: rendered > 0 ? (dropped / rendered) * 100 : 0,
     tickSamples: tickRing.filled,
@@ -311,11 +409,15 @@ export function snapshot(): PerfSnapshot {
 
 /** Reset the rolling windows (e.g. after a quality change, so the old regime isn't averaged in). */
 export function reset(): void {
-  for (const ring of [tickRing, renderRing, presentRing]) {
+  for (const ring of [tickRing, renderRing, presentRing, gpuRing]) {
     ring.idx = 0;
     ring.filled = 0;
   }
   dropped = 0;
   rendered = 0;
   lastPresent = 0;
+  // Pending GPU queries belong to frames rendered under the OLD regime — let them
+  // resolve and get discarded naturally by the next pollGpuQueries() call rather than
+  // deleting them here mid-flight (deleting a query before its result is read is
+  // harmless per spec, but there's no benefit to doing it eagerly here either).
 }

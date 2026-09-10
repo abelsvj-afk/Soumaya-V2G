@@ -284,3 +284,111 @@ describe("perfStats — getGpuInfo / getRendererPixelRatio (hardware-vs-software
     expect(getRendererPixelRatio()).toBe(1.25);
   });
 });
+
+/**
+ * GPU timer queries (`EXT_disjoint_timer_query_webgl2`) — the decisive CPU-vs-GPU
+ * signal for a device where the synchronous `render()` call itself can block on
+ * driver/queue back-pressure (ANGLE's Vulkan backend, this app's real Android test
+ * devices) rather than actual per-pixel GPU work. A query's result is NEVER available
+ * synchronously in real WebGL, so this fake models that: `createQuery()` returns an
+ * object the test can resolve later via `resolveOldestPending`, and
+ * `getQueryParameter(q, QUERY_RESULT_AVAILABLE)` only turns true once the test does so
+ * — exercising the exact "poll on the next render() call, never block" contract.
+ */
+describe("perfStats — GPU timer queries (CPU-vs-GPU diagnostic)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  function fakeGpuGl() {
+    const TIME_ELAPSED_EXT = 111;
+    const GPU_DISJOINT_EXT = 222;
+    const ext = { TIME_ELAPSED_EXT, GPU_DISJOINT_EXT };
+    const created: { available: boolean; ns: number }[] = [];
+    let disjointFlag = false;
+    const gl = {
+      QUERY_RESULT_AVAILABLE: "AVAILABLE",
+      QUERY_RESULT: "RESULT",
+      createQuery: () => {
+        const q = { available: false, ns: 0 };
+        created.push(q);
+        return q;
+      },
+      beginQuery: () => {},
+      endQuery: () => {},
+      getExtension: (name: string) => (name === "EXT_disjoint_timer_query_webgl2" ? ext : null),
+      getQueryParameter: (q: { available: boolean; ns: number }, pname: string) =>
+        pname === "AVAILABLE" ? q.available : q.ns,
+      getParameter: (pname: number) => (pname === GPU_DISJOINT_EXT ? disjointFlag : null),
+      deleteQuery: () => {},
+    } as unknown as WebGL2RenderingContext;
+    return {
+      gl,
+      resolveOldestPending: (ns: number) => {
+        const q = created.find((x) => !x.available);
+        if (q) { q.available = true; q.ns = ns; }
+      },
+      setDisjoint: (v: boolean) => { disjointFlag = v; },
+      pendingCount: () => created.filter((x) => !x.available).length,
+    };
+  }
+
+  function fakeRendererWithGl(gl: unknown) {
+    return { render: () => {}, getContext: () => gl, getPixelRatio: () => 1 } as unknown as import("three").WebGLRenderer;
+  }
+
+  it("gpuTimingSupported is false and gpu stays null when the extension is unavailable", async () => {
+    const { attachRenderer, snapshot } = await import("./perfStats.js");
+    const gl = { getExtension: () => null, createQuery: () => ({}) };
+    attachRenderer(fakeRendererWithGl(gl));
+    const s = snapshot();
+    expect(s.gpuTimingSupported).toBe(false);
+    expect(s.gpu).toBeNull();
+  });
+
+  it("gpuTimingSupported is true but gpu stays null until a query actually resolves", async () => {
+    const { attachRenderer, snapshot } = await import("./perfStats.js");
+    const { gl } = fakeGpuGl();
+    const r = fakeRendererWithGl(gl);
+    attachRenderer(r);
+    renderFrame(r, 16);
+    const s = snapshot();
+    expect(s.gpuTimingSupported).toBe(true);
+    expect(s.gpu).toBeNull(); // nothing resolved yet — never a blocking read
+  });
+
+  it("records a resolved query's elapsed time in ms, polled on a LATER render() call", async () => {
+    const { attachRenderer, snapshot } = await import("./perfStats.js");
+    const helper = fakeGpuGl();
+    const r = fakeRendererWithGl(helper.gl);
+    attachRenderer(r);
+    renderFrame(r, 16); // frame 1 — begins a query
+    helper.resolveOldestPending(5_000_000); // GPU finishes: 5ms, arrives some frames later
+    renderFrame(r, 16); // frame 2 — polls at its START, picks up frame 1's result
+    const s = snapshot();
+    expect(s.gpu?.p50).toBeCloseTo(5, 5);
+  });
+
+  it("a disjoint event discards every pending query instead of recording stale results", async () => {
+    const { attachRenderer, snapshot } = await import("./perfStats.js");
+    const helper = fakeGpuGl();
+    const r = fakeRendererWithGl(helper.gl);
+    attachRenderer(r);
+    renderFrame(r, 16);
+    helper.resolveOldestPending(5_000_000);
+    helper.setDisjoint(true);
+    renderFrame(r, 16); // polls while disjoint — must drop, not record, the pending result
+    expect(snapshot().gpu).toBeNull();
+    expect(helper.pendingCount()).toBe(1); // the frame-2 query itself is still in flight
+  });
+
+  it("never grows the pending queue unboundedly if queries never resolve", async () => {
+    const { attachRenderer, snapshot } = await import("./perfStats.js");
+    const helper = fakeGpuGl();
+    const r = fakeRendererWithGl(helper.gl);
+    attachRenderer(r);
+    for (let i = 0; i < 50; i++) renderFrame(r, 16); // none ever resolved
+    expect(() => snapshot()).not.toThrow();
+    expect(snapshot().gpu).toBeNull();
+  });
+});

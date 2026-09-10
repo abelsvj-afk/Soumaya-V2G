@@ -121,12 +121,27 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
   // `gapMs` (present vs. render, same sampling site — see perfStats.ts) points at the
   // GPU/fill-rate; `tick.p95` (our own per-frame scene-mutation cost) points at the CPU.
   const ready = s.presentSamples >= 30;
-  const boundKey: "sampling" | "gpu" | "cpu" | "healthy" =
+  // `s.gpu` (EXT_disjoint_timer_query_webgl2, when supported) is the decisive tie-
+  // breaker `gapMs` alone can't provide: a slow `render()` call with a SMALL real GPU
+  // time means the synchronous JS call itself is blocked (driver/queue back-pressure,
+  // e.g. ANGLE's Vulkan backend under load) — not the GPU doing genuine fragment/
+  // vertex work, however large `gapMs` looks. Only trust this once there's a real GPU
+  // sample AND render is actually slow enough for the distinction to matter.
+  const gpuP95 = s.gpu?.p95 ?? null;
+  const looksLikeDriverStall = gpuP95 != null && s.render.p95 > 30 && gpuP95 < s.render.p95 * 0.3;
+  const boundKey: "sampling" | "stall" | "gpu" | "cpu" | "healthy" =
     !ready ? "sampling"
-      : s.gapMs > 8 ? "gpu"
-        : s.tick.p95 > 12 ? "cpu"
-          : "healthy";
-  const bound = { sampling: "sampling…", gpu: "GPU / fill-rate", cpu: "CPU bound", healthy: "healthy" }[boundKey];
+      : looksLikeDriverStall ? "stall"
+        : s.gapMs > 8 ? "gpu"
+          : s.tick.p95 > 12 ? "cpu"
+            : "healthy";
+  const bound = {
+    sampling: "sampling…",
+    stall: "CPU/driver stall (GPU itself is idle)",
+    gpu: "GPU / fill-rate",
+    cpu: "CPU bound",
+    healthy: "healthy",
+  }[boundKey];
 
   const copy = () => {
     const text = [
@@ -134,6 +149,9 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       `render p50 ${ms(s.render.p50)}ms  p95 ${ms(s.render.p95)}ms`,
       `present p50 ${ms(s.present.p50)}ms  p95 ${ms(s.present.p95)}ms  → ${s.fps.toFixed(0)} fps  (n=${s.presentSamples})`,
       `gap ${ms(s.gapMs)}ms  → ${bound}`,
+      s.gpuTimingSupported
+        ? `gpu p50 ${ms(s.gpu?.p50 ?? 0)}ms  p95 ${ms(s.gpu?.p95 ?? 0)}ms  (real GPU execution time per render() call)`
+        : `gpu timing: unsupported (no EXT_disjoint_timer_query_webgl2)`,
       `dropped ${s.droppedPct.toFixed(1)}%`,
       `draw calls ${n0(s.drawInfo?.calls ?? 0)}  tris ${n0(s.drawInfo?.triangles ?? 0)}  lines ${n0(s.drawInfo?.lines ?? 0)}  points ${n0(s.drawInfo?.points ?? 0)}`,
       `geometries ${n0(s.memory?.geometries ?? 0)}  textures ${n0(s.memory?.textures ?? 0)}  programs ${s.programs ?? "?"}`,
@@ -174,7 +192,12 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       <Row k="tick" v={`${ms(s.tick.p50)} / ${ms(s.tick.p95)} / ${ms(s.tick.p99)}`} hint="Our own per-frame scene-mutation cost (p50 / p95 / p99 ms). Only sampled on frames that weren't skipped by the FPS cap." />
       <Row k="render" v={`${ms(s.render.p50)} / ${ms(s.render.p95)}`} hint="Draw-call submission cost (p50 / p95 ms), sampled on every real render — independent of our tick loop." />
       <Row k="frame" v={`${ms(s.present.p50)}ms · ${s.fps.toFixed(0)}fps`} hint="Wall-clock gap between rendered frames — the true presentation cadence." />
-      <Row k="gap" v={`${ms(s.gapMs)}ms`} hint="present p95 minus render p95. Large = the GPU itself is the bottleneck, not our JS." />
+      <Row k="gap" v={`${ms(s.gapMs)}ms`} hint="present p95 minus render p95. Unreliable under GPU back-pressure — see 'gpu' below for the direct measurement." />
+      <Row
+        k="gpu"
+        v={s.gpuTimingSupported ? `${ms(s.gpu?.p50 ?? 0)} / ${ms(s.gpu?.p95 ?? 0)}` : "n/a"}
+        hint="Real GPU execution time per render() call (EXT_disjoint_timer_query_webgl2), p50/p95 ms. A small number here next to a huge 'render' means the CPU call is blocked on driver/queue back-pressure, not real GPU work."
+      />
       <Row k="dropped" v={`${s.droppedPct.toFixed(1)}%`} hint="Frames that took over 25ms to arrive — visible hitches." />
       <Row k="calls" v={n0(s.drawInfo?.calls ?? 0)} hint="Draw calls per frame — one per Object3D submitted to the GPU (no instancing/batching exists in this renderer today, so this scales directly with tracked node+link+aux object count)." />
       <Row k="tris" v={`${n0(s.drawInfo?.triangles ?? 0)} · ln ${n0(s.drawInfo?.lines ?? 0)} · pt ${n0(s.drawInfo?.points ?? 0)}`} hint="Triangles / lines / points submitted per frame." />

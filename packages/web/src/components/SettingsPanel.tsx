@@ -32,6 +32,14 @@ import {
 } from "../graph/renderModel.js";
 import { pushToast } from "./Toasts.js";
 import { loadPersistedRung, RUNG_TABLE, ADAPTIVE_MODEL_VERSION } from "../graph/adaptiveController.js";
+import {
+  startSweep,
+  isSweepActive,
+  getSweepProgressLabel,
+  getSweepReport,
+  clearSweepReport,
+  type SweepResult,
+} from "../graph/galaxySweep.js";
 
 /** Was defined INSIDE SettingsPanel's render body — a fresh function identity on
  *  every render, which React treats as a brand-new component type. This panel
@@ -90,6 +98,14 @@ export function SettingsPanel({
   const [boundedLinksOn, setBoundedLinksOnState] = useState(isBoundedLinksEnabled());
   const [linkBudget, setLinkBudgetState] = useState(String(getDetailedLinkBudget()));
   const [diagReport, setDiagReport] = useState<string | null>(null);
+  // Render-isolation sweep (galaxySweep.ts) — the no-URL-typing alternative to
+  // perfDiag.ts's `?galaxyDiag=1&category=0` params. `sweepActive`/`sweepReport` are
+  // read once at mount: a sweep step reloads the page between measurements, so this
+  // panel only ever needs to reflect "the state as of THIS load" rather than track a
+  // live in-page transition.
+  const [sweepActive] = useState(isSweepActive());
+  const [sweepProgress] = useState(getSweepProgressLabel());
+  const [sweepReport, setSweepReport] = useState<SweepResult[] | null>(getSweepReport());
   const voiceSupported = isVoiceSupported();
   // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
   // resolveGraphics ignores it otherwise) so this label shows what's actually
@@ -333,6 +349,81 @@ export function SettingsPanel({
                   put the FULL string in the DOM. "Copy Report" still copies the
                   complete, untruncated `diagReport`; only this rendered preview caps. */}
               {diagReport.length > 20000 ? `${diagReport.slice(0, 20000)}\n… (truncated in this preview — Copy Report still copies everything)` : diagReport}
+            </div>
+          )}
+        </section>
+
+        <section className="settings-section">
+          <h3>🌌 Galaxy render isolation sweep</h3>
+          <p style={{ fontSize: "12px", opacity: 0.8, margin: "0 0 10px" }}>
+            Automatically finds which part of the galaxy's rendering is slow, without
+            needing to type anything into the address bar. One button; the page reloads
+            itself a few times (~35 seconds total) as it measures the galaxy with links,
+            node bodies, labels, glow/corona/bloom, and Journeys/Money/agents each
+            switched off in turn, then shows a comparison table.
+          </p>
+          {sweepActive ? (
+            <p style={{ fontSize: "13px" }}>
+              ⏳ {sweepProgress ?? "Sweep running…"} — the page will reload on its own for
+              each step. Leave this tab open.
+            </p>
+          ) : (
+            <div className="row" style={{ gap: "8px", display: "flex", flexWrap: "wrap" }}>
+              <button onClick={() => startSweep()}>Run performance diagnostic sweep</button>
+              {sweepReport && (
+                <>
+                  <button
+                    onClick={() => {
+                      const text = sweepReport
+                        .map(
+                          (r) =>
+                            `${r.label}: present p50 ${r.presentP50.toFixed(1)}ms, render p50 ${r.renderP50.toFixed(1)}ms, tick p50 ${r.tickP50.toFixed(1)}ms, draw calls ${r.drawCalls ?? "?"}`,
+                        )
+                        .join("\n");
+                      navigator.clipboard
+                        .writeText(text)
+                        .then(() => pushToast("Sweep results copied to clipboard.", "📋", 3000))
+                        .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
+                    }}
+                  >
+                    Copy results
+                  </button>
+                  <button
+                    onClick={() => {
+                      clearSweepReport();
+                      setSweepReport(null);
+                    }}
+                  >
+                    Clear results
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {sweepReport && (
+            <div style={{ marginTop: "10px", overflowX: "auto" }}>
+              <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "4px" }}>Category</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Present p50</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Render p50</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Tick p50</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Draw calls</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sweepReport.map((r) => (
+                    <tr key={r.key} style={{ borderTop: "1px solid #444" }}>
+                      <td style={{ padding: "4px" }}>{r.label}</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.presentP50.toFixed(1)}ms</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.renderP50.toFixed(1)}ms</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.tickP50.toFixed(1)}ms</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.drawCalls ?? "?"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>
