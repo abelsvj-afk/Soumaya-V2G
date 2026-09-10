@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense, type
 import type { GraphData, GraphNode, Fuel, Streak, AwayDigest } from "@brain/shared";
 import { CELESTIAL_CLASSES, CELESTIAL_LABEL, COOLING_ENTROPY } from "@brain/shared";
 // Pure presentational helpers live in App.helpers.ts (Post-MVP D4 split).
-import { focusItemStyle, songDotStyle, getFigurineIcon, getFigurineLabel } from "./App.helpers.js";
+import { focusItemStyle, songDotStyle, getFigurineIcon, getFigurineLabel, mergeGraphData } from "./App.helpers.js";
 
 import { type Graph3DHandle } from "./graph/Graph3D.js";
 // Lazy-load the 3D galaxy so three.js (~600 kB) isn't in the initial bundle — the
@@ -553,7 +553,12 @@ export default function App() {
       console.info("[BOOT] loading graph");
       const g = await getGraph();
       console.info(`[BOOT] graph received (${g.nodes.length} nodes)`);
-      setData(g);
+      // Merge by node id instead of replacing wholesale (Galaxy render-stall root-cause
+      // fix — see App.helpers.ts's mergeGraphData doc comment): three-forcegraph's own
+      // node object cache keys nodes by raw object identity, so a fresh array of fresh
+      // node objects on every refresh made every node look "new" and disposed/rebuilt
+      // its entire Object3D + shared geometry/texture caches on every single refresh.
+      setData((prev) => mergeGraphData(prev, g));
       setLoaded(true);
       logDiagnosticEvent('state', 'App.loaded', { loaded: true });
       setInitError(null);
@@ -1335,14 +1340,17 @@ export default function App() {
       return;
     }
     const g = await getGraph();
-    setData(g);
+    // Merge by node id (see App.helpers.ts's mergeGraphData doc comment) — same fix as
+    // refresh(), applied here since this is a second, independent setData(freshFetch) site.
+    const merged = mergeGraphData(data, g);
+    setData(merged);
     getFuel().then((f) => f && setFuel(f)).catch(() => {});
-    const n = g.nodes.find((x) => x.id === id);
+    const n = merged.nodes.find((x) => x.id === id);
     if (n) {
       setSelected(n);
       graphRef.current?.spawnBurst(id, "user");
     }
-  }, [space]);
+  }, [space, data]);
 
   const handleDeleted = useCallback(() => {
     setSelected(null);
