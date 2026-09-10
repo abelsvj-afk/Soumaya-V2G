@@ -183,9 +183,21 @@ describe("isBoundedLinksEnabled / getDetailedLinkBudget (URL config)", () => {
   });
 
   it("a corrupt stored budget value falls back to the default", async () => {
-    localStorage.setItem("galaxy.linkBudget", "not-a-number");
+    localStorage.setItem("galaxy.linkBudget.v2", "not-a-number");
     const { getDetailedLinkBudget, DEFAULT_DETAILED_LINK_BUDGET } = await import("./renderModel.js");
     expect(getDetailedLinkBudget()).toBe(DEFAULT_DETAILED_LINK_BUDGET);
+  });
+
+  it("a value persisted under the OLD (pre-migration) key is ignored, not read as an override", async () => {
+    // Regression test for a real-device bug: a device that had ever visited
+    // ?linkBudget=450 (the original Phase 2.1 audit's own suggested value) kept reading
+    // that persisted 450 forever, completely masking a later reduction to
+    // DEFAULT_DETAILED_LINK_BUDGET. The storage key was versioned specifically so this
+    // can never happen again for any FUTURE default change either.
+    localStorage.setItem("galaxy.linkBudget", "450");
+    const { getDetailedLinkBudget, DEFAULT_DETAILED_LINK_BUDGET } = await import("./renderModel.js");
+    expect(getDetailedLinkBudget()).toBe(DEFAULT_DETAILED_LINK_BUDGET);
+    expect(getDetailedLinkBudget()).not.toBe(450);
   });
 
   it("setDetailedLinkBudget clamps a negative/fractional value", async () => {

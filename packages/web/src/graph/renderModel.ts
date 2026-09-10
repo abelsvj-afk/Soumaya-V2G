@@ -203,7 +203,19 @@ export function selectDetailedLinks(
 let boundedLinksCache: boolean | null = null;
 
 const BOUNDED_LINKS_KEY = "galaxy.boundedLinks";
-const LINK_BUDGET_KEY = "galaxy.linkBudget";
+// Versioned key (was "galaxy.linkBudget"): a real-device test confirmed a device that had
+// EVER visited `?linkBudget=450` (the original Phase 2.1 audit's own suggested value, used
+// throughout this program's real-device A/B testing) kept reading that persisted 450
+// forever afterward — completely masking the DEFAULT_DETAILED_LINK_BUDGET reduction to 150
+// shipped in this same recovery pass, since a stored value always wins over the code
+// constant by design (that's the whole point of the override mechanism). There is no way
+// to distinguish "the user deliberately chose 450 in Settings" from "450 got persisted by
+// an old A/B-test URL visit" after the fact, so the safe migration is the same versioned-
+// key pattern already used elsewhere in this codebase (adaptiveController.ts's
+// ADAPTIVE_MODEL_VERSION): bump the key name so every pre-existing stored value — whatever
+// it was — is abandoned, and the current code default applies again until the user
+// explicitly sets a new value (which persists under this new key, same as before).
+const LINK_BUDGET_KEY = "galaxy.linkBudget.v2";
 
 /**
  * Enables Phase 2.1's bounded Detailed-link selection for a real-device A/B comparison.
