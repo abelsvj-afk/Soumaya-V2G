@@ -353,8 +353,21 @@ function makeSpiralGalaxy(): THREE.Points {
     }),
   );
   points.rotation.set(Math.random() * Math.PI, Math.random() * Math.PI, Math.random() * Math.PI);
-  points.userData.update = () => {
-    points.rotation.y += 0.00032; // slow, dreamy spin (a touch more visible)
+  // Real-device fix (Galaxy render recovery pass, 2026-09-10): this was a per-CALL
+  // accumulator (`rotation.y += 0.00032`), unlike every other scenery object in this
+  // file (makeStarfield/makeMilkyWay above both use `rotation = t * constant`, a pure
+  // function of absolute elapsed time). An accumulator's rotation speed is tied to how
+  // OFTEN this update callback gets invoked, not to real time — on a device with an
+  // uneven tick cadence (long stalls, then a burst of several quick frames back to
+  // back), the galaxy visibly jumps forward by many increments at once during a burst,
+  // reading as "flying around fast" rather than a slow drift. A pure function of `t`
+  // is immune to this by construction: whenever this callback fires, the rotation
+  // snaps to the exact angle correct for the real elapsed time, however unevenly the
+  // callback itself gets called. `baseY` preserves this galaxy's original random
+  // starting orientation as a phase offset.
+  const baseY = points.rotation.y;
+  points.userData.update = (t = 0) => {
+    points.rotation.y = baseY + t * 0.00032; // slow, dreamy spin (a touch more visible)
   };
   return points;
 }
