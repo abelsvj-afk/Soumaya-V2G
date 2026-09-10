@@ -40,6 +40,7 @@ import {
   clearSweepReport,
   type SweepResult,
 } from "../graph/galaxySweep.js";
+import { isComposerBypassEnabled, setComposerBypassEnabled } from "../graph/composerBypassDiag.js";
 
 /** Was defined INSIDE SettingsPanel's render body — a fresh function identity on
  *  every render, which React treats as a brand-new component type. This panel
@@ -106,6 +107,9 @@ export function SettingsPanel({
   const [sweepActive] = useState(isSweepActive());
   const [sweepProgress] = useState(getSweepProgressLabel());
   const [sweepReport, setSweepReport] = useState<SweepResult[] | null>(getSweepReport());
+  // Diagnostic-only (composerBypassDiag.ts) — off by default; see that file's doc
+  // comment. Same reload-after-toggle convention as boundedLinksOn just below.
+  const [composerBypassOn, setComposerBypassOnState] = useState(isComposerBypassEnabled());
   const voiceSupported = isVoiceSupported();
   // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
   // resolveGraphics ignores it otherwise) so this label shows what's actually
@@ -432,6 +436,30 @@ export function SettingsPanel({
               </table>
             </div>
           )}
+          <label className="settings-toggle" style={{ marginTop: "14px" }}>
+            <span>
+              ⚠ Bypass post-processing composer <em>(diagnostic — render-stall investigation)</em>
+              <em>
+                {composerBypassOn
+                  ? "ON — renderer.render(scene, camera) is called directly, skipping EffectComposer entirely."
+                  : "OFF — normal path (composer.render() → RenderPass → renderer.render())."}
+              </em>
+            </span>
+            <span className="gfx-when reload">reload</span>
+            <button
+              className={`switch ${composerBypassOn ? "on" : ""}`}
+              onClick={() => {
+                if (profileDirty && !confirm("You have an unsaved profile change that will be lost. Continue?")) return;
+                const next = !composerBypassOn;
+                setComposerBypassOnState(next);
+                setComposerBypassEnabled(next);
+                setTimeout(() => window.location.reload(), 150);
+              }}
+              aria-pressed={composerBypassOn}
+            >
+              <span className="knob" />
+            </button>
+          </label>
         </section>
 
         <section className="settings-section">

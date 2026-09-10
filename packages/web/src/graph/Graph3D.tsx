@@ -17,6 +17,7 @@ import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
 import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
 import { shouldHideNodeBodyChild, DEFAULT_NODE_BODY_DIAG } from "./nodeBodyDiag.js";
+import { isComposerBypassEnabled, applyComposerBypass } from "./composerBypassDiag.js";
 import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
@@ -923,6 +924,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // defer()) get a chance to call gltfLoader().load() on a KTX2-textured model.
       // This is the earliest point in Graph3D's own init that the renderer exists.
       ensureKtx2Support(fg.renderer() as THREE.WebGLRenderer);
+      // DIAGNOSTIC ONLY (composerBypassDiag.ts) — off by default; see that file's doc
+      // comment. Patches the composer's OWN .render() to skip straight to
+      // renderer.render(scene, camera), isolating whether EffectComposer's per-frame
+      // pass-iteration is contributing to the render stall under investigation.
+      if (isComposerBypassEnabled()) {
+        try {
+          const composer = fg.postProcessingComposer?.();
+          if (composer) applyComposerBypass(composer, fg.renderer(), scene, fg.camera());
+        } catch {
+          /* composer not ready yet — bypass simply won't apply this session */
+        }
+      }
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { snapshot, reset, getGpuInfo, getRendererPixelRatio, type PerfSnapshot } from "../graph/perfStats.js";
+import { isComposerBypassEnabled } from "../graph/composerBypassDiag.js";
 import { logDiagnosticEvent } from "../diagnostics/buffer";
 
 /**
@@ -162,6 +163,7 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       s.galaxyCounts?.composerBuffers
         ? `composer buffers ${s.galaxyCounts.composerBuffers.width}x${s.galaxyCounts.composerBuffers.height} × ${s.galaxyCounts.composerBuffers.pixelRatio}dpr  ${s.galaxyCounts.composerBuffers.halfFloat ? "HalfFloat" : "UnsignedByte"}  (×2, always allocated — see forensic trace item 3)`
         : `composer buffers: N/A`,
+      `composer bypass: ${isComposerBypassEnabled() ? "ON (diagnostic — direct renderer.render, no EffectComposer)" : "off (normal composer path)"}`,
       s.galaxyCounts
         ? `tracked ${n0(s.galaxyCounts.trackedNodes)} nodes / ${n0(s.galaxyCounts.trackedLinks)} links  visible ${n0(s.galaxyCounts.visibleNodes)} nodes / ${n0(s.galaxyCounts.visibleLinks)} links`
         : `tracked/visible nodes+links: N/A`,
@@ -195,6 +197,13 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
         {/* Never colour alone — the state is spelled out in words too. */}
         <span className={`ph-bound ph-${boundKey}`}>{bound}</span>
       </div>
+      {isComposerBypassEnabled() && (
+        <Row
+          k="⚠ bypass"
+          v="composer OFF — direct render"
+          hint="DIAGNOSTIC MODE: EffectComposer is bypassed entirely; renderer.render(scene, camera) is called directly. Not the normal path — for the render-stall investigation only. Turn off in Settings when done."
+        />
+      )}
       <Row k="tick" v={`${ms(s.tick.p50)} / ${ms(s.tick.p95)} / ${ms(s.tick.p99)}`} hint="Our own per-frame scene-mutation cost (p50 / p95 / p99 ms). Only sampled on frames that weren't skipped by the FPS cap." />
       <Row k="render" v={`${ms(s.render.p50)} / ${ms(s.render.p95)}`} hint="Draw-call submission cost (p50 / p95 ms), sampled on every real render — independent of our tick loop." />
       <Row k="frame" v={`${ms(s.present.p50)}ms · ${s.fps.toFixed(0)}fps`} hint="Wall-clock gap between rendered frames — the true presentation cadence." />
