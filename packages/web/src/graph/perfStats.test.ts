@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { beginTick, endTick, attachRenderer, snapshot, reset, markMoved, registerGalaxyCounts } from "./perfStats.js";
 
 /**
@@ -214,5 +214,73 @@ describe("perfStats", () => {
       registerGalaxyCounts(null);
       expect(snapshot().galaxyCounts).toBeNull();
     });
+  });
+});
+
+/**
+ * getGpuInfo/getRendererPixelRatio (Galaxy recovery pass, 2026-09-10): after three
+ * verified, tested render-path fixes produced no perceptible real-device improvement, the
+ * next highest-value question is whether the device is even running hardware-accelerated
+ * WebGL at all — a software rasterizer would explain exactly that pattern. Uses
+ * vi.resetModules() + dynamic import (the same technique perfDiag.test.ts already
+ * established) because getGpuInfo caches its result in a module-level variable — a real
+ * renderer's GPU string never changes, so caching is correct in production, but each test
+ * here needs its own fresh module instance to exercise a different scenario.
+ */
+describe("perfStats — getGpuInfo / getRendererPixelRatio (hardware-vs-software diagnostic)", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("returns null before any renderer is attached", async () => {
+    const { getGpuInfo, getRendererPixelRatio } = await import("./perfStats.js");
+    expect(getGpuInfo()).toBeNull();
+    expect(getRendererPixelRatio()).toBeNull();
+  });
+
+  it("reads UNMASKED_VENDOR_WEBGL/UNMASKED_RENDERER_WEBGL when the extension is available", async () => {
+    const { attachRenderer, getGpuInfo } = await import("./perfStats.js");
+    const ext = { UNMASKED_VENDOR_WEBGL: 1, UNMASKED_RENDERER_WEBGL: 2 };
+    const gl = {
+      getExtension: (name: string) => (name === "WEBGL_debug_renderer_info" ? ext : null),
+      getParameter: (p: number) => (p === 1 ? "Qualcomm" : p === 2 ? "Adreno (TM) 619" : null),
+    };
+    const r = { render: () => {}, getContext: () => gl, getPixelRatio: () => 1.5 } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    expect(getGpuInfo()).toBe("Qualcomm / Adreno (TM) 619");
+  });
+
+  it("returns null (not a throw) when the debug-info extension is masked/unavailable", async () => {
+    const { attachRenderer, getGpuInfo } = await import("./perfStats.js");
+    const gl = { getExtension: () => null, getParameter: () => null };
+    const r = { render: () => {}, getContext: () => gl, getPixelRatio: () => 1 } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    expect(getGpuInfo()).toBeNull();
+  });
+
+  it("caches the result — a second call doesn't re-query the GL context", async () => {
+    const { attachRenderer, getGpuInfo } = await import("./perfStats.js");
+    let calls = 0;
+    const ext = { UNMASKED_VENDOR_WEBGL: 1, UNMASKED_RENDERER_WEBGL: 2 };
+    const gl = {
+      getExtension: () => ext,
+      getParameter: (p: number) => { calls++; return p === 1 ? "Vendor" : "Renderer"; },
+    };
+    const r = { render: () => {}, getContext: () => gl, getPixelRatio: () => 1 } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    getGpuInfo();
+    getGpuInfo();
+    expect(calls).toBe(2); // one vendor + one renderer query, only on the FIRST call
+  });
+
+  it("reports the renderer's actual pixel ratio, independent of window.devicePixelRatio", async () => {
+    const { attachRenderer, getRendererPixelRatio } = await import("./perfStats.js");
+    const r = {
+      render: () => {},
+      getContext: () => null,
+      getPixelRatio: () => 1.25,
+    } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    expect(getRendererPixelRatio()).toBe(1.25);
   });
 });

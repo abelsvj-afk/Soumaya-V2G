@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { snapshot, reset, type PerfSnapshot } from "../graph/perfStats.js";
+import { snapshot, reset, getGpuInfo, getRendererPixelRatio, type PerfSnapshot } from "../graph/perfStats.js";
 import { logDiagnosticEvent } from "../diagnostics/buffer";
 
 /**
@@ -147,7 +147,9 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       s.galaxyCounts?.detailedLinkBudget != null
         ? `detailed links ${n0(s.galaxyCounts.detailedLinks ?? 0)} / budget ${n0(s.galaxyCounts.detailedLinkBudget)}  bounded:${s.galaxyCounts.boundedLinksEnabled ? "ON" : "OFF"}`
         : `detailed links: N/A`,
-      `nodes ${n0(nodeCount ?? 0)}  dpr ${window.devicePixelRatio}  ${navigator.userAgent}`,
+      `nodes ${n0(nodeCount ?? 0)}  browser dpr ${window.devicePixelRatio}  renderer dpr ${getRendererPixelRatio()?.toFixed(3) ?? "?"}`,
+      `gpu ${getGpuInfo() ?? "unavailable (masked or no WEBGL_debug_renderer_info)"}`,
+      navigator.userAgent,
     ].join("\n");
     navigator.clipboard?.writeText(text).then(
       () => { setCopied(true); window.setTimeout(() => setCopied(false), 1500); },

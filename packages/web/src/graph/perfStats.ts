@@ -174,6 +174,47 @@ export function endTick(): void {
  * cadence. react-force-graph drives its own render loop, so this is the only place we
  * can observe when a frame is genuinely produced.
  */
+/**
+ * The single most important unanswered question after three verified, tested render-path
+ * fixes (Sun transmission, node early-Z, link-tube geometry churn) produced no perceptible
+ * real-device improvement: is this device even running hardware-accelerated WebGL at all?
+ * A software rasterizer (SwiftShader / ANGLE software / llvmpipe) pays a roughly per-draw-
+ * call-and-per-pixel fixed cost that scene-content optimizations barely touch — which would
+ * explain exactly this pattern (real fixes, zero measured effect). `WEBGL_debug_renderer_info`
+ * is the standard (if occasionally masked-by-Chrome-fingerprinting-protection) way to ask.
+ * Computed once and cached — this never changes for a given renderer instance.
+ */
+let cachedGpuInfo: string | null | undefined; // undefined = not yet computed, null = unavailable
+
+export function getGpuInfo(): string | null {
+  if (cachedGpuInfo !== undefined) return cachedGpuInfo;
+  cachedGpuInfo = null;
+  try {
+    const gl = renderer?.getContext();
+    if (!gl) return cachedGpuInfo;
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    if (!ext) return cachedGpuInfo; // Chrome sometimes masks this for fingerprinting reasons
+    const vendor = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL);
+    const rend = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
+    cachedGpuInfo = `${vendor} / ${rend}`;
+  } catch {
+    /* leave as null */
+  }
+  return cachedGpuInfo;
+}
+
+/**
+ * The renderer's ACTUAL pixel ratio — as opposed to `window.devicePixelRatio`, which is
+ * what the HUD's "dpr" field has always reported (a real, still-open discrepancy: see
+ * docs/specs/soumaya-galaxy-large-render-forensic-audit.md §18 and the Rendering Contract).
+ * `renderer.getPixelRatio()` reflects whatever `setPixelRatio()` was last actually called
+ * with (clamped by graphicsConfig.ts's tier/rung/Battery-Saver logic) — the true multiplier
+ * on every pixel of fragment work, independent of what the raw display reports.
+ */
+export function getRendererPixelRatio(): number | null {
+  return renderer?.getPixelRatio() ?? null;
+}
+
 export function attachRenderer(r: THREE.WebGLRenderer): void {
   renderer = r; // newest renderer owns the `info` counters we report
   if (patchedRenderers.has(r)) return;
