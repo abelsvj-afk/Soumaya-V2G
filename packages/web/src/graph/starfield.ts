@@ -92,7 +92,12 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
 
   const stars = new THREE.Points(geometry, material);
   stars.frustumCulled = false;
-  // t = elapsed seconds-ish (ms*…); blur = camera-speed factor 0..1 from Graph3D.
+  // `t` is elapsed time in SECONDS (already converted from performance.now()'s
+  // milliseconds by Graph3D.tsx's tick loop — `const now = nowMs * 0.001;` — before this
+  // function ever sees it; verified 2026-09-10 against a claimed ms/seconds mismatch that
+  // does not exist in this call chain, see the regression test below). `aTw` above is
+  // defined in rad/SECOND to match — do not pass raw performance.now() milliseconds here.
+  // `blur` = camera-speed factor 0..1 from Graph3D.
   stars.userData.update = (t: number, blur = 0) => {
     stars.rotation.y = t * 0.004;
     stars.rotation.x = Math.sin(t * 0.02) * 0.03;

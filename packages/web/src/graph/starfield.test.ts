@@ -96,3 +96,37 @@ describe("starfield — twinkle speed/amplitude (flashing-stars fix)", () => {
     expect(stars.rotation.y).toBeCloseTo(10 * 0.004, 10);
   });
 });
+
+/**
+ * Time-unit contract (2026-09-10): investigated a specific claim that Graph3D.tsx passes
+ * `performance.now()` MILLISECONDS straight into this module's `update(t)`, which — since
+ * `aTw` is defined in rad/SECOND — would accelerate every star's twinkle by ~1000x.
+ * CONFIRMED FALSE by direct inspection: Graph3D.tsx's tick loop computes
+ * `const now = nowMs * 0.001;` (seconds) at its top and threads that SAME `now` — no
+ * reassignment, no shadowing between there and the call site — into
+ * `starfield.userData.update(now, ...)`. That conversion predates the flashing-stars fix
+ * by about two months (git blame: commit 60a3b934, 2026-07-08), so it isn't something
+ * ac7b9f8 could have broken either. `uniforms.uTime.value = t` (above) assigns `t`
+ * completely unscaled — this module trusts its caller to already be in seconds, which
+ * Graph3D.tsx's real call site is. This test pins that contract at the boundary this
+ * module actually controls: feeding a value that LOOKS LIKE raw milliseconds must not
+ * silently produce a "reasonable" (i.e. already-scaled) shader angle — if someone changes
+ * this function to rescale internally, or Graph3D.tsx regresses to passing raw ms, the
+ * resulting uTime value diverges from the literal input and this fails.
+ */
+describe("starfield — time unit contract (t is already seconds, not milliseconds)", () => {
+  it("passes t straight through to uTime with no internal rescaling", () => {
+    const stars = makeStarfield(10);
+    const material = stars.material as THREE.ShaderMaterial;
+    // A real Graph3D.tsx frame ~12s after mount: nowMs ~= 12000, now = nowMs * 0.001 = 12.
+    const secondsSinceMount = 12;
+    stars.userData.update!(secondsSinceMount);
+    expect(material.uniforms.uTime!.value).toBe(secondsSinceMount);
+    // If Graph3D.tsx ever regressed to passing raw milliseconds (12000) instead, this
+    // same assertion would instead see 12000 land in uTime unscaled — exactly the failure
+    // mode this test exists to catch. makeStarfield() itself has no ms/seconds boundary
+    // to fix (see the doc comment above): the contract lives at the CALLER, which this
+    // pins by example rather than by testing Graph3D.tsx's internals directly (its tick
+    // loop has no exported, independently-testable seam for this specific value).
+  });
+});
