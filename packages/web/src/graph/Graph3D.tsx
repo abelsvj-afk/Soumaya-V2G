@@ -1172,7 +1172,25 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const isNarrowScreen = typeof window !== "undefined" && window.innerWidth < 760;
     const SECTOR_LABEL_BOOST = isNarrowScreen ? 1.4 : 1;
 
-    const MACRO_DIST = 2600; // swap fidelity for points-of-light beyond this
+    // Galaxy render recovery pass (2026-09-10): lowered from 2600. Two independent
+    // real-device readings (Xclipse 530, hardware-accelerated) at comparable node/link
+    // counts showed render() cost tracking draw-call count at a WILDLY different rate
+    // depending on how many bodies were within this distance: ~0.07ms/draw-call when
+    // most bodies were in cheap macro-sphere mode (990 draw calls -> 14.6ms was NOT
+    // this state; the actual low-cost reading was 221 draw calls -> 14.6ms), versus
+    // ~1-1.4ms/draw-call in two separate readings where far more bodies were within
+    // full-detail range (1389 calls -> 1318.7ms; 990 calls -> 1383.4ms) -- a ~15-20x
+    // per-object cost difference tied specifically to the full-detail tier (unique
+    // procedural ShaderMaterial + unique geometry + unique glow/label textures per
+    // body), not to raw triangle/pixel counts (which stayed trivial throughout,
+    // ruling out ordinary fill-rate). Shrinking the full-detail "bubble" directly
+    // bounds how many of these expensive per-node materials can ever be active at
+    // once, regardless of total node count or camera position. Safe: the selected/
+    // followed body is EXEMPT from this swap regardless of distance (`!isSelected`
+    // below), so whatever you actually click always renders in full detail — this
+    // only affects how many OTHER, non-selected nearby bodies pay the same cost
+    // simultaneously.
+    const MACRO_DIST = 1200; // swap fidelity for points-of-light beyond this
     const MACRO_HYST = 150; // buffer band around MACRO_DIST so hovering near it doesn't flicker
     // (raised so bodies resolve into full 3D as you fly toward a cluster, not only
     // when you're right on top of them — dots are for genuinely distant bodies).
