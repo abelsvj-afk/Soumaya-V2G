@@ -203,7 +203,30 @@ function getGeometry(
 }
 
 
-/** A ring of drifting rock particles (asteroid belt) around a big body. */
+/**
+ * A ring of drifting rock particles (asteroid belt) around a big body.
+ *
+ * Render-stall fix (2026-09-10 automated in-session diagnostic): `sizeAttenuation`
+ * has NO upper bound on `gl_PointSize` — three.js's own Points vertex shader
+ * (node_modules/three/src/renderers/shaders/ShaderLib/points.glsl.js) computes
+ * `gl_PointSize = size * (scale / -mvPosition.z)`, which grows without limit as a
+ * point gets close to the camera. This investigation already established the real
+ * camera sits much closer to many bodies simultaneously than originally assumed —
+ * with the belt's own radius often under 50 world units, points near the camera
+ * could balloon into hundreds of screen pixels, each an unbounded-size, alpha-
+ * blended (transparent, depthWrite:false — no early-Z rejection) quad. With 360
+ * points per belt and potentially many star-class belts in range at once, that's a
+ * fundamentally different (and far worse) overdraw shape than every other sprite/
+ * mesh in this scene, all of which have a FIXED maximum footprint. The automated
+ * diagnostic confirmed it: disabling the belt alone collapsed real-device render p50
+ * by ~200x, dwarfing every other category tested (glow sprites, rings, the core
+ * body mesh, the macro-LOD sphere, even bypassing EffectComposer entirely).
+ *
+ * Fix: `sizeAttenuation: false` makes `gl_PointSize` a small FIXED value in device
+ * pixels, independent of camera distance — the specific parameter that allowed an
+ * unbounded footprint is simply removed, with the belt's particle count, geometry,
+ * per-star attachment/spin, and LOD visibility all otherwise unchanged.
+ */
 function makeAsteroidBelt(inner: number, outer: number, count = 360): THREE.Points {
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count; i++) {
@@ -219,8 +242,8 @@ function makeAsteroidBelt(inner: number, outer: number, count = 360): THREE.Poin
     geom,
     new THREE.PointsMaterial({
       color: "#b9b2a0",
-      size: 1.1,
-      sizeAttenuation: true,
+      size: 2,
+      sizeAttenuation: false,
       transparent: true,
       opacity: 0.55,
       depthWrite: false,

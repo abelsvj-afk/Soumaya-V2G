@@ -156,6 +156,39 @@ describe("nodeObject — isBody tagging (early-Z restoration fix)", () => {
 });
 
 /**
+ * Render-stall fix (2026-09-10, automated in-session diagnostic): three.js's Points
+ * vertex shader computes `gl_PointSize = size * (scale / -mvPosition.z)` when
+ * `sizeAttenuation` is true — unbounded as a point approaches the camera. The
+ * automated diagnostic isolated the asteroid belt as the dominant real-device
+ * render-stall cause (disabling it alone collapsed render p50 by ~200x, dwarfing
+ * every other category). Locks `sizeAttenuation: false` so `gl_PointSize` can never
+ * exceed the small fixed `size` regardless of camera distance.
+ */
+describe("nodeObject — asteroid-belt point size (render-stall fix)", () => {
+  function findAsteroidBelt(obj: THREE.Object3D): THREE.Points | null {
+    let found: THREE.Points | null = null;
+    obj.traverse((o: any) => {
+      if (o.type === "Points") found = o;
+    });
+    return found;
+  }
+
+  it("the star-class asteroid belt uses a fixed (non-attenuated) point size", () => {
+    const belt = findAsteroidBelt(makeNodeObject(node("star")));
+    expect(belt).not.toBeNull();
+    const mat = belt!.material as THREE.PointsMaterial;
+    expect(mat.sizeAttenuation).toBe(false);
+    expect(mat.size).toBeGreaterThan(0);
+  });
+
+  it("a planet/moon/asteroid (no asteroid belt) has no Points object at all", () => {
+    for (const cls of ["planet", "moon", "asteroid", "gas_giant", "giant"] as const) {
+      expect(findAsteroidBelt(makeNodeObject(node(cls)))).toBeNull();
+    }
+  });
+});
+
+/**
  * Galaxy render recovery pass (2026-09-10): unlike every celestial body, an action item
  * had NO macro-LOD fallback at all — its ring+glow+core (3 draw calls) rendered
  * unconditionally regardless of camera distance, uncapped by any LOD. Tagging the
