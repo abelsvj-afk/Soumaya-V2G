@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import * as THREE from "three";
-import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
+import { linkEnd, linkKey, LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar } from "./graph3dHelpers.js";
 
 /** Locks the pure Graph3D helpers extracted in D4. (updateFigurine/disposeObject3D
  *  need a WebGL/GLTF context, so they're exercised by the app, not here.) */
@@ -122,5 +122,63 @@ describe("graph3dHelpers — highlightMaterialState (early-Z restoration fix)", 
 
   it("a dimmed non-body child stays transparent at the same reduced opacity as before", () => {
     expect(highlightMaterialState(false, false)).toEqual({ transparent: true, opacity: 0.12 });
+  });
+});
+
+/**
+ * Node-glow render-stall fix (2026-09-10 sub-isolation sweep): the render-isolation
+ * sweep measured glow/corona sprites alone costing MORE render time than the
+ * full-detail body mesh itself (a real device: 177.7ms baseline -> 10.5ms with glow
+ * off, vs. 96.6ms with the core mesh off). `computeGlowFar` gives glow a tighter cutoff
+ * than the ordinary macro-view swap, using the same hysteresis shape already proven for
+ * isMacroView (see the link-LOD flicker fix this pattern is itself modeled on).
+ */
+describe("graph3dHelpers — computeGlowFar (node-glow render-stall fix)", () => {
+  const DIST = 600;
+  const HYST = 80;
+
+  it("a body well inside GLOW_DIST is never far, regardless of prior state", () => {
+    expect(computeGlowFar(100, false, false, DIST, HYST)).toBe(false);
+    expect(computeGlowFar(100, true, false, DIST, HYST)).toBe(false);
+  });
+
+  it("a body well beyond GLOW_DIST is always far, regardless of prior state", () => {
+    expect(computeGlowFar(2000, false, false, DIST, HYST)).toBe(true);
+    expect(computeGlowFar(2000, true, false, DIST, HYST)).toBe(true);
+  });
+
+  it("hysteresis: once far, must clear dist - hyst (not just dist) to come back near", () => {
+    // Sitting exactly at GLOW_DIST - 40 (inside the hysteresis band, still > dist-hyst):
+    // a body that WAS far stays far until it clears the inner edge.
+    expect(computeGlowFar(DIST - 40, true, false, DIST, HYST)).toBe(true);
+    // Once it clears the inner edge, it's near again.
+    expect(computeGlowFar(DIST - HYST - 1, true, false, DIST, HYST)).toBe(false);
+  });
+
+  it("hysteresis: once near, must exceed dist + hyst (not just dist) to become far", () => {
+    // Sitting exactly at GLOW_DIST + 40 (inside the band, still < dist+hyst): a body
+    // that WAS near stays near until it clears the outer edge.
+    expect(computeGlowFar(DIST + 40, false, false, DIST, HYST)).toBe(false);
+    // Once it clears the outer edge, it's far.
+    expect(computeGlowFar(DIST + HYST + 1, false, false, DIST, HYST)).toBe(true);
+  });
+
+  it("at the exact midpoint distance, the result depends only on prior state (both bands include it)", () => {
+    // dist === GLOW_DIST sits inside BOTH hysteresis bands (glowDist-hyst < dist <
+    // glowDist+hyst) — the whole point of hysteresis is that a body hovering exactly
+    // here doesn't oscillate; it just keeps whatever state it already had.
+    expect(computeGlowFar(DIST, true, false, DIST, HYST)).toBe(true); // was far -> stays far
+    expect(computeGlowFar(DIST, false, false, DIST, HYST)).toBe(false); // was near -> stays near
+  });
+
+  it("the selected/active body is exempt at ANY distance — the cheap active-node exception", () => {
+    expect(computeGlowFar(50000, false, true, DIST, HYST)).toBe(false);
+    expect(computeGlowFar(50000, true, true, DIST, HYST)).toBe(false);
+  });
+
+  it("is a pure function — same inputs always produce the same output, no hidden state", () => {
+    const a = computeGlowFar(700, false, false, DIST, HYST);
+    const b = computeGlowFar(700, false, false, DIST, HYST);
+    expect(a).toBe(b);
   });
 });

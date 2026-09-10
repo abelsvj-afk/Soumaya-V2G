@@ -12,7 +12,7 @@ import ForceGraph3D from "react-force-graph-3d";
 import * as THREE from "three";
 // Pure helpers (link LOD, figurine building, GPU disposal) live in graph3dHelpers.ts
 // (Post-MVP D4 split); behaviour unchanged.
-import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
+import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
 import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
@@ -1292,6 +1292,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const MACRO_HYST = 150; // buffer band around MACRO_DIST so hovering near it doesn't flicker
     // (raised so bodies resolve into full 3D as you fly toward a cluster, not only
     // when you're right on top of them — dots are for genuinely distant bodies).
+    // Node-glow render-stall fix (2026-09-10 sub-isolation sweep) — a TIGHTER cutoff
+    // than MACRO_DIST applied only to the glow/corona sprite; see computeGlowFar's own
+    // doc comment (graph3dHelpers.ts) for the full measurement/reasoning.
+    const GLOW_DIST = MACRO_DIST * 0.5;
+    const GLOW_HYST = 80;
 
     // Brightness is INVERTED with zoom: a body blooms brightest from afar (the
     // galaxy reads as points of light) and dims/concentrates up close so you can
@@ -1928,6 +1933,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           const isMacroView =
             !isSelected && (wasMacroView ? dist > MACRO_DIST - MACRO_HYST : dist > MACRO_DIST + MACRO_HYST);
           o.userData.isMacroView = isMacroView;
+          // Same hysteresis pattern as isMacroView immediately above, just a tighter
+          // threshold applied only to the glow/corona sprite child (see GLOW_DIST and
+          // computeGlowFar's own doc comment) — state cached on the same `o` object.
+          const wasGlowFar = o.userData.isGlowFar ?? false;
+          const isGlowFar = computeGlowFar(dist, wasGlowFar, isSelected, GLOW_DIST, GLOW_HYST);
+          o.userData.isGlowFar = isGlowFar;
           // The selected/followed body's own name should never be hidden by this — you
           // deliberately flew to it or selected it, so it must stay readable regardless of
           // what's technically between the camera and its position.
@@ -2028,7 +2039,12 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           // shouldHideNodeChild check runs, so the normal (non-diagnostic) path pays
           // only one extra cached-boolean read per applicable child, same as before.
           if (child.userData?.isFidelity) {
-            child.visible = isDiagForceHidden(child) ? false : !isMacroView;
+            // The glow/corona sprite gets the tighter GLOW_DIST cutoff (isGlowFar) on
+            // top of the ordinary macro-view swap every other fidelity child uses — see
+            // computeGlowFar's doc comment. Hidden if EITHER the body itself has gone
+            // macro OR the glow-specific distance was crossed.
+            const hiddenByLod = child.userData?.glowCacheKey != null ? isMacroView || isGlowFar : isMacroView;
+            child.visible = isDiagForceHidden(child) ? false : !hiddenByLod;
           }
           if (child.userData?.isMacro) {
             child.visible = isDiagForceHidden(child) ? false : isMacroView;

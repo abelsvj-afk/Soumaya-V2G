@@ -72,6 +72,33 @@ export function highlightMaterialState(
 }
 
 /**
+ * Node-glow render-stall fix (2026-09-10 sub-isolation sweep): whether a body's glow/
+ * corona sprite should be treated as "too far to show" — a TIGHTER distance than
+ * `isMacroView`'s own `MACRO_DIST` cutoff, because the render-isolation sweep measured
+ * glow/corona sprites alone costing MORE render time than the full-detail body mesh
+ * itself (a real device: 177.7ms baseline -> 10.5ms with glow off, vs. 96.6ms with the
+ * core mesh off) — a glow sprite's world-space radius is disproportionately larger than
+ * the body it decorates, so it stays expensive well past the distance the body mesh
+ * itself is still cheap to keep at full detail.
+ *
+ * Extracted as a pure function (same shape as `isMacroView`'s own inline hysteresis
+ * computation in Graph3D.tsx) purely so it's directly unit-testable — the hysteresis
+ * logic itself is identical: descend needs to clear `dist - hyst`, re-ascend needs to
+ * clear `dist + hyst`, so a body oscillating near the boundary doesn't flicker every
+ * frame. The selected/followed body is exempt at any distance, matching every other
+ * LOD exemption in this file.
+ */
+export function computeGlowFar(
+  dist: number,
+  wasGlowFar: boolean,
+  isSelected: boolean,
+  glowDist: number,
+  glowHyst: number,
+): boolean {
+  return !isSelected && (wasGlowFar ? dist > glowDist - glowHyst : dist > glowDist + glowHyst);
+}
+
+/**
  * Whether the adaptive-graphics path should actually call `renderer.setPixelRatio()`.
  * `WebGLRenderer.setPixelRatio()` has no internal early-out — it unconditionally calls
  * `setSize()`, which resizes the WebGL drawing buffer (a real GPU-pipeline stall on some
