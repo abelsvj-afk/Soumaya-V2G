@@ -53,6 +53,7 @@ import {
   isSnapshotCaptureAvailable,
   diffSnapshots,
   formatComparisonText,
+  formatFullSnapshotText,
   type GalaxyDiagSnapshot,
 } from "../graph/galaxyStateSnapshot.js";
 
@@ -70,6 +71,35 @@ function Seg<T extends string>({ value, options, onPick }: { value: T; options: 
       ))}
     </span>
   );
+}
+
+/**
+ * Copy text to the clipboard with an honest success/failure toast — never silently
+ * "succeeds." The pre-existing single "Copy comparison" button (still present below)
+ * only ever wrapped `navigator.clipboard.writeText(...)` in a `.then()/.catch()` chain,
+ * which only catches an ASYNC rejection (e.g. a permission prompt the user dismissed) —
+ * on a browser/webview where `navigator.clipboard` itself is unavailable (older Android
+ * WebViews, some embedded/PWA contexts, non-HTTPS origins), merely accessing
+ * `.writeText` throws SYNCHRONOUSLY, before any promise chain even exists, which an
+ * onClick handler with no surrounding try/catch swallows with zero feedback — matching
+ * exactly the reported "did not reliably put the data into my Android clipboard," with
+ * no error shown either. This wraps the whole call in try/catch and treats a missing
+ * `navigator.clipboard` as its own explicit failure case, so every copy action here
+ * (BAD/GOOD/comparison) either genuinely succeeds or says so.
+ */
+function copyTextWithFeedback(text: string, successMessage: string): void {
+  try {
+    const promise = navigator.clipboard?.writeText(text);
+    if (!promise) {
+      pushToast("Clipboard isn't available in this browser — couldn't copy.", "⚠️", 4000);
+      return;
+    }
+    promise
+      .then(() => pushToast(successMessage, "📋", 3000))
+      .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
+  } catch {
+    pushToast("Couldn't copy — clipboard access isn't available here.", "⚠️", 4000);
+  }
 }
 
 /**
@@ -604,6 +634,27 @@ export function SettingsPanel({
               >
                 📸 Capture GOOD state
               </button>
+              {badSnapshot && (
+                <button
+                  onClick={() => copyTextWithFeedback(formatFullSnapshotText(badSnapshot), "BAD snapshot copied to clipboard.")}
+                >
+                  📋 Copy BAD
+                </button>
+              )}
+              {goodSnapshot && (
+                <button
+                  onClick={() => copyTextWithFeedback(formatFullSnapshotText(goodSnapshot), "GOOD snapshot copied to clipboard.")}
+                >
+                  📋 Copy GOOD
+                </button>
+              )}
+              {badSnapshot && goodSnapshot && (
+                <button
+                  onClick={() => copyTextWithFeedback(formatComparisonText(badSnapshot, goodSnapshot), "Comparison copied to clipboard.")}
+                >
+                  Copy comparison
+                </button>
+              )}
               {(badSnapshot || goodSnapshot) && (
                 <button
                   onClick={() => {
@@ -612,19 +663,6 @@ export function SettingsPanel({
                   }}
                 >
                   Clear
-                </button>
-              )}
-              {badSnapshot && goodSnapshot && (
-                <button
-                  onClick={() => {
-                    const text = formatComparisonText(badSnapshot, goodSnapshot);
-                    navigator.clipboard
-                      .writeText(text)
-                      .then(() => pushToast("Comparison copied to clipboard.", "📋", 3000))
-                      .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
-                  }}
-                >
-                  Copy comparison
                 </button>
               )}
             </div>

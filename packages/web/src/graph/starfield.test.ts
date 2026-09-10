@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { makeGalaxies } from "./starfield.js";
+import type * as THREE from "three";
+import { makeGalaxies, makeStarfield } from "./starfield.js";
 
 /**
  * Regression coverage for the Galaxy render recovery pass (2026-09-10): the spiral
@@ -55,5 +56,43 @@ describe("starfield — spiral galaxy rotation (burst-jump fix)", () => {
     b!.userData.update!(5);
     // Same t, same speed constant -> the DIFFERENCE between them is preserved exactly.
     expect(a!.rotation.y - b!.rotation.y).toBeCloseTo(initialA - initialB, 10);
+  });
+});
+
+/**
+ * Regression coverage for the flashing-stars fix (2026-09-10): `aTw` (per-star twinkle
+ * angular speed) used to be drawn from [0.42, 2.12] rad/s — a full brightness sine cycle
+ * every ~3-15s per star, which read as constant, fast, high-contrast flashing across the
+ * ~6500-star field ("a light show," per the user report). Slowed by roughly an order of
+ * magnitude. GLSL itself isn't executable here (no WebGL context in this test env), so
+ * this pins the two things that ARE inspectable from JS: the actual per-star speed
+ * attribute the shader reads, and the tuned amplitude constants baked into the shader
+ * source string — both would fail loudly if either half of the fix were reverted.
+ */
+describe("starfield — twinkle speed/amplitude (flashing-stars fix)", () => {
+  it("every star's twinkle speed (aTw) falls in the new slow range, never the old fast one", () => {
+    const stars = makeStarfield(500);
+    const tw = stars.geometry.getAttribute("aTw").array as Float32Array;
+    expect(tw.length).toBe(500);
+    for (const v of tw) {
+      expect(v).toBeGreaterThanOrEqual(0.03);
+      expect(v).toBeLessThan(0.13); // 0.03 + up to 0.09, with float slack
+      expect(v).toBeLessThan(0.42); // never reaches the old (fast) range's floor
+    }
+  });
+
+  it("the shader's brightness swing is a subtle ~12%, not the old ~55% (0.45-1.0) range", () => {
+    const stars = makeStarfield(10);
+    const src = (stars.material as THREE.ShaderMaterial).vertexShader;
+    expect(src).toContain("0.88 + 0.12 *");
+    expect(src).not.toContain("0.45 + 0.55 *");
+  });
+
+  it("still exposes a working per-frame update (rotation + shader uniforms), unchanged by the tuning", () => {
+    const stars = makeStarfield(50);
+    const material = stars.material as THREE.ShaderMaterial;
+    stars.userData.update!(10, 0.5);
+    expect(material.uniforms.uTime!.value).toBe(10);
+    expect(stars.rotation.y).toBeCloseTo(10 * 0.004, 10);
   });
 });

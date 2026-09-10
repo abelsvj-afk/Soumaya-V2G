@@ -33,7 +33,15 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
     colors[i * 3 + 1] = c.g;
     colors[i * 3 + 2] = c.b;
     phase[i] = Math.random() * Math.PI * 2;
-    tw[i] = 0.42 + Math.random() * 1.7; // each twinkles at its own rate (eased ~30% slower)
+    // Galaxy render-recovery pass (2026-09-10): was 0.42-2.12 rad/s, a full
+    // bright-dim-bright sine cycle every ~3-15s per star. Across ~6500 independently-
+    // phased stars that read, in aggregate, as constant, fast, high-contrast flashing
+    // ("a light show," not a night sky) — confirmed as the sole cause by inspection: this
+    // is the ONLY per-frame driver of star brightness (vBright below), nothing else in
+    // this file touches it. Slowed by roughly an order of magnitude (52-209s per cycle —
+    // slow enough that a full swing is barely perceptible in a normal viewing session)
+    // so any remaining shimmer reads as gentle stellar scintillation, not animation.
+    tw[i] = 0.03 + Math.random() * 0.09;
     baseSize[i] = 2.0 + Math.random() * Math.random() * 6.0; // mostly small, a few big
   }
 
@@ -59,7 +67,10 @@ export function makeStarfield(count = 6500, spread = 7000): THREE.Points {
       varying vec3 vColor; varying float vBright;
       void main() {
         vColor = aColor;
-        vBright = 0.45 + 0.55 * (0.5 + 0.5 * sin(uTime * aTw + aPhase));
+        // Was 0.45-1.0 (a >2x peak-to-trough swing) — the other half of the flashing-
+        // stars bug alongside aTw above. Narrowed to a subtle 12% swing so most stars
+        // read as essentially steady, with only a faint shimmer at the slowed aTw rate.
+        vBright = 0.88 + 0.12 * (0.5 + 0.5 * sin(uTime * aTw + aPhase));
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         float att = 300.0 / max(1.0, -mv.z);
         gl_PointSize = max(1.0, aSize * att * (1.0 + uBlur * 5.0));

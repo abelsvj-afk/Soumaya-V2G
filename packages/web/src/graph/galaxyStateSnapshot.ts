@@ -154,45 +154,50 @@ function fmt(v: number | boolean | string | null): string {
   return v;
 }
 
+/** Every captured field, in a fixed, report-friendly order — the single source of truth
+ *  both `diffSnapshots` (comparison) and `formatFullSnapshotText` (complete raw dump)
+ *  build on, so the two views can never silently drift apart. */
+const SNAPSHOT_FIELDS: ReadonlyArray<[string, keyof GalaxyDiagSnapshot]> = [
+  ["tick p50 (ms)", "tickP50"],
+  ["render p50 (ms)", "renderP50"],
+  ["render p95 (ms)", "renderP95"],
+  ["present p50 (ms)", "presentP50"],
+  ["GPU p50 (ms)", "gpuP50"],
+  ["GPU timing supported", "gpuTimingSupported"],
+  ["composer.render() (ms)", "composerMs"],
+  ["RenderPass.render() (ms)", "renderPassMs"],
+  ["passes/composer frame", "passesInLastComposerFrame"],
+  ["draw calls", "drawCalls"],
+  ["triangles", "triangles"],
+  ["lines", "lines"],
+  ["points", "points"],
+  ["geometries", "geometries"],
+  ["textures", "textures"],
+  ["programs", "programs"],
+  ["program churn (session)", "programsChurnCount"],
+  ["canvas width", "canvasWidth"],
+  ["canvas height", "canvasHeight"],
+  ["pixel ratio", "pixelRatio"],
+  ["camera x", "cameraX"],
+  ["camera y", "cameraY"],
+  ["camera z", "cameraZ"],
+  ["total Object3Ds", "totalObject3Ds"],
+  ["visible Object3Ds", "visibleObject3Ds"],
+  ["transparent objects", "transparentObjects"],
+  ["tracked nodes", "trackedNodes"],
+  ["visible nodes", "visibleNodes"],
+  ["tracked links", "trackedLinks"],
+  ["visible links", "visibleLinks"],
+  ["visible labels", "visibleLabels"],
+  ["light pool size", "lightPoolSize"],
+  ["composer bypassed", "composerBypassed"],
+  ["bloom pass count", "bloomPassCount"],
+  ["refresh() calls (last 3s)", "refreshCallsLast3s"],
+];
+
 /** One row per field, in a fixed, report-friendly order. Pure — no DOM, no THREE. */
 export function diffSnapshots(bad: GalaxyDiagSnapshot, good: GalaxyDiagSnapshot): DiffRow[] {
-  const fields: Array<[string, keyof GalaxyDiagSnapshot]> = [
-    ["tick p50 (ms)", "tickP50"],
-    ["render p50 (ms)", "renderP50"],
-    ["render p95 (ms)", "renderP95"],
-    ["present p50 (ms)", "presentP50"],
-    ["GPU p50 (ms)", "gpuP50"],
-    ["composer.render() (ms)", "composerMs"],
-    ["RenderPass.render() (ms)", "renderPassMs"],
-    ["passes/composer frame", "passesInLastComposerFrame"],
-    ["draw calls", "drawCalls"],
-    ["triangles", "triangles"],
-    ["lines", "lines"],
-    ["points", "points"],
-    ["geometries", "geometries"],
-    ["textures", "textures"],
-    ["programs", "programs"],
-    ["program churn (session)", "programsChurnCount"],
-    ["canvas width", "canvasWidth"],
-    ["canvas height", "canvasHeight"],
-    ["pixel ratio", "pixelRatio"],
-    ["camera x", "cameraX"],
-    ["camera y", "cameraY"],
-    ["camera z", "cameraZ"],
-    ["total Object3Ds", "totalObject3Ds"],
-    ["visible Object3Ds", "visibleObject3Ds"],
-    ["transparent objects", "transparentObjects"],
-    ["tracked nodes", "trackedNodes"],
-    ["visible nodes", "visibleNodes"],
-    ["tracked links", "trackedLinks"],
-    ["visible links", "visibleLinks"],
-    ["visible labels", "visibleLabels"],
-    ["light pool size", "lightPoolSize"],
-    ["composer bypassed", "composerBypassed"],
-    ["bloom pass count", "bloomPassCount"],
-    ["refresh() calls (last 3s)", "refreshCallsLast3s"],
-  ];
-  return fields.map(([field, key]) => {
+  return SNAPSHOT_FIELDS.map(([field, key]) => {
     const b = bad[key] as number | boolean | string | null;
     const g = good[key] as number | boolean | string | null;
     return {
@@ -202,6 +207,25 @@ export function diffSnapshots(bad: GalaxyDiagSnapshot, good: GalaxyDiagSnapshot)
       notable: b !== g && !(b === null && g === null),
     };
   });
+}
+
+/**
+ * The COMPLETE raw snapshot for one captured state, as plain text — every field this
+ * module captures, not just what differs from another snapshot. This is what "Copy BAD"
+ * / "Copy GOOD" put on the clipboard (see SettingsPanel.tsx): each is independent of the
+ * other snapshot entirely, so pasting one into another tool (e.g. sharing just the bad
+ * reading) never depends on a comparison having been computed at all.
+ */
+export function formatFullSnapshotText(snap: GalaxyDiagSnapshot): string {
+  const lines: string[] = [];
+  lines.push(`Galaxy state snapshot — "${snap.label}"`);
+  lines.push(`Captured: ${new Date(snap.capturedAt).toLocaleString()}`);
+  lines.push("");
+  const width = Math.max(...SNAPSHOT_FIELDS.map(([field]) => field.length));
+  for (const [field, key] of SNAPSHOT_FIELDS) {
+    lines.push(`  ${field.padEnd(width)}  ${fmt(snap[key] as number | boolean | string | null)}`);
+  }
+  return lines.join("\n");
 }
 
 /** Human-readable comparison report — same convention as autoRenderDiag.ts's

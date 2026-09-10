@@ -8,6 +8,7 @@ import {
   isSnapshotCaptureAvailable,
   diffSnapshots,
   formatComparisonText,
+  formatFullSnapshotText,
   type GalaxyDiagSnapshot,
 } from "./galaxyStateSnapshot.js";
 
@@ -135,5 +136,41 @@ describe("formatComparisonText", () => {
     const snap = makeSnapshot();
     const text = formatComparisonText(snap, { ...snap });
     expect(text).toContain("No fields differed");
+  });
+});
+
+/** Diagnostic-retrieval fix (2026-09-10): "Copy BAD"/"Copy GOOD" each copy the COMPLETE
+ *  raw snapshot for their one state — every captured field, not just what differs from
+ *  another snapshot — so either can be pasted into another tool entirely on its own. */
+describe("formatFullSnapshotText", () => {
+  it("includes the label, a real timestamp, and every captured field's value", () => {
+    const snap = makeSnapshot({ label: "BAD", renderP50: 2800, drawCalls: 1066, composerBypassed: true, gpuP50: null });
+    const text = formatFullSnapshotText(snap);
+    expect(text).toContain("BAD");
+    expect(text).toContain(new Date(snap.capturedAt).toLocaleString());
+    // Spot-check fields spanning every category the task requires preserved: timing,
+    // renderer.info, canvas/camera, scene population, and composer/refresh state.
+    expect(text).toContain("render p50 (ms)");
+    expect(text).toContain("2800");
+    expect(text).toContain("draw calls");
+    expect(text).toContain("1066");
+    expect(text).toContain("camera x");
+    expect(text).toContain("visible Object3Ds");
+    expect(text).toContain("composer bypassed");
+    expect(text).toContain("yes"); // composerBypassed: true
+    expect(text).toContain("refresh() calls (last 3s)");
+    expect(text).toContain("GPU p50 (ms)");
+    expect(text).toContain("n/a"); // gpuP50: null
+  });
+
+  it("BAD and GOOD snapshots produce independent text — one never references the other", () => {
+    const bad = makeSnapshot({ label: "BAD", renderP50: 2800 });
+    const good = makeSnapshot({ label: "GOOD", renderP50: 12 });
+    const badText = formatFullSnapshotText(bad);
+    const goodText = formatFullSnapshotText(good);
+    expect(badText).toContain("2800");
+    expect(badText).not.toContain("GOOD");
+    expect(goodText).toContain("12");
+    expect(goodText).not.toContain("BAD");
   });
 });
