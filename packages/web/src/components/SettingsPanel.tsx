@@ -48,6 +48,13 @@ import {
   formatReportText,
   type AutoDiagReport,
 } from "../graph/autoRenderDiag.js";
+import {
+  captureGalaxySnapshot,
+  isSnapshotCaptureAvailable,
+  diffSnapshots,
+  formatComparisonText,
+  type GalaxyDiagSnapshot,
+} from "../graph/galaxyStateSnapshot.js";
 
 /** Was defined INSIDE SettingsPanel's render body — a fresh function identity on
  *  every render, which React treats as a brand-new component type. This panel
@@ -126,6 +133,12 @@ export function SettingsPanel({
   // state — the harness itself keeps running to completion regardless (it doesn't
   // depend on this panel staying open) and safely restores state either way.
   useEffect(() => () => setAutoDiagProgressListener(null), []);
+  // BAD-vs-GOOD state snapshot (galaxyStateSnapshot.ts) — no automation, no toggling:
+  // the user captures whatever state the Galaxy is ALREADY in, twice, once while it's
+  // bad and once after it's gone fast (e.g. opening a View/Lens). Kept in this panel's
+  // own state (not persisted) — a fresh comparison each time this panel is opened.
+  const [badSnapshot, setBadSnapshot] = useState<GalaxyDiagSnapshot | null>(null);
+  const [goodSnapshot, setGoodSnapshot] = useState<GalaxyDiagSnapshot | null>(null);
   const voiceSupported = isVoiceSupported();
   // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
   // resolveGraphics ignores it otherwise) so this label shows what's actually
@@ -554,6 +567,97 @@ export function SettingsPanel({
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+          <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #444" }}>
+            <p style={{ fontSize: "12px", opacity: 0.8, margin: "0 0 8px" }}>
+              <b>📸 BAD-vs-GOOD state snapshot</b> — captures whatever state the Galaxy is
+              already in, right now, with zero effect on the scene. Press "Capture BAD"
+              while the Galaxy is slow, then open a View/Lens (or do whatever normally
+              makes it fast) and press "Capture GOOD" — the two get compared field by
+              field below, so the real difference between the two states is visible
+              directly instead of guessed at.
+            </p>
+            <div className="row" style={{ gap: "8px", display: "flex", flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                onClick={() => {
+                  if (!isSnapshotCaptureAvailable()) {
+                    pushToast("Open the Galaxy view first, then capture from Settings.", "⚠️", 4000);
+                    return;
+                  }
+                  const snap = captureGalaxySnapshot("BAD");
+                  if (snap) setBadSnapshot(snap);
+                }}
+              >
+                📸 Capture BAD state
+              </button>
+              <button
+                onClick={() => {
+                  if (!isSnapshotCaptureAvailable()) {
+                    pushToast("Open the Galaxy view first, then capture from Settings.", "⚠️", 4000);
+                    return;
+                  }
+                  const snap = captureGalaxySnapshot("GOOD");
+                  if (snap) setGoodSnapshot(snap);
+                }}
+              >
+                📸 Capture GOOD state
+              </button>
+              {(badSnapshot || goodSnapshot) && (
+                <button
+                  onClick={() => {
+                    setBadSnapshot(null);
+                    setGoodSnapshot(null);
+                  }}
+                >
+                  Clear
+                </button>
+              )}
+              {badSnapshot && goodSnapshot && (
+                <button
+                  onClick={() => {
+                    const text = formatComparisonText(badSnapshot, goodSnapshot);
+                    navigator.clipboard
+                      .writeText(text)
+                      .then(() => pushToast("Comparison copied to clipboard.", "📋", 3000))
+                      .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
+                  }}
+                >
+                  Copy comparison
+                </button>
+              )}
+            </div>
+            {badSnapshot && !goodSnapshot && (
+              <p style={{ fontSize: "12px", marginTop: "8px" }}>
+                ✓ BAD state captured. Now reach the fast state (e.g. open a View/Lens) and capture GOOD.
+              </p>
+            )}
+            {!badSnapshot && goodSnapshot && (
+              <p style={{ fontSize: "12px", marginTop: "8px" }}>
+                ✓ GOOD state captured. Now reach the slow state and capture BAD.
+              </p>
+            )}
+            {badSnapshot && goodSnapshot && (
+              <div style={{ overflowX: "auto", marginTop: "10px" }}>
+                <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", padding: "4px" }}>Field</th>
+                      <th style={{ textAlign: "right", padding: "4px" }}>BAD</th>
+                      <th style={{ textAlign: "right", padding: "4px" }}>GOOD</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diffSnapshots(badSnapshot, goodSnapshot).map((r) => (
+                      <tr key={r.field} style={{ borderTop: "1px solid #444", fontWeight: r.notable ? 700 : 400 }}>
+                        <td style={{ padding: "4px" }}>{r.notable ? "≠ " : ""}{r.field}</td>
+                        <td style={{ textAlign: "right", padding: "4px" }}>{r.bad}</td>
+                        <td style={{ textAlign: "right", padding: "4px" }}>{r.good}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

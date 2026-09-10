@@ -19,6 +19,14 @@ import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepM
 import { shouldHideNodeBodyChild, DEFAULT_NODE_BODY_DIAG, type NodeBodyDiagConfig } from "./nodeBodyDiag.js";
 import { isComposerBypassEnabled, applyComposerBypass, setComposerBypassLive } from "./composerBypassDiag.js";
 import {
+  installComposerTrace,
+  installRenderPassTrace,
+  getLatestComposerMs,
+  getLatestRenderPassMs,
+  getPassesInLastComposerFrame,
+} from "./renderStageTrace.js";
+import { noteRefreshInvoked, registerSnapshotCapture, getRefreshCallsInWindow, type GalaxyDiagSnapshot } from "./galaxyStateSnapshot.js";
+import {
   buildRunPlan,
   computeVerdict,
   registerAutoDiagRunner,
@@ -604,6 +612,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         knownLinksRef.current = new Set(keys);
         knownNodesRef.current = new Set((data.nodes as any[]).map((n) => n.id));
         linksInitedRef.current = true;
+        noteRefreshInvoked(); // diagnostic-only — see galaxyStateSnapshot.ts
         fgRef.current?.refresh?.();
       }
     } else {
@@ -913,6 +922,73 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     });
     return () => registerGalaxyCounts(null);
   }, []);
+  // DIAGNOSTIC ONLY (galaxyStateSnapshot.ts) — the BAD-vs-GOOD forensic snapshot this
+  // pass adds. Pull-based, like registerGalaxyCounts just above: only invoked when the
+  // user presses "Capture" in Settings, never from either render loop, so it adds zero
+  // per-frame cost. Does ONE scene.traverse() for total/visible Object3D counts (the
+  // one piece registerGalaxyCounts doesn't already compute) — acceptable for an
+  // on-demand diagnostic action, not something that runs automatically or repeatedly.
+  useEffect(() => {
+    registerSnapshotCapture((label: string): GalaxyDiagSnapshot => {
+      const snap = perfSnapshot();
+      const gc = snap.galaxyCounts;
+      const cam = fgRef.current?.camera?.() as THREE.PerspectiveCamera | undefined;
+      const renderer = fgRef.current?.renderer?.() as THREE.WebGLRenderer | undefined;
+      const composer = fgRef.current?.postProcessingComposer?.() as { passes?: unknown[] } | undefined;
+      const sceneObj = fgRef.current?.scene?.();
+      let totalObject3Ds: number | null = null;
+      let visibleObject3Ds: number | null = null;
+      if (sceneObj) {
+        totalObject3Ds = 0;
+        visibleObject3Ds = 0;
+        sceneObj.traverse((o: THREE.Object3D) => {
+          totalObject3Ds!++;
+          if (o.visible) visibleObject3Ds!++;
+        });
+      }
+      const now = performance.now();
+      return {
+        capturedAt: Date.now(),
+        label,
+        tickP50: snap.tick.p50,
+        renderP50: snap.render.p50,
+        renderP95: snap.render.p95,
+        presentP50: snap.present.p50,
+        gpuP50: snap.gpu?.p50 ?? null,
+        gpuTimingSupported: snap.gpuTimingSupported,
+        composerMs: getLatestComposerMs(),
+        renderPassMs: getLatestRenderPassMs(),
+        passesInLastComposerFrame: getPassesInLastComposerFrame(),
+        drawCalls: snap.drawInfo?.calls ?? null,
+        triangles: snap.drawInfo?.triangles ?? null,
+        lines: snap.drawInfo?.lines ?? null,
+        points: snap.drawInfo?.points ?? null,
+        geometries: snap.memory?.geometries ?? null,
+        textures: snap.memory?.textures ?? null,
+        programs: snap.programs,
+        programsChurnCount: snap.programsChurnCount,
+        canvasWidth: renderer?.domElement?.width ?? null,
+        canvasHeight: renderer?.domElement?.height ?? null,
+        pixelRatio: renderer?.getPixelRatio?.() ?? null,
+        cameraX: cam?.position?.x ?? null,
+        cameraY: cam?.position?.y ?? null,
+        cameraZ: cam?.position?.z ?? null,
+        totalObject3Ds,
+        visibleObject3Ds,
+        transparentObjects: gc?.transparentObjects ?? null,
+        trackedNodes: gc?.trackedNodes ?? null,
+        visibleNodes: gc?.visibleNodes ?? null,
+        trackedLinks: gc?.trackedLinks ?? null,
+        visibleLinks: gc?.visibleLinks ?? null,
+        visibleLabels: gc?.visibleLabels ?? null,
+        lightPoolSize: gc?.lightPoolSize ?? null,
+        composerBypassed: isComposerBypassEnabled(),
+        bloomPassCount: composer?.passes?.length ?? null,
+        refreshCallsLast3s: getRefreshCallsInWindow(now),
+      };
+    });
+    return () => registerSnapshotCapture(null);
+  }, []);
   // Link LOD hysteresis: whether we're currently in the "fully zoomed in, every link
   // draws" state. A single hard threshold re-checked every frame flickers links on/off
   // whenever the camera orbits near that exact distance; this only flips once the camera
@@ -1078,6 +1154,20 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         } catch {
           /* composer not ready yet — bypass simply won't apply this session */
         }
+      }
+      // DIAGNOSTIC ONLY (renderStageTrace.ts) — always on, negligible cost (two
+      // performance.now() calls per composer/RenderPass call), same "patch once, keep
+      // forever" precedent as attachRenderer above. Times composer.render() as a whole
+      // and RenderPass.render() (the base scene draw) specifically, so a BAD-vs-GOOD
+      // snapshot comparison (galaxyStateSnapshot.ts) can distinguish "the composer's
+      // own pass-iteration/render-target bookkeeping is slow" from "the base scene
+      // draw itself is slow" without guessing.
+      installRenderPassTrace();
+      try {
+        const composer = fg.postProcessingComposer?.();
+        if (composer) installComposerTrace(composer);
+      } catch {
+        /* composer not ready yet — traced on the next mount/remount instead */
       }
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
@@ -1511,6 +1601,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // A freshly pulsed OR repaired connection is now fully fresh (Phase 3 decay) —
       // it flares bright, then eases back to its resting colour over time.
       linkHealthRef.current.set(key, Date.now());
+      noteRefreshInvoked(); // diagnostic-only — see galaxyStateSnapshot.ts
       f?.refresh?.(); // apply the fresh brightness immediately
       if (!f?.emitParticle) return;
       const l = (dataRef.current.links as any[]).find((x) => linkKey(x) === key);
@@ -1816,6 +1907,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
             const key = `stat.beacons_deployed.${spaceIdRef.current}`;
             localStorage.setItem(key, String(parseInt(localStorage.getItem(key) || "0", 10) + pending.length));
             // Force evaluate achievements in App
+            noteRefreshInvoked(); // diagnostic-only — see galaxyStateSnapshot.ts
             fgRef.current?.refresh?.();
           }
         }
