@@ -115,6 +115,17 @@ const REASCEND_BLOCK_MS = 4000;
 // unrelated later regression, e.g. the scene just got heavier for real reasons).
 const FAILED_ASCENT_WINDOW_MS = 15000;
 const FAILED_ASCENTS_TO_CEILING = 2;
+// A real-device report (~1-4fps against a 60fps target, i.e. workMs 15-60x over budget)
+// showed the normal ratchet is too slow for a CATASTROPHIC overage: one rung down every
+// two bad 2s windows means a device seeded deep in the ladder (e.g. a stale persisted
+// rung 3 from an earlier, also-bad session) needs 12+ real seconds to reach rung 0 —
+// longer than the ~19-20s test window this was actually observed in, and every second
+// spent mid-ratchet is still unusable. A single sample this far over target means the
+// current rung isn't just "a bit much," it's flatly wrong for this device right now, so
+// this jumps straight to `minRung` on the very FIRST such sample, no streak required —
+// same "react fast" reasoning as the ordinary descend, just skipping the ladder instead
+// of walking it one rung at a time when the gap is this large.
+const SEVERE_OVERAGE_RATIO = 2;
 
 export function initialState(seedRung: number, rungRange: [number, number]): AdaptiveState {
   const rung = clampRung(seedRung, rungRange);
@@ -150,6 +161,7 @@ export function step(state: AdaptiveState, sample: AdaptiveSample, rungRange: [n
   let { failedAscents, goodStreak, badStreak, movedDuringStreak, lastChangeAt, lastDescendFromRung, lastDescendAt, lastAscendToRung, lastAscendAt } = state;
 
   const over = sample.workMs > sample.targetMs;
+  const severelyOver = over && sample.workMs >= sample.targetMs * SEVERE_OVERAGE_RATIO;
   if (over) {
     badStreak += 1;
     goodStreak = 0;
@@ -162,7 +174,23 @@ export function step(state: AdaptiveState, sample: AdaptiveSample, rungRange: [n
 
   // Descend: react fast, no cooldown — protecting the user from a stall matters more
   // than avoiding a rung flap.
-  if (badStreak >= BAD_STREAK_TO_DESCEND && rung > minRung) {
+  if (severelyOver && rung > minRung) {
+    const from = rung;
+    rung = minRung;
+    // Same "did the last ascend just fail" bookkeeping as the ordinary one-rung descend
+    // below — only the immediately-preceding ascend can be blamed, not every rung this
+    // jump happens to skip past.
+    if (lastAscendToRung === from && sample.now - lastAscendAt < FAILED_ASCENT_WINDOW_MS) {
+      const fails = (failedAscents[from] ?? 0) + 1;
+      failedAscents = { ...failedAscents, [from]: fails };
+    }
+    goodStreak = 0;
+    badStreak = 0;
+    movedDuringStreak = false;
+    lastChangeAt = sample.now;
+    lastDescendFromRung = from;
+    lastDescendAt = sample.now;
+  } else if (badStreak >= BAD_STREAK_TO_DESCEND && rung > minRung) {
     const from = rung;
     rung = from - 1;
     // If we're bailing out of a rung shortly after climbing INTO it, that ascend didn't

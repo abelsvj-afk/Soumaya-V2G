@@ -17,7 +17,10 @@ function goodSample(now: number, cameraMoved = true): AdaptiveSample {
   return { workMs: 5, targetMs: 16, cameraMoved, now }; // plenty of headroom
 }
 function badSample(now: number): AdaptiveSample {
-  return { workMs: 30, targetMs: 16, cameraMoved: true, now }; // over budget
+  return { workMs: 30, targetMs: 16, cameraMoved: true, now }; // over budget, but not severely (1.875x)
+}
+function severeSample(now: number): AdaptiveSample {
+  return { workMs: 80, targetMs: 16, cameraMoved: true, now }; // catastrophic (5x) — a real ~1-4fps-against-60fps report
 }
 
 /** Drive N good samples spaced 1s apart, honoring the ascend cooldown by default. */
@@ -92,6 +95,58 @@ describe("adaptiveController — step() descend", () => {
     }
     // 6 bad windows, threshold 2 -> should have descended 3 times: 7->6->5->4
     expect(s.rung).toBe(4);
+  });
+});
+
+describe("adaptiveController — step() severe-overage fast descend", () => {
+  it("drops straight to the range floor on the very first severe sample, no streak required", () => {
+    let s = initialState(7, FULL_RANGE);
+    s = step(s, severeSample(1000), FULL_RANGE);
+    expect(s.rung).toBe(0); // one sample, not two — this is the whole point of the fast path
+  });
+
+  it("an ordinary (non-severe) overage still needs 2 consecutive bad windows, unaffected", () => {
+    let s = initialState(4, FULL_RANGE);
+    s = step(s, badSample(1000), FULL_RANGE); // 1.875x over — not severe
+    expect(s.rung).toBe(4);
+    s = step(s, badSample(2000), FULL_RANGE);
+    expect(s.rung).toBe(3); // ordinary one-rung descend, same as before this fix
+  });
+
+  it("treats exactly 2x target as severe (boundary is inclusive)", () => {
+    let s = initialState(5, FULL_RANGE);
+    s = step(s, { workMs: 32, targetMs: 16, cameraMoved: true, now: 1000 }, FULL_RANGE);
+    expect(s.rung).toBe(0);
+  });
+
+  it("just under the severe threshold falls back to the ordinary one-rung-per-2-windows ratchet", () => {
+    let s = initialState(5, FULL_RANGE);
+    s = step(s, { workMs: 31.9, targetMs: 16, cameraMoved: true, now: 1000 }, FULL_RANGE);
+    expect(s.rung).toBe(5); // first bad window alone isn't enough under the ordinary path
+    s = step(s, { workMs: 31.9, targetMs: 16, cameraMoved: true, now: 2000 }, FULL_RANGE);
+    expect(s.rung).toBe(4); // second bad window -> ordinary single-rung descend, not a jump to 0
+  });
+
+  it("never descends below the range floor", () => {
+    let s = initialState(0, FULL_RANGE);
+    s = step(s, severeSample(1000), FULL_RANGE);
+    expect(s.rung).toBe(0);
+  });
+
+  it("respects a narrowed range's floor, not the global minRung", () => {
+    let s = initialState(4, [2, MAX_RUNG]);
+    s = step(s, severeSample(1000), [2, MAX_RUNG]);
+    expect(s.rung).toBe(2);
+  });
+
+  it("counts a severe bail-out shortly after an ascend as a failed ascent, same as the ordinary path", () => {
+    let s = initialState(0, FULL_RANGE);
+    s = driveGood(s, 5, 0);
+    expect(s.rung).toBe(1);
+    const t = s.lastChangeAt + 500;
+    s = step(s, severeSample(t), FULL_RANGE);
+    expect(s.rung).toBe(0);
+    expect(s.failedAscents[1]).toBe(1);
   });
 });
 
