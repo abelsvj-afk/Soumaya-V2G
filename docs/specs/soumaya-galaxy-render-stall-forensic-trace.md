@@ -11,6 +11,13 @@
 > device/browser combination** — a real, confirmed negative result that closes off the
 > most direct CPU-vs-GPU instrument for this specific device (may still work on other
 > Android/Chrome/GPU combinations).
+>
+> **Update (same day) — the render-isolation sweep (§D) came back decisive.** Real
+> device data narrowed the culprit from "the whole scene" to "inside node-body
+> rendering," with a genuinely surprising superlinear interaction between two
+> sub-parts. See §F for the sweep results, the finer node-body sub-isolation
+> mechanism added to investigate it, and full answers to the node-material inspection
+> questions. Still forensic-only — no production rendering behavior changed.
 
 ## A. Exact render lifecycle (traced from source, not assumed)
 
@@ -219,3 +226,160 @@ the sweep and this instrumentation are both already shipped.
   already being done (open the HUD, copy).
 
 No rendering behavior, LOD threshold, budget, or material property was changed.
+
+---
+
+## F. Node-body sub-isolation follow-up (same day)
+
+### F.1 The sweep evidence
+
+Running the shipped render-isolation sweep on the same real device produced a genuinely
+decisive, and genuinely surprising, result:
+
+| Step | render p50 | present p50 | draw calls |
+|---|---|---|---|
+| Baseline | 115.7ms | 830.2ms | 220 |
+| Links off | 66.8ms | 881.3ms | 836 |
+| **Node bodies off** | **9.1ms** | 219.4ms | 231 |
+| Labels off | 9.0ms | 1714.3ms | 219 |
+| **Glow/corona/bloom off** | **10.7ms** | 803.4ms | 223 |
+| Journeys/Money/satellites/agents off | 7.9ms | 191.4ms | 208 |
+
+Node bodies OFF and Glow OFF are **each, independently, nearly a full collapse** back
+to baseline-normal (9-11ms) — despite hiding two **disjoint** sets of objects
+(`shouldHideNodeChild`'s "bodies" bucket = the full-detail mesh + rings + the
+macro-LOD sphere; "glow" bucket = glow/corona sprites + the asteroid-belt `Points`).
+Neither category is expensive **alone** relative to the OTHER category still being
+present — yet with **both** present (the baseline / normal case), render time is
+**~11x** either single-category measurement. This rules out a simple "sum of
+independent per-object costs" model and points at an interaction SPECIFIC to having
+both the opaque body meshes and the additive/transparent glow sprites in the scene
+together — not raw counts of either kind alone. (Draw-call counts drift a little
+between steps because each sweep step is its own page load with its own camera framing
+— expected and irrelevant next to an 11x time swing.)
+
+### F.2 Finer sub-isolation mechanism added this pass
+
+perfDiag.ts's existing 5 categories are **untouched** — per instruction, this is a
+separate, additive mechanism (`nodeBodyDiag.ts`) with its own config, wired into the
+SAME call sites in Graph3D.tsx via a small `isDiagForceHidden(child)` helper that ORs
+both mechanisms' decisions together. It classifies node-body children using ONLY tags/
+geometry-types nodeObject.ts already sets for other reasons (no new tags added there):
+
+| Sub-category | Detected by | Covers |
+|---|---|---|
+| `coreMesh` (item A) | `isFidelity` + is a `Mesh`, not a ring | star/planet/moon/asteroid body mesh |
+| `rings` (item B) | `geometry.type === "RingGeometry"` | gas-giant ring, action-item ring |
+| `glowSprites` (items C+D) | `userData.glowCacheKey != null` | glow **and** corona — see F.3, same object |
+| `asteroidBelt` (item E) | `type === "Points"` + `isFidelity` | the star-class asteroid-belt cloud |
+| `macro` | `isMacro` (existing tag) | the low-poly macro-LOD sphere |
+| `envMap` (item G) | scene-level, not per-child — see F.3 | `scene.environment` (PMREM) |
+
+The sweep (`galaxySweep.ts`) gained 6 new steps **appended after** the original 6 —
+`nodeCoreMesh`, `nodeRings`, `nodeGlowSprites`, `nodeAsteroidBelt`, `nodeMacro`,
+`nodeEnvMap` — driven by a new `getSweepNodeBodyConfig()` alongside the existing
+`getSweepDiagConfig()` (which returns the plain baseline config during these new steps
+— isolation happens entirely through the new mechanism for them). Every step, old and
+new, now also reports `programs`, `programsChurnCount`, and `transparentObjects`
+(perfStats.ts's own instrumentation from §E) so the next real-device run answers "which
+sub-part, and does it correlate with program count or transparency" in one pass.
+
+### F.3 Node-material inspection (answers to the 9 questions)
+
+Read directly from `nodeObject.ts` and `shaders.ts` (both in full):
+
+1. **Material class per component:**
+   - Star/planet body: `THREE.ShaderMaterial` (custom GLSL, `makeStarMaterial`/
+     `makePlanetMaterial` in shaders.ts).
+   - Moon/asteroid body, macro-LOD sphere, action-item core: `THREE.MeshStandardMaterial`.
+   - Rings (gas-giant, action-item): `THREE.MeshBasicMaterial`.
+   - Glow/corona sprite: `THREE.SpriteMaterial`.
+   - Asteroid belt: `THREE.PointsMaterial`.
+2. **Transmission:** confirmed absent — `grep -n "transmission"` across `nodeObject.ts`
+   and `shaders.ts` returns zero matches. No node-body material uses it (unlike the
+   Sun's separate `sun.glb`, already fixed earlier this program).
+3. **Transparency/alpha blending:** rings (`transparent: true`, `depthWrite: false`,
+   double-sided), glow/corona sprites (`transparent: true`, `depthWrite: false`, star
+   corona additionally `AdditiveBlending`), asteroid belt (`transparent: true`,
+   `opacity: 0.55`, `depthWrite: false`). The star/planet `ShaderMaterial` and the
+   moon/asteroid/macro/action-core `MeshStandardMaterial` are all opaque by
+   construction (no `transparent: true` set on any of them) — matches the existing
+   `isBody` tagging from the earlier link-flicker/early-Z fix this session.
+4. **Environment maps/refraction:** `grep -n "envMap"` across the same two files
+   returns zero matches — no node material sets one explicitly. **However**, a real,
+   previously-unexamined finding: `Graph3D.tsx` sets `scene.environment` (a PMREM of
+   `RoomEnvironment`) once at scene setup, and three.js auto-applies `scene.environment`
+   to **every** `MeshStandardMaterial` in the scene unless overridden — meaning the
+   moon/asteroid, macro-LOD, and action-item-core materials DO receive an implicit IBL
+   contribution (a real-ish extra texture sample + roughness-based mip lookup per
+   pixel), while the star/planet `ShaderMaterial` bodies never receive it (three.js only
+   auto-applies `scene.environment` to its own built-in lit materials). New `nodeEnvMap`
+   sweep step isolates this directly.
+5. **Custom `ShaderMaterial`:** yes, for star and planet bodies only (item 5). Their
+   fragment shaders bake the FBM octave count into the shader SOURCE per tier
+   (`STAR_OCTAVES`/`PLANET_OCTAVES` in shaders.ts) but colors are passed as UNIFORMS,
+   not baked into source — so, contrary to an earlier assumption in this
+   investigation, three.js's program cache should compile only **one** star program
+   and **one** planet program per active tier (uniform values don't change the cache
+   key), not one per node. If `programsChurnCount`/`programs` come back showing many
+   more distinct programs than that, the diversity is coming from elsewhere in the
+   scene (moon/macro/ring/glow/belt material-flag combinations, or non-node-body
+   objects), not from star/planet color variation — worth checking directly against
+   the new `programs` column once the sub-isolation sweep runs.
+6. **Material variants/programs from node bodies:** by the reasoning in #5, the
+   THEORETICAL minimum is small (≈2 for star+planet ShaderMaterial, plus a handful of
+   `MeshStandardMaterial`/`MeshBasicMaterial`/`SpriteMaterial`/`PointsMaterial`
+   structural variants) — not yet confirmed against the ACTUAL on-device `programs`
+   count broken down by sub-category, which is exactly what the new sweep steps
+   measure.
+7. **Are node-body materials mutated every frame?** Only `uTime`/`uBrightness`
+   UNIFORM values on the star/planet `ShaderMaterial`s (set every tick in Graph3D's
+   own loop) and the planet's `uSunDirView` uniform — uniform updates do **not**
+   trigger a program recompile or a `WebGLState` material-property re-check the way
+   changing `.transparent`/`.blending`/`.side` would. No node-body material's
+   structural properties (`transparent`, `blending`, `side`, `depthWrite`, `map`
+   presence) are ever reassigned after construction — confirmed by grep (§ previous
+   session's forensic trace already established this repo-wide for `.transparent =`/
+   `.blending =`/etc.; nothing new found specific to node bodies here).
+8. **Are node-body geometries recreated/uploaded during render?** No — `getGeometry()`
+   (nodeObject.ts) caches every sphere/icosahedron/octahedron by `type-size-segments`
+   key (`userData.shared = true`), built once at construction and reused across every
+   body of the same shape/size. Nothing re-triggers a geometry rebuild inside the
+   render loop.
+9. **Do node-body `renderOrder`/`depthWrite`/`depthTest`/`side` settings create
+   pathological overdraw?** No explicit `renderOrder` is set on any node-body object
+   (label sprites are the only thing in this file that sets `renderOrder`, to 999,
+   unrelated to bodies) — node bodies render in three.js's default opaque-queue order
+   (roughly front-to-back) and transparent-queue order (back-to-front) with no manual
+   override. Rings use `side: THREE.DoubleSide` (necessary — a flat ring plane would
+   otherwise disappear from one side) which doubles their own fragment cost but is a
+   tiny geometry (a few dozen fragments' worth on screen at these sizes) — not a
+   plausible driver of an 11x scene-wide swing on its own. **This item is the best
+   argument for the superlinear-interaction framing in F.1**: no single flag on either
+   side (body or glow) looks pathological in isolation; the cost shows up only when
+   both populations coexist, which points back at the render-QUEUE-level and/or
+   driver-level effects discussed in the original §C hypotheses, now scoped down to
+   specifically the moment both an opaque custom-shader body population and a
+   transparent/additive sprite population share the frame — exactly what the new
+   `nodeCoreMesh` and `nodeGlowSprites` sub-steps (run together vs. separately) can
+   confirm on the next device pass.
+
+### F.4 Updated next experiment
+
+Run the render-isolation sweep again (Settings → same button — it now includes the 6
+new steps automatically) and read, for **`nodeCoreMesh` off** and **`nodeGlowSprites`
+off** specifically: `render p50`, `programs`, `programsChurnCount`, and
+`transparentObjects`. Two outcomes settle this:
+
+- If `nodeCoreMesh off` alone reproduces the ~9-11ms collapse (same as the old
+  "bodies off" bucket) while `nodeGlowSprites off` alone does NOT — the core mesh
+  material/program cost is the real driver and the ring/macro/belt parts of the old
+  "bodies" bucket were incidental.
+- If NEITHER `nodeCoreMesh off` nor `nodeGlowSprites off` alone reproduces the
+  collapse as fully as the OLD coarse "bodies off"/"glow off" buckets did — the
+  interaction is specifically between the core mesh and the glow sprite (or between
+  their combination and the macro sphere/asteroid belt riding along in the same old
+  bucket), confirming the superlinear-interaction hypothesis from F.1/F.3-item-9
+  directly, and the next step becomes testing `nodeCoreMesh` + `nodeGlowSprites`
+  disabled TOGETHER (not yet a distinct sweep step — would need one added) against
+  either alone.

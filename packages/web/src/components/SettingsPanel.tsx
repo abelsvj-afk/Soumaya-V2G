@@ -377,7 +377,7 @@ export function SettingsPanel({
                       const text = sweepReport
                         .map(
                           (r) =>
-                            `${r.label}: present p50 ${r.presentP50.toFixed(1)}ms, render p50 ${r.renderP50.toFixed(1)}ms, tick p50 ${r.tickP50.toFixed(1)}ms, draw calls ${r.drawCalls ?? "?"}`,
+                            `${r.label}: present p50 ${r.presentP50.toFixed(1)}ms, render p50 ${r.renderP50.toFixed(1)}ms, tick p50 ${r.tickP50.toFixed(1)}ms, draw calls ${r.drawCalls ?? "?"}, programs ${r.programs ?? "?"} (churn ${r.programsChurnCount ?? "?"}), transparent objects ${r.transparentObjects ?? "?"}`,
                         )
                         .join("\n");
                       navigator.clipboard
@@ -410,6 +410,9 @@ export function SettingsPanel({
                     <th style={{ textAlign: "right", padding: "4px" }}>Render p50</th>
                     <th style={{ textAlign: "right", padding: "4px" }}>Tick p50</th>
                     <th style={{ textAlign: "right", padding: "4px" }}>Draw calls</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Programs</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Churn</th>
+                    <th style={{ textAlign: "right", padding: "4px" }}>Transparent</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -420,6 +423,9 @@ export function SettingsPanel({
                       <td style={{ textAlign: "right", padding: "4px" }}>{r.renderP50.toFixed(1)}ms</td>
                       <td style={{ textAlign: "right", padding: "4px" }}>{r.tickP50.toFixed(1)}ms</td>
                       <td style={{ textAlign: "right", padding: "4px" }}>{r.drawCalls ?? "?"}</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.programs ?? "?"}</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.programsChurnCount ?? "?"}</td>
+                      <td style={{ textAlign: "right", padding: "4px" }}>{r.transparentObjects ?? "?"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -69,9 +69,11 @@ describe("galaxySweep — getSweepDiagConfig", () => {
     expect(getSweepDiagConfig()).toEqual({ enabled: false, links: true, bodies: true, labels: true, glow: true, aux: true });
   });
 
-  it("each category step turns diagnostic mode on and hides exactly that one category", async () => {
+  it("each of the original 5 category steps turns diagnostic mode on and hides exactly that one category", async () => {
     const { getSweepDiagConfig, SWEEP_STEPS } = await import("./galaxySweep.js");
-    for (let i = 1; i < SWEEP_STEPS.length; i++) {
+    // Indices 1-5 are the original category steps (0 is baseline); indices 6+ are the
+    // node-body sub-isolation steps appended later, covered by their own describe block.
+    for (let i = 1; i <= 5; i++) {
       sessionStorage.setItem("galaxy.diagSweep", JSON.stringify({ step: i, results: [] }));
       const cfg = getSweepDiagConfig()!;
       const key = SWEEP_STEPS[i]!.key as "links" | "bodies" | "labels" | "glow" | "aux";
@@ -82,10 +84,57 @@ describe("galaxySweep — getSweepDiagConfig", () => {
       }
     }
   });
+
+  it("a node-body sub-isolation step leaves the ordinary diag config at the baseline (all on, disabled)", async () => {
+    const { getSweepDiagConfig, SWEEP_STEPS } = await import("./galaxySweep.js");
+    for (let i = 6; i < SWEEP_STEPS.length; i++) {
+      sessionStorage.setItem("galaxy.diagSweep", JSON.stringify({ step: i, results: [] }));
+      expect(getSweepDiagConfig()).toEqual({ enabled: false, links: true, bodies: true, labels: true, glow: true, aux: true });
+    }
+  });
+});
+
+describe("galaxySweep — getSweepNodeBodyConfig", () => {
+  it("returns null when no sweep is running", async () => {
+    const { getSweepNodeBodyConfig } = await import("./galaxySweep.js");
+    expect(getSweepNodeBodyConfig()).toBeNull();
+  });
+
+  it("returns null during every original-6 step (baseline + the 5 categories)", async () => {
+    const { getSweepNodeBodyConfig } = await import("./galaxySweep.js");
+    for (let i = 0; i <= 5; i++) {
+      sessionStorage.setItem("galaxy.diagSweep", JSON.stringify({ step: i, results: [] }));
+      expect(getSweepNodeBodyConfig()).toBeNull();
+    }
+  });
+
+  it("each node-body step turns it on and hides exactly its own field", async () => {
+    const { getSweepNodeBodyConfig, SWEEP_STEPS } = await import("./galaxySweep.js");
+    const fields = ["coreMesh", "rings", "glowSprites", "asteroidBelt", "macro", "envMap"] as const;
+    for (let i = 6; i < SWEEP_STEPS.length; i++) {
+      sessionStorage.setItem("galaxy.diagSweep", JSON.stringify({ step: i, results: [] }));
+      const cfg = getSweepNodeBodyConfig()!;
+      expect(cfg.enabled).toBe(true);
+      const offFields = fields.filter((f) => !cfg[f]);
+      expect(offFields).toHaveLength(1); // exactly one field is off per step
+      for (const f of fields) {
+        if (!offFields.includes(f)) expect(cfg[f]).toBe(true);
+      }
+    }
+  });
 });
 
 describe("galaxySweep — recordSweepMeasurement", () => {
-  const sample = { presentP50: 10, presentP95: 20, renderP50: 5, tickP50: 2, drawCalls: 500 };
+  const sample = {
+    presentP50: 10,
+    presentP95: 20,
+    renderP50: 5,
+    tickP50: 2,
+    drawCalls: 500,
+    programs: 12,
+    programsChurnCount: 0,
+    transparentObjects: 30,
+  };
 
   it("does nothing when no sweep is running", async () => {
     const { recordSweepMeasurement, getSweepReport } = await import("./galaxySweep.js");

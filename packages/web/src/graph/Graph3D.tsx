@@ -15,7 +15,8 @@ import * as THREE from "three";
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
 import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
-import { isSweepActive, getSweepDiagConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
+import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
+import { shouldHideNodeBodyChild, DEFAULT_NODE_BODY_DIAG } from "./nodeBodyDiag.js";
 import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
@@ -206,6 +207,18 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // active, driving the same underlying category flags across a sequence of page
   // reloads instead of a single manually-typed URL.
   const diag = getSweepDiagConfig() ?? getGalaxyDiagConfig();
+  // Node-body sub-isolation (forensic trace follow-up, nodeBodyDiag.ts) — a SEPARATE
+  // config from `diag` above, only ever driven by the sweep's `kind: "nodeBody"` steps
+  // (URL params never set this; there's no manual equivalent, matching this being a
+  // forensic-only addition rather than a general-purpose diagnostic surface).
+  const nodeBodyDiag = getSweepNodeBodyConfig() ?? DEFAULT_NODE_BODY_DIAG;
+  // Combines both diagnostic mechanisms' force-hide decisions for one child — used at
+  // every call site that previously checked only `diag.enabled && shouldHideNodeChild`,
+  // so a node-body sub-isolation step (nodeBodyDiag.enabled) hides its target the same
+  // way an ordinary perfDiag category does, without changing perfDiag's own behavior.
+  const isDiagForceHidden = (child: THREE.Object3D): boolean =>
+    (diag.enabled && shouldHideNodeChild(child, diag)) ||
+    (nodeBodyDiag.enabled && shouldHideNodeBodyChild(child, nodeBodyDiag));
   // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
   // architecture.md). Both read a cached URL param once per page load (same pattern as
   // `diag` above); `boundedLinksOn` defaults to false, so this whole feature is inert
@@ -237,6 +250,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           renderP50: snap.render.p50,
           tickP50: snap.tick.p50,
           drawCalls: snap.drawInfo?.calls ?? null,
+          programs: snap.programs,
+          programsChurnCount: snap.programsChurnCount,
+          transparentObjects: snap.galaxyCounts?.transparentObjects ?? null,
         });
       }, SWEEP_MEASURE_MS);
     }, SWEEP_WARMUP_MS);
@@ -851,7 +867,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // 0.04) reflects those panels as crisp, visible rectangles on any glTF PBR surface —
       // exactly the "square block of light" artifact reported on the sun. A heavy blur turns
       // that into the intended soft ambient sheen instead of a discrete rectangle.
-      scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.6).texture;
+      // Node-body sub-isolation item G: `scene.environment` is auto-applied by three.js
+      // to every MeshStandardMaterial in the scene (moon/asteroid rock, macro-LOD sphere,
+      // action-item core) but NOT to the star/planet bodies' raw ShaderMaterial, which
+      // never receives it. Skipping the assignment entirely for the "envMap off"
+      // sub-isolation step is a real, if blunt, isolation of that contribution.
+      if (nodeBodyDiag.envMap) {
+        scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.6).texture;
+      }
       pmrem.dispose(); // the generator's internal render targets are no longer needed
     } catch (err) {
       console.warn("[graph] environment map unavailable:", err);
@@ -1961,7 +1984,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           if (child.userData?.isSectorTitle) {
             // Galaxy Performance Isolation Mode: same reasoning as the other LOD/label
             // visibility guards in this loop — see the isFidelity/isMacro comment above.
-            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : isMacroView && !occludedBySun;
+            child.visible = isDiagForceHidden(child) ? false : isMacroView && !occludedBySun;
             if (child.visible) {
               const mat = child.material as THREE.SpriteMaterial;
               mat.opacity = 0.92;
@@ -2005,10 +2028,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           // shouldHideNodeChild check runs, so the normal (non-diagnostic) path pays
           // only one extra cached-boolean read per applicable child, same as before.
           if (child.userData?.isFidelity) {
-            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : !isMacroView;
+            child.visible = isDiagForceHidden(child) ? false : !isMacroView;
           }
           if (child.userData?.isMacro) {
-            child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : isMacroView;
+            child.visible = isDiagForceHidden(child) ? false : isMacroView;
           }
 
           if (isCulled) {
@@ -2044,7 +2067,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
               // above — this line otherwise reassigns label visibility every frame,
               // fighting the one-time diagnostic hide. `diag.enabled &&` short-circuits
               // to zero added cost in the normal (non-diagnostic) path.
-              child.visible = diag.enabled && shouldHideNodeChild(child, diag) ? false : labelVis > 0.02;
+              child.visible = isDiagForceHidden(child) ? false : labelVis > 0.02;
               if (child.visible) {
                 const mat = child.material as THREE.SpriteMaterial;
                 mat.opacity = labelVis * 0.95;
@@ -3224,9 +3247,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // hidden (not removed/disposed) for any diagnostically-disabled category. This
       // result gets cached below like any other node build, so it costs nothing on
       // subsequent cache hits.
-      if (diag.enabled) {
+      if (diag.enabled || nodeBodyDiag.enabled) {
         for (const child of obj.children) {
-          if (shouldHideNodeChild(child, diag)) child.visible = false;
+          if (isDiagForceHidden(child)) child.visible = false;
         }
       }
       nodeThreeObjCacheRef.current.set(node.id, { obj, key: cacheKey });

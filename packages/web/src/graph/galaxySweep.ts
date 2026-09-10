@@ -1,4 +1,5 @@
 import type { GalaxyDiagConfig } from "./perfDiag.js";
+import type { NodeBodyDiagConfig } from "./nodeBodyDiag.js";
 
 /**
  * Galaxy render-isolation sweep — an automatic, single-button alternative to
@@ -19,18 +20,39 @@ import type { GalaxyDiagConfig } from "./perfDiag.js";
  * render time, if any does.
  */
 
-export interface SweepStepDef {
-  key: "baseline" | "links" | "bodies" | "labels" | "glow" | "aux";
-  label: string;
-}
+/** The original 6 steps (perfDiag.ts's coarse categories). Unchanged since these were
+ *  first added — do not edit; see NODE_BODY_STEP_KEYS below for the forensic-follow-up
+ *  extension appended after them. */
+export type DiagStepKey = "baseline" | "links" | "bodies" | "labels" | "glow" | "aux";
+/** Node-body sub-isolation (forensic trace follow-up, 2026-09-10) — see nodeBodyDiag.ts
+ *  for what each of these actually hides. Appended AFTER the original 6 steps; none of
+ *  those steps' definitions or behavior changed. */
+export type NodeBodyStepKey =
+  | "nodeCoreMesh"
+  | "nodeRings"
+  | "nodeGlowSprites"
+  | "nodeAsteroidBelt"
+  | "nodeMacro"
+  | "nodeEnvMap";
+
+export type SweepStepDef =
+  | { kind: "category"; key: DiagStepKey; label: string }
+  | { kind: "nodeBody"; key: NodeBodyStepKey; label: string };
 
 export const SWEEP_STEPS: readonly SweepStepDef[] = [
-  { key: "baseline", label: "Baseline (everything on)" },
-  { key: "links", label: "Links off" },
-  { key: "bodies", label: "Node bodies off" },
-  { key: "labels", label: "Labels off" },
-  { key: "glow", label: "Glow / corona / bloom off" },
-  { key: "aux", label: "Journeys / Money-sky / satellites / agents off" },
+  { kind: "category", key: "baseline", label: "Baseline (everything on)" },
+  { kind: "category", key: "links", label: "Links off" },
+  { kind: "category", key: "bodies", label: "Node bodies off" },
+  { kind: "category", key: "labels", label: "Labels off" },
+  { kind: "category", key: "glow", label: "Glow / corona / bloom off" },
+  { kind: "category", key: "aux", label: "Journeys / Money-sky / satellites / agents off" },
+  // --- Node-body sub-isolation (forensic trace follow-up) — appended, not inserted ---
+  { kind: "nodeBody", key: "nodeCoreMesh", label: "Node-body: core mesh/material off" },
+  { kind: "nodeBody", key: "nodeRings", label: "Node-body: rings off" },
+  { kind: "nodeBody", key: "nodeGlowSprites", label: "Node-body: glow/corona sprites off" },
+  { kind: "nodeBody", key: "nodeAsteroidBelt", label: "Node-body: asteroid belt off" },
+  { kind: "nodeBody", key: "nodeMacro", label: "Node-body: macro-LOD sphere off" },
+  { kind: "nodeBody", key: "nodeEnvMap", label: "Node-body: scene environment map off" },
 ];
 
 export interface SweepMeasurement {
@@ -39,6 +61,12 @@ export interface SweepMeasurement {
   renderP50: number;
   tickP50: number;
   drawCalls: number | null;
+  /** Added alongside the node-body sub-isolation steps, but populated for EVERY step
+   *  (including the original 6) — a uniform report is more useful than a gap, and this
+   *  is purely additional data, not a change to what any step toggles. */
+  programs: number | null;
+  programsChurnCount: number | null;
+  transparentObjects: number | null;
 }
 
 export interface SweepResult extends SweepMeasurement {
@@ -122,19 +150,55 @@ export function cancelSweep(): void {
 /**
  * The GalaxyDiagConfig for the CURRENT sweep step, or `null` if no sweep is running —
  * callers should fall back to the normal (URL-based) `getGalaxyDiagConfig()` in that
- * case, exactly as if this module didn't exist.
+ * case, exactly as if this module didn't exist. During a `kind: "nodeBody"` step (see
+ * `getSweepNodeBodyConfig` below), this returns the same all-on config as the baseline
+ * step — isolation for those steps happens entirely through the node-body config, not
+ * this one.
  */
 export function getSweepDiagConfig(): GalaxyDiagConfig | null {
   const p = readProgress();
   if (!p || p.step >= SWEEP_STEPS.length) return null;
   const step = SWEEP_STEPS[p.step]!;
   const cfg: GalaxyDiagConfig = { enabled: true, links: true, bodies: true, labels: true, glow: true, aux: true };
-  if (step.key === "baseline") {
-    // `enabled: false` — not "diagnostic mode on with everything on" — so the baseline
-    // measurement reflects the exact same code path a normal (non-sweep) load takes.
+  if (step.kind === "nodeBody" || step.key === "baseline") {
+    // `enabled: false` — not "diagnostic mode on with everything on" — so this
+    // measurement reflects the exact same code path a normal (non-sweep) load takes,
+    // for anything perfDiag.ts's own categories control.
     return { ...cfg, enabled: false };
   }
   cfg[step.key] = false;
+  return cfg;
+}
+
+/**
+ * The NodeBodyDiagConfig for the CURRENT sweep step, or `null` if no sweep is running
+ * OR the current step isn't a `kind: "nodeBody"` step (i.e. every original-6 step,
+ * including baseline). Callers should fall back to `DEFAULT_NODE_BODY_DIAG` (all on,
+ * `enabled: false`) in that case.
+ */
+export function getSweepNodeBodyConfig(): NodeBodyDiagConfig | null {
+  const p = readProgress();
+  if (!p || p.step >= SWEEP_STEPS.length) return null;
+  const step = SWEEP_STEPS[p.step]!;
+  if (step.kind !== "nodeBody") return null;
+  const cfg: NodeBodyDiagConfig = {
+    enabled: true,
+    coreMesh: true,
+    rings: true,
+    glowSprites: true,
+    asteroidBelt: true,
+    macro: true,
+    envMap: true,
+  };
+  const field: Record<NodeBodyStepKey, keyof Omit<NodeBodyDiagConfig, "enabled">> = {
+    nodeCoreMesh: "coreMesh",
+    nodeRings: "rings",
+    nodeGlowSprites: "glowSprites",
+    nodeAsteroidBelt: "asteroidBelt",
+    nodeMacro: "macro",
+    nodeEnvMap: "envMap",
+  };
+  cfg[field[step.key]] = false;
   return cfg;
 }
 
