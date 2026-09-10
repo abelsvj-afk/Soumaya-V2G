@@ -1,14 +1,20 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { isComposerBypassEnabled, setComposerBypassEnabled, applyComposerBypass } from "./composerBypassDiag.js";
+import {
+  isComposerBypassEnabled,
+  setComposerBypassEnabled,
+  applyComposerBypass,
+  setComposerBypassLive,
+} from "./composerBypassDiag.js";
 
 /**
  * Composer-bypass diagnostic (render-stall investigation, 2026-09-10). Verifies:
  * (a) the persisted toggle round-trips through localStorage like the established
- * boundedLinks/lite-mode pattern, defaulting OFF; (b) `applyComposerBypass` replaces
- * the composer's own `.render()` with EXACTLY one `renderer.render(scene, camera)`
- * call, and is idempotent per composer instance (a WeakSet, matching perfStats.ts's
- * own `patchedRenderers` precedent) so a remount with a fresh composer still gets
- * patched.
+ * boundedLinks/lite-mode pattern, defaulting OFF; (b) the bypass replaces the
+ * composer's own `.render()` with EXACTLY one `renderer.render(scene, camera)` call;
+ * (c) `setComposerBypassLive` can be flipped on and back off any number of times in
+ * one session (the automated in-session diagnostic harness's core requirement — no
+ * reload between conditions), always restoring the EXACT original render function,
+ * not just "some" restored behavior.
  */
 
 beforeEach(() => {
@@ -59,20 +65,6 @@ describe("composerBypassDiag — applyComposerBypass", () => {
     expect(original).not.toHaveBeenCalled();
   });
 
-  it("is idempotent per composer instance — re-applying doesn't double-wrap or change behavior", () => {
-    const renderCalls: unknown[] = [];
-    const composer = { render: vi.fn() };
-    const renderer = { render: () => renderCalls.push("call") };
-
-    applyComposerBypass(composer, renderer, {}, {});
-    const patchedOnce = composer.render;
-    applyComposerBypass(composer, renderer, {}, {}); // same composer instance again
-
-    expect(composer.render).toBe(patchedOnce); // not re-wrapped
-    composer.render();
-    expect(renderCalls).toHaveLength(1); // still exactly one render() per call, not two
-  });
-
   it("patches a DIFFERENT composer instance independently (e.g. after a remount)", () => {
     const rendererA = { render: vi.fn() };
     const rendererB = { render: vi.fn() };
@@ -86,5 +78,70 @@ describe("composerBypassDiag — applyComposerBypass", () => {
 
     expect(rendererA.render).toHaveBeenCalledTimes(1);
     expect(rendererB.render).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("composerBypassDiag — setComposerBypassLive (in-session, reload-free toggling)", () => {
+  it("turning it on then off restores the EXACT original render function", () => {
+    const original = vi.fn();
+    const composer = { render: original };
+    const renderer = { render: vi.fn() };
+
+    setComposerBypassLive(composer, renderer, {}, {}, true);
+    expect(composer.render).not.toBe(original);
+    setComposerBypassLive(composer, renderer, {}, {}, false);
+    expect(composer.render).toBe(original); // the real pass-iteration logic, byte-identical
+  });
+
+  it("can be flipped on/off repeatedly within one session without losing the original", () => {
+    const original = vi.fn();
+    const composer = { render: original };
+    const renderer = { render: vi.fn() };
+
+    for (let i = 0; i < 5; i++) {
+      setComposerBypassLive(composer, renderer, {}, {}, true);
+      setComposerBypassLive(composer, renderer, {}, {}, false);
+    }
+    expect(composer.render).toBe(original);
+  });
+
+  it("while ON, calling composer.render() calls renderer.render(scene, camera) exactly once", () => {
+    const composer = { render: vi.fn() };
+    const renderer = { render: vi.fn() };
+    const scene = { tag: "scene" };
+    const camera = { tag: "camera" };
+
+    setComposerBypassLive(composer, renderer, scene, camera, true);
+    composer.render();
+
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(renderer.render).toHaveBeenCalledWith(scene, camera);
+  });
+
+  it("while OFF (never turned on), composer.render() is untouched", () => {
+    const original = vi.fn();
+    const composer = { render: original };
+    const renderer = { render: vi.fn() };
+
+    setComposerBypassLive(composer, renderer, {}, {}, false);
+    expect(composer.render).toBe(original);
+    composer.render();
+    expect(renderer.render).not.toHaveBeenCalled();
+  });
+
+  it("independently toggles two different composer instances", () => {
+    const originalA = vi.fn();
+    const originalB = vi.fn();
+    const composerA = { render: originalA };
+    const composerB = { render: originalB };
+    const rendererA = { render: vi.fn() };
+    const rendererB = { render: vi.fn() };
+
+    setComposerBypassLive(composerA, rendererA, {}, {}, true);
+    // composerB never touched — must stay exactly as it was.
+    expect(composerB.render).toBe(originalB);
+
+    setComposerBypassLive(composerA, rendererA, {}, {}, false);
+    expect(composerA.render).toBe(originalA);
   });
 });

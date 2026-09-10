@@ -14,10 +14,21 @@ import * as THREE from "three";
 // (Post-MVP D4 split); behaviour unchanged.
 import { LINK_LOD_MIN, LINK_LOD_ZOOM, LINK_LOD_CUTOFF, linkEnd, linkKey, updateFigurine, disposeObject3D, isNodeCacheEntryValid, shouldApplyPixelRatio, highlightMaterialState, computeGlowFar } from "./graph3dHelpers.js";
 import { CurvedLinkGeometryCache, type LinkPositions } from "./linkTube.js";
-import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay } from "./perfDiag.js";
+import { getGalaxyDiagConfig, shouldHideNodeChild, mountGalaxyDiagOverlay, type GalaxyDiagConfig } from "./perfDiag.js";
 import { isSweepActive, getSweepDiagConfig, getSweepNodeBodyConfig, recordSweepMeasurement, SWEEP_WARMUP_MS, SWEEP_MEASURE_MS } from "./galaxySweep.js";
-import { shouldHideNodeBodyChild, DEFAULT_NODE_BODY_DIAG } from "./nodeBodyDiag.js";
-import { isComposerBypassEnabled, applyComposerBypass } from "./composerBypassDiag.js";
+import { shouldHideNodeBodyChild, DEFAULT_NODE_BODY_DIAG, type NodeBodyDiagConfig } from "./nodeBodyDiag.js";
+import { isComposerBypassEnabled, applyComposerBypass, setComposerBypassLive } from "./composerBypassDiag.js";
+import {
+  buildRunPlan,
+  computeVerdict,
+  registerAutoDiagRunner,
+  reportAutoDiagProgress,
+  AUTO_DIAG_WARMUP_MS,
+  AUTO_DIAG_MEASURE_MS,
+  type AutoDiagConditionKey,
+  type AutoDiagRunner,
+  type AutoDiagStepResult,
+} from "./autoRenderDiag.js";
 import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type LinkSelectionInput } from "./renderModel.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
@@ -26,7 +37,7 @@ import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
 import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
-import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot, registerGalaxyCounts } from "./perfStats.js";
+import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot, registerGalaxyCounts, getRendererPixelRatio } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
@@ -213,13 +224,33 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // (URL params never set this; there's no manual equivalent, matching this being a
   // forensic-only addition rather than a general-purpose diagnostic surface).
   const nodeBodyDiag = getSweepNodeBodyConfig() ?? DEFAULT_NODE_BODY_DIAG;
+  // Automated in-session diagnostic harness (autoRenderDiag.ts) — the ONLY thing that
+  // ever sets these, mid-session, with no reload. Unlike `diag`/`nodeBodyDiag` above
+  // (deliberately read once at mount — see their own comments), the harness needs to
+  // flip categories on and off repeatedly within ONE page load, since a reload-based
+  // sweep re-frames the camera and resets JIT/thermal state between every condition,
+  // which is exactly what made the earlier reload-based sweep's results non-monotonic.
+  // `null` (the default, every normal page load) means "no override" — see
+  // isDiagForceHidden below for why that keeps the normal path fully allocation-free.
+  const liveDiagOverrideRef = useRef<Partial<GalaxyDiagConfig> | null>(null);
+  const liveNodeBodyOverrideRef = useRef<Partial<NodeBodyDiagConfig> | null>(null);
   // Combines both diagnostic mechanisms' force-hide decisions for one child — used at
   // every call site that previously checked only `diag.enabled && shouldHideNodeChild`,
   // so a node-body sub-isolation step (nodeBodyDiag.enabled) hides its target the same
   // way an ordinary perfDiag category does, without changing perfDiag's own behavior.
-  const isDiagForceHidden = (child: THREE.Object3D): boolean =>
-    (diag.enabled && shouldHideNodeChild(child, diag)) ||
-    (nodeBodyDiag.enabled && shouldHideNodeBodyChild(child, nodeBodyDiag));
+  // The live-override merge only allocates while the automated harness is actively
+  // running (both refs non-null) — every normal page load takes the exact same
+  // zero-allocation path this always has.
+  const isDiagForceHidden = (child: THREE.Object3D): boolean => {
+    const dOverride = liveDiagOverrideRef.current;
+    const effDiag = dOverride ? { ...diag, ...dOverride } : diag;
+    const nbOverride = liveNodeBodyOverrideRef.current;
+    const effNodeBody = nbOverride ? { ...nodeBodyDiag, ...nbOverride } : nodeBodyDiag;
+    return (
+      (effDiag.enabled && shouldHideNodeChild(child, effDiag)) ||
+      (effNodeBody.enabled && shouldHideNodeBodyChild(child, effNodeBody))
+    );
+  };
   // Phase 2.1 bounded Detailed-link selection (soumaya-galaxy-bounded-render-
   // architecture.md). Both read a cached URL param once per page load (same pattern as
   // `diag` above); `boundedLinksOn` defaults to false, so this whole feature is inert
@@ -262,6 +293,114 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       window.clearTimeout(warmupTimer);
       if (measureTimer !== undefined) window.clearTimeout(measureTimer);
     };
+  }, []);
+  // Automated in-session render-stall diagnostic (autoRenderDiag.ts). Registers the
+  // actual stepping logic — building the randomized run plan, applying each condition
+  // LIVE via the refs above (no reload, no camera move, same warmed-up JS/thermal
+  // state throughout, see that file's module doc for why this replaces the earlier
+  // reload-based sweep), measuring, and restoring everything to how it was before the
+  // run started. Registration itself costs nothing until someone actually calls
+  // `runAutoDiag()` from Settings.
+  useEffect(() => {
+    const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+    const applyCondition = (
+      key: AutoDiagConditionKey,
+      composer: { render: (dt?: number) => void } | undefined,
+      renderer: THREE.WebGLRenderer,
+      sceneObj: THREE.Scene,
+      cameraObj: THREE.Camera,
+    ) => {
+      // Every condition starts from the same clean slate — "everything on, composer
+      // normal" — then layers its one change on top, so conditions never compound.
+      liveDiagOverrideRef.current = { enabled: false };
+      liveNodeBodyOverrideRef.current = { enabled: false };
+      if (composer) setComposerBypassLive(composer, renderer, sceneObj, cameraObj, false);
+
+      switch (key) {
+        case "baseline":
+          break; // the clean slate above IS the baseline
+        case "composerBypass":
+          if (composer) setComposerBypassLive(composer, renderer, sceneObj, cameraObj, true);
+          break;
+        case "nodeCoreMesh":
+          liveNodeBodyOverrideRef.current = { enabled: true, coreMesh: false, rings: true, glowSprites: true, asteroidBelt: true, macro: true };
+          break;
+        case "nodeRings":
+          liveNodeBodyOverrideRef.current = { enabled: true, coreMesh: true, rings: false, glowSprites: true, asteroidBelt: true, macro: true };
+          break;
+        case "nodeGlowSprites":
+          liveNodeBodyOverrideRef.current = { enabled: true, coreMesh: true, rings: true, glowSprites: false, asteroidBelt: true, macro: true };
+          break;
+        case "nodeAsteroidBelt":
+          liveNodeBodyOverrideRef.current = { enabled: true, coreMesh: true, rings: true, glowSprites: true, asteroidBelt: false, macro: true };
+          break;
+        case "nodeMacro":
+          liveNodeBodyOverrideRef.current = { enabled: true, coreMesh: true, rings: true, glowSprites: true, asteroidBelt: true, macro: false };
+          break;
+      }
+    };
+
+    const run: AutoDiagRunner = async () => {
+      const startedAt = Date.now();
+      const fgNow = fgRef.current;
+      const renderer = fgNow?.renderer?.() as THREE.WebGLRenderer | undefined;
+      const sceneObj = fgNow?.scene?.() as THREE.Scene | undefined;
+      const cameraObj = fgNow?.camera?.() as THREE.Camera | undefined;
+      const composer = fgNow?.postProcessingComposer?.() as { render: (dt?: number) => void } | undefined;
+      // The persisted Settings choice — restored at the end regardless of what this
+      // run does mid-flight, so the harness never leaves the app in a different
+      // steady state than the user had chosen before pressing the button.
+      const persistedComposerBypass = isComposerBypassEnabled();
+
+      const plan = buildRunPlan();
+      const steps: AutoDiagStepResult[] = [];
+
+      try {
+        for (let i = 0; i < plan.length; i++) {
+          const cond = plan[i]!;
+          reportAutoDiagProgress(cond.label, i + 1, plan.length);
+          if (renderer && sceneObj && cameraObj) {
+            applyCondition(cond.key, composer, renderer, sceneObj, cameraObj);
+          }
+          await sleep(AUTO_DIAG_WARMUP_MS);
+          resetPerfStats();
+          await sleep(AUTO_DIAG_MEASURE_MS);
+          const snap = perfSnapshot();
+          steps.push({
+            key: cond.key,
+            label: cond.label,
+            isBaseline: cond.key === "baseline",
+            index: i,
+            sample: {
+              renderP50: snap.render.p50,
+              renderP95: snap.render.p95,
+              presentP50: snap.present.p50,
+              tickP50: snap.tick.p50,
+              drawCalls: snap.drawInfo?.calls ?? null,
+              triangles: snap.drawInfo?.triangles ?? null,
+              programs: snap.programs,
+              programsChurnCount: snap.programsChurnCount,
+              transparentObjects: snap.galaxyCounts?.transparentObjects ?? null,
+              dpr: getRendererPixelRatio(),
+            },
+          });
+        }
+      } finally {
+        // Always restore, even if the run threw or the tab was hidden mid-run —
+        // never leave the app parked in a diagnostic condition.
+        liveDiagOverrideRef.current = null;
+        liveNodeBodyOverrideRef.current = null;
+        if (composer && renderer && sceneObj && cameraObj) {
+          setComposerBypassLive(composer, renderer, sceneObj, cameraObj, persistedComposerBypass);
+        }
+      }
+
+      return { steps, verdict: computeVerdict(steps), startedAt, finishedAt: Date.now() };
+    };
+
+    registerAutoDiagRunner(run);
+    return () => registerAutoDiagRunner(null);
   }, []);
   // The currently-selected Detailed-tier link set, or null when bounded selection is
   // off/not yet computed — `linkVisibility` below falls back to today's exact unbounded

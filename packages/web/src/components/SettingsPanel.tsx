@@ -41,6 +41,13 @@ import {
   type SweepResult,
 } from "../graph/galaxySweep.js";
 import { isComposerBypassEnabled, setComposerBypassEnabled } from "../graph/composerBypassDiag.js";
+import {
+  runAutoDiag,
+  isAutoDiagAvailable,
+  setAutoDiagProgressListener,
+  formatReportText,
+  type AutoDiagReport,
+} from "../graph/autoRenderDiag.js";
 
 /** Was defined INSIDE SettingsPanel's render body — a fresh function identity on
  *  every render, which React treats as a brand-new component type. This panel
@@ -110,6 +117,15 @@ export function SettingsPanel({
   // Diagnostic-only (composerBypassDiag.ts) — off by default; see that file's doc
   // comment. Same reload-after-toggle convention as boundedLinksOn just below.
   const [composerBypassOn, setComposerBypassOnState] = useState(isComposerBypassEnabled());
+  // Automated in-session diagnostic (autoRenderDiag.ts) — runs entirely within THIS
+  // page load (no reload between conditions, see that file's doc comment for why).
+  const [autoDiagRunning, setAutoDiagRunning] = useState(false);
+  const [autoDiagProgress, setAutoDiagProgressState] = useState<string | null>(null);
+  const [autoDiagReport, setAutoDiagReport] = useState<AutoDiagReport | null>(null);
+  // If this panel closes mid-run, stop pushing progress updates into now-unmounted
+  // state — the harness itself keeps running to completion regardless (it doesn't
+  // depend on this panel staying open) and safely restores state either way.
+  useEffect(() => () => setAutoDiagProgressListener(null), []);
   const voiceSupported = isVoiceSupported();
   // Stage 6: reflect the adaptive controller's last-persisted rung (auto mode only —
   // resolveGraphics ignores it otherwise) so this label shows what's actually
@@ -460,6 +476,87 @@ export function SettingsPanel({
               <span className="knob" />
             </button>
           </label>
+          <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid #444" }}>
+            <p style={{ fontSize: "12px", opacity: 0.8, margin: "0 0 8px" }}>
+              <b>▶ Automated diagnostic</b> — runs a full render-category comparison
+              entirely in THIS page load (no reloads, same camera the whole time), so a
+              real culprit shows up as a clear, repeatable timing drop instead of the
+              noisy readings a reload-based test can produce. Takes about a minute; just
+              press the button and wait — no other steps needed.
+            </p>
+            <div className="row" style={{ gap: "8px", display: "flex", flexWrap: "wrap", alignItems: "center" }}>
+              <button
+                disabled={autoDiagRunning}
+                onClick={async () => {
+                  if (!isAutoDiagAvailable()) {
+                    pushToast("Open the Galaxy view first, then run this from Settings.", "⚠️", 4000);
+                    return;
+                  }
+                  setAutoDiagRunning(true);
+                  setAutoDiagReport(null);
+                  setAutoDiagProgressListener((label, step, total) => setAutoDiagProgressState(`Step ${step}/${total}: ${label}`));
+                  try {
+                    const report = await runAutoDiag();
+                    if (report) setAutoDiagReport(report);
+                    else pushToast("Diagnostic couldn't run — open the Galaxy view first.", "⚠️", 4000);
+                  } finally {
+                    setAutoDiagProgressListener(null);
+                    setAutoDiagProgressState(null);
+                    setAutoDiagRunning(false);
+                  }
+                }}
+              >
+                {autoDiagRunning ? "Running…" : "Run automated diagnostic (~1 min)"}
+              </button>
+              {autoDiagReport && !autoDiagRunning && (
+                <button
+                  onClick={() => {
+                    const text = formatReportText(autoDiagReport.steps, autoDiagReport.verdict);
+                    navigator.clipboard
+                      .writeText(text)
+                      .then(() => pushToast("Diagnostic report copied to clipboard.", "📋", 3000))
+                      .catch(() => pushToast("Couldn't copy — your browser blocked clipboard access.", "⚠️", 4000));
+                  }}
+                >
+                  Copy report
+                </button>
+              )}
+            </div>
+            {autoDiagRunning && autoDiagProgress && (
+              <p style={{ fontSize: "12px", marginTop: "8px" }}>⏳ {autoDiagProgress}</p>
+            )}
+            {autoDiagReport && !autoDiagRunning && (
+              <div style={{ marginTop: "10px" }}>
+                <p style={{ fontSize: "13px", fontWeight: 600 }}>
+                  {autoDiagReport.verdict.primaryCause
+                    ? `ROOT CAUSE CANDIDATE: ${autoDiagReport.verdict.primaryCause.label} (${autoDiagReport.verdict.primaryCause.conditionRenderP50.toFixed(1)}ms vs. its own local baseline ${autoDiagReport.verdict.primaryCause.localBaselineRenderP50.toFixed(1)}ms — ratio ${autoDiagReport.verdict.primaryCause.ratio.toFixed(2)})`
+                    : "INCONCLUSIVE — no single condition collapsed render time relative to its own local baseline."}
+                </p>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ width: "100%", fontSize: "11px", borderCollapse: "collapse" }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "4px" }}>Condition</th>
+                        <th style={{ textAlign: "right", padding: "4px" }}>Render p50</th>
+                        <th style={{ textAlign: "right", padding: "4px" }}>Local baseline</th>
+                        <th style={{ textAlign: "right", padding: "4px" }}>Ratio</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {autoDiagReport.verdict.ranked.map((r) => (
+                        <tr key={r.key} style={{ borderTop: "1px solid #444" }}>
+                          <td style={{ padding: "4px" }}>{r.label}</td>
+                          <td style={{ textAlign: "right", padding: "4px" }}>{r.conditionRenderP50.toFixed(1)}ms</td>
+                          <td style={{ textAlign: "right", padding: "4px" }}>{r.localBaselineRenderP50.toFixed(1)}ms</td>
+                          <td style={{ textAlign: "right", padding: "4px" }}>{r.ratio.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="settings-section">

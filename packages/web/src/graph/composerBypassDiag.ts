@@ -14,10 +14,14 @@
  * contributing to the multi-second render stall measured on Samsung Xclipse 530 /
  * ANGLE-Vulkan devices.
  *
- * OFF by default — the normal composer path — matching the read-once, localStorage-
- * persisted toggle convention already used for `boundedLinks`/`galaxy.lite` (a device
- * that can't edit the address bar still needs a way to opt in). Enabling it requires a
- * reload, exactly like those toggles.
+ * Two ways to use it:
+ *  1. A persistent, localStorage-backed toggle (Settings, reload-based) for a manual
+ *     one-off A/B test — the original design.
+ *  2. `setComposerBypassLive`, which can be flipped on/off repeatedly within a single
+ *     page session with no reload — this is what the automated in-session diagnostic
+ *     harness (autoRenderDiag.ts) uses, since reload-based A/B testing re-frames the
+ *     camera and restarts JIT/thermal state between every condition, which is exactly
+ *     what made the earlier reload-based sweep's results non-monotonic and untrustworthy.
  *
  * Mechanism: monkey-patches the ALREADY-CREATED `EffectComposer` instance's own
  * `.render()` method — the exact function the library's tick() calls every frame — to
@@ -28,7 +32,8 @@
  * real draw call correctly regardless of which path is active: exactly one
  * `renderer.render(scene, camera)` call per frame, either way. No new render loop, no
  * scene/visibility/DPR/pointer changes, no second resize system (the same renderer,
- * scene, and camera objects are reused verbatim).
+ * scene, and camera objects are reused verbatim). The ORIGINAL render function is
+ * preserved (a WeakMap, not a boolean) so the bypass can be un-done exactly.
  */
 
 const STORAGE_KEY = "galaxy.diag.composerBypass";
@@ -51,22 +56,57 @@ export function setComposerBypassEnabled(enabled: boolean): void {
 }
 
 interface ComposerLike {
-  render: (deltaTime?: number) => void;
+  // Method shorthand (not a `render: (...) => void` property) so a real `EffectComposer`
+  // (whose `render` takes a concrete `deltaTime?: number`) is structurally assignable
+  // here under `strictFunctionTypes` — property-style function types are checked
+  // contravariantly even in strict mode, but method shorthand stays bivariant.
+  render(deltaTime?: number): void;
 }
 interface RendererLike {
-  render: (scene: unknown, camera: unknown) => void;
+  render(scene: unknown, camera: unknown): void;
 }
 
-/** Composer instances already patched — a WeakSet (not a boolean) so a remount with a
- *  fresh composer is still correctly patched, matching perfStats.ts's own
- *  `patchedRenderers` precedent for exactly this reason. */
-const patchedComposers = new WeakSet<ComposerLike>();
+/** Each composer instance's ORIGINAL (pre-bypass) render function — captured once, the
+ *  first time this composer is ever touched by this module, so `enabled: false` always
+ *  restores the real pass-iteration logic exactly, no matter how many times bypass is
+ *  toggled on/off in one session. A WeakMap (not a boolean flag) so a remount with a
+ *  fresh composer instance is captured independently, matching perfStats.ts's own
+ *  `patchedRenderers` WeakSet precedent for the same reason. */
+const originalRenders = new WeakMap<ComposerLike, (deltaTime?: number) => void>();
 
 /**
- * Replace `composer.render()` with a direct `renderer.render(scene, camera)` call.
- * Call once, after the composer exists, only when `isComposerBypassEnabled()` — the
- * caller owns that check, so this function itself stays a pure "do the patch" action,
- * trivially testable without touching localStorage. Idempotent per composer instance.
+ * Turn the bypass on or off for this composer, any number of times, in either
+ * direction — the primitive both the persistent Settings toggle and the automated
+ * in-session diagnostic harness build on.
+ */
+export function setComposerBypassLive(
+  composer: ComposerLike,
+  renderer: RendererLike,
+  scene: unknown,
+  camera: unknown,
+  enabled: boolean,
+): void {
+  if (!originalRenders.has(composer)) {
+    // Store the RAW function reference, not a `.bind()`'d copy — a plain method-style
+    // call (`composer.render()`, exactly how the library's own tick() invokes it)
+    // already gives it the correct `this`, so restoring the exact same reference later
+    // is both simpler and behaviorally identical to the pre-bypass state, not just
+    // "close enough."
+    originalRenders.set(composer, composer.render);
+  }
+  if (enabled) {
+    composer.render = () => {
+      renderer.render(scene, camera);
+    };
+  } else {
+    composer.render = originalRenders.get(composer)!;
+  }
+}
+
+/**
+ * One-shot apply for the persistent Settings toggle's mount-time path (equivalent to
+ * `setComposerBypassLive(..., true)`, kept as a named entry point since "apply the
+ * bypass this session" reads more clearly than "set it live to true" at that call site).
  */
 export function applyComposerBypass(
   composer: ComposerLike,
@@ -74,9 +114,5 @@ export function applyComposerBypass(
   scene: unknown,
   camera: unknown,
 ): void {
-  if (patchedComposers.has(composer)) return;
-  patchedComposers.add(composer);
-  composer.render = () => {
-    renderer.render(scene, camera);
-  };
+  setComposerBypassLive(composer, renderer, scene, camera, true);
 }
