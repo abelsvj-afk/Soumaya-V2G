@@ -154,8 +154,14 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
         : `gpu timing: unsupported (no EXT_disjoint_timer_query_webgl2)`,
       `dropped ${s.droppedPct.toFixed(1)}%`,
       `draw calls ${n0(s.drawInfo?.calls ?? 0)}  tris ${n0(s.drawInfo?.triangles ?? 0)}  lines ${n0(s.drawInfo?.lines ?? 0)}  points ${n0(s.drawInfo?.points ?? 0)}`,
-      `geometries ${n0(s.memory?.geometries ?? 0)}  textures ${n0(s.memory?.textures ?? 0)}  programs ${s.programs ?? "?"}`,
+      `geometries ${n0(s.memory?.geometries ?? 0)}  textures ${n0(s.memory?.textures ?? 0)}  programs ${s.programs ?? "?"}  churn ${s.programsChurnCount}`,
       heapRate != null ? `heap +${heapRate.toFixed(2)} MB/s` : `heap n/a`,
+      s.galaxyCounts?.transparentObjects != null
+        ? `transparent objects ${n0(s.galaxyCounts.transparentObjects)}`
+        : `transparent objects: N/A`,
+      s.galaxyCounts?.composerBuffers
+        ? `composer buffers ${s.galaxyCounts.composerBuffers.width}x${s.galaxyCounts.composerBuffers.height} × ${s.galaxyCounts.composerBuffers.pixelRatio}dpr  ${s.galaxyCounts.composerBuffers.halfFloat ? "HalfFloat" : "UnsignedByte"}  (×2, always allocated — see forensic trace item 3)`
+        : `composer buffers: N/A`,
       s.galaxyCounts
         ? `tracked ${n0(s.galaxyCounts.trackedNodes)} nodes / ${n0(s.galaxyCounts.trackedLinks)} links  visible ${n0(s.galaxyCounts.visibleNodes)} nodes / ${n0(s.galaxyCounts.visibleLinks)} links`
         : `tracked/visible nodes+links: N/A`,
@@ -202,7 +208,16 @@ export function PerfHUD({ nodeCount }: { nodeCount?: number }) {
       <Row k="calls" v={n0(s.drawInfo?.calls ?? 0)} hint="Draw calls per frame — one per Object3D submitted to the GPU (no instancing/batching exists in this renderer today, so this scales directly with tracked node+link+aux object count)." />
       <Row k="tris" v={`${n0(s.drawInfo?.triangles ?? 0)} · ln ${n0(s.drawInfo?.lines ?? 0)} · pt ${n0(s.drawInfo?.points ?? 0)}`} hint="Triangles / lines / points submitted per frame." />
       <Row k="tex" v={`${n0(s.memory?.textures ?? 0)} · geo ${n0(s.memory?.geometries ?? 0)}`} hint="Live GPU textures / geometries. Should plateau, not climb." />
-      <Row k="programs" v={String(s.programs ?? "?")} hint="Shader programs. Churn here means recompile stalls." />
+      <Row
+        k="programs"
+        v={`${s.programs ?? "?"}${s.programsChurnCount > 0 ? ` (churn ${s.programsChurnCount})` : ""}`}
+        hint="Shader programs, plus how many times that count changed between polls since the last reset. Non-zero churn means real recompilation is happening, not just that some number of programs currently exist."
+      />
+      <Row
+        k="transparent"
+        v={s.galaxyCounts?.transparentObjects != null ? String(s.galaxyCounts.transparentObjects) : "?"}
+        hint="Currently-tracked scene objects with a transparent material — these skip early-Z rejection and force back-to-front sorting."
+      />
       {heapRate != null && <Row k="heap" v={`+${heapRate.toFixed(2)} MB/s`} hint="Allocation rate. This is what the per-frame allocation work drives down." />}
       <Row k="nodes" v={n0(nodeCount ?? 0)} />
       {s.galaxyCounts ? (

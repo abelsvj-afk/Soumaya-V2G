@@ -137,6 +137,55 @@ describe("perfStats", () => {
     expect(s.programs).toBe(3); // the shader-recompile canary
   });
 
+  it("programsChurnCount stays 0 when the program count never changes between polls", () => {
+    const r = fakeRenderer(1, clock); // fixed 3-program info object across every poll
+    attachRenderer(r);
+    renderFrame(r, 1);
+    snapshot();
+    renderFrame(r, 1);
+    expect(snapshot().programsChurnCount).toBe(0);
+  });
+
+  it("programsChurnCount increments once per DIFFERENCE observed between consecutive polls", () => {
+    const counts = [3, 3, 5, 5, 4]; // one real change 3->5, one real change 5->4
+    let i = 0;
+    const r = {
+      render: () => { clock.t += 1; },
+      info: {
+        render: { calls: 0, triangles: 0, lines: 0, points: 0 },
+        memory: { geometries: 0, textures: 0 },
+        get programs() { return Array.from({ length: counts[Math.min(i, counts.length - 1)]! }); },
+      },
+    } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    for (; i < counts.length; i++) {
+      renderFrame(r, 1);
+      snapshot();
+    }
+    expect(snapshot().programsChurnCount).toBe(2);
+  });
+
+  it("reset() clears programsChurnCount and its baseline", () => {
+    const counts = [3, 5];
+    let i = 0;
+    const r = {
+      render: () => { clock.t += 1; },
+      info: {
+        render: { calls: 0, triangles: 0, lines: 0, points: 0 },
+        memory: { geometries: 0, textures: 0 },
+        get programs() { return Array.from({ length: counts[Math.min(i, counts.length - 1)]! }); },
+      },
+    } as unknown as import("three").WebGLRenderer;
+    attachRenderer(r);
+    renderFrame(r, 1);
+    snapshot();
+    i = 1;
+    renderFrame(r, 1);
+    expect(snapshot().programsChurnCount).toBe(1);
+    reset();
+    expect(snapshot().programsChurnCount).toBe(0);
+  });
+
   it("consumes the moved flag so each reader sees motion since its own last read", () => {
     expect(snapshot().movedRecently).toBe(false);
     markMoved();

@@ -116,7 +116,38 @@ export interface GalaxyCounts {
   /** Links currently allowed the expensive curved-tube Detailed representation. Equals
    *  `visibleLinks` whenever bounded selection is disabled (no restriction applied). */
   detailedLinks?: number;
+  /**
+   * Render-stall forensic trace (2026-09-10) item 9 — how many currently-tracked
+   * scene objects carry a `transparent: true` material. Transparent objects skip
+   * early-Z rejection and force three.js's back-to-front sort, so this number
+   * matters independently of draw-call count. Computed by a full `scene.traverse()`
+   * only when `snapshot()` is polled (the existing 2Hz HUD cadence), reusing the
+   * exact traversal pattern the hover-highlight effect already runs elsewhere in
+   * Graph3D.tsx — not a new per-frame cost.
+   */
+  transparentObjects?: number;
+  /**
+   * Item 3/4 — the always-created `EffectComposer` (react-force-graph-3d creates one
+   * unconditionally at init, whether or not `addBloom()` is ever called) allocates
+   * TWO full-screen render targets at construction time. `null` until the composer
+   * exists; otherwise the ACTUAL width/height/pixelRatio/color-type of those two
+   * idle-when-bloom-is-off buffers on this exact device, read directly off
+   * `renderTarget1` rather than assumed from source.
+   */
+  composerBuffers?: { width: number; height: number; pixelRatio: number; halfFloat: boolean } | null;
 }
+
+/**
+ * Render-stall forensic trace (2026-09-10) item 8/10 — `renderer.info.programs.length`
+ * (already reported every poll) only ever shows a SNAPSHOT at read time; it can't by
+ * itself say whether shader recompilation is happening BETWEEN polls. This tracks how
+ * many times the count differed between two consecutive `snapshot()` calls (the HUD's
+ * existing 2Hz poll) since the last `reset()` — a non-zero, growing value means real
+ * program churn is occurring, not just that some number of programs happen to exist
+ * right now. Zero added per-frame cost: both reads happen only inside `snapshot()`.
+ */
+let lastProgramsCount: number | null = null;
+let programsChurnCount = 0;
 
 let galaxyCountsProvider: (() => GalaxyCounts) | null = null;
 
@@ -165,6 +196,11 @@ export interface PerfSnapshot {
   drawInfo: { calls: number; triangles: number; lines: number; points: number } | null;
   memory: { geometries: number; textures: number } | null;
   programs: number | null;
+  /** How many times `programs.length` differed between two consecutive `snapshot()`
+   *  polls since the last `reset()` — see the module-level doc comment above. A
+   *  stable program count (0 here) rules out ongoing shader recompilation as the
+   *  cause of a slow `render()`; a rising count points straight at it. */
+  programsChurnCount: number;
   /** null until Graph3D has registered a provider (see registerGalaxyCounts). */
   galaxyCounts: GalaxyCounts | null;
 }
@@ -381,6 +417,12 @@ export function snapshot(): PerfSnapshot {
   const moved = movedRecently;
   movedRecently = false; // consume: each caller sees motion since the last read
 
+  const programsNow = info?.programs?.length ?? null;
+  if (programsNow != null) {
+    if (lastProgramsCount != null && programsNow !== lastProgramsCount) programsChurnCount++;
+    lastProgramsCount = programsNow;
+  }
+
   return {
     tick,
     render,
@@ -402,7 +444,8 @@ export function snapshot(): PerfSnapshot {
         }
       : null,
     memory: info ? { geometries: info.memory.geometries, textures: info.memory.textures } : null,
-    programs: info?.programs?.length ?? null,
+    programs: programsNow,
+    programsChurnCount,
     galaxyCounts: galaxyCountsProvider ? galaxyCountsProvider() : null,
   };
 }
@@ -416,6 +459,8 @@ export function reset(): void {
   dropped = 0;
   rendered = 0;
   lastPresent = 0;
+  lastProgramsCount = null;
+  programsChurnCount = 0;
   // Pending GPU queries belong to frames rendered under the OLD regime — let them
   // resolve and get discarded naturally by the next pollGpuQueries() call rather than
   // deleting them here mid-flight (deleting a query before its result is read is

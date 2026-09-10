@@ -713,6 +713,42 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         boundedLinksEnabled: boundedLinksOn,
         detailedLinkBudget,
         detailedLinks: detailedLinkIdsRef.current ? detailedLinkIdsRef.current.size : visibleLinks,
+        // Render-stall forensic trace (2026-09-10) item 9: count of currently-tracked
+        // scene objects carrying a `transparent: true` material. Same `scene.traverse()`
+        // pattern the hover-highlight effect elsewhere in this file already runs, just
+        // pulled from the 2Hz HUD poll instead of a state-change effect — zero added
+        // per-frame cost, only runs when someone actually reads perfStats.snapshot().
+        transparentObjects: (() => {
+          const scene = fgRef.current?.scene?.();
+          if (!scene) return undefined;
+          let count = 0;
+          scene.traverse((o: any) => {
+            const mat = o.material;
+            if (!mat) return;
+            for (const m of Array.isArray(mat) ? mat : [mat]) if (m?.transparent) count++;
+          });
+          return count;
+        })(),
+        // Item 3/4: react-force-graph-3d creates an EffectComposer unconditionally at
+        // renderer init (three-render-objects.mjs — `state.postProcessingComposer = new
+        // EffectComposer(...)`), whether or not `addBloom()` is ever called. EffectComposer's
+        // OWN constructor then allocates TWO full-screen WebGLRenderTargets at HalfFloatType
+        // regardless of pass count — this reads the ACTUAL dimensions/type off this device's
+        // real renderTarget1 rather than assuming from source, so the idle-VRAM cost (or lack
+        // thereof) is a measured number, not a guess.
+        composerBuffers: (() => {
+          const composer = fgRef.current?.postProcessingComposer?.() as
+            | { renderTarget1?: { width: number; height: number; texture?: { type: number } } }
+            | undefined;
+          const rt = composer?.renderTarget1;
+          if (!rt) return null;
+          return {
+            width: rt.width,
+            height: rt.height,
+            pixelRatio: fgRef.current?.renderer?.()?.getPixelRatio?.() ?? 1,
+            halfFloat: rt.texture?.type === THREE.HalfFloatType,
+          };
+        })(),
       };
     });
     return () => registerGalaxyCounts(null);
