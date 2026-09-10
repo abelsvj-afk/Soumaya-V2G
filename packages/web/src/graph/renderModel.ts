@@ -33,11 +33,25 @@
  */
 export type LinkTier = "detailed" | "hidden" | "simplified" | "aggregate";
 
-/** Proposed engineering budget for the Phase 1 audit's "detailed link" ceiling (~400-600,
- *  per the architecture doc's §2 table) — a STARTING POINT, not a scientifically validated
- *  universal number. Override per-session via `?linkBudget=NNN` (see
- *  `getDetailedLinkBudget`) for real-device tuning without a redeploy. */
-export const DEFAULT_DETAILED_LINK_BUDGET = 450;
+/**
+ * Mobile render-budget ceiling for the "detailed" (individually-drawn TubeGeometry) link
+ * tier. Lowered from the Phase 2.1 audit's original 400-600 starting point after a real-
+ * device measurement (Xclipse 530, hardware-accelerated, ANGLE/Vulkan) showed Large View
+ * submitting 1,353 draw calls at a 450-link budget, at ~1-2.5ms of render() time PER draw
+ * call — an order of magnitude above normal per-draw-call overhead on capable mobile GPU
+ * hardware. That per-call cost anomaly needs its own follow-up investigation regardless
+ * (it points at something more expensive than raw geometry/triangle volume, e.g. per-object
+ * state changes), but cutting a genuinely oversized link-tube population is the direct,
+ * safe, always-correct lever: 450 individually-submitted curved-tube meshes is more edges
+ * than a phone should ever draw as full 3D geometry in one frame, independent of what the
+ * per-call cost turns out to be. Not zoom-adaptive — recomputing the Detailed selection on
+ * camera movement was already identified and fixed as a real regression (`b520cc1`,
+ * "Perf: remove destructive camera refresh from Galaxy"); this budget applies uniformly
+ * regardless of zoom, same architecture as before, just a smaller ceiling. Still fully
+ * overridable per-session via `?linkBudget=NNN` (see `getDetailedLinkBudget`) or the
+ * Settings toggle, for further real-device tuning without a redeploy.
+ */
+export const DEFAULT_DETAILED_LINK_BUDGET = 150;
 
 /** Tunable scoring weights for the deterministic Tier-C ranking below. Exported so a
  *  later pass (or a live experiment) can retune without touching the selection logic

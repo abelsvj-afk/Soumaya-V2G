@@ -416,8 +416,20 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
       }),
     );
     ring.rotation.x = Math.PI / 2.3;
+    // Unlike a celestial body, an action item has no separate macro-LOD sphere to swap
+    // to at distance — it would otherwise always submit ring+glow+core (3 draw calls)
+    // regardless of camera distance, uncapped by any LOD (Galaxy render recovery pass,
+    // 2026-09-10). Tagging the decorative ring+glow isFidelity reuses Graph3D's EXISTING
+    // isMacroView distance swap (the same flag every celestial body's ring/glow already
+    // uses) for free — no new code path, no new distance check. The core octahedron is
+    // deliberately NOT tagged isFidelity: an urgent action item must stay visible at any
+    // distance (that's the point of it), just cheaper — one draw call instead of three
+    // once far enough away, not zero.
+    ring.userData.isFidelity = true;
     g.add(ring);
-    g.add(makeGlow(col, 12));
+    const glow = makeGlow(col, 12);
+    glow.userData.isFidelity = true;
+    g.add(glow);
     g.add(makeLabel(`⏰ ${node.label}`));
     g.userData.nodeId = node.id;
     return g;

@@ -156,6 +156,53 @@ describe("nodeObject — isBody tagging (early-Z restoration fix)", () => {
 });
 
 /**
+ * Galaxy render recovery pass (2026-09-10): unlike every celestial body, an action item
+ * had NO macro-LOD fallback at all — its ring+glow+core (3 draw calls) rendered
+ * unconditionally regardless of camera distance, uncapped by any LOD. Tagging the
+ * decorative ring+glow isFidelity reuses Graph3D's existing isMacroView distance swap for
+ * free. The core must stay untagged so an urgent action item never fully disappears.
+ */
+describe("nodeObject — action item LOD (uncapped-draw-call fix)", () => {
+  function actionNode(id = 2): GraphNode {
+    return { id, label: "do thing", type: "memory" as any, content: "", createdAt: new Date().toISOString(), kind: "action" } as GraphNode;
+  }
+
+  it("the ring and glow are tagged isFidelity so they hide at macro distance", () => {
+    let ringIsFidelity = false;
+    let glowIsFidelity = false;
+    let sawRing = false;
+    let sawGlow = false;
+    makeNodeObject(actionNode()).traverse((o: any) => {
+      if (o.isMesh && o.geometry?.type === "RingGeometry") {
+        sawRing = true;
+        ringIsFidelity = !!o.userData.isFidelity;
+      }
+      if (o.isSprite && o.userData?.glowCacheKey != null) {
+        sawGlow = true;
+        glowIsFidelity = !!o.userData.isFidelity;
+      }
+    });
+    expect(sawRing).toBe(true);
+    expect(sawGlow).toBe(true);
+    expect(ringIsFidelity).toBe(true);
+    expect(glowIsFidelity).toBe(true);
+  });
+
+  it("the core is NOT tagged isFidelity — an urgent action item must never fully disappear", () => {
+    let sawCore = false;
+    let coreIsFidelity = false;
+    makeNodeObject(actionNode()).traverse((o: any) => {
+      if (o.isMesh && o.geometry?.type === "OctahedronGeometry") {
+        sawCore = true;
+        coreIsFidelity = !!o.userData.isFidelity;
+      }
+    });
+    expect(sawCore).toBe(true);
+    expect(coreIsFidelity).toBe(false);
+  });
+});
+
+/**
  * Performance Program Stage 7: labelTexCache/glowTexCache never evicted anything —
  * one canvas texture per unique label string (or glow color+size) forever, real VRAM
  * that only ever grew. Fixed with reference counting rather than a blind size-capped
