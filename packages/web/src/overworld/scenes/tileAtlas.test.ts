@@ -1,17 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   attendantFrameForPlace,
-  buildingTileFrame,
   creatureFrameForType,
   grassFrameFor,
   IDLE_BOB_PERIOD_MS,
   idleBobDelayMs,
   objectFrameForPlace,
   TileFrame,
-  wallFamilyForIndex,
   workIconForPlace,
 } from "./tileAtlas.js";
-import { placeById } from "./regionLayout.js";
 
 describe("tileAtlas", () => {
   describe("grassFrameFor", () => {
@@ -39,57 +36,6 @@ describe("tileAtlas", () => {
         }
       }
       expect(seen.size).toBeGreaterThan(1);
-    });
-  });
-
-  describe("wallFamilyForIndex", () => {
-    it("alternates between the tan and blue wall families", () => {
-      expect(wallFamilyForIndex(0).wall).toBe(TileFrame.wallTan);
-      expect(wallFamilyForIndex(1).wall).toBe(TileFrame.wallBlue);
-      expect(wallFamilyForIndex(2).wall).toBe(TileFrame.wallTan);
-    });
-
-    it("keeps a family's door/roof lined up with its own wall/left/right frames", () => {
-      const tan = wallFamilyForIndex(0);
-      expect(tan).toEqual({
-        wall: TileFrame.wallTan,
-        wallLeft: TileFrame.wallTanLeft,
-        door: TileFrame.doorTan,
-        wallRight: TileFrame.wallTanRight,
-        roof: TileFrame.roofTan,
-      });
-    });
-  });
-
-  describe("buildingTileFrame", () => {
-    const family = wallFamilyForIndex(0); // tan
-
-    it("north-row building (door on the footprint's BOTTOM row): roof on top, wall/door/wall on the bottom", () => {
-      const bank = placeById("bank");
-      if (bank.kind !== "door") throw new Error("expected a door place");
-      const { x0, x1, y0, y1 } = bank.footprint;
-      // Top row (no door here) is the roofline, not another wall row.
-      expect(buildingTileFrame(family, { x: x0, y: y0 }, bank.door, bank.footprint)).toBe(family.roof);
-      expect(buildingTileFrame(family, { x: x1, y: y0 }, bank.door, bank.footprint)).toBe(family.roof);
-      // Bottom row (the door's actual row) is wallLeft/door/wallRight.
-      expect(buildingTileFrame(family, { x: x0, y: y1 }, bank.door, bank.footprint)).toBe(family.wallLeft);
-      expect(buildingTileFrame(family, bank.door, bank.door, bank.footprint)).toBe(family.door);
-      expect(buildingTileFrame(family, { x: x1, y: y1 }, bank.door, bank.footprint)).toBe(family.wallRight);
-    });
-
-    it("south-row building (door on the footprint's TOP row): wall/door/wall on top, roof on the bottom", () => {
-      const gym = placeById("gym");
-      if (gym.kind !== "door") throw new Error("expected a door place");
-      const { x0, x1, y0, y1 } = gym.footprint;
-      expect(gym.door.y).toBe(y0); // sanity: this building really does face the other way
-      // The door's actual row (top, for this building) is wallLeft/door/wallRight — this is
-      // exactly the case the old hardcoded "door is always on the bottom row" logic got wrong.
-      expect(buildingTileFrame(family, { x: x0, y: y0 }, gym.door, gym.footprint)).toBe(family.wallLeft);
-      expect(buildingTileFrame(family, gym.door, gym.door, gym.footprint)).toBe(family.door);
-      expect(buildingTileFrame(family, { x: x1, y: y0 }, gym.door, gym.footprint)).toBe(family.wallRight);
-      // The row without the door (bottom, for this building) is the roofline.
-      expect(buildingTileFrame(family, { x: x0, y: y1 }, gym.door, gym.footprint)).toBe(family.roof);
-      expect(buildingTileFrame(family, { x: x1, y: y1 }, gym.door, gym.footprint)).toBe(family.roof);
     });
   });
 

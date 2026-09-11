@@ -2,18 +2,33 @@
 
 ## Overworld pixel art
 
-**`overworld/tiles.png`** — a hand-curated 25-frame atlas (16x16 tiles) assembled from two
-Kenney (kenney.nl) asset packs, both released under **CC0 1.0 (public domain)** — no attribution
+**`overworld/tiles.png`** — a hand-curated frame atlas (16x16 tiles) assembled from two Kenney
+(kenney.nl) asset packs, both released under **CC0 1.0 (public domain)** — no attribution
 legally required, credited here anyway as good practice:
-- "Tiny Town" — ground (grass/path), building walls, doors, signpost.
-- "Tiny Dungeon" — the player character, the per-NodeType creature sprites, and (added in a
-  later pass) one attendant NPC sprite per building — no new sourcing needed, the pack already
-  had enough distinct humanoid characters to give every building its own look.
+- "Tiny Town" — ground (grass/path/flowers).
+- "Tiny Dungeon" — the player character, the per-NodeType creature sprites, and one attendant
+  NPC sprite per building — no new sourcing needed, the pack already had enough distinct
+  humanoid characters to give every building its own look.
+
+(An earlier pass also drew each building from small modular wall/door/roof tiles in this same
+atlas; real user feedback — "that's not appropriate... find already made building assets" —
+replaced that with the complete building illustrations below. The now-unused wall/door/roof
+frames were left in place in `tiles.png` rather than renumbering the whole atlas, but nothing
+references them anymore.)
 
 Sourced via the community mirror https://github.com/shorepine/kenney (same CC0 assets,
 reorganized for programmatic access) — **not** from any of the Pokémon reference repos named in
 docs/overworld/pokemon-reference.md, whose tile/sprite graphics are Nintendo's copyrighted
 assets and were consulted for architecture only, never for art.
+
+**`overworld/buildings/*.png`** (`human-city.png`, `human-city2.png`, `human-city3.png`,
+`human-city4.png`, `lighthouse.png`) — 5 complete, pre-made building illustrations (a house, an
+arched hall, a round tower, a flagged tower, and a lighthouse), used one-per-building
+(`buildingSprites.ts`) instead of assembling buildings from small kit tiles. From the "Old stone
+buildings" pack (the Battle for Wesnoth "human city" set) — **CC0 (public domain)**, originally
+on [OpenGameArt](https://opengameart.org/content/old-stone-buildings), sourced via the CC0
+aggregator https://github.com/Tiddybub/2d-assets (its own `LICENSE` + each pack's `SOURCE.md`
+confirm CC0). No attribution legally required; credited here as good practice.
 
 ## Overworld music
 

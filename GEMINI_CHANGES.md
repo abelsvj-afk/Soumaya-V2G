@@ -1,3 +1,29 @@
+### 2026-09-11 (Claude): Soumaya Overworld — real building illustrations, not a hand-assembled kit
+- [ ] Verified by Claude
+- Follow-up to the entry directly below: its roof fix (3 copies of one 16x16 gable tile
+  spanning a building's width) was still hand-assembled from small tiles — the user called this
+  out again, explicitly: "that's not appropriate... find already made building relatable
+  assets... even from a completely different repository."
+- Found `github.com/Tiddybub/2d-assets` — a curated CC0 aggregator of ~1100 asset packs from
+  OpenGameArt/Kenney, each with its own SOURCE.md. Its "Old stone buildings" pack (Battle for
+  Wesnoth's human-city set) has 5 complete, transparent-background building illustrations
+  (house, arched hall, round tower, flag tower, lighthouse) — genuinely pre-made art, not a
+  modular kit. New `buildingSprites.ts` maps each door-building to one of these (some reused —
+  only 5 exist for 8 places), loaded as its own standalone texture and scaled to fill the
+  building's 3x2-tile footprint (`ExteriorScene.ts`'s `drawGround()`), replacing the whole
+  tile-by-tile wall/door/roof rendering approach.
+- Removed as dead code: `tileAtlas.ts`'s `WallFamily`/`wallFamilyForIndex`/`buildingTileFrame`
+  and their tests, once nothing referenced them anymore. The now-unused wall/door/roof frames
+  stay in `tiles.png` (not worth renumbering the whole atlas over unused pixels).
+- **Known simplification**: the pre-made art's illustrated door sits at a fixed spot in each
+  image (usually bottom-center); for the 3 south-row buildings (Gym/Town Hall/Hangar, whose
+  walkable door tile is on the footprint's TOP row) it doesn't perfectly align with where you
+  actually step to enter. Not a functional bug — every building's real entrance is still
+  unambiguous via its nameplate, glyph, and attendant NPC.
+- New tests: `buildingSprites.test.ts` (every door-building resolves to a real sprite, the
+  preload list covers everything in use, no duplicate texture keys). Full gate green (1051
+  server + 179 web tests, typecheck, build).
+
 ### 2026-09-11 (Claude): Soumaya Overworld — second feedback round: input, camera, art, NPC substance
 - [ ] Verified by Claude
 - User actually played the build and named 5 things in one message. In order:
