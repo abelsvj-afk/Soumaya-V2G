@@ -1,3 +1,55 @@
+### 2026-09-11 (Claude): Soumaya Overworld — 3D galaxy deleted, Overworld is now the sole UI
+- [ ] Verified by Claude
+- Completes the staged replacement (docs/overworld/decisions.md D1) per the user's explicit
+  instruction, now that Stage 2 gave every dock tab a real place. Ran a precise dependency
+  analysis first (not a guess) to know exactly what's safe to delete vs. what the surviving
+  Overworld/Toasts/achievements code still depends on.
+- **Two real, would-have-shipped-broken issues caught before/during deletion:**
+  1. `OverworldRoot` had zero auth handling — the `currentSpace()` → `LoginScreen` gate only
+     ever lived in `App.tsx`. Built `overworld/AuthGate.tsx` (+ logout button, unit-tested)
+     BEFORE deleting App.tsx, specifically because deleting it first would have locked out
+     every signed-out user with no way back in.
+  2. `index.html`'s boot-failsafe watchdog waits for `window.__brainBooted()` to stand down;
+     only `App.tsx` called it. Missed on the first pass, caught by checking what index.html
+     actually depends on before declaring the deletion done — every load would have hit the
+     false "stuck loading" recovery prompt after 12s otherwise. Ported the exact call (same
+     gating condition: the auth check resolving, not the slower Overworld/Phaser load).
+- Relocated `graph/sfx.ts` + `graph/motion.ts` to `lib/` — `components/Toasts.tsx` (a real
+  Overworld dependency via `PostOfficeOverlay`) imports `playSfx` from the former, which
+  imports `prefersReducedMotion` from the latter; deleting `graph/` wholesale would have broken
+  the build. While relocating, consolidated the Overworld's own simpler
+  `overworld/engine/reducedMotion.ts` into the relocated `lib/motion.ts` (the richer, canonical
+  implementation — respects the in-app override + focus-calm, which the Overworld's copy
+  didn't) rather than keep two answers to "is motion reduced."
+- Deleted: `App.tsx`, `App.helpers.ts` (+tests), `packages/web/src/graph/**` (~65 files),
+  `RightDock.tsx` (+test), and ~75 now-orphaned `components/*` panel files (full list in the
+  commit). Also `api/graph.ts` (+test) and `api/lenses.ts`, confirmed orphaned by grepping every
+  real import (not the barrel-export pattern that made a shallower check on `api/features.ts`
+  etc. wrong — those ARE still imported, via `client.ts`'s `export *`, and correctly kept).
+  `hooks/*`, `utils/*`, and 3 dead `lib/*` files also removed.
+- `main.tsx` now mounts `overworld/AuthGate.tsx` unconditionally — the `?overworld=1` opt-in and
+  the `App` fallback are gone.
+- Removed now-unused dependencies: `three`, `react-force-graph-3d`, `mammoth`, `pdfjs-dist`.
+  Production bundle: was `index` (1.48MB) + `Graph3D` (381KB) + `pdf` (434KB) + `mammoth`
+  (500KB) + `OverworldRoot` (1.25MB, all coexisting during the additive phase) → now `index`
+  (206KB) + one lazy `OverworldRoot` chunk (1.34MB, Phaser, loaded only post-login).
+- **Known gap, not silently dropped**: memory-attachment upload/PDF-docx-extraction
+  (`MemoryAttachments.tsx`, used `mammoth`/`pdfjs-dist`, now removed) wasn't one of the 11 dock
+  tabs in this parity pass and has no Overworld home yet — flagged in `docs/overworld/roadmap.md`
+  and `CLAUDE.md`, not silently lost. `index.css` (128KB, mostly dead galaxy-panel styling) left
+  un-trimmed — safe (bytes, not correctness) but flagged as a real follow-up.
+- Updated `CLAUDE.md` ("What this is," monorepo layout, celestial-mass-model section, Red/Green
+  Zone file paths) and `AGENTS.md` (green-zone paths, Red-Zone file list) to describe the
+  Overworld as the current UI instead of the deleted galaxy; replaced ~15 now-permanently-moot
+  galaxy-specific "Pending Validation" entries (Graph3D.tsx fixes, GalaxyViews, etc. — files that
+  no longer exist, can never be re-confirmed) with a pointer to git history.
+- Files touched: see the deletion commit for the full list (large — ~145 files).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 139 web tests green (down from
+  697 web — expected, ~560 were tests for now-deleted galaxy components); production build
+  succeeds at the bundle sizes above.
+- **Not yet verified**: real on-device/browser behavior for the Overworld as the sole UI — this
+  sandbox has no live browser. Flagged in `CLAUDE.md`'s Pending Validation.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — Stage 2 full dock parity (all 11 tabs)
 - [ ] Verified by Claude
 - User asked for the galaxy to be removed entirely right after the Stage 1 slice shipped;

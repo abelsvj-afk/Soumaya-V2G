@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, act, fireEvent } from "@testing-library/react";
 
 const playSfx = vi.fn();
-vi.mock("../graph/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
+vi.mock("../lib/sfx.js", () => ({ playSfx: (...a: unknown[]) => playSfx(...a) }));
 
 beforeEach(() => {
   vi.resetModules();

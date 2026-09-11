@@ -2,7 +2,7 @@ import Phaser from "phaser";
 import type { InputBus, InputEvent } from "../engine/input.js";
 import { completeMove, createMovementState, tryMove, type MovementState } from "../engine/movement.js";
 import { tileInFront } from "../engine/interact.js";
-import { prefersReducedMotion } from "../engine/reducedMotion.js";
+import { prefersReducedMotion } from "../../lib/motion.js";
 import type { CreatureEntity } from "../types.js";
 import {
   allPlaces,

@@ -7,7 +7,7 @@ import {
   type MovementGrid,
   type MovementState,
 } from "../engine/movement.js";
-import { prefersReducedMotion } from "../engine/reducedMotion.js";
+import { prefersReducedMotion } from "../../lib/motion.js";
 
 export const TILE_SIZE = 32;
 

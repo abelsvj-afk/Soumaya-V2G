@@ -52,21 +52,32 @@ Guidance for working in this repo. Read this before making changes.
 ## What this is
 
 **Soumaya · Second Brain** — a personal knowledge graph you talk to. You dump raw
-thoughts; the system extracts typed nodes + relationships, embeds them, links them
-associatively, and renders them as a navigable 3D **galaxy** where memories are
-celestial bodies with real gravitational mass.
+thoughts; the system extracts typed nodes + relationships, embeds them, and links
+them associatively. **As of 2026-09-11 the presentation layer is the Soumaya
+Overworld** — a 2D, GBA/SNES-era Pokémon-style top-down town where each memory is
+a creature you walk up to, buildings are the former feature tabs, and a dimmed
+creature is the retrieval-cue signal. The 3D galaxy this replaced (`react-force-
+graph-3d`/three.js, kinematic orbits, `RightDock`'s panel tabs) has been **deleted
+from the codebase** — see `docs/overworld/` for the full design package and
+`docs/overworld/roadmap.md` for what shipped when. The domain model
+(`packages/shared`, `packages/server`) is unchanged; only how it's presented.
 
 Signature features: **associative auto-linking**, **synthesis digest** (surfaces
 latent connections), **chat-with-your-brain** (GraphRAG with cited answers), and
-the **celestial galaxy UI**.
+the **Overworld UI**.
 
 ## Monorepo layout (npm workspaces)
 
-- `packages/shared` — domain types + zod schemas + celestial mechanics. The single
-  source of truth shared by server and web. Changes here ripple both ways.
+- `packages/shared` — domain types + zod schemas + celestial mechanics (still the
+  math backing creature rarity/dimming, even though nothing renders a literal
+  galaxy anymore). The single source of truth shared by server and web. Changes
+  here ripple both ways.
 - `packages/server` — Express API, SQLite + sqlite-vec, ingestion pipeline, LLM
   providers, graph/synthesis/chat services. Runs TypeScript directly via `tsx`.
-- `packages/web` — Vite + React + react-force-graph-3d (three.js) galaxy client.
+- `packages/web` — Vite + React + Phaser 3 Overworld client. Entry point is
+  `main.tsx` → `overworld/AuthGate.tsx` (login) → `overworld/OverworldRoot.tsx`
+  (the Phaser game + all in-world React overlays, lazy-loaded so Phaser stays out
+  of the login screen's bundle).
 
 ## Commands
 
@@ -95,26 +106,31 @@ Always run `npm test` and `npm run typecheck` before committing. The web app mus
 - **zod schemas** in `shared/schema.ts` are reused as Gemini `responseSchema` —
   keep them flat (deep schemas are fragile with the API).
 
-## Celestial mass model (the galaxy physics)
+## Celestial mass model (still the rarity/dimming physics, now for creatures not orbits)
 
-`shared/celestial.ts` is the heart of the visual system:
+`shared/celestial.ts` is unchanged by the Overworld rewrite — it's still the single
+source of truth for a memory's significance and neglect:
 
 - Each memory has an **importance** (0..1, rated by the LLM at ingestion; the
   heuristic provider scores it from weighty vocabulary + length).
 - `deriveMass({ importance, degree, emotionalWeight })` blends significance,
   connectedness, and emotional charge into a **0..1 mass**.
-- `classify(mass)` → 6 tiers: `asteroid | moon | planet | giant | star | supergiant`.
-- The **graph service enriches nodes on read** with `degree`, `mass`, `val`, and
-  `celestial` — never denormalize these into the table.
-- Frontend motion is **kinematic** (`graph/orbits.ts`), not a force sim: each body
-  orbits its heaviest connected neighbor on a fixed path (pinned via fx/fy/fz), so
-  it never collapses. `orbits.getDescendants(id)` powers the "isolate system" view.
-- Agents/assets (`graph/soumaya.ts` ship, `graph/spaceStation.ts`) are glTF models
-  in `packages/web/public/*.glb` with procedural fallbacks; the autonomous agent
-  loop hits `/api/maintenance/*` and is **token-gated behind Research Mode**.
+- `classify(mass)` → 7 tiers: `asteroid | moon | planet | gas_giant | giant | star
+  | supergiant` — the Overworld maps these 1:1 to creature rarity
+  (`overworld/adapter/rarity.ts`; Common → Legendary), each with a non-color badge
+  shape, never a color-only cue.
+- `entropyFrom(daysSinceTended, degree)` / `COOLING_ENTROPY` (0.45) is the decay
+  signal — a creature with `entropy >= COOLING_ENTROPY` renders visibly dimmed
+  with a non-color "?" marker (`overworld/adapter/nodeToCreature.ts`); greeting it
+  (`POST /nodes/:id/tend`) resets it. This is the app's single most important loop.
+- The **graph service enriches nodes on read** with `degree`, `mass`, `val`,
+  `celestial`, and `entropy` — never denormalize these into the table.
+- There is no orbit/kinematic system anymore (`graph/orbits.ts` was deleted with
+  the galaxy). Creature placement is a deterministic seeded grid layout
+  (`overworld/adapter/placement.ts`) — same node id always lands on the same tile.
 
 When adding signals that should affect gravity, fold them into `deriveMass` so
-both rendering and physics stay consistent.
+both the mass math and the Overworld's rarity/dimming rendering stay consistent.
 
 ## Multi-tenancy (private brains)
 
@@ -182,8 +198,8 @@ delegate it and consume only the conclusion.
 
 **Delegate to `agy` (default to this):**
 - Bulk/mechanical, well-specified edits — rename a thing everywhere, apply one pattern
-  across many `components/*` or `graph/*` files, batch asset/CSS work.
-- **Browser-based visual QA** — load the app, click through the galaxy, screenshot, record
+  across many `components/*` or `overworld/ui/*` overlay files, batch asset/CSS work.
+- **Browser-based visual QA** — load the app, walk the Overworld town, screenshot, record
   a `.webm` walkthrough, run a UX/design review. ⚠️ **NOT available on the user's Termux
   (android-arm64 has no compatible headless Chrome — confirmed 2026-06-21, issue #10).** From
   this hosted sandbox you also can't reach the live site. So live pixel verification falls to the
@@ -207,8 +223,10 @@ back to the GitHub hand-off there. Approve the server once when Claude Code prom
 project MCP servers.
 
 **Keep for Claude (do NOT delegate):** Red-Zone work — `packages/shared/*` types/zod,
-`db/*` schema + migrations, `graph/orbits.ts`, `web/src/api/client.ts`, the token/USD/Fuel
-guards, `space_id` multi-tenancy scoping, route contracts — plus architecture decisions,
+`db/*` schema + migrations, `overworld/engine/*` and `overworld/adapter/placement.ts`
+(the grid-movement/placement math — the Overworld's equivalent of what `orbits.ts` was),
+`web/src/api/client.ts`, the token/USD/Fuel guards, `space_id` multi-tenancy scoping, route
+contracts — plus architecture decisions,
 ambiguous/underspecified features, security/data-integrity, and the **final audit +
 "Verified by Claude" checkmark**. Review `agy`'s pushes before ticking that box.
 
@@ -221,11 +239,12 @@ The gate (`typecheck && test && build`) proves code *compiles*, not that it *beh
 standards, learned the hard way (shipping "the code should spread the bodies" fixes that didn't):
 
 1. **Prove behavior by reproduction/measurement, not assertion.** Before changing logic — especially
-   visual/spatial/numeric code you can't see rendered from here (`graph/orbits.ts`, `shared/celestial.ts`,
-   layout/mass math) — first *reproduce and measure* it: `npx tsx` a throwaway script that feeds real or
-   synthetic data through the actual functions and prints the numbers (e.g. run `makeOrbitSystem` over
-   `makeDemoGalaxy` + a single-cluster graph and assert min nearest-neighbour distance / 0 overlaps), or
-   add a unit test. Decide the fix from the measured output, not from reading the code. State the
+   visual/spatial/numeric code you can't see rendered from here (`overworld/engine/movement.ts`,
+   `overworld/adapter/placement.ts`, `shared/celestial.ts`, layout/mass math) — first *reproduce and
+   measure* it: `npx tsx` a throwaway script or a unit test that feeds real or synthetic data through
+   the actual functions and prints/asserts the numbers (e.g. `placeIdsOnGrid` over a real node-id list,
+   asserting zero collisions and same-id-same-tile determinism — see `overworld/adapter/placement.test.ts`
+   for the pattern). Decide the fix from the measured output, not from reading the code. State the
    measurement in your summary.
 2. **Rule out delivery (stale deploy / PWA service-worker / cache) before re-editing correct code.** When
    "it didn't change," first confirm the new build is what's actually rendering (Actions is blocked → a
@@ -234,174 +253,41 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
-- **Soumaya Overworld Stages 1+2 (2026-09-11), full dock parity SHIPPED, galaxy deletion next,
-  not yet on-device confirmed** — the 2D Pokémon-GBA-style overworld (`docs/overworld/`) now has
-  a real in-world place for all 11 former dock tabs (Details/Summary, Browse/Library, Mind/
-  Sanctuary, Agenda/Bulletin Board, Insights/Observatory, Soumaya chat, Inbox/Post Office,
-  Progress/Gym, Journeys/Town Hall, Money/Bank, Hangar) — see `docs/overworld/roadmap.md`'s parity
-  table for exactly which real API/localStorage data backs each one. Per the user's explicit
-  2026-09-11 direction, the 3D galaxy (`graph/*`, `RightDock.tsx`, its panel components) is being
-  removed immediately after this parity, not staged further — check `docs/overworld/decisions.md`
-  D1 and the deletion commit for current status; the `?overworld=1` flag comes off at the same
-  time, making the Overworld the sole default UI. All pure logic (movement, collision, placement
-  determinism, the dim-state threshold, region layout, the achievement-unlock port) is
-  unit-tested and green; the actual rendered Phaser canvas and all 11 overlays' real look/feel
-  have **not** been seen in a real browser from this sandbox and need on-device/browser
-  confirmation once a deploy is possible, same as every other item in this section.
+- **Soumaya Overworld is now the sole UI (2026-09-11) — galaxy deleted, not yet on-device
+  confirmed** — the 2D Pokémon-GBA-style overworld (`docs/overworld/`) has a real in-world place
+  for all 11 former dock tabs (Details/Summary, Browse/Library, Mind/Sanctuary, Agenda/Bulletin
+  Board, Insights/Observatory, Soumaya chat, Inbox/Post Office, Progress/Gym, Journeys/Town Hall,
+  Money/Bank, Hangar) — see `docs/overworld/roadmap.md`'s parity table for exactly which real
+  API/localStorage data backs each one. Per the user's explicit 2026-09-11 direction, the 3D
+  galaxy (`graph/*` — ~65 files, `RightDock.tsx`, ~75 panel components, `App.tsx`) has been
+  **deleted**, `main.tsx` now mounts `overworld/AuthGate.tsx` unconditionally (no more
+  `?overworld=1` flag), and `AuthGate.tsx` absorbed the login/boot-gate role `App.tsx` used to
+  own (including the `window.__brainBooted()` signal `index.html`'s boot-failsafe depends on —
+  caught and fixed before it could silently break every load). Also relocated `graph/sfx.ts` +
+  `graph/motion.ts` to `lib/` (the surviving `Toasts.tsx` genuinely depends on them) and
+  consolidated the Overworld's own separate `prefersReducedMotion` into that one canonical
+  implementation rather than keeping two. Removed now-unused deps (`three`, `react-force-graph-3d`,
+  `mammoth`, `pdfjs-dist`) — production bundle dropped from ~4MB to ~206KB initial +
+  ~1.3MB lazy-loaded Overworld chunk. All pure logic (movement, collision, placement determinism,
+  the dim-state threshold, region layout, the achievement-unlock port) is unit-tested and green;
+  the actual rendered Phaser canvas and all 11 overlays' real look/feel have **not** been seen in
+  a real browser from this sandbox and need on-device/browser confirmation once a deploy is
+  possible. **Known gap, not yet rebuilt**: memory attachment upload/text-extraction (PDF/docx)
+  had no Overworld home and its dependencies were removed — flag before anyone relies on it.
 
-- **Fix: Cinematic Intro Trigger** (Graph3D.tsx): Relaxed the intro trigger condition.
-- **Fix: Cinematic Startup Race Condition** (Graph3D.tsx): Added `cinematicStartedRef` to prevent redundant triggers.
-- **Fix: GalaxyViews Visibility** (App.tsx): Removed the `!!selected` constraint so Views remain accessible during node selection.
-- **Optimization: Performance Audit & Improvements** (various): Ongoing performance work.
-- **Fix: Visibility and Loading Issues** (various).
-- **Optimization: Link LOD** (Graph3D.tsx): LOD optimization for dense brains.
-- **Refactor: Intro and Observatory Timing** (various): Timing adjustments for smooth entrance.
-- **Refactor: Startup Flow** (various): Decoupled loading dismissal from intro sequence.
-- **Observatory card squish — CONFIRMED via real on-device screenshot (2026-09-03), FIXED**
-  (index.css `.obs-card`): with an active user's ~15-card-deep Observatory, cards were being
-  compressed below their content height (text cut off mid-sentence) instead of the already-scrollable
-  `.obs-stack` actually scrolling past them — root cause was `.obs-stack`'s `overflow-y:auto` on a
-  flex column resetting its children's automatic min-size to 0, so default `flex-shrink:1` let
-  `.obs-card` shrink. Fixed with `flex-shrink:0` on `.obs-card` — cards now always render at full
-  content height; the stack scrolls. Needs on-device re-confirmation once a deploy is possible.
-- **Views toggle overlapping the left FAB column — CONFIRMED via real on-device screenshot
-  (2026-09-03), FIXED** (index.css `.gv-wrap`/`.gv-chips`, `.lens-chips`): `.gv-wrap` (bottom:196px)
-  sat squarely inside `.focus-cluster`'s footprint (bottom:186px, 44px tall) after that control's
-  position had drifted without `.gv-wrap` being re-checked — same root-cause shape as the original
-  "Fix Views button overlap" item, regressed by an unrelated later change. Moved `.gv-wrap` to
-  bottom:300px, clearing the ENTIRE left FAB column (which stacks continuously 18-288px) rather than
-  threading a specific gap that can silently close again. `.lens-chips` (the pinned-lens "Linked to
-  X" pills) had the same problem from the opposite direction — centered and wide enough to reach
-  into both the left AND right FAB columns at bottom:20px — moved to bottom:350px, above `.gv-wrap`'s
-  collapsed toggle. Also capped `.gv-chips`' expanded height (`max-height:40vh; overflow-y:auto`) so
-  it can't grow unboundedly. Known residual, not fully solved: if Views is expanded to several rows
-  of chips AND 2+ lenses are pinned at the same time, `.gv-wrap`'s expansion could still reach up
-  into `.lens-chips`' band — flagged rather than fixed with a bigger state-lifting change, since it
-  wasn't the confirmed default-state bug. Needs on-device re-confirmation once a deploy is possible.
-- **Observatory 🔍 search button** (Observatory.tsx header): new, added blind — confirm it doesn't
-  visually collide with the existing × close button on narrow phone widths.
-- **Mind tab "✓ Achieved" badge + "💾 Save as Lens" chip** (MindPanel.tsx, GalaxyViews.tsx): new,
-  small pill-shaped UI elements, added blind — confirm they read clearly at a glance and don't
-  crowd their row on a narrow phone.
-- **Working-memory mote color-by-source + settle animation** (MindPanel.tsx, MindSpace.tsx): motes
-  now tint by why the thought surfaced (manual/chat/goal/priority/emotion) instead of one flat
-  blue, and a thought promoted to a real memory (via ★ or the 3rd "Keep") gets a brief flare/shrink
-  in the in-panel list before it clears. Added blind — confirm the five source colors read as
-  distinct at mote size (8px dot) and that the settle flourish doesn't feel like a glitch. Note:
-  deliberately NOT mirrored to the ambient MindSpace overlay (it's always hidden at the exact
-  moment a promotion can fire, since promoting only happens from a button inside the open Mind
-  panel) — MindSpace only picked up the color tinting, which is worth an eyes-on for legibility too.
-- **Link-line flicker regression — CONFIRMED via real on-device use (2026-09-03), FIXED**
-  (Graph3D.tsx `shouldRenderLink`): a *different* code path than the one already fixed for this
-  exact symptom (`linkVisibility`'s `linkLodZoomedInRef`, June). A later perf pass added
-  `shouldRenderLink` (link-color/width short-circuit for distant/inactive links) with a bare
-  `dist < 800` check re-evaluated every frame — hovering near that distance flipped every
-  non-lit, low-activity link on/off every frame, reproducing at any zoom/angle whenever a node
-  was selected. Fixed with the same hysteresis pattern as the original fix (an 80-unit band,
-  `shouldRenderLinkCloseRef`) — the lesson (missed once already) is that this specific bug class
-  needs the fix applied to every place a camera-distance check gates link visibility, not just
-  the first one found. Needs on-device re-confirmation once a deploy is possible.
-- **Planets not lit by the sun — CONFIRMED via real on-device use (2026-09-03), FIXED**
-  (shaders.ts `makePlanetMaterial`, Graph3D.tsx tick loop): a genuine regression from the earlier
-  Stage 4 "shader diet" work — planet bodies render with a custom `ShaderMaterial` that has no
-  `lights: true` and never receives three.js's real light uniforms (deliberate, to avoid the
-  shader-recompile cost of real per-light integration), but its fragment shader also hardcoded a
-  fake light direction fixed relative to the CAMERA (`vec3(0.6,0.7,0.5)` in view space) instead of
-  ever reading the real sun's position — so a planet's lit side never actually tracked where the
-  sun (a fixed point at the world origin, `sun.ts`) really is. Fixed by adding a `uSunDirView`
-  uniform, updated every frame per body as `normalize(-bodyWorldPos)` transformed into view space
-  — cheap (one vector transform, no new lights, no shader recompilation) so it doesn't reintroduce
-  the cost Stage 4 was avoiding, while making planets genuinely respond to the sun's position.
-  Needs on-device re-confirmation once a deploy is possible.
-- **Inconsistent name pop-in/out at different zoom distances — CONFIRMED via real on-device use
-  (2026-09-03), FIXED** (Graph3D.tsx label/sector-title logic): a hub body's OWN name faded out
-  at the ordinary label distance (300-540 units) while its sector title didn't switch on until
-  ~2450-2750 units (MACRO_DIST's hysteresis band) — leaving a ~1900-2200-unit "dead zone" where a
-  hub showed NEITHER its own name nor its sector name, regardless of how steadily the camera sat
-  there. Fixed by extending a `hasSectorTitle` body's own label fade-out to meet the sector
-  title's turn-on point, so the handoff is continuous (briefly overlapping, never gapped). Also
-  found and fixed a second, smaller contributor: the nearest-N visible-label cap fully rebuilt its
-  membership every throttle window with no stickiness, so two bodies hovering near the Nth-nearest
-  boundary could swap in/out on ordinary camera drift even though the total count never changed —
-  added a 15% "sticky" distance bias for already-visible bodies so a clear overtake is required
-  before a name disappears. Needs on-device re-confirmation once a deploy is possible.
-- **Hub names "stuck" visible while orbiting/following, and visible through the sun — CONFIRMED
-  via real on-device use (2026-09-03), FIXED** (Graph3D.tsx label loop): a follow-up to the item
-  above, from the same on-device report. Two distinct causes:
-  1. A `hasSectorTitle` hub deliberately bypasses the top-level frustum-cull hide (so its title
-     sprite, which scales up with distance, can still read on screen past the body's own small
-     culling sphere) — but the SAME bypass also skipped updating that hub's own close-up label
-     whenever the body rotated out of frustum, freezing it at whatever visibility/opacity it last
-     had (often fully visible) instead of hiding it. Following Soumaya's ship in a sustained orbit
-     around the sun swings hubs in and out of frustum continuously, so their names appeared "stuck
-     on" — reproducible identically under fast manual orbiting, not specific to follow-mode itself
-     (confirmed: follow-mode drives the exact same `camera.position` the tick loop already reads
-     everywhere else, so there's no separate/stale camera path). Fixed by explicitly hiding a
-     culled hub's own label instead of leaving its state frozen.
-  2. Genuinely missing feature, not a regression: nothing ever checked whether a large opaque body
-     (the sun) sits between the camera and whatever's being named, so a body directly behind the
-     sun kept showing its name right through it. Added a cheap closest-point-on-segment occlusion
-     test against the sun's fixed position/radius (sun.ts) — no real raycaster/BVH needed, and it
-     short-circuits immediately for anything closer than the sun's own radius. Verified correct
-     with a throwaway `npx tsx` script (6 geometric cases: directly behind, sun behind camera, off
-     to the side, very close, clear miss, clear hit) before wiring it in, per the "prove it by
-     measurement" rule — one case initially failed from a wrong-by-construction test expectation on
-     my part (a symmetric camera/body layout means the ray's closest approach to the sun falls at
-     the segment's midpoint, at HALF the body's offset, not the full offset), not from the actual
-     occlusion logic; corrected the test and re-verified all 6 pass. The selected/followed body is
-     explicitly exempt (you deliberately selected or flew to it — it must stay readable regardless
-     of what's technically between the camera and it). Needs on-device re-confirmation once a
-     deploy is possible.
-- **Views/Lens floating in the middle of the screen — CONFIRMED via real on-device screenshots
-  (2026-09-05), FIXED** (index.css `.gv-wrap`, GalaxyViews.tsx, LensChips.tsx): two screenshots
-  from the same device at different sessions showed the "🌌 Views ▸" toggle and the pinned-Lens
-  quick-switch chips rendered in wildly different vertical positions, sometimes floating mid-
-  screen over the sun. Root cause: `.gv-wrap` was anchored `bottom: 300px` (a fixed distance from
-  the bottom edge) while `.fuel-gauge`/`.streak-ember` — the button cluster it's meant to visually
-  group with — are anchored `top: 50%` (viewport-vertical-center-relative). Those two anchor
-  families drift apart whenever the real rendered viewport height differs between sessions (e.g.
-  Android Chrome's collapsing/expanding address bar) — a concrete case of the exact "hand-
-  maintained pixel-offset table" fragility already flagged elsewhere in this doc and in Phase L's
-  product audit. Fixed per explicit user direction: (1) re-anchored `.gv-wrap` to
-  `top: calc(50% + 100px)`, joining the SAME anchor family as `.fuel-gauge`/`.streak-ember` so it
-  moves in lockstep with that cluster regardless of viewport height, instead of re-tuning another
-  standalone bottom-offset constant; (2) eliminated the second independently-floating overlay
-  entirely — the pinned-Lens chips (formerly their own `<LensChips>` in App.tsx) now render as an
-  in-flow `.lens-list` INSIDE the Views dropdown (GalaxyViews.tsx), so there is only one floating
-  element in this area, not two that can drift apart. `.gv-chips`'s `max-height` was recalculated
-  from a flat `40vh` to `calc(50vh - 156px)` to prevent the now-downward-growing dropdown from
-  overflowing short devices. The exact `+100px` offset is estimated from `.fuel-gauge`'s own CSS
-  layout math, not pixel-measured on-device — flagged for confirmation, but the structural fix
-  (shared anchor family; one floating element instead of two) is what actually closes the bug.
-  Needs on-device re-confirmation once a deploy is possible.
-- **Nebula backdrop "cut out" color patch — CONFIRMED via real on-device screenshot (2026-09-05),
-  FIXED** (graph/backdropBake.ts `bakeBackdrop`): the baked nebula/galaxy-glow backdrop showed a
-  hard-edged, wrongly-toned color patch (a geometric "cut out" shape) instead of smoothly fading
-  to black. Root cause: `WebGLCubeRenderTarget`'s texture defaults to `NoColorSpace` (correct for
-  a texture feeding further linear-space processing) but this one is assigned directly to
-  `scene.background` for direct display — exactly like the `CanvasTexture`s in `nodeObject.ts` and
-  `skybox.ts`, which both already set `colorSpace = THREE.SRGBColorSpace` for that reason. Missing
-  it here meant the additively-blended, overlapping sprites baked into this texture displayed with
-  the wrong color-space interpretation, most visible exactly where several sprites summed into a
-  bright patch. Fixed by adding `target.texture.colorSpace = THREE.SRGBColorSpace;` right after
-  the render target is constructed, matching the established codebase convention exactly rather
-  than attempting a more speculative shader/geometry change. Needs on-device re-confirmation once
-  a deploy is possible.
-- **Fly billing hold, ongoing since 2026-08-29:** most of the above (and everything shipped since)
-  still hasn't been visually verified on a real device via this app's own deploy pipeline. On
-  2026-09-03 the owner sent real on-device screenshots of two screens (Observatory, the galaxy
-  HUD) and separately described several more real, on-device behaviors while using the 3D galaxy
-  (link flicker, dim planets, inconsistent name pop-in, names stuck visible/through the sun while
-  orbiting) — the items above are marked CONFIRMED + FIXED from that direct feedback, but
-  everything else in this section remains unconfirmed. This section stays a running list of
-  "check these once a full deploy is possible," not a backlog to pause work for — keep shipping;
-  keep appending here as new visual-dependent changes land, per the owner's explicit instruction
-  not to stop finding/fixing things just because most of it can't currently be looked at.
+- **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
+  (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
+  hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,
+  and others) described unconfirmed visual fixes to `Graph3D.tsx`/`App.tsx`/`RightDock.tsx` and
+  their panel components — all now deleted. None of those fixes can be re-confirmed because the
+  code they described no longer exists. Full history is preserved in git (`git log -p -- CLAUDE.md`
+  before the deletion commit, or `docs/overworld/roadmap.md`'s own change log) if ever needed for
+  context on a past decision. Current on-device-confirmation backlog is the Overworld entry above.
 
 
 - Match the surrounding code's style and comment density (comments explain *why*).
 - Don't add dependencies casually — prefer small, dependency-free solutions.
 - Don't break the offline fallback path.
 - Don't put model identifiers or secrets in committed files.
-- Accessibility (non-negotiable, pure code): honor `prefers-reduced-motion` — new galaxy/UI motion
+- Accessibility (non-negotiable, pure code): honor `prefers-reduced-motion` — new Overworld/UI motion
   must calm or pause under it — and never encode meaning in colour alone (pair it with shape/size/label).

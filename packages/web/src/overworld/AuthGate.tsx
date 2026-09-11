@@ -1,12 +1,15 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { currentSpace, logoutSpace } from "../api/client.js";
 import { LoginScreen } from "../components/LoginScreen.js";
-import { OverworldRoot } from "./OverworldRoot.js";
+
+// Phaser (~1.2MB) stays out of the login screen's bundle — lazy-loaded only once a space
+// is actually open, matching the lazy-loading discipline requirements.md always required.
+const OverworldRoot = lazy(() => import("./OverworldRoot.js").then((m) => ({ default: m.OverworldRoot })));
 
 type Space = { id: string; name: string };
 
 /**
- * The app's real entry point once the galaxy is retired. Mirrors App.tsx's own former
+ * The app's real entry point now that the galaxy is retired. Mirrors App.tsx's own former
  * boot gate exactly (resolve `currentSpace()` → loading → LoginScreen → the app) since
  * OverworldRoot itself has no opinion about auth — without this, deleting App.tsx would
  * have left no way for anyone to sign in.
@@ -21,6 +24,16 @@ export function AuthGate() {
       .catch(() => {})
       .finally(() => setAuthChecked(true));
   }, []);
+
+  // Tell the index.html boot-failsafe we booted OK, so it stands down (App.tsx used to
+  // own this — without it, index.html's 12s watchdog would show a false "stuck loading"
+  // recovery prompt on every real load). "Booted" = the auth check finished (LoginScreen
+  // OR the Overworld is about to render), not gated on the slower Overworld/Phaser load.
+  useEffect(() => {
+    if (authChecked) {
+      (window as unknown as { __brainBooted?: () => void }).__brainBooted?.();
+    }
+  }, [authChecked]);
 
   if (!authChecked) {
     return (
@@ -58,7 +71,9 @@ export function AuthGate() {
           Log out ({space.name})
         </button>
       </div>
-      <OverworldRoot />
+      <Suspense fallback={null}>
+        <OverworldRoot />
+      </Suspense>
     </div>
   );
 }

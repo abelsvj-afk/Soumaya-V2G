@@ -74,21 +74,26 @@ parallel, well-scoped work and gathers evidence. Pick the model to match the tas
 ### ✅ `agy` Direct Implementation (Green Zone)
 Make real changes here, no permission needed beyond the gate + log:
 - **Surgical edits** — single-file bug fixes / enhancements in the green-zone files
-  (`packages/web/src/graph/*` except `orbits.ts`, `components/*`, `index.css`,
-  `graph/lore.ts`, `graph/objectLore.ts`, in-character copy/help text).
+  (`packages/web/src/overworld/ui/*` overlays and `overworld/scenes/*` presentation code except
+  `overworld/engine/*` and `adapter/placement.ts`, `components/*`, `index.css`, in-character
+  copy/help text). **2026-09-11: the 3D galaxy (`graph/*`, `RightDock.tsx`, most of `components/*`,
+  `App.tsx`) was deleted** — the Overworld (Phaser 3, `overworld/**`) is now the only UI. If you're
+  reading a plan/log entry that predates this and references `graph/*`/`Graph3D.tsx`/`orbits.ts`/
+  `RightDock.tsx`, that code no longer exists; see `docs/overworld/` for the current architecture.
 - **Self-contained algorithms** — pure helpers with no schema/contract impact.
 - **Maintenance boilerplate** — logs, copy, repo metadata, docs.
 - **Infrastructure** — shell, deps (sparingly), git on the deploy branch.
 - **Research & staging** — investigate the codebase, draft plans/diffs for Claude.
 
 ### 🆕 New Green-Zone superpowers (use these — Gemini CLI couldn't)
-- **Browser-subagent visual QA (huge for this 3D app)** — *only where a headless Chrome is
+- **Browser-subagent visual QA (huge for this app)** — *only where a headless Chrome is
   available.* ⚠️ **It does NOT run on the user's Termux (android-arm64): no compatible headless
-  Chrome there (confirmed 2026-06-21, issue #10), so the browser subagent can't capture the galaxy
-  on the phone.** Use it from a desktop/CI context; on Termux, fall back to a desktop browser or the
-  USER for live visual checks, and verify behavior by **headless reproduction/measurement** instead
-  (e.g. `npx tsx` over `orbits.ts`/`celestial.ts` and assert the numbers). When it IS available:
-  spin it up against local dev (`npm run dev`) or the deployed URL, click through the galaxy, and
+  Chrome there (confirmed 2026-06-21, issue #10), so the browser subagent can't capture the
+  Overworld on the phone.** Use it from a desktop/CI context; on Termux, fall back to a desktop
+  browser or the USER for live visual checks, and verify behavior by **headless
+  reproduction/measurement** instead (e.g. `npx tsx` over `overworld/engine/movement.ts`/
+  `overworld/adapter/placement.ts`/`celestial.ts` and assert the numbers). When it IS available:
+  spin it up against local dev (`npm run dev`) or the deployed URL, walk the Overworld town, and
   **prove a visual change renders** (screenshots + `.webm`). Either way, never "verify" visuals by
   re-describing the code — that's not proof.
 - **Parallel / async subagents.** Fan out well-specified mechanical work (rename a CSS
@@ -166,7 +171,9 @@ The app DEPLOYS FROM ONE BRANCH ONLY: **`claude/soumaya-second-brain-v1-m4z4hc`*
 5. **Pre-commit gate (all must pass):** `npm run typecheck && npm test && npm run build -w @brain/web`
 6. **Additive, not destructive.** Surgical edits; don't wholesale-replace Claude's files.
 7. **Do NOT modify without Claude's sign-off:** the LLM token/budget guard, the hardened
-   fetch wrapper (`web/src/api/client.ts`), the kinematic orbit system (`graph/orbits.ts`),
+   fetch wrapper (`web/src/api/client.ts`), the Overworld's movement/placement math
+   (`overworld/engine/movement.ts`, `overworld/adapter/placement.ts` — replaced `graph/orbits.ts`,
+   deleted 2026-09-11 with the rest of the galaxy),
    or `db` migrations. These are load-bearing.
 8. **Claude is lead implementer.** For anything Red Zone, stage a plan + diff and hand
    execution to Claude — do not push it yourself.

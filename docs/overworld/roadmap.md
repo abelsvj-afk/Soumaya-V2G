@@ -75,12 +75,48 @@ placeholder programmer-art throughout (asset production, not architecture).
 **Still needs on-device/browser confirmation** for the same reason as Stage 1 — this sandbox has
 no live browser.
 
-## Deletion — the 3D galaxy is retired
+## Deletion — the 3D galaxy is retired — SHIPPED 2026-09-11
 
-With every dock tab now having a real Overworld equivalent, the staged replacement in
-decisions.md D1 completes: `packages/web/src/graph/*`, `RightDock.tsx`, and the panel components
-it hosted are removed, `App.tsx`'s galaxy mount is deleted, and the `?overworld=1` opt-in comes
-off — the Overworld becomes the sole default UI, per the user's explicit instruction.
+With every dock tab having a real Overworld equivalent, the staged replacement in decisions.md D1
+completed: `App.tsx`, `packages/web/src/graph/*` (~65 files), `RightDock.tsx`, and ~75 panel
+components it hosted are deleted; `main.tsx` mounts `overworld/AuthGate.tsx` unconditionally (the
+`?overworld=1` opt-in is gone) — the Overworld is now the sole UI.
+
+A precise dependency analysis (not a guess) drove the deletion, since a few `components/*` files
+are genuinely depended on by the Overworld (`LoginScreen.tsx`, `Toasts.tsx`, `achievements.ts`,
+`codex.ts`, `ErrorBoundary.tsx`) and had to be kept. Two real, would-have-shipped-broken issues
+were caught before/during the deletion, not after:
+
+1. **`OverworldRoot` had no login flow at all.** The space-auth gate (`currentSpace()` boot check
+   → `LoginScreen` → the app) only ever lived in `App.tsx`. Deleting it without replacing that gate
+   would have locked out every signed-out user. Built `AuthGate.tsx` to own this instead — same
+   flow, plus a logout button, unit-tested before the deletion proceeded.
+2. **`index.html`'s boot-failsafe watchdog would have false-positived on every load.** It waits for
+   `window.__brainBooted()` to stand down its "stuck loading" recovery prompt; only `App.tsx` ever
+   called it. Ported the exact same call (gated on the auth check resolving, not on the slower
+   Overworld/Phaser load — matching the original's own comment about why) into `AuthGate.tsx`.
+
+Also found via the same dependency analysis: `components/Toasts.tsx` (a genuine Overworld
+dependency, via `PostOfficeOverlay`) imported `playSfx` from `graph/sfx.ts`, which imported
+`prefersReducedMotion` from `graph/motion.ts` — deleting `graph/` wholesale would have broken the
+build. Relocated both to `lib/` and updated the one real import site. While there, consolidated
+the Overworld's own separate, simpler `engine/reducedMotion.ts` into the relocated
+`lib/motion.ts` (the canonical implementation, with the in-app override + focus-calm nuance the
+Overworld's copy didn't have) rather than maintain two divergent "is motion reduced" answers.
+
+Also deleted as genuinely orphaned (verified, not assumed): `api/graph.ts` (+test — only
+`App.tsx` used it), `api/lenses.ts` (nothing ever called it outside the deleted `LensesPanel`),
+`hooks/*`, `utils/*`, and three now-dead `lib/*` files. Removed now-unused dependencies (`three`,
+`react-force-graph-3d`, `mammoth`, `pdfjs-dist`) — the production bundle went from a >4MB initial
+load (`index` + `Graph3D` + `pdf` + `mammoth` chunks) to ~206KB initial + one ~1.3MB lazy Overworld
+chunk (Phaser), loaded only after login.
+
+**Known gap, not silently dropped:** memory-attachment upload + PDF/docx text extraction
+(`MemoryAttachments.tsx`, backed by the now-removed `mammoth`/`pdfjs-dist`) had no Overworld home
+and wasn't one of the 11 dock tabs in scope for this parity pass — it's gone from the live app
+until a future stage gives it one. `index.css` (128KB, largely galaxy-panel styling) was left
+un-trimmed — safe to leave (dead CSS costs bytes, not correctness) but flagged as a real cleanup
+opportunity for whoever next has the budget for a careful pass.
 
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
