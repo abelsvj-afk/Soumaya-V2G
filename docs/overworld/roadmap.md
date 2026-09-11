@@ -155,6 +155,32 @@ on-device/browser confirmation, same standing caveat as the rest of the Overworl
 browser in this sandbox). No water tiles or decorative trees were added this pass (not required
 by the current region layout) — left as a follow-up if a later stage adds a water/forest area.
 
+## Stage 2.6 — Motion & life: animation polish + a real Hangar/world tie-in — SHIPPED 2026-09-11
+
+Continuing the "bring this world to life" direction right after Stage 2.5's real art landed:
+
+- **Player**: a quick squash-and-recover ("hop") on every step tween, plus a slow idle
+  "breathing" loop whenever standing still (stopped before each step so the two never fight —
+  `startIdleBob`/`stopIdleBob` in `ExteriorScene.ts`).
+- **Creatures**: a gentle idle bob per sprite, desynced per node id via a new deterministic
+  `idleBobDelayMs()` (`tileAtlas.ts`, unit-tested) so the town doesn't bob in lockstep — a small
+  "the world is alive" touch, not a gameplay/rarity signal.
+- **Soumaya**: her standalone marker gets the same idle bob (she's a companion). The Bulletin
+  Board deliberately does not — it's a signpost, not a character.
+- **A real system finally reflected in-world**: the Hangar's "Cosmic Trail" cosmetic
+  (`data/hangarOptions.ts`) previously had zero visual effect outside the deleted 3D galaxy
+  (flagged in HangarOverlay.tsx's own comment). `ExteriorScene.ts` now reads the saved trail
+  color and leaves a small fading dot of that color at each tile the player steps off of —
+  `refreshTrailColor()` re-reads it the moment the Hangar overlay closes, so a newly-chosen
+  trail shows up immediately, no reload. Ship hull + figurine choices still have no 2D
+  equivalent to apply to (no per-hull sprite art) — still flagged, not silently dropped.
+- Every new animation is a no-op under `prefersReducedMotion()` — motion trails and idle loops
+  are exactly the kind of thing that guidance exists for.
+
+Verified via new tests (`idleBobDelayMs` determinism/desync in `tileAtlas.test.ts`,
+`trailColorHex` in `hangarOptions.test.ts`) + the full gate. Still needs on-device/browser
+confirmation, same standing sandbox limitation as the rest of the Overworld.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   creatureFrameForType,
   grassFrameFor,
+  IDLE_BOB_PERIOD_MS,
+  idleBobDelayMs,
   objectFrameForPlace,
   TileFrame,
   wallFamilyForIndex,
@@ -75,6 +77,26 @@ describe("tileAtlas", () => {
       // "moc" (constellation hub) has no dedicated art yet — must still render, not crash.
       expect(() => creatureFrameForType("moc")).not.toThrow();
       expect(creatureFrameForType("moc")).toBe(TileFrame.creatureOther);
+    });
+  });
+
+  describe("idleBobDelayMs", () => {
+    it("is deterministic — same node id always yields the same delay", () => {
+      expect(idleBobDelayMs(42)).toBe(idleBobDelayMs(42));
+      expect(idleBobDelayMs(1)).toBe(idleBobDelayMs(1));
+    });
+
+    it("always stays within one bob period", () => {
+      for (const id of [0, 1, 2, 42, 999, 123456]) {
+        const delay = idleBobDelayMs(id);
+        expect(delay).toBeGreaterThanOrEqual(0);
+        expect(delay).toBeLessThan(IDLE_BOB_PERIOD_MS);
+      }
+    });
+
+    it("desyncs different node ids (not every creature bobs in lockstep)", () => {
+      const delays = new Set([1, 2, 3, 4, 5, 6, 7, 8].map(idleBobDelayMs));
+      expect(delays.size).toBeGreaterThan(1);
     });
   });
 });

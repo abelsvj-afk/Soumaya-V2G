@@ -92,7 +92,11 @@ export function OverworldRoot() {
     game.events.once(Phaser.Core.Events.READY, () => {
       if (cancelled) return; // unmounted before boot finished
 
-      const sceneConfig: ExteriorSceneConfig = { inputBus: inputBusRef.current, creatures: [] };
+      const sceneConfig: ExteriorSceneConfig = {
+        inputBus: inputBusRef.current,
+        creatures: [],
+        spaceId: getSpaceId() ?? "default",
+      };
       const scene = game.scene.add("exterior-scene", ExteriorScene, true, sceneConfig) as ExteriorScene | null;
       if (!scene) {
         // Belt-and-braces: should be unreachable per the READY contract above, but a blank
@@ -131,6 +135,11 @@ export function OverworldRoot() {
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
     if (overlay.kind !== "none" && overlay.kind !== "capture" && overlay.kind !== "details" && DOOR_PLACE_IDS.has(overlay.kind)) {
       sceneRef.current?.returnToDoor(overlay.kind);
+    }
+    // Leaving the Hangar may have changed the saved trail color — pick it up immediately
+    // rather than waiting for a full scene reload.
+    if (overlay.kind === "hangar") {
+      sceneRef.current?.refreshTrailColor();
     }
     setOverlay({ kind: "none" });
   }, [overlay.kind]);

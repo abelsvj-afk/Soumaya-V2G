@@ -38,11 +38,12 @@ function OptionSelect({
 /**
  * The Hangar — kept ~1:1 with the existing HangarPanel.tsx (per the build brief), reusing
  * the exact same localStorage keys and unlock gates (data/hangarOptions.ts) so a pilot's
- * earned cosmetics carry over between the galaxy and the Overworld. The Overworld's player
- * sprite is still placeholder art (roadmap.md's known Stage-1/2 simplification) so a chosen
- * skin isn't visually applied here yet — this building preserves the *selection state*
- * correctly, which is what matters for parity; visual application follows once real sprites
- * exist.
+ * earned cosmetics carry over between the galaxy and the Overworld. The chosen Cosmic Trail
+ * now actually renders — ExteriorScene.ts reads it (readTrailColor/refreshTrailColor) and
+ * colors the fading trail the player leaves while walking. Ship hull + figurine choices still
+ * have no 2D equivalent to apply to (no per-hull sprite art exists) — this building keeps
+ * their *selection state* correct, which is what matters for parity, until/unless a later
+ * pass gives them a real in-world effect.
  */
 export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlayProps) {
   const keys = hangarKeys(spaceId);

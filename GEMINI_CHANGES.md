@@ -1,3 +1,21 @@
+### 2026-09-11 (Claude): Soumaya Overworld — motion polish + Hangar trail actually reflected in-world
+- [ ] Verified by Claude
+- Follow-up to the tileset fix, per the user's direction to keep bringing the world to life
+  (animations, motion, systems reflected properly in-game).
+- Player: step squash/hop tween + idle breathing loop (mutually exclusive, `startIdleBob`/
+  `stopIdleBob` in `ExteriorScene.ts`). Creatures: desynced idle bob per node id
+  (`tileAtlas.ts`'s new `idleBobDelayMs()`, deterministic + unit-tested, same no-`Math.random`
+  convention as everything else here). Soumaya's marker gets the same bob (she's a companion);
+  the Bulletin Board deliberately doesn't (it's a sign).
+- Closed a real flagged gap: the Hangar's "Cosmic Trail" cosmetic had no visual effect anywhere
+  outside the deleted 3D galaxy. `ExteriorScene.ts` now reads it and leaves a fading trail of
+  that color behind the player's footsteps; `refreshTrailColor()` re-reads it the instant the
+  Hangar overlay closes. Ship hull/figurine choices still have nothing to visually apply to (no
+  per-hull 2D art) — left flagged, not silently dropped, in `HangarOverlay.tsx`'s own comment.
+- Everything new is a no-op under `prefersReducedMotion()` — idle loops and the motion trail are
+  exactly the kind of decorative movement that guidance exists to suppress.
+- Full gate green (1051 server + 150 web tests, typecheck, build) before this entry.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — real CC0 tile/sprite art, replacing flat-rectangle placeholders
 - [ ] Verified by Claude
 - User feedback after the Stage 2 deploy: the live Overworld was "just a bunch of square tiles,"

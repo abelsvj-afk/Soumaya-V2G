@@ -39,6 +39,22 @@ export function shipOptions(unlocked: ReadonlySet<string>, memoriesCount: number
   ];
 }
 
+/** Trail colors, as an in-world hex the Overworld can actually paint — the Hangar's "Cosmic
+ *  Trail" cosmetic previously had no visual effect outside the 3D galaxy (roadmap.md's known
+ *  gap); ExteriorScene.ts reads this to color the fading trail left behind by the player's
+ *  footsteps, so a pilot's chosen trail now shows up while walking, not just in the menu. */
+const DEFAULT_TRAIL_COLOR_HEX = 0x3fa9f5;
+const TRAIL_COLOR_HEX: Record<string, number> = {
+  blue: DEFAULT_TRAIL_COLOR_HEX,
+  neon: 0xff36e0,
+  gold: 0xffd166,
+  purple: 0x9b5de5,
+};
+
+export function trailColorHex(trail: string): number {
+  return TRAIL_COLOR_HEX[trail] ?? DEFAULT_TRAIL_COLOR_HEX;
+}
+
 export function trailOptions(unlocked: ReadonlySet<string>): HangarOption[] {
   return [
     { value: "blue", label: "Blue Nebula (Default)", unlocked: true },

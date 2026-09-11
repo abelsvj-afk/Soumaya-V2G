@@ -285,6 +285,16 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   player sprite). Same standing sandbox limitation as the rest of the Overworld: verified by
   gate + `tileAtlas.test.ts`, not yet seen rendered in a real browser.
 
+- **Motion polish + a real Hangar tie-in (2026-09-11), not yet on-device confirmed** — player
+  step-hop + idle breathing, desynced creature idle bobs, and Soumaya's marker getting the same
+  bob (the Bulletin Board correctly doesn't — it's a sign). Closed a real flagged gap: the
+  Hangar's "Cosmic Trail" cosmetic now actually renders as a fading trail behind the player's
+  footsteps (`ExteriorScene.ts`'s `readTrailColor`/`refreshTrailColor`), instead of only ever
+  affecting a menu selection. Ship hull/figurine choices still have no visual effect (no 2D
+  art to apply them to) — still flagged in `HangarOverlay.tsx`. Everything new is a no-op
+  under `prefersReducedMotion()`. See `docs/overworld/roadmap.md`'s "Stage 2.6". Verified by
+  gate + new tests, not yet seen rendered in a real browser.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,

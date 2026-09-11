@@ -4,6 +4,7 @@ import { completeMove, createMovementState, tryMove, type MovementState } from "
 import { tileInFront } from "../engine/interact.js";
 import { prefersReducedMotion } from "../../lib/motion.js";
 import type { CreatureEntity } from "../types.js";
+import { hangarKeys, trailColorHex } from "../data/hangarOptions.js";
 import {
   allPlaces,
   doorPlaceAt,
@@ -21,6 +22,7 @@ import {
   ATLAS_TILE_PX,
   creatureFrameForType,
   grassFrameFor,
+  idleBobDelayMs,
   objectFrameForPlace,
   TILE_ATLAS_KEY,
   TILE_ATLAS_URL,
@@ -41,6 +43,10 @@ function inPlaza(x: number, y: number): boolean {
 export interface ExteriorSceneConfig {
   inputBus: InputBus;
   creatures: CreatureEntity[];
+  /** Used only to read the Hangar's saved "Cosmic Trail" color (localStorage) — see
+   *  readTrailColor()/refreshTrailColor(). Never used for anything space-scoped/networked
+   *  here; real space-scoped API calls stay in OverworldRoot.tsx/api/client.ts. */
+  spaceId: string;
 }
 
 interface CreatureSprite {
@@ -65,10 +71,18 @@ export class ExteriorScene extends Phaser.Scene {
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
   private player!: Phaser.GameObjects.Sprite;
+  /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
+   *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
+  private idleTween: Phaser.Tweens.Tween | null = null;
   private keys!: Partial<Record<string, Phaser.Input.Keyboard.Key>>;
   private unsubscribe: (() => void) | null = null;
   private wasOnGrass = false;
   private created = false;
+  private spaceId = "default";
+  /** The Hangar's saved "Cosmic Trail" color — read at create() and whenever
+   *  refreshTrailColor() is called (OverworldRoot.tsx does this when the Hangar overlay
+   *  closes, so a freshly-chosen trail shows up immediately without a scene reload). */
+  private trailColor = trailColorHex("blue");
   /** Tracked ourselves rather than read off Phaser's camera internals — true unless a
    *  flyToNode() pan is currently parking the camera away from the player. */
   private following = true;
@@ -83,9 +97,21 @@ export class ExteriorScene extends Phaser.Scene {
   init(config: ExteriorSceneConfig): void {
     this.inputBus = config.inputBus;
     this.pendingCreatures = config.creatures;
+    this.spaceId = config.spaceId;
     this.movement = createMovementState(PLAYER_SPAWN);
     this.wasOnGrass = isGrassTile(PLAYER_SPAWN.x, PLAYER_SPAWN.y);
     this.created = false;
+  }
+
+  /** Re-reads the Hangar's saved trail color from localStorage — call after the Hangar
+   *  overlay closes so a freshly-chosen trail takes effect immediately. */
+  refreshTrailColor(): void {
+    this.trailColor = this.readTrailColor();
+  }
+
+  private readTrailColor(): number {
+    const saved = localStorage.getItem(hangarKeys(this.spaceId).trail) || "blue";
+    return trailColorHex(saved);
   }
 
   preload(): void {
@@ -97,6 +123,7 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.trailColor = this.readTrailColor();
     this.drawGround();
     this.renderCreatures(this.pendingCreatures);
 
@@ -117,7 +144,48 @@ export class ExteriorScene extends Phaser.Scene {
 
     this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,ENTER") ?? {};
     this.unsubscribe = this.inputBus.subscribe((event) => this.handleInput(event));
+    this.startIdleBob();
     this.created = true;
+  }
+
+  /** Gentle "breathing" loop for the player while standing still — stopped before every step
+   *  (stopIdleBob) so it never fights the move/squash tween, restarted once the step lands.
+   *  A no-op under reduced motion, same as every other decorative loop in this scene. */
+  private startIdleBob(): void {
+    if (prefersReducedMotion()) return;
+    this.player.setScale(SPRITE_SCALE);
+    this.idleTween = this.tweens.add({
+      targets: this.player,
+      scaleY: SPRITE_SCALE * 1.05,
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+  }
+
+  private stopIdleBob(): void {
+    this.idleTween?.stop();
+    this.idleTween = null;
+    this.player.setScale(SPRITE_SCALE);
+  }
+
+  /** A small fading dot left at the player's current tile on every step, tinted with the
+   *  Hangar's saved "Cosmic Trail" cosmetic (readTrailColor/refreshTrailColor) — the pilot's
+   *  chosen trail now actually shows up while walking, not just as a menu selection. Motion
+   *  trails are a classic reduced-motion-off case, so this is a no-op under it. */
+  private spawnTrailParticle(): void {
+    if (prefersReducedMotion()) return;
+    const dot = this.add.circle(this.player.x, this.player.y, TILE_SIZE * 0.16, this.trailColor, 0.55);
+    dot.setDepth(9); // just under the player (depth 10), above ground/buildings.
+    this.tweens.add({
+      targets: dot,
+      alpha: 0,
+      scale: 0.3,
+      duration: 350,
+      ease: "Quad.easeIn",
+      onComplete: () => dot.destroy(),
+    });
   }
 
   /** Places a single atlas-frame tile, scaled up from ATLAS_TILE_PX to fill a TILE_SIZE cell. */
@@ -158,7 +226,19 @@ export class ExteriorScene extends Phaser.Scene {
     // fallback to a generic signpost for any future object id without dedicated art.
     for (const place of allPlaces()) {
       if (place.kind !== "object") continue;
-      this.tileAt(place.tile.x, place.tile.y, objectFrameForPlace(place.id), 1);
+      const img = this.tileAt(place.tile.x, place.tile.y, objectFrameForPlace(place.id), 1);
+      // Only Soumaya gets an idle bob — she's a companion, not a fixture; the Bulletin Board
+      // is a signpost and correctly stays still.
+      if (place.id === "soumaya" && !prefersReducedMotion()) {
+        this.tweens.add({
+          targets: img,
+          y: img.y - TILE_SIZE * 0.08,
+          duration: 900,
+          yoyo: true,
+          repeat: -1,
+          ease: "Sine.easeInOut",
+        });
+      }
     }
 
     // Every place still gets its glyph label on top — non-color labeling, not just new art.
@@ -209,6 +289,9 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   private paintCreature(container: Phaser.GameObjects.Container, entity: CreatureEntity): void {
+    // Stop any tween left over from a previous paint of this same creature before its old
+    // sprite is destroyed below — a stale tween otherwise keeps ticking against a dead target.
+    this.tweens.killTweensOf(container.getAll());
     container.removeAll(true);
     // FR10 — dim state is a real alpha change PLUS a non-color "?" marker; never color-only.
     const alpha = entity.isDue ? 0.45 : 1;
@@ -216,6 +299,18 @@ export class ExteriorScene extends Phaser.Scene {
     body.setScale(SPRITE_SCALE * 0.8);
     body.setAlpha(alpha);
     container.add(body);
+    // A gentle, desynced idle bob — the town reads as alive, not a static screenshot.
+    if (!prefersReducedMotion()) {
+      this.tweens.add({
+        targets: body,
+        y: -TILE_SIZE * 0.08,
+        duration: 900,
+        delay: idleBobDelayMs(entity.nodeId),
+        yoyo: true,
+        repeat: -1,
+        ease: "Sine.easeInOut",
+      });
+    }
     if (entity.isDue) {
       const marker = this.add.text(0, -TILE_SIZE * 0.45, "?", { fontSize: "14px", color: "#ffffff" });
       marker.setOrigin(0.5);
@@ -249,9 +344,12 @@ export class ExteriorScene extends Phaser.Scene {
     const { x, y } = result.state.position;
     const targetX = x * TILE_SIZE + TILE_SIZE / 2;
     const targetY = y * TILE_SIZE + TILE_SIZE / 2;
+    this.stopIdleBob();
+    this.spawnTrailParticle();
     const finish = () => {
       this.movement = completeMove(this.movement);
       this.afterStep(x, y);
+      this.startIdleBob();
     };
     if (prefersReducedMotion()) {
       this.player.setPosition(targetX, targetY);
@@ -259,6 +357,15 @@ export class ExteriorScene extends Phaser.Scene {
       return;
     }
     this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: 140, ease: "Linear", onComplete: finish });
+    // A quick squash-and-recover per step ("hop") — game-feel juice, not gameplay state.
+    this.tweens.add({
+      targets: this.player,
+      scaleX: SPRITE_SCALE * 0.85,
+      scaleY: SPRITE_SCALE * 1.15,
+      duration: 70,
+      yoyo: true,
+      ease: "Quad.easeOut",
+    });
   }
 
   private afterStep(x: number, y: number): void {
@@ -343,6 +450,8 @@ export class ExteriorScene extends Phaser.Scene {
   shutdown(): void {
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.idleTween?.stop();
+    this.idleTween = null;
     this.creatureSprites.clear();
   }
 }
