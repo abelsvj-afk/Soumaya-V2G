@@ -301,10 +301,11 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   visible map on any narrower phone and making movement look broken (the player was very often
   off in the unseen slice). Fixed with `Phaser.Scale.FIT` + a real CSS aspect-ratio box for it
   to scale into (`OverworldRoot.tsx`), plus `touch-action: none` on `TouchControls`. Also:
-  emoji-only building labels replaced with readable text nameplates, and an original
-  procedurally-generated music loop added (`lib/music.ts`, `public/overworld/theme.wav` — see
-  `docs/overworld/roadmap.md`'s "Stage 2.7" for why it's original rather than sourced, and the
-  flagged-but-unremoved orphaned `ambient-loop.mp3`/etc.). Still needs on-device reconfirmation
+  emoji-only building labels replaced with readable text nameplates, and background music
+  added (`lib/music.ts`, looping `public/ambient-loop.mp3` — a pre-existing, license-undocumented
+  file left over from the deleted 3D galaxy, reused at the user's explicit direction after every
+  reachable CC0 source turned out blocked and a from-scratch synthesized loop was rejected; see
+  `docs/overworld/roadmap.md`'s "Stage 2.7"). Still needs on-device reconfirmation
   that the Scale Manager fix actually resolves the reported symptom — that's what actually
   caught this bug, so it's the standard to hold the fix to, not another guess from this sandbox.
 

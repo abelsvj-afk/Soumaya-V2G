@@ -94,7 +94,7 @@ describe("music — preferences", () => {
 describe("music — playback", () => {
   it("starts a looping buffer source through a gain node on the shared context", async () => {
     const { startMusicLoop } = await import("./music.js");
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
     expect(bufferSources).toHaveLength(1);
     expect(bufferSources[0]?.loop).toBe(true);
     expect(bufferSources[0]?.start).toHaveBeenCalled();
@@ -108,37 +108,37 @@ describe("music — playback", () => {
 
   it("does not start a second source if the same track is already playing", async () => {
     const { startMusicLoop } = await import("./music.js");
-    await startMusicLoop("/overworld/theme.wav");
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
+    await startMusicLoop("/ambient-loop.mp3");
     expect(bufferSources).toHaveLength(1);
   });
 
   it("stopMusicLoop tears down the source so it can be started again", async () => {
     const { startMusicLoop, stopMusicLoop } = await import("./music.js");
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
     stopMusicLoop();
     expect(bufferSources[0]?.stop).toHaveBeenCalled();
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
     expect(bufferSources).toHaveLength(2);
   });
 
   it("never starts playback when disabled", async () => {
     const { setMusicEnabled, startMusicLoop } = await import("./music.js");
     setMusicEnabled(false);
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
     expect(bufferSources).toHaveLength(0);
   });
 
   it("is silent, not throwing, if fetch/decoding fails", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
     const { startMusicLoop } = await import("./music.js");
-    await expect(startMusicLoop("/overworld/theme.wav")).resolves.toBeUndefined();
+    await expect(startMusicLoop("/ambient-loop.mp3")).resolves.toBeUndefined();
     expect(bufferSources).toHaveLength(0);
   });
 
   it("brain-sfx-duck briefly lowers then restores the music gain", async () => {
     const { startMusicLoop } = await import("./music.js");
-    await startMusicLoop("/overworld/theme.wav");
+    await startMusicLoop("/ambient-loop.mp3");
     window.dispatchEvent(new Event("brain-sfx-duck"));
     const gain = gains.at(-1)?.gain; // music's own gain node — the last one created
     expect(gain?.linearRampToValueAtTime).toHaveBeenCalled();

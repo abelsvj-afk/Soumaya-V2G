@@ -15,14 +15,17 @@ assets and were consulted for architecture only, never for art.
 
 ## Overworld music
 
-**`overworld/theme.wav`** — an original town-theme loop, procedurally synthesized (square-wave
-melody + triangle-wave bass, C major, 16 bars) rather than sourced from a third party — no
-license/attribution needed, and no risk of the same "unknown provenance" problem as the
-pre-existing `ambient-loop.mp3`/`interstellar.mp3`/`slow-tide.mp3` in this folder (those three
-are unreferenced anywhere in the current code and have no entry here or anywhere documenting
-their source/license — flagged, not removed, since removing them wasn't in scope for this pass).
-Generated with a fixed loop length so both ends of the waveform are silent, for a seamless
-gapless loop when played through a Web Audio `AudioBufferSourceNode` (see `lib/music.ts`).
+**`ambient-loop.mp3`** — reused, at the user's explicit direction, as the Overworld's background
+music (`lib/music.ts` plays it looped). This file predates the Overworld and has **no
+license/attribution documentation anywhere in this repo or its history** — its original source
+is unknown. An earlier pass generated a procedurally-synthesized replacement specifically to
+avoid that gap, but the user asked for a genuine pre-made track instead (a from-scratch synth
+loop "didn't sound like game music" — fair) and, since this session's sandboxed network egress
+blocks every reachable free-asset site (kenney.nl, opengameart.org, itch.io, freesound.org) it
+could otherwise source one from, pointed at this pre-existing file as the fallback. **Verify/
+retain this file's actual source and license before relying on this for public/commercial
+distribution** — same caution as `ship-engine-start.mp3` below. `interstellar.mp3` and
+`slow-tide.mp3` are still unreferenced/undocumented and unused.
 
 ## 3D models
 

@@ -204,19 +204,22 @@ surfaced genuine bugs Stage 2.5/2.6 couldn't catch from this sandbox (no live br
    glyph from the in-world label entirely rather than trying to judge which emoji count as
    "clear enough" case by case.
 3. **"We need an infinite loop track for game music."** Every real CC0 music source this
-   session tried (kenney.nl, opengameart.org, itch.io, freesound.org) is blocked by this
-   sandbox's network egress policy — only github.com/raw.githubusercontent.com worked (which
-   is how Stage 2.5's tileset got sourced). Rather than reuse the pre-existing, completely
-   undocumented `ambient-loop.mp3` in `public/` (zero CREDITS.md entry, unknown source/license
-   — a real risk, not silently reused), generated an original loop procedurally: `lib/music.ts`
-   (new) decodes `public/overworld/theme.wav` — a hand-composed 38.4s, 16-bar, C-major
-   square-wave-melody + triangle-wave-bass loop, synthesized with a Python script so both
-   waveform ends are silent for a sample-accurate gapless loop via `AudioBufferSourceNode` —
-   and plays it looped, ducking on `"brain-sfx-duck"` (an event `sfx.ts` has dispatched since
-   before the galaxy deletion, whose listener died with the galaxy; this restores the behavior
-   its own comment always promised). Starts on the first real `pointerdown`/`keydown` anywhere
-   on the page (mirrors Phaser's own audio-unlock pattern, since browsers block audio until a
-   genuine user gesture) and can be muted via a small 🔊/🔇 button, top-right of the canvas.
+   session tried (kenney.nl, opengameart.org, itch.io, freesound.org, plus a large GitHub-hosted
+   CC0 corpus with no genre/mood tagging to search by) is either blocked by this sandbox's
+   network egress policy or impractical to search blindly. First attempt generated an original
+   loop procedurally (square-wave melody + triangle-wave bass) specifically to avoid reusing an
+   undocumented asset — the user rejected it ("no music you made please... a free one from
+   somewhere made for free games") and, once true CC0 sourcing proved unreachable from here,
+   redirected to the pre-existing `public/ambient-loop.mp3` (left over from the deleted 3D
+   galaxy) as the fallback. `lib/music.ts` (new) decodes and plays that file looped through a
+   Web Audio `AudioBufferSourceNode`, ducking on `"brain-sfx-duck"` (an event `sfx.ts` has
+   dispatched since before the galaxy deletion, whose listener died with the galaxy; this
+   restores the behavior its own comment always promised). Starts on the first real
+   `pointerdown`/`keydown` anywhere on the page (mirrors Phaser's own audio-unlock pattern,
+   since browsers block audio until a genuine user gesture) and can be muted via a small 🔊/🔇
+   button, top-right of the canvas. **`ambient-loop.mp3` has no license/attribution
+   documentation anywhere in this repo** — flagged plainly in `public/CREDITS.md` rather than
+   silently reused; verify its actual source before any public/commercial distribution.
 
 Verified via new tests (`lib/music.test.ts` — preferences persistence, gapless-loop wiring,
 duck behavior, graceful failure if fetch/decode fails) and the full gate. The Scale Manager fix

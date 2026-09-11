@@ -1,3 +1,19 @@
+### 2026-09-11 (Claude): Soumaya Overworld — music swap: rejected the synthesized track
+- [ ] Verified by Claude
+- Follow-up to the entry directly below. The user rejected the procedurally-generated loop
+  ("no music you made please... a free one from somewhere made for free games") and, when told
+  every reachable CC0 source is blocked from this sandbox, redirected: "use the ones from the
+  galaxy previously before this game."
+- Swapped `lib/music.ts`'s target from the deleted `public/overworld/theme.wav` to the
+  pre-existing `public/ambient-loop.mp3` (left over from the 3D galaxy, otherwise unreferenced
+  anywhere in the current code) — one-line change in `OverworldRoot.tsx`; `lib/music.ts` itself
+  needed no changes, it already just plays whatever URL it's given. Deleted the generated
+  `theme.wav` rather than leave it as dead weight. Updated `music.test.ts`'s fixture URL and
+  `public/CREDITS.md` to flag plainly that `ambient-loop.mp3` has no license/attribution
+  documentation anywhere in this repo or its history — reused at the user's explicit direction,
+  not silently assumed safe; verify its real source before public/commercial distribution.
+- Full gate green again after the swap (typecheck, tests, build).
+
 ### 2026-09-11 (Claude): Soumaya Overworld — real playability fix from on-device feedback + music
 - [ ] Verified by Claude
 - The user sent a real phone screenshot of the live build (first actual on-device look this
