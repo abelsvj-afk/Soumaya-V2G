@@ -146,7 +146,7 @@ export function OverworldRoot() {
     // (touch D-pad or a keyboard press both qualify) rather than assuming the earlier
     // login-screen click still counts by the time this mounts.
     const start = () => {
-      void startMusicLoop("/overworld/theme.wav");
+      void startMusicLoop("/ambient-loop.mp3");
       window.removeEventListener("pointerdown", start);
       window.removeEventListener("keydown", start);
     };
