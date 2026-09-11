@@ -113,19 +113,59 @@ export function isGrassTile(x: number, y: number): boolean {
   return within(x, y, GRASS_ZONE);
 }
 
-/** FR2 — collision: building walls and standalone objects block movement; their doors don't. */
+export interface AttendantPost {
+  placeId: PlaceId;
+  /** The two tiles the attendant paces between — always directly in front of its own
+   *  building's door, never past the building's own left/right edge. */
+  a: { x: number; y: number };
+  b: { x: number; y: number };
+}
+
+/** How many attendants pace in front of each building — "a few of them per job building",
+ *  not just one. Each gets its own row directly outside, so their 2-tile paces never cross. */
+const ATTENDANTS_PER_BUILDING = 2;
+
+function attendantPostsFor(place: DoorPlace): AttendantPost[] {
+  const { x0, x1, y0, y1 } = place.footprint;
+  // Stand just outside on whichever side the door actually faces (north-row doors face
+  // south/down at y1; south-row doors face north/up at y0 — see the DOOR_PLACES comments).
+  const facesDown = place.door.y === y1;
+  const posts: AttendantPost[] = [];
+  for (let i = 1; i <= ATTENDANTS_PER_BUILDING; i++) {
+    const row = facesDown ? y1 + i : y0 - i;
+    posts.push({ placeId: place.id, a: { x: x0, y: row }, b: { x: x1, y: row } });
+  }
+  return posts;
+}
+
+/** A few patrol posts per door-building, derived purely from its own footprint (never
+ *  hand-authored, so they can never drift out of sync with where the building actually is) —
+ *  "NPCs autonomous per their job" (roadmap.md Stage 2.8): a small attendant NPC paces at each. */
+export function attendantPosts(): readonly AttendantPost[] {
+  return DOOR_PLACES.flatMap(attendantPostsFor);
+}
+
+function isAttendantTile(x: number, y: number): boolean {
+  return attendantPosts().some((p) => (p.a.x === x && p.a.y === y) || (p.b.x === x && p.b.y === y));
+}
+
+/** FR2 — collision: building walls, standalone objects, and attendant NPCs block movement;
+ *  doors don't. */
 export function isMovementPassable(x: number, y: number): boolean {
   if (!inBounds(x, y)) return false;
   if (isBuildingWallTile(x, y)) return false;
   if (objectPlaceAt(x, y)) return false;
+  if (isAttendantTile(x, y)) return false;
   return true;
 }
 
-/** Creatures never spawn inside a building, on an object tile, in the grass zone, or on the player's own start tile. */
+/** Creatures never spawn inside a building, on an object tile, on an attendant's patrol tile,
+ *  in the grass zone, or on the player's own start tile. */
 export function isPlacementBlocked(x: number, y: number): boolean {
   if (isInsideAnyFootprint(x, y)) return true;
   if (objectPlaceAt(x, y)) return true;
   if (isGrassTile(x, y)) return true;
+  if (isAttendantTile(x, y)) return true;
   if (x === PLAYER_SPAWN.x && y === PLAYER_SPAWN.y) return true;
   return false;
 }

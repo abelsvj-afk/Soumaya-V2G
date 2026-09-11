@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   allPlaces,
+  attendantPosts,
   doorPlaceAt,
   isGrassTile,
   isMovementPassable,
@@ -95,5 +96,56 @@ describe("regionLayout — every place", () => {
   it("the player spawn tile itself is passable and outside every place/grass zone", () => {
     expect(isMovementPassable(PLAYER_SPAWN.x, PLAYER_SPAWN.y)).toBe(true);
     expect(isGrassTile(PLAYER_SPAWN.x, PLAYER_SPAWN.y)).toBe(false);
+  });
+});
+
+describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
+  it("gives every door-building a few posts (not just one)", () => {
+    const doorPlaceIds = allPlaces()
+      .filter((p) => p.kind === "door")
+      .map((p) => p.id);
+    for (const id of doorPlaceIds) {
+      const postsForThisBuilding = attendantPosts().filter((p) => p.placeId === id);
+      expect(postsForThisBuilding.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("every attendant tile is in-bounds, blocks movement, and blocks creature placement", () => {
+    for (const post of attendantPosts()) {
+      for (const tile of [post.a, post.b]) {
+        expect(tile.x).toBeGreaterThanOrEqual(0);
+        expect(tile.x).toBeLessThan(REGION_WIDTH);
+        expect(tile.y).toBeGreaterThanOrEqual(0);
+        expect(tile.y).toBeLessThan(REGION_HEIGHT);
+        expect(isMovementPassable(tile.x, tile.y)).toBe(false);
+        expect(isPlacementBlocked(tile.x, tile.y)).toBe(true);
+      }
+    }
+  });
+
+  it("attendant tiles never land on a door, an object, the grass zone, or the player's spawn", () => {
+    for (const post of attendantPosts()) {
+      for (const tile of [post.a, post.b]) {
+        expect(doorPlaceAt(tile.x, tile.y)).toBeUndefined();
+        expect(objectPlaceAt(tile.x, tile.y)).toBeUndefined();
+        expect(isGrassTile(tile.x, tile.y)).toBe(false);
+        expect(tile.x === PLAYER_SPAWN.x && tile.y === PLAYER_SPAWN.y).toBe(false);
+      }
+    }
+  });
+
+  it("no two attendant posts (even across different buildings) share a tile", () => {
+    const keys = attendantPosts().flatMap((p) => [`${p.a.x},${p.a.y}`, `${p.b.x},${p.b.y}`]);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("each post's two tiles stay within its own building's left/right edge", () => {
+    for (const place of allPlaces()) {
+      if (place.kind !== "door") continue;
+      for (const post of attendantPosts().filter((p) => p.placeId === place.id)) {
+        expect(post.a.x).toBe(place.footprint.x0);
+        expect(post.b.x).toBe(place.footprint.x1);
+      }
+    }
   });
 });

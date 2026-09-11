@@ -309,6 +309,13 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   that the Scale Manager fix actually resolves the reported symptom — that's what actually
   caught this bug, so it's the standard to hold the fix to, not another guess from this sandbox.
 
+- **Attendant NPCs + bounded creature roaming (2026-09-11), not yet on-device confirmed** —
+  every building now has a couple of small NPCs pacing just outside it (reused already-sourced
+  Tiny Dungeon art, one look per building), and creatures wander within a small "cage" of open
+  neighbor tiles around their spawn rather than standing perfectly still or roaming the whole
+  map — both purely decorative, both no-ops under `prefersReducedMotion()`. See
+  `docs/overworld/roadmap.md`'s "Stage 2.8". Verified by `regionLayout.test.ts` + the full gate.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,

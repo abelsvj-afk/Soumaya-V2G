@@ -7,6 +7,7 @@ import type { CreatureEntity } from "../types.js";
 import { hangarKeys, trailColorHex } from "../data/hangarOptions.js";
 import {
   allPlaces,
+  attendantPosts,
   doorPlaceAt,
   isGrassTile,
   isMovementPassable,
@@ -15,11 +16,13 @@ import {
   PLAYER_SPAWN,
   REGION_HEIGHT,
   REGION_WIDTH,
+  type AttendantPost,
   type Place,
   type PlaceId,
 } from "./regionLayout.js";
 import {
   ATLAS_TILE_PX,
+  attendantFrameForPlace,
   creatureFrameForType,
   grassFrameFor,
   idleBobDelayMs,
@@ -52,6 +55,20 @@ export interface ExteriorSceneConfig {
 interface CreatureSprite {
   entity: CreatureEntity;
   container: Phaser.GameObjects.Container;
+  /** A few nearby tiles the creature roams between (its "selected area" — never the whole
+   *  map): its home tile plus whichever orthogonal neighbors are actually open ground. */
+  cage: Array<{ x: number; y: number }>;
+  cageIndex: number;
+  /** Where the creature is RIGHT NOW, for interact/greet hit-testing — the home tile
+   *  (`entity.tile`) stays a fixed placement anchor; this is what "facing it" actually checks. */
+  currentTile: { x: number; y: number };
+  roamTimer: Phaser.Time.TimerEvent | null;
+}
+
+interface AttendantSprite {
+  post: AttendantPost;
+  image: Phaser.GameObjects.Image;
+  atA: boolean;
 }
 
 /**
@@ -70,6 +87,7 @@ export class ExteriorScene extends Phaser.Scene {
   private movement!: MovementState;
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
+  private attendantSprites: AttendantSprite[] = [];
   private player!: Phaser.GameObjects.Sprite;
   /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
    *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
@@ -125,6 +143,7 @@ export class ExteriorScene extends Phaser.Scene {
   create(): void {
     this.trailColor = this.readTrailColor();
     this.drawGround();
+    this.spawnAttendants();
     this.renderCreatures(this.pendingCreatures);
 
     this.player = this.add.sprite(
@@ -256,6 +275,38 @@ export class ExteriorScene extends Phaser.Scene {
     }
   }
 
+  /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
+   *  never just one), pacing back and forth between its post's two tiles on a slow, desynced
+   *  timer. Purely decorative "the town is staffed and alive" flavor, not interactive/talkable —
+   *  a no-op loop under reduced motion (they still stand at their post, just don't pace). */
+  private spawnAttendants(): void {
+    let index = 0;
+    for (const post of attendantPosts()) {
+      const frame = attendantFrameForPlace(post.placeId);
+      const image = this.tileAt(post.a.x, post.a.y, frame, 1);
+      const sprite: AttendantSprite = { post, image, atA: true };
+      this.attendantSprites.push(sprite);
+      if (!prefersReducedMotion()) {
+        // Reuse the same deterministic hash creatures use for their own desync — the
+        // attendant index is a fine seed since it's already unique and stable per post.
+        const offset = idleBobDelayMs(index++);
+        this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.paceAttendant(sprite) });
+      }
+    }
+  }
+
+  private paceAttendant(sprite: AttendantSprite): void {
+    sprite.atA = !sprite.atA;
+    const target = sprite.atA ? sprite.post.a : sprite.post.b;
+    this.tweens.add({
+      targets: sprite.image,
+      x: target.x * TILE_SIZE + TILE_SIZE / 2,
+      y: target.y * TILE_SIZE + TILE_SIZE / 2,
+      duration: 900,
+      ease: "Sine.easeInOut",
+    });
+  }
+
   /** A small readable name above a place — anchored bottom-center so it floats just above
    *  whatever it labels, regardless of the building's/object's own height. */
   private addNameplate(x: number, y: number, text: string): void {
@@ -290,19 +341,64 @@ export class ExteriorScene extends Phaser.Scene {
         this.paintCreature(existing.container, entity);
         continue;
       }
-      const container = this.add.container(
-        entity.tile.x * TILE_SIZE + TILE_SIZE / 2,
-        entity.tile.y * TILE_SIZE + TILE_SIZE / 2,
-      );
+      const home = entity.tile;
+      const container = this.add.container(home.x * TILE_SIZE + TILE_SIZE / 2, home.y * TILE_SIZE + TILE_SIZE / 2);
       this.paintCreature(container, entity);
-      this.creatureSprites.set(entity.nodeId, { entity, container });
+      const sprite: CreatureSprite = {
+        entity,
+        container,
+        cage: this.buildRoamCage(home),
+        cageIndex: 0,
+        currentTile: home,
+        roamTimer: null,
+      };
+      this.creatureSprites.set(entity.nodeId, sprite);
+      this.startRoaming(sprite);
     }
     for (const [id, sprite] of this.creatureSprites) {
       if (!seen.has(id)) {
+        sprite.roamTimer?.remove();
         sprite.container.destroy();
         this.creatureSprites.delete(id);
       }
     }
+  }
+
+  /** A creature's "selected area" (never the whole map) — its home tile plus whichever
+   *  orthogonal neighbors are actually open ground, so it can never roam through a wall,
+   *  another building, or off the edge of the region. */
+  private buildRoamCage(home: { x: number; y: number }): Array<{ x: number; y: number }> {
+    const candidates = [
+      home,
+      { x: home.x + 1, y: home.y },
+      { x: home.x - 1, y: home.y },
+      { x: home.x, y: home.y + 1 },
+      { x: home.x, y: home.y - 1 },
+    ];
+    return candidates.filter((t) => isMovementPassable(t.x, t.y));
+  }
+
+  /** Wanders the creature between its cage tiles on a slow, desynced timer — a no-op (stays
+   *  put at home) under reduced motion, same as every other decorative loop in this scene. */
+  private startRoaming(sprite: CreatureSprite): void {
+    if (prefersReducedMotion()) return;
+    if (sprite.cage.length <= 1) return; // nowhere else open to roam to — stay put, still fine
+    const period = 3200 + idleBobDelayMs(sprite.entity.nodeId) * 2;
+    sprite.roamTimer = this.time.addEvent({ delay: period, loop: true, callback: () => this.stepRoam(sprite) });
+  }
+
+  private stepRoam(sprite: CreatureSprite): void {
+    sprite.cageIndex = (sprite.cageIndex + 1) % sprite.cage.length;
+    const next = sprite.cage[sprite.cageIndex];
+    if (!next) return;
+    sprite.currentTile = next;
+    this.tweens.add({
+      targets: sprite.container,
+      x: next.x * TILE_SIZE + TILE_SIZE / 2,
+      y: next.y * TILE_SIZE + TILE_SIZE / 2,
+      duration: 550,
+      ease: "Sine.easeInOut",
+    });
   }
 
   private paintCreature(container: Phaser.GameObjects.Container, entity: CreatureEntity): void {
@@ -398,9 +494,11 @@ export class ExteriorScene extends Phaser.Scene {
 
   private handleInteract(): void {
     const front = tileInFront(this.movement.position, this.movement.facing);
-    for (const { entity } of this.creatureSprites.values()) {
-      if (entity.tile && entity.tile.x === front.x && entity.tile.y === front.y) {
-        this.events.emit("greet-creature", entity.nodeId);
+    // Checked against currentTile (where the creature actually is right now), not its fixed
+    // placement anchor — otherwise a mid-roam creature couldn't be greeted where it's standing.
+    for (const sprite of this.creatureSprites.values()) {
+      if (sprite.currentTile.x === front.x && sprite.currentTile.y === front.y) {
+        this.events.emit("greet-creature", sprite.entity.nodeId);
         return;
       }
     }
@@ -469,6 +567,8 @@ export class ExteriorScene extends Phaser.Scene {
     this.unsubscribe = null;
     this.idleTween?.stop();
     this.idleTween = null;
+    for (const sprite of this.creatureSprites.values()) sprite.roamTimer?.remove();
     this.creatureSprites.clear();
+    this.attendantSprites = [];
   }
 }
