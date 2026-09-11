@@ -1,3 +1,192 @@
+### 2026-09-11 (Claude): Soumaya Overworld — 3D galaxy deleted, Overworld is now the sole UI
+- [ ] Verified by Claude
+- Completes the staged replacement (docs/overworld/decisions.md D1) per the user's explicit
+  instruction, now that Stage 2 gave every dock tab a real place. Ran a precise dependency
+  analysis first (not a guess) to know exactly what's safe to delete vs. what the surviving
+  Overworld/Toasts/achievements code still depends on.
+- **Two real, would-have-shipped-broken issues caught before/during deletion:**
+  1. `OverworldRoot` had zero auth handling — the `currentSpace()` → `LoginScreen` gate only
+     ever lived in `App.tsx`. Built `overworld/AuthGate.tsx` (+ logout button, unit-tested)
+     BEFORE deleting App.tsx, specifically because deleting it first would have locked out
+     every signed-out user with no way back in.
+  2. `index.html`'s boot-failsafe watchdog waits for `window.__brainBooted()` to stand down;
+     only `App.tsx` called it. Missed on the first pass, caught by checking what index.html
+     actually depends on before declaring the deletion done — every load would have hit the
+     false "stuck loading" recovery prompt after 12s otherwise. Ported the exact call (same
+     gating condition: the auth check resolving, not the slower Overworld/Phaser load).
+- Relocated `graph/sfx.ts` + `graph/motion.ts` to `lib/` — `components/Toasts.tsx` (a real
+  Overworld dependency via `PostOfficeOverlay`) imports `playSfx` from the former, which
+  imports `prefersReducedMotion` from the latter; deleting `graph/` wholesale would have broken
+  the build. While relocating, consolidated the Overworld's own simpler
+  `overworld/engine/reducedMotion.ts` into the relocated `lib/motion.ts` (the richer, canonical
+  implementation — respects the in-app override + focus-calm, which the Overworld's copy
+  didn't) rather than keep two answers to "is motion reduced."
+- Deleted: `App.tsx`, `App.helpers.ts` (+tests), `packages/web/src/graph/**` (~65 files),
+  `RightDock.tsx` (+test), and ~75 now-orphaned `components/*` panel files (full list in the
+  commit). Also `api/graph.ts` (+test) and `api/lenses.ts`, confirmed orphaned by grepping every
+  real import (not the barrel-export pattern that made a shallower check on `api/features.ts`
+  etc. wrong — those ARE still imported, via `client.ts`'s `export *`, and correctly kept).
+  `hooks/*`, `utils/*`, and 3 dead `lib/*` files also removed.
+- `main.tsx` now mounts `overworld/AuthGate.tsx` unconditionally — the `?overworld=1` opt-in and
+  the `App` fallback are gone.
+- Removed now-unused dependencies: `three`, `react-force-graph-3d`, `mammoth`, `pdfjs-dist`.
+  Production bundle: was `index` (1.48MB) + `Graph3D` (381KB) + `pdf` (434KB) + `mammoth`
+  (500KB) + `OverworldRoot` (1.25MB, all coexisting during the additive phase) → now `index`
+  (206KB) + one lazy `OverworldRoot` chunk (1.34MB, Phaser, loaded only post-login).
+- **Known gap, not silently dropped**: memory-attachment upload/PDF-docx-extraction
+  (`MemoryAttachments.tsx`, used `mammoth`/`pdfjs-dist`, now removed) wasn't one of the 11 dock
+  tabs in this parity pass and has no Overworld home yet — flagged in `docs/overworld/roadmap.md`
+  and `CLAUDE.md`, not silently lost. `index.css` (128KB, mostly dead galaxy-panel styling) left
+  un-trimmed — safe (bytes, not correctness) but flagged as a real follow-up.
+- Updated `CLAUDE.md` ("What this is," monorepo layout, celestial-mass-model section, Red/Green
+  Zone file paths) and `AGENTS.md` (green-zone paths, Red-Zone file list) to describe the
+  Overworld as the current UI instead of the deleted galaxy; replaced ~15 now-permanently-moot
+  galaxy-specific "Pending Validation" entries (Graph3D.tsx fixes, GalaxyViews, etc. — files that
+  no longer exist, can never be re-confirmed) with a pointer to git history.
+- Files touched: see the deletion commit for the full list (large — ~145 files).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 139 web tests green (down from
+  697 web — expected, ~560 were tests for now-deleted galaxy components); production build
+  succeeds at the bundle sizes above.
+- **Not yet verified**: real on-device/browser behavior for the Overworld as the sole UI — this
+  sandbox has no live browser. Flagged in `CLAUDE.md`'s Pending Validation.
+
+### 2026-09-11 (Claude): Soumaya Overworld — Stage 2 full dock parity (all 11 tabs)
+- [ ] Verified by Claude
+- User asked for the galaxy to be removed entirely right after the Stage 1 slice shipped;
+  confirmed the trade-off explicitly first (only Money/Bank existed in the Overworld at that
+  point — deleting immediately would have dropped chat/Browse/Mind/Agenda/Insights/Inbox/
+  Progress/Journeys/Hangar from the live app). User chose to build every remaining area first,
+  then delete — this entry is that build; the deletion is the next commit.
+- Generalized the exterior scene from a single hardcoded Bank building to a data-driven `Place`
+  model (`scenes/regionLayout.ts`): `DoorPlace` (footprint + door tile, step-on entry) and
+  `ObjectPlace` (single impassable tile, approach + interact — used for the Bulletin Board and
+  the Soumaya NPC). Grew the region from 14×10 to 26×18 to fit a proper hometown: 5 buildings on
+  the north row (Bank/Library/Sanctuary/Post Office/Observatory), 3 on the south row (Gym/Town
+  Hall/Hangar), 2 standalone objects in the town square. `ExteriorScene` now emits one generic
+  `"enter-place"` (placeId) event instead of one-off `"enter-bank"`-style events.
+- Built all 9 remaining overlays, each against real data (see docs/overworld/roadmap.md's parity
+  table for the exact API/localStorage source per building) — `LibraryOverlay`,
+  `SanctuaryOverlay`, `BulletinBoardOverlay`, `ObservatoryOverlay`, `PostOfficeOverlay`,
+  `GymOverlay`, `TownHallOverlay`, `HangarOverlay`, `SoumayaChatOverlay` — plus
+  `CreatureSummaryOverlay` (the "Details" tab, missed on the first task pass and added after
+  catching the gap in a parity self-audit).
+- **Real parity gap found and fixed, not just ported**: achievement unlocking (`ACHIEVEMENTS`/
+  `unlockedIds`/`loadUnlocked` in `components/achievements.ts`) only ever ran inside an `App.tsx`
+  effect. Since `App.tsx` never mounts while the Overworld is active, real play here would earn
+  nothing. `overworld/data/achievements.ts` ports the exact diff-and-persist logic (same
+  `brain.achv.<spaceId>` localStorage key) so badges earned in either UI show up in both.
+- Decoupled the graph fetch from the exterior's display cap: `EXTERIOR_NODE_LIMIT` (60) would
+  have under-counted achievements/Library search against a real brain's full size. Renamed to
+  `GRAPH_FETCH_LIMIT` (300, `getGraph()`'s own default); the exterior's tile-grid capacity still
+  naturally caps visible creatures (`placeCreaturesOnGrid` already drops overflow, never errors).
+- Ported `HangarPanel.tsx`'s exact ship/trail/figurine option lists + unlock gates
+  (`data/hangarOptions.ts`) so cosmetics earned/equipped in either UI carry over via the same
+  localStorage keys — no re-locking, nothing invented.
+- Deleted `DialogueBox.tsx` (Stage 1's generic dialogue primitive) once `CreatureSummaryOverlay`
+  fully absorbed its only real usage and nothing else referenced it.
+- Caught a real bug via the region-layout unit tests before it ever ran: the Bank door tile was
+  defined at `{x:2,y:3}`, one row outside its own building's footprint (`y1:2`). Fixed to
+  `{x:2,y:2}` and reconfirmed via the same tests — same "measure it, don't assume it" pattern as
+  the Stage 1 door bug (this is now the SECOND time a hand-placed door coordinate was wrong and
+  caught only by the layout tests, not by inspection).
+- Files touched: `packages/web/src/overworld/**` (many new files under `adapter/`, `data/`,
+  `scenes/`, `ui/`; `OverworldRoot.tsx` rewritten for the generic Place dispatch),
+  `docs/overworld/{roadmap,architecture}.md`, `CLAUDE.md` (Pending Validation).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 697 web tests green (116 overworld
+  tests now, up from 63); `npm run build -w @brain/web` succeeds, `OverworldRoot` still its own
+  lazy chunk (~344 kB gzip), default bundle unaffected.
+- **Not yet verified**: real on-device/browser behavior for any of the 9 new overlays or the
+  larger town layout — this sandbox has no live browser. Flagged in `CLAUDE.md`'s Pending
+  Validation, same convention as every other unconfirmed visual item there.
+
+### 2026-09-11 (Claude): Soumaya Overworld — Stage 1 vertical slice complete (Bank + capture + greet)
+- [ ] Verified by Claude
+- Completes docs/overworld/roadmap.md Stage 1 items 3-6, on top of the engine-shell/adapter-layer
+  commit below. New: `data/loadWorldSnapshot.ts` (fetches `getGraph()`/`getMoneySky()`/
+  `getFinanceSummary()`, places creatures on the region grid via the adapter layer, degrades
+  gracefully to an empty Bank if finance data is unavailable rather than blocking the world),
+  `scenes/regionLayout.ts` (the fixed Bank-building + tall-grass exterior layout, fully unit
+  tested), `scenes/ExteriorScene.ts` (real Phaser scene: renders real creatures with FR10's
+  dim-state + non-color "?" marker, the Bank door as a step-on warp, the grass zone as an
+  edge-triggered capture zone, "interact" resolved against the tile the player is facing), and
+  three React overlays — `ui/BankOverlay.tsx` (real ledger + safe-to-spend), `ui/CaptureMenu.tsx`
+  (entry → submitting → reveal/error, never a dead end), `ui/DialogueBox.tsx` (the reusable
+  greet prompt, no penalty for dismissing). `OverworldRoot.tsx` rewritten to orchestrate all of
+  it against real data instead of the static proof map.
+- Caught and fixed a real layout bug via the region-layout unit tests before it ever ran: the
+  Bank door tile was defined at `{x:2,y:3}`, one row **outside** its own building's footprint
+  (`y1:2`) — would have made the door tile behave as open ground, not a door. Moved the door to
+  `{x:2,y:2}` (the footprint's own south edge) and reran the tests to confirm both the "door is
+  passable" and "creatures never spawn on the door" assertions actually held — exactly the
+  "measure it, don't assume it" pattern this repo already uses elsewhere.
+- Explicitly decided AGAINST the architecture doc's original "optimistic instant brighten" plan
+  for the greet loop: `tendNode()` is fire-and-forget with no confirmed new entropy value, so
+  faking a client-side reset would mean re-deriving the decay math ourselves. Greet now always
+  refetches and re-derives every creature's dim state from the real server response. Updated
+  `docs/overworld/architecture.md` to match what was actually built (also corrected its
+  "Phaser arcade-physics collision" line — collision is a pure, Phaser-free function so it stays
+  directly unit-testable without a browser).
+- Files touched: `packages/web/src/overworld/{data,scenes,ui}/**` (new),
+  `packages/web/src/overworld/OverworldRoot.tsx` (rewritten), `docs/overworld/{architecture,
+  roadmap}.md`, `CLAUDE.md` (Pending Validation entry).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 644 web tests green (63 overworld
+  tests total now, up from 40 — the new region-layout/data/UI-overlay coverage); `npm run build -w
+  @brain/web` succeeds, `OverworldRoot` still its own ~338 kB gzip lazy chunk.
+- **Not yet verified**: real on-device/browser behavior (movement feel, camera follow, whether
+  the overlays actually look right) — this sandbox has no live browser. Flagged in
+  `CLAUDE.md`'s Pending Validation and `docs/overworld/roadmap.md`, same convention as every
+  other unconfirmed visual item already tracked there.
+
+### 2026-09-11 (Claude): Soumaya Overworld — design package + Stage 1 engine shell/adapter layer
+- [ ] Verified by Claude
+- Per the user's build brief, produced a full spec-first design package
+  (`docs/overworld/*` — idea/vision/requirements/user-stories/architecture/decisions/ux-design/
+  roadmap + a Pokémon-reference note) for replacing the 3D galaxy with a 2D GBA/SNES-era
+  Pokémon-style overworld, and got explicit user sign-off before writing any implementation code
+  (CLAUDE.md Rule #1 / WORKFLOW.md Phase A gate). User decisions captured in `decisions.md`: full
+  replacement (staged, not a big-bang rewrite), real-time grid movement, no combat ever, literal
+  ship travel between regions.
+- Key research finding: the hardest-sounding part of the brief — the dimming/greet-to-revisit
+  mechanic — needs **zero changes** to `packages/shared` or `packages/server`. It already exists
+  end-to-end: `GraphNode.entropy` (`entropyFrom()`/`COOLING_ENTROPY = 0.45` in
+  `packages/shared/src/celestial.ts`) and `POST /api/nodes/:id/tend` (`tendNode()` in
+  `api/client.ts`). Likewise `GET /api/finance/sky` (`MoneyStar[]`) already returns bills/goals in
+  exactly the shape a Bank building needs. Stage 1 is therefore a pure presentation-layer build.
+- Implemented the roadmap's suggested first PR (engine shell + adapter layer, no scene wiring to
+  real data yet): new `packages/web/src/overworld/` tree —
+  - `adapter/{rarity,nodeToCreature,financeAdapter,journeyAdapter,placement}.ts` — pure functions
+    mapping real `GraphNode`/`MoneyStar`/`Journey` API shapes into overworld entities (rarity
+    tiers 1:1 with the real 7 `CelestialClass` values per decisions.md D7, not the brief's 6;
+    deterministic seeded creature placement so a node never "teleports" tiles between sessions).
+  - `engine/{movement,input,reducedMotion}.ts` — pure grid-movement/collision/tween-lock state
+    machine, a typed input event bus shared by keyboard and touch, and a single
+    `prefers-reduced-motion` check used by both the React UI and the Phaser scene.
+  - `scenes/ProofScene.ts` + `OverworldRoot.tsx` + `ui/TouchControls.tsx` — a real, running Phaser
+    3 game (grid movement, collision, camera-follow, on-screen D-pad/A-B) against a static proof
+    map, deliberately with zero API calls yet (that's the next stage). Mounted only behind an
+    explicit `?overworld=1` opt-in added to `main.tsx`, lazy-loaded exactly like `Graph3D` — the
+    default app path is unchanged and unaffected (decisions.md D1/D6 staging).
+  - Added `phaser@^3.90.0` to `packages/web` (D5) — its own dependency tree introduced no new
+    `npm audit` findings (the one pre-existing high-severity finding, `@xmldom/xmldom` via
+    `mammoth`, predates this change).
+- Files touched: `packages/web/src/overworld/**` (new), `packages/web/src/main.tsx`,
+  `packages/web/package.json`, `package-lock.json`, `docs/overworld/**` (new).
+- Gate: `npm run typecheck` (all 3 workspaces) and `npm test --workspaces` both green — 1051
+  server tests + 618 web tests (including 40 new overworld tests across 9 files: rarity,
+  nodeToCreature incl. the dim-state threshold measured exactly at `COOLING_ENTROPY`, finance
+  adapter, journey adapter, placement determinism/no-collision/blocked-tile/capacity,
+  engine movement incl. the mid-tween-input-ignored case, the input bus, reduced-motion, and
+  TouchControls). `npm run build -w @brain/web` succeeds; `OverworldRoot` lands in its own
+  ~334 kB gzip lazy chunk, separate from the default bundle, confirming the lazy-loading
+  discipline requirement held.
+- **Note for whoever verifies this**: node_modules in this sandbox was missing several
+  dependencies (including `vitest` itself) before this session's `npm install` — that was a
+  pre-existing environment gap, not caused by this change (confirmed via `git stash` — the gap
+  predated any package.json edit here).
+- Next: wire `ProofScene`'s replacement — the real Money/Bank region — to
+  `getGraph()`/`getMoneySky()`/`getFinanceSummary()`, plus the capture flow and the greet
+  interaction end-to-end (roadmap.md items 3–6).
+
 ### 2026-09-11 (Codex): Graph reliability and multi-tenant query hardening
 - [x] Verified by Claude
 - Fixed the graph client treating an HTTP error or malformed graph payload as a successful

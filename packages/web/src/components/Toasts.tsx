@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { playSfx } from "../graph/sfx.js";
+import { playSfx } from "../lib/sfx.js";
 
 /**
  * Lightweight celebratory toast system (gamification Wave 1). Fire from anywhere

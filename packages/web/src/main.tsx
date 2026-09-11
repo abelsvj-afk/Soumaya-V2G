@@ -1,5 +1,5 @@
 import { createRoot } from "react-dom/client";
-import App from "./App.js";
+import { AuthGate } from "./overworld/AuthGate.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import "./index.css";
 
@@ -44,11 +44,11 @@ import "./index.css";
   });
 })();
 
-// Note: no StrictMode — the 3D scene does one-time imperative setup (bloom,
-// starfield, render loop) that double-invocation would duplicate.
+// Note: no StrictMode — the Phaser scene does one-time imperative setup (game boot,
+// input listeners) that double-invocation would duplicate.
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <App />
+    <AuthGate />
   </ErrorBoundary>,
 );
 
