@@ -1,3 +1,41 @@
+### 2026-09-11 (Claude): Soumaya Overworld — Stage 1 vertical slice complete (Bank + capture + greet)
+- [ ] Verified by Claude
+- Completes docs/overworld/roadmap.md Stage 1 items 3-6, on top of the engine-shell/adapter-layer
+  commit below. New: `data/loadWorldSnapshot.ts` (fetches `getGraph()`/`getMoneySky()`/
+  `getFinanceSummary()`, places creatures on the region grid via the adapter layer, degrades
+  gracefully to an empty Bank if finance data is unavailable rather than blocking the world),
+  `scenes/regionLayout.ts` (the fixed Bank-building + tall-grass exterior layout, fully unit
+  tested), `scenes/ExteriorScene.ts` (real Phaser scene: renders real creatures with FR10's
+  dim-state + non-color "?" marker, the Bank door as a step-on warp, the grass zone as an
+  edge-triggered capture zone, "interact" resolved against the tile the player is facing), and
+  three React overlays — `ui/BankOverlay.tsx` (real ledger + safe-to-spend), `ui/CaptureMenu.tsx`
+  (entry → submitting → reveal/error, never a dead end), `ui/DialogueBox.tsx` (the reusable
+  greet prompt, no penalty for dismissing). `OverworldRoot.tsx` rewritten to orchestrate all of
+  it against real data instead of the static proof map.
+- Caught and fixed a real layout bug via the region-layout unit tests before it ever ran: the
+  Bank door tile was defined at `{x:2,y:3}`, one row **outside** its own building's footprint
+  (`y1:2`) — would have made the door tile behave as open ground, not a door. Moved the door to
+  `{x:2,y:2}` (the footprint's own south edge) and reran the tests to confirm both the "door is
+  passable" and "creatures never spawn on the door" assertions actually held — exactly the
+  "measure it, don't assume it" pattern this repo already uses elsewhere.
+- Explicitly decided AGAINST the architecture doc's original "optimistic instant brighten" plan
+  for the greet loop: `tendNode()` is fire-and-forget with no confirmed new entropy value, so
+  faking a client-side reset would mean re-deriving the decay math ourselves. Greet now always
+  refetches and re-derives every creature's dim state from the real server response. Updated
+  `docs/overworld/architecture.md` to match what was actually built (also corrected its
+  "Phaser arcade-physics collision" line — collision is a pure, Phaser-free function so it stays
+  directly unit-testable without a browser).
+- Files touched: `packages/web/src/overworld/{data,scenes,ui}/**` (new),
+  `packages/web/src/overworld/OverworldRoot.tsx` (rewritten), `docs/overworld/{architecture,
+  roadmap}.md`, `CLAUDE.md` (Pending Validation entry).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 644 web tests green (63 overworld
+  tests total now, up from 40 — the new region-layout/data/UI-overlay coverage); `npm run build -w
+  @brain/web` succeeds, `OverworldRoot` still its own ~338 kB gzip lazy chunk.
+- **Not yet verified**: real on-device/browser behavior (movement feel, camera follow, whether
+  the overlays actually look right) — this sandbox has no live browser. Flagged in
+  `CLAUDE.md`'s Pending Validation and `docs/overworld/roadmap.md`, same convention as every
+  other unconfirmed visual item already tracked there.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — design package + Stage 1 engine shell/adapter layer
 - [ ] Verified by Claude
 - Per the user's build brief, produced a full spec-first design package

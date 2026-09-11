@@ -234,6 +234,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Soumaya Overworld Stage 1 (2026-09-11), NEW, additive, not yet on-device confirmed** — a 2D
+  Pokémon-GBA-style overworld replacing the 3D galaxy per the design package in
+  `docs/overworld/` (full replacement is the end state; staged so the galaxy stays intact until
+  parity is proven — see `docs/overworld/decisions.md` D1). Only reachable via an explicit
+  `?overworld=1` URL flag (`main.tsx`); the default app path is unaffected. Stage 1 ships a real
+  Phaser 3 world: grid movement/collision/camera-follow, the Money/Bank region wired to real
+  `getGraph()`/finance API data, the capture flow, and the dimming/greet-to-revisit loop wired to
+  the real `entropy`/`tendNode()` mechanism (no new backend needed — see `docs/overworld/README.md`
+  for why). All pure logic (movement, collision, placement determinism, the dim-state threshold,
+  region layout) is unit-tested and green; the actual rendered Phaser canvas — movement feel,
+  camera follow, visual layout, whether the capture/greet/bank overlays look right — has **not**
+  been seen in a real browser from this sandbox and needs on-device/browser confirmation once a
+  deploy is possible, same as every other item in this section.
+
 - **Fix: Cinematic Intro Trigger** (Graph3D.tsx): Relaxed the intro trigger condition.
 - **Fix: Cinematic Startup Race Condition** (Graph3D.tsx): Added `cinematicStartedRef` to prevent redundant triggers.
 - **Fix: GalaxyViews Visibility** (App.tsx): Removed the `!!selected` constraint so Views remain accessible during node selection.

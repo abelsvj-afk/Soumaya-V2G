@@ -57,10 +57,13 @@ on success, refetch graph (existing `getGraph()`), adapter turns the new node in
 
 **Greet/revisit**: scene tick reads each visible creature's `entropy` (already present on the
 `GraphNode` from the last `getGraph()` response — no per-frame API calls) → render dim state per
-FR10 → on interact, call existing `tendNode(id)` → on success, refetch graph (or optimistically
-mark that node "tended" pending confirmation, then reconcile on next refresh — decided: **optimistic
-UI with reconciliation**, matching the existing app's pattern of optimistic UI elsewhere, e.g.
-Fuel/streak polling) → creature visibly brightens.
+FR10 → on interact, call existing `tendNode(id)` → on success, **refetch the graph and re-derive
+every creature's state from the real response** → creature visibly brightens. Decided against a
+client-side "optimistic instant reset to 0" here: `tendNode` is deliberately fire-and-forget
+(returns `void`, best-effort) with no confirmed new entropy value, so faking the reset client-side
+would mean re-deriving the decay math ourselves — exactly what `pokemon-reference.md`'s domain
+boundary forbids. A brief "sending..." affordance on the dialogue box covers the round-trip instead
+of a fake instant brighten.
 
 ## Engine & rendering
 

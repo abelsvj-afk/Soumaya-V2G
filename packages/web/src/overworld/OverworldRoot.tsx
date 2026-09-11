@@ -1,31 +1,58 @@
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
+import { ingestText } from "../api/client.js";
 import { InputBus } from "./engine/input.js";
-import type { MovementGrid } from "./engine/movement.js";
-import { ProofScene, TILE_SIZE, type ProofSceneConfig } from "./scenes/ProofScene.js";
+import { ExteriorScene, TILE_SIZE, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
+import { REGION_HEIGHT, REGION_WIDTH } from "./scenes/regionLayout.js";
 import { TouchControls } from "./ui/TouchControls.js";
+import { DialogueBox } from "./ui/DialogueBox.js";
+import { CaptureMenu } from "./ui/CaptureMenu.js";
+import { BankOverlay } from "./ui/BankOverlay.js";
+import { greetCreature, loadWorldSnapshot, type WorldSnapshot } from "./data/loadWorldSnapshot.js";
+import type { CreatureEntity } from "./types.js";
+
+type Overlay =
+  | { kind: "none" }
+  | { kind: "bank" }
+  | { kind: "capture" }
+  | { kind: "greet"; creature: CreatureEntity };
 
 /**
- * Stage 1 engine-shell proof map (roadmap.md item 1) — a small static grid with one
- * placeholder blocked tile, just to prove movement/collision/camera-follow work end to
- * end. Real content (Money region, Bank interior, real creatures) replaces this in the
- * vertical-slice work (roadmap.md items 3+); this component intentionally makes zero
- * API calls.
- */
-const PROOF_GRID: MovementGrid = {
-  width: 12,
-  height: 9,
-  isPassable: (x, y) => !(x === 5 && y === 4),
-};
-
-/**
- * Mounts the overworld's Phaser game. Additive per docs/overworld/decisions.md D1/D6:
- * this component is only ever rendered behind an explicit opt-in (see main.tsx) during
- * the staged-replacement period, so the existing 3D galaxy is provably unaffected.
+ * Stage 1 vertical slice (docs/overworld/roadmap.md items 3-6): the Money/Bank region,
+ * wired to real API data, plus the capture and greet/revisit loops. Additive per
+ * decisions.md D1/D6 — only ever rendered behind the `?overworld=1` opt-in in main.tsx.
  */
 export function OverworldRoot() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const inputBusRef = useRef(new InputBus());
+  const gameRef = useRef<Phaser.Game | null>(null);
+  const sceneRef = useRef<ExteriorScene | null>(null);
+  const snapshotRef = useRef<WorldSnapshot | null>(null);
+
+  const [snapshot, setSnapshotState] = useState<WorldSnapshot | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
+  const [greetBusy, setGreetBusy] = useState(false);
+
+  const setSnapshot = useCallback((next: WorldSnapshot | null) => {
+    snapshotRef.current = next;
+    setSnapshotState(next);
+  }, []);
+
+  const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
+    try {
+      const next = await loadWorldSnapshot();
+      setSnapshot(next);
+      setLoadError(null);
+      sceneRef.current?.setCreatures(next.creatures);
+      return next;
+    } catch (err) {
+      // Preserve whatever's already on screen rather than wiping it (App.tsx's own
+      // "preserve last known graph on error" convention — ux-design.md error state).
+      setLoadError(err instanceof Error ? err.message : "Couldn't reach your brain.");
+      return null;
+    }
+  }, [setSnapshot]);
 
   useEffect(() => {
     const parent = containerRef.current;
@@ -34,29 +61,110 @@ export function OverworldRoot() {
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent,
-      width: PROOF_GRID.width * TILE_SIZE,
-      height: PROOF_GRID.height * TILE_SIZE,
+      width: REGION_WIDTH * TILE_SIZE,
+      height: REGION_HEIGHT * TILE_SIZE,
       backgroundColor: "#0c0e1a",
       pixelArt: true,
-      scene: [ProofScene],
+      scene: [],
     };
     const game = new Phaser.Game(config);
-    const sceneConfig: ProofSceneConfig = {
-      inputBus: inputBusRef.current,
-      grid: PROOF_GRID,
-      start: { x: 1, y: 1 },
-    };
-    game.scene.start("proof-scene", sceneConfig);
+    gameRef.current = game;
+
+    const sceneConfig: ExteriorSceneConfig = { inputBus: inputBusRef.current, creatures: [] };
+    const scene = game.scene.add("exterior-scene", ExteriorScene, true, sceneConfig) as ExteriorScene;
+    sceneRef.current = scene;
+
+    scene.events.on("enter-bank", () => setOverlay({ kind: "bank" }));
+    scene.events.on("enter-grass", () => setOverlay({ kind: "capture" }));
+    scene.events.on("greet-creature", (nodeId: number) => {
+      const creature = snapshotRef.current?.creatures.find((c) => c.nodeId === nodeId);
+      if (creature) setOverlay({ kind: "greet", creature });
+    });
+
+    void refresh();
 
     return () => {
       game.destroy(true);
+      gameRef.current = null;
+      sceneRef.current = null;
     };
+    // Intentionally mount-once: refresh/setSnapshot are stable via useCallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    sceneRef.current?.setPaused(overlay.kind !== "none");
+  }, [overlay.kind]);
+
+  const closeOverlay = useCallback(() => {
+    if (overlay.kind === "bank") sceneRef.current?.returnToDoor(); // FR3 — same tile you entered from
+    setOverlay({ kind: "none" });
+  }, [overlay.kind]);
+
+  const handleGreetConfirm = useCallback(async () => {
+    if (overlay.kind !== "greet") return;
+    setGreetBusy(true);
+    try {
+      await greetCreature(overlay.creature.nodeId);
+      await refresh(); // FR11 — reconcile from the real server response, never a client-side guess
+    } finally {
+      setGreetBusy(false);
+      setOverlay({ kind: "none" });
+    }
+  }, [overlay, refresh]);
+
+  const handleCaptureSubmit = useCallback(
+    async (text: string): Promise<CreatureEntity | null> => {
+      const result = await ingestText(text, { kind: "memory" });
+      const newNodeId = result.nodes[0]?.id;
+      const next = await refresh();
+      if (newNodeId == null) return null;
+      return next?.creatures.find((c) => c.nodeId === newNodeId) ?? null;
+    },
+    [refresh],
+  );
+
   return (
-    <div style={{ position: "relative", width: "100%", maxWidth: 480, margin: "0 auto" }}>
+    <div style={{ position: "relative", width: "100%", maxWidth: REGION_WIDTH * TILE_SIZE, margin: "0 auto" }}>
       <div ref={containerRef} data-testid="overworld-canvas-root" />
-      <TouchControls onEvent={(event) => inputBusRef.current.emit(event)} />
+      {loadError && (
+        <div
+          role="alert"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            background: "#4b1420",
+            color: "#ffd7de",
+            padding: 8,
+            fontSize: 12,
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <span>{loadError}</span>
+          <button type="button" onClick={() => void refresh()}>
+            Retry
+          </button>
+        </div>
+      )}
+      {overlay.kind === "none" && <TouchControls onEvent={(event) => inputBusRef.current.emit(event)} />}
+      {overlay.kind === "bank" && snapshot && (
+        <BankOverlay rows={snapshot.bank.rows} safeToSpendCents={snapshot.bank.safeToSpendCents} onClose={closeOverlay} />
+      )}
+      {overlay.kind === "capture" && <CaptureMenu onSubmit={handleCaptureSubmit} onClose={closeOverlay} />}
+      {overlay.kind === "greet" && (
+        <DialogueBox
+          title={overlay.creature.name}
+          text={`${overlay.creature.rarity.badge} It's been a while since we talked about this one. Want to say hi?`}
+          confirmLabel="Greet"
+          onConfirm={handleGreetConfirm}
+          onDismiss={closeOverlay}
+          busy={greetBusy}
+        />
+      )}
     </div>
   );
 }
