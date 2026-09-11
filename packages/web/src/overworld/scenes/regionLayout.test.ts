@@ -148,4 +148,17 @@ describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
       }
     }
   });
+
+  it("gives every attendant a unique, stable npcId (NPC Society v1)", () => {
+    const ids = attendantPosts().map((p) => p.npcId);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(attendantPosts().map((p) => p.npcId)).toEqual(attendantPosts().map((p) => p.npcId));
+  });
+
+  it("gives Town Hall exactly the two npcIds the NPC Society slice depends on", () => {
+    const townHallIds = attendantPosts()
+      .filter((p) => p.placeId === "townHall")
+      .map((p) => p.npcId);
+    expect(new Set(townHallIds)).toEqual(new Set(["townHall-0", "townHall-1"]));
+  });
 });

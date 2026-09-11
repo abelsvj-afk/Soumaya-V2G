@@ -348,6 +348,47 @@ Verified via new `buildingSprites.test.ts` (every door-building resolves to a re
 sprite; the preload list covers every sprite actually in use; no duplicate texture keys) and the
 full gate (1051 server + 179 web tests, typecheck, build).
 
+## Stage 2.11 — NPC Society v1 (the first two NPCs with real lives, per docs/overworld/npc-society.md)
+
+Real user feedback escalated across three rounds: "just walk back and forth" → work icons
+(Stage 2.9) → a full ask for "actual autonomous jobs... interact with other npcs... their own
+lives and personalities... a governing system... town meetings... reasons for all of it." Per
+CLAUDE.md Rule #1 this got a full proposal + sign-off round first
+(`docs/overworld/npc-society.md`) before any code — the user chose **Hybrid** dialogue
+(hand-authored now, LLM-shaped-later), a **small vertical slice first**, and asked to seed in
+**both** relationships and governance-with-real-teeth rather than deferring them.
+
+**What shipped**: the two Town Hall attendants (`townHall-0`/`townHall-1`, now named **Mira** the
+Mayor and **Dez** the Clerk — chosen specifically because their posts already sit right next to
+each other, so "NPCs interact" needs no new pathfinding) get a real shared clock
+(`data/npcSchedule.ts`, tick-based, deterministic, no Date/Math.random) cycling Working → Break →
+Home. When both land on Break at once, they step toward each other and each shows a real
+dialogue line (`data/npcDialogue.ts`) — job-flavor lines always available, personal lines that
+unlock only once the player holds the matching real achievement id
+(`components/achievements.ts` — `cartographer`/`streak_week` for Mira, `weaver_100`/
+`goal_achiever` for Dez), and a "friend" line each that only unlocks once their relationship
+counter (`data/npcRelationships.ts`, a real pairwise count, not anonymous encounters) actually
+reaches the "friends" tier. During Home they leave the screen entirely (sprite hidden), matching
+the proposal's "leave for a while."
+
+**Governance with real teeth**: a Town Meeting is called the first time a *new* Synthesis Digest
+insight becomes available (`getDigest()` — the Observatory's own real data source,
+`data/townMeeting.ts`), checked on every world refresh (`OverworldRoot.tsx`). Its one concrete
+mechanical effect: a plain-language summary is posted to the **Bulletin Board as a real quest**
+(`ingestText(text, { kind: "action" })` — the exact mechanism the Bulletin Board itself uses),
+never re-announced once seen, and Mira/Dez flash a 📢 above themselves as the cosmetic cue.
+
+**Deliberately deferred, not silently dropped** (see npc-society.md's own "Deferred out of v1"):
+rolling this system out to the other 6 buildings' 12 attendants; LLM-generated dialogue
+variation (the data shape supports it, not wired up); attendants physically walking to Town
+Hall for a meeting (v1's "meeting" is the real Bulletin Board post + the icon, not a town-wide
+walk); relationship tiers/effects beyond the 3-tier counter and one extra dialogue line.
+
+Verified via `npcSchedule.test.ts`, `npcRelationships.test.ts`, `npcDialogue.test.ts`,
+`townMeeting.test.ts`, updated `regionLayout.test.ts` (39 new/changed assertions total) + the
+full gate (1051 server + 209 web tests, typecheck, build) — the actual break-time interaction,
+speech bubbles, and 📢 cue have not been seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

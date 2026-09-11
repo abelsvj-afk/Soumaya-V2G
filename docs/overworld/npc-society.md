@@ -1,10 +1,63 @@
-# Overworld — NPC Society (proposal, pending sign-off)
+# Overworld — NPC Society (v1 vertical slice — decided, in progress)
 
-> Per CLAUDE.md Rule #1 ("no code until the design is complete") — this is genuinely large and
-> ambiguous (jobs, inter-NPC interaction, growing personalities, governance, town meetings), not
-> another small polish pass like Stages 2.6–2.10. Nothing in this doc is built yet. Read
-> alongside [decisions.md](./decisions.md) — D3 (no combat, ever) constrains everything here:
-> "governance" and "conflict" must stay non-adversarial, no exceptions.
+> Per CLAUDE.md Rule #1 ("no code until the design is complete") this went through a full
+> proposal + sign-off round before any code was written. Read alongside
+> [decisions.md](./decisions.md) — D3 (no combat, ever) constrains everything here: "governance"
+> and "conflict" must stay non-adversarial, no exceptions.
+
+## Decisions (user, 2026-09-11)
+
+Answered against the three open questions below:
+
+1. **Dialogue content: Hybrid.** Hand-authored pools ship in v1 (matches the recommendation —
+   free, instant, offline-safe); the data shape (`npcDialogue.ts`'s `NpcProfile`) is built so a
+   later stage can route a line through the LLM adapter for extra flavor without a rework —
+   not built now, just not architected shut.
+2. **Scope: small vertical slice first.** Not all 8 attendants — **two NPCs only** for v1, both
+   at Town Hall (the two attendants `attendantPosts()` already places there): **Mira** (the
+   Mayor) and **Dez** (the Clerk). Chosen specifically because their posts are already right
+   next to each other, so the "NPCs interact" mechanic doesn't need any new pathfinding across
+   the map — the proximity the proposal assumed is already true by construction. The other 6
+   buildings' 12 attendants are explicitly **unchanged** (still pace + flash a work icon, no
+   schedule/dialogue/relationship) until a later stage rolls the same system out to them.
+3. **Priorities: seed in relationships AND governance-with-real-teeth, not deferred** — the user
+   selected both non-goals as things they actually want, alongside confirming the base proposal's
+   shape is otherwise right. So v1, unlike the original draft's "explicit non-goals," ships:
+   - A real (if minimal) **relationship counter** between Mira and Dez — not anonymous
+     interchangeable encounters.
+   - A **town meeting with an actual mechanical effect** — not flavor-only. See mechanic 4 below.
+
+## What v1 actually builds (concrete, not aspirational)
+
+- **Schedule**: a shared in-game clock (`npcSchedule.ts`, tick-based, no wall-clock/Math.random)
+  drives Mira and Dez each through Working → Break → Home, offset from each other so they're not
+  always in the same state at once.
+- **Interaction**: when a tick lands with *both* on Break, they step toward each other, a speech
+  bubble shows a real dialogue line for each (`npcDialogue.ts`), and their relationship counter
+  bumps once for that break window (`npcRelationships.ts`) — not once per tick.
+- **Growth**: each has a small hand-authored line pool — job-flavor lines (always available),
+  personal lines that unlock on real achievement ids they already have (`components/
+  achievements.ts` — no invented threshold), and one "friend" line each that only unlocks once
+  their relationship counter crosses a real tier.
+- **Governance**: a Town Meeting is called the first time a **new** Synthesis Digest insight
+  becomes available (`getDigest()`) — not on a timer, not invented. Its one concrete effect: a
+  plain-language summary is posted to the **Bulletin Board as a real quest**
+  (`ingestText(text, { kind: "action" })` — the same mechanism the Bulletin Board itself uses),
+  and Mira/Dez flash a 📢 above themselves. This never re-announces the same insight twice
+  (persisted "last announced" id) and never blocks or gates anything the player needs to do.
+
+## Deferred out of v1 (flagged, to widen later, not silently dropped)
+
+- Rolling the schedule/dialogue/relationship system out to the other 6 buildings' 12 attendants.
+- LLM-generated dialogue variation (the data shape supports it; not wired up).
+- Actual town-hall gathering (all attendants physically walking to Town Hall) — v1's "meeting" is
+  the real Bulletin Board post + a cosmetic icon on the two Town Hall NPCs, not a town-wide walk.
+- Relationship tiers beyond 3 (strangers/acquaintances/friends) and any effect beyond unlocking
+  one extra dialogue line.
+
+---
+
+## Original proposal (context for the decisions above)
 
 ## The core idea: NPCs reflect *your real activity*, not an invented simulation
 
