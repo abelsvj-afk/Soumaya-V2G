@@ -7,9 +7,11 @@ function makeCreature(): CreatureEntity {
   return {
     nodeId: 1,
     name: "A new thought",
+    type: "concept",
     celestial: "asteroid",
     rarity: { tier: "common", label: "Common", badge: "○" },
     entropy: 0,
+    degree: 0,
     isDue: false,
     spriteKey: "creature_default",
     uncharted: true,

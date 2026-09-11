@@ -40,9 +40,11 @@ export function nodeToCreature(node: GraphNode, opts: NodeToCreatureOpts = {}): 
   return {
     nodeId: node.id,
     name: node.celestialTitle ?? node.label,
+    type: node.type,
     celestial,
     rarity: rarityFor(celestial),
     entropy,
+    degree: node.degree ?? 0,
     isDue: entropy >= COOLING_ENTROPY,
     spriteKey: spriteKeyForType(node.type),
     uncharted: !opts.hasJourney,

@@ -234,19 +234,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
-- **Soumaya Overworld Stage 1 (2026-09-11), NEW, additive, not yet on-device confirmed** — a 2D
-  Pokémon-GBA-style overworld replacing the 3D galaxy per the design package in
-  `docs/overworld/` (full replacement is the end state; staged so the galaxy stays intact until
-  parity is proven — see `docs/overworld/decisions.md` D1). Only reachable via an explicit
-  `?overworld=1` URL flag (`main.tsx`); the default app path is unaffected. Stage 1 ships a real
-  Phaser 3 world: grid movement/collision/camera-follow, the Money/Bank region wired to real
-  `getGraph()`/finance API data, the capture flow, and the dimming/greet-to-revisit loop wired to
-  the real `entropy`/`tendNode()` mechanism (no new backend needed — see `docs/overworld/README.md`
-  for why). All pure logic (movement, collision, placement determinism, the dim-state threshold,
-  region layout) is unit-tested and green; the actual rendered Phaser canvas — movement feel,
-  camera follow, visual layout, whether the capture/greet/bank overlays look right — has **not**
-  been seen in a real browser from this sandbox and needs on-device/browser confirmation once a
-  deploy is possible, same as every other item in this section.
+- **Soumaya Overworld Stages 1+2 (2026-09-11), full dock parity SHIPPED, galaxy deletion next,
+  not yet on-device confirmed** — the 2D Pokémon-GBA-style overworld (`docs/overworld/`) now has
+  a real in-world place for all 11 former dock tabs (Details/Summary, Browse/Library, Mind/
+  Sanctuary, Agenda/Bulletin Board, Insights/Observatory, Soumaya chat, Inbox/Post Office,
+  Progress/Gym, Journeys/Town Hall, Money/Bank, Hangar) — see `docs/overworld/roadmap.md`'s parity
+  table for exactly which real API/localStorage data backs each one. Per the user's explicit
+  2026-09-11 direction, the 3D galaxy (`graph/*`, `RightDock.tsx`, its panel components) is being
+  removed immediately after this parity, not staged further — check `docs/overworld/decisions.md`
+  D1 and the deletion commit for current status; the `?overworld=1` flag comes off at the same
+  time, making the Overworld the sole default UI. All pure logic (movement, collision, placement
+  determinism, the dim-state threshold, region layout, the achievement-unlock port) is
+  unit-tested and green; the actual rendered Phaser canvas and all 11 overlays' real look/feel
+  have **not** been seen in a real browser from this sandbox and need on-device/browser
+  confirmation once a deploy is possible, same as every other item in this section.
 
 - **Fix: Cinematic Intro Trigger** (Graph3D.tsx): Relaxed the intro trigger condition.
 - **Fix: Cinematic Startup Race Condition** (Graph3D.tsx): Added `cinematicStartedRef` to prevent redundant triggers.

@@ -18,6 +18,16 @@ later, full parity across all 11 areas — is verified, a **separate, explicit l
 deletes the galaxy code and `RightDock`. This spec covers only the additive phase; the deletion
 phase gets its own short spec + sign-off when parity is real, not assumed.
 
+**Update (user, 2026-09-11, mid-build):** asked for the galaxy to be removed immediately after
+this session's Money/Bank slice shipped. Confirmed the trade-off explicitly: only 1 of 11 areas
+(Money/Bank + capture/greet) has an Overworld equivalent so far — deleting the galaxy right then
+would have dropped chat-with-Soumaya, Browse, Mind, Agenda, Insights, Inbox, Progress, Journeys,
+and Hangar from the live app until each is rebuilt. **User chose to build out the remaining 10
+areas first, then delete the galaxy** (roadmap.md Stage 2, tracked task-by-task) — the staged plan
+above stands; only the timeline moved up (immediately following Stage 2, not "whenever," and the
+`?overworld=1` flag comes off at the same time the galaxy is deleted, making the Overworld the
+sole default UI).
+
 ## D2 — Real-time grid movement, not map-select
 
 **Decided (user): real-time free movement.** Classic grid-based walking with a D-pad, camera

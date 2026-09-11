@@ -1,3 +1,52 @@
+### 2026-09-11 (Claude): Soumaya Overworld — Stage 2 full dock parity (all 11 tabs)
+- [ ] Verified by Claude
+- User asked for the galaxy to be removed entirely right after the Stage 1 slice shipped;
+  confirmed the trade-off explicitly first (only Money/Bank existed in the Overworld at that
+  point — deleting immediately would have dropped chat/Browse/Mind/Agenda/Insights/Inbox/
+  Progress/Journeys/Hangar from the live app). User chose to build every remaining area first,
+  then delete — this entry is that build; the deletion is the next commit.
+- Generalized the exterior scene from a single hardcoded Bank building to a data-driven `Place`
+  model (`scenes/regionLayout.ts`): `DoorPlace` (footprint + door tile, step-on entry) and
+  `ObjectPlace` (single impassable tile, approach + interact — used for the Bulletin Board and
+  the Soumaya NPC). Grew the region from 14×10 to 26×18 to fit a proper hometown: 5 buildings on
+  the north row (Bank/Library/Sanctuary/Post Office/Observatory), 3 on the south row (Gym/Town
+  Hall/Hangar), 2 standalone objects in the town square. `ExteriorScene` now emits one generic
+  `"enter-place"` (placeId) event instead of one-off `"enter-bank"`-style events.
+- Built all 9 remaining overlays, each against real data (see docs/overworld/roadmap.md's parity
+  table for the exact API/localStorage source per building) — `LibraryOverlay`,
+  `SanctuaryOverlay`, `BulletinBoardOverlay`, `ObservatoryOverlay`, `PostOfficeOverlay`,
+  `GymOverlay`, `TownHallOverlay`, `HangarOverlay`, `SoumayaChatOverlay` — plus
+  `CreatureSummaryOverlay` (the "Details" tab, missed on the first task pass and added after
+  catching the gap in a parity self-audit).
+- **Real parity gap found and fixed, not just ported**: achievement unlocking (`ACHIEVEMENTS`/
+  `unlockedIds`/`loadUnlocked` in `components/achievements.ts`) only ever ran inside an `App.tsx`
+  effect. Since `App.tsx` never mounts while the Overworld is active, real play here would earn
+  nothing. `overworld/data/achievements.ts` ports the exact diff-and-persist logic (same
+  `brain.achv.<spaceId>` localStorage key) so badges earned in either UI show up in both.
+- Decoupled the graph fetch from the exterior's display cap: `EXTERIOR_NODE_LIMIT` (60) would
+  have under-counted achievements/Library search against a real brain's full size. Renamed to
+  `GRAPH_FETCH_LIMIT` (300, `getGraph()`'s own default); the exterior's tile-grid capacity still
+  naturally caps visible creatures (`placeCreaturesOnGrid` already drops overflow, never errors).
+- Ported `HangarPanel.tsx`'s exact ship/trail/figurine option lists + unlock gates
+  (`data/hangarOptions.ts`) so cosmetics earned/equipped in either UI carry over via the same
+  localStorage keys — no re-locking, nothing invented.
+- Deleted `DialogueBox.tsx` (Stage 1's generic dialogue primitive) once `CreatureSummaryOverlay`
+  fully absorbed its only real usage and nothing else referenced it.
+- Caught a real bug via the region-layout unit tests before it ever ran: the Bank door tile was
+  defined at `{x:2,y:3}`, one row outside its own building's footprint (`y1:2`). Fixed to
+  `{x:2,y:2}` and reconfirmed via the same tests — same "measure it, don't assume it" pattern as
+  the Stage 1 door bug (this is now the SECOND time a hand-placed door coordinate was wrong and
+  caught only by the layout tests, not by inspection).
+- Files touched: `packages/web/src/overworld/**` (many new files under `adapter/`, `data/`,
+  `scenes/`, `ui/`; `OverworldRoot.tsx` rewritten for the generic Place dispatch),
+  `docs/overworld/{roadmap,architecture}.md`, `CLAUDE.md` (Pending Validation).
+- Gate: typecheck clean across all 3 workspaces; 1051 server + 697 web tests green (116 overworld
+  tests now, up from 63); `npm run build -w @brain/web` succeeds, `OverworldRoot` still its own
+  lazy chunk (~344 kB gzip), default bundle unaffected.
+- **Not yet verified**: real on-device/browser behavior for any of the 9 new overlays or the
+  larger town layout — this sandbox has no live browser. Flagged in `CLAUDE.md`'s Pending
+  Validation, same convention as every other unconfirmed visual item there.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — Stage 1 vertical slice complete (Bank + capture + greet)
 - [ ] Verified by Claude
 - Completes docs/overworld/roadmap.md Stage 1 items 3-6, on top of the engine-shell/adapter-layer

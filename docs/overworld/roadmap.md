@@ -1,10 +1,13 @@
 # Overworld — Roadmap (Phase 6/7)
 
-> Stage 1 is this design package's scope and what gets built immediately after sign-off. Stages
-> 2+ are named for continuity/planning only — each gets re-checked against this package (and a
-> short addendum if anything material changed) before it starts, per Rule #1 applied per-stage.
+> Stage 1 is this design package's original scope. Stages 2+ are named for continuity/planning —
+> each gets re-checked against this package (and a short addendum if anything material changed)
+> before it starts, per Rule #1 applied per-stage. The deletion step originally planned for a
+> later "Stage 4" moved up to right after Stage 2, per the user's explicit 2026-09-11 direction
+> (see decisions.md D1's update) — build every remaining area first, then remove the galaxy
+> immediately, rather than waiting for associative paths/region travel too.
 
-## Stage 1 — Vertical slice (this package's scope) — SHIPPED 2026-09-11
+## Stage 1 — Vertical slice — SHIPPED 2026-09-11
 
 1. [x] Engine shell: `Phaser.Game` bootstrap, scene manager, keyboard + touch input event bus,
    grid-snapped player movement + collision, camera follow. Shipped as `ProofScene.ts` against a
@@ -17,48 +20,79 @@
 4. [x] Bank interior overlay (`BankOverlay.tsx`) — real ledger rows + safe-to-spend.
 5. [x] Capture flow (`CaptureMenu.tsx`): tall-grass trigger → text entry → `ingestText` →
    "identifying species..." → reveal, with a real never-dead-end error/retry state.
-6. [x] Greet/revisit loop (`DialogueBox.tsx` + `greetCreature`): dim-state rendering from real
-   `entropy` → interact → `tendNode` → refetch-and-reconcile (never a client-side "instant reset"
-   — see architecture.md's note on why that would have re-derived the decay math ourselves).
+6. [x] Greet/revisit loop (`greetCreature`): dim-state rendering from real `entropy` → interact
+   → `tendNode` → refetch-and-reconcile (never a client-side "instant reset" — see
+   architecture.md's note on why that would have re-derived the decay math ourselves).
 7. [x] Accessibility: `prefers-reduced-motion` (instant camera snap + no tween) and non-color
    state pairing (dim "?" marker, rarity badges, Bank state icons) verified alongside each piece.
-8. [x] Gate green (typecheck × 3 workspaces, 1051 server + 644 web tests incl. 63 new overworld
-   tests, production build); logged in `GEMINI_CHANGES.md`; committed to the designated branch.
+8. [x] Gate green; logged in `GEMINI_CHANGES.md`; committed to the designated branch.
 
-Known Stage-1 simplifications, intentionally deferred rather than blocking the slice: no
-per-node Journey lookup yet (every creature renders `uncharted: true` — harmless per idea.md's
-"the world must tolerate unsorted gracefully," revisit once Stage 2 needs real region theming);
-the exterior grid is small and fixed (60-node sample, `placeCreaturesOnGrid` silently drops
-whatever doesn't fit rather than erroring — Library-style full browsing is Stage 2); placeholder
-programmer-art sprites (real pixel art is an asset-production task, not an architecture one).
-**Still needs on-device/browser confirmation** — this sandbox has no live browser, so the Phaser
-scene itself (movement feel, camera follow, visual layout) is verified only via its underlying
-pure-logic tests (movement/collision/placement/input), consistent with every other "Needs
-on-device re-confirmation" item already tracked in root `CLAUDE.md`.
+## Stage 2 — Dock parity — SHIPPED 2026-09-11
 
-## Stage 2 — Dock parity (one building at a time, order TBD by what's cheapest given Stage 1's
-now-proven patterns)
+Every remaining dock tab got a real in-world place, each wired to the SAME real API/localStorage
+data the galaxy UI already reads/writes (never a new endpoint, never invented data):
 
-Library (Browse), Sanctuary (Mind), Bulletin Board (Agenda), Observatory (Insights), Post Office
-(Inbox), Gym/Trainer Card (Progress), region map screen (Journeys), Hangar (ship customization,
-carried over ~1:1). Soumaya-as-partner-NPC + chat dialogue box (reuses the DialogueBox component
-built in Stage 1).
+| Dock tab | Overworld place | Component | Real data source |
+|---|---|---|---|
+| Details | Creature Summary screen (opens on any creature interact) | `CreatureSummaryOverlay.tsx` | `nodeToCreature` fields + `journeysFor("node", id)` |
+| Browse | Library | `LibraryOverlay.tsx` | `graph.nodes` (shelves) + real `search()` |
+| Mind | Sanctuary | `SanctuaryOverlay.tsx` | `api/mind.ts`: `getThoughts`/`getCognitive` + mutations |
+| Agenda | Bulletin Board | `BulletinBoardOverlay.tsx` | action-kind nodes + `remindAt` nodes; `deleteNode`/`ackReminder`/`ingestText` |
+| Insights | Observatory | `ObservatoryOverlay.tsx` | `getDigest()` / `resolveInsight()` |
+| Soumaya | Partner NPC + chat | `SoumayaChatOverlay.tsx` | `askChat()`, with citation "📍 Go there" camera fly-to (pulled forward from Stage 3) |
+| Inbox | Post Office | `PostOfficeOverlay.tsx` | `Toasts.ts`'s existing localStorage notification log |
+| Progress | Gym / Trainer Card | `GymOverlay.tsx` | `getFuel`/`getStreak` + `data/achievements.ts` (ports App.tsx's unlock-diff so it fires even though App.tsx never mounts here) |
+| Journeys | Town Hall (region/world map) | `TownHallOverlay.tsx` | `api/journeys.ts` full CRUD |
+| Money | Bank | `BankOverlay.tsx` | `getMoneySky()`/`getFinanceSummary()` (Stage 1) |
+| Hangar | Hangar | `HangarOverlay.tsx` | `data/hangarOptions.ts` — same localStorage keys/gates as `HangarPanel.tsx` |
 
-## Stage 3 — Associative paths + region travel
+Notable finds/decisions made while building this stage:
+- **Progress parity gap caught and fixed**: achievement unlocking only ever happened inside an
+  `App.tsx` effect, which never runs while the Overworld is mounted. `data/achievements.ts` ports
+  that exact diff-and-persist logic (same `brain.achv.<spaceId>` key) so real play in the
+  Overworld still earns badges, not just displays already-earned ones.
+- **Graph fetch decoupled from the exterior's display cap**: Stage 1's `EXTERIOR_NODE_LIMIT`
+  (60) would have under-counted achievements/Library results against a bigger real brain.
+  Renamed to `GRAPH_FETCH_LIMIT` (300, matching `getGraph()`'s own default) — the full fetch backs
+  achievements/Library accurately; the exterior's own tile-grid capacity still naturally caps how
+  many creatures get a visible sprite (never an error).
+- **The "Details" tab was missed on the first pass** of this stage's task breakdown and caught
+  during the parity audit below — added as `CreatureSummaryOverlay.tsx`, which now fronts every
+  creature interaction (stats + Journey membership + the Greet action), replacing the
+  Stage-1 bare greet-only dialogue. `DialogueBox.tsx` (Stage 1's generic dialogue primitive) was
+  deleted rather than left unused once nothing referenced it anymore.
+- A real region-layout bug (the Bank door defined one tile outside its own building) was caught
+  by the region-layout unit tests before ever running — see the Stage 2 commit message.
+
+**Known Stage-2 simplifications, intentionally deferred, none blocking the parity criterion**
+(a working equivalent exists for all 11 areas): per-node Journey membership is fetched on-demand
+only when opening a creature's Summary (not prefetched for every creature — the exterior's
+`uncharted` flag still defaults true for placement/theming purposes); Town Hall doesn't yet
+support literal region travel (neither does today's `JourneysPanel` — that's Stage 3); the
+Hangar's chosen ship/trail isn't visually applied anywhere yet (placeholder player sprite);
+placeholder programmer-art throughout (asset production, not architecture).
+
+**Still needs on-device/browser confirmation** for the same reason as Stage 1 — this sandbox has
+no live browser.
+
+## Deletion — the 3D galaxy is retired
+
+With every dock tab now having a real Overworld equivalent, the staged replacement in
+decisions.md D1 completes: `packages/web/src/graph/*`, `RightDock.tsx`, and the panel components
+it hosted are removed, `App.tsx`'s galaxy mount is deleted, and the `?overworld=1` opt-in comes
+off — the Overworld becomes the sole default UI, per the user's explicit instruction.
+
+## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
-flying/sailing transition between Journey regions using the Hangar-customized vehicle (D4);
-chat-citation "fly to" camera pan (2D equivalent of the galaxy's existing chat-navigation
-feature).
+flying/sailing transition between multiple Journey regions using the Hangar-customized vehicle
+(D4) — Town Hall's region list currently manages Journeys but can't yet travel between them,
+since there's still only one physical region.
 
-## Stage 4 — Day/night + weather tied to brain mood/entropy; full parity audit
-
-Only after Stage 2 gives every current tab a real in-world home: a full parity checklist against
-today's `DockTab` list, then — and only then — the separate, explicitly-scoped deletion of
-`graph/*` and `RightDock`/panel components per D1's staged replacement.
+## Stage 4 — Day/night + weather tied to brain mood/entropy
 
 ## Explicitly not scheduled
 
 Any battle/combat mechanic (D3, permanent). Multiplayer/shared worlds (permanent, privacy
 non-negotiable). A hand-authored Tiled-binary map pipeline (Porymap-equivalent tooling) unless
-Stage 2+ proves hand-authoring at scale is actually needed over data-driven layout.
+Stage 3+ proves hand-authoring at scale is actually needed over data-driven layout.

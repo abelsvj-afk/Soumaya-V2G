@@ -1,31 +1,41 @@
-import type { GraphData, MoneyStar } from "@brain/shared";
-import { getGraph, tendNode } from "../../api/client.js";
+import type { Fuel, GraphData, MoneyStar, Streak } from "@brain/shared";
+import { getFuel, getGraph, getStreak, tendNode } from "../../api/client.js";
 import { getFinanceSummary, getMoneySky, type FinanceSummary } from "../../api/finance.js";
 import { nodeToCreature } from "../adapter/nodeToCreature.js";
 import { moneyStarsToBankRows } from "../adapter/financeAdapter.js";
 import { placeCreaturesOnGrid } from "../adapter/placement.js";
 import { isPlacementBlocked, REGION_HEIGHT, REGION_WIDTH } from "../scenes/regionLayout.js";
+import { syncAchievements } from "./achievements.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
   creatures: CreatureEntity[];
   bank: { rows: BankLedgerRow[]; safeToSpendCents: number };
+  /** The full graph response — kept around so buildings that need more than creatures
+   *  (Gym's achievements, Library's full browse) don't need a second fetch. */
+  graph: GraphData;
+  fuel: Fuel | null;
+  streak: Streak | null;
 }
 
 /**
- * Stage 1 caps the sample to keep the single demo region's grid legible (see
- * scenes/ExteriorScene.ts's fixed grid size) — full browsing arrives with the Library
- * stage (roadmap.md Stage 2). Archived nodes and transient "action" items don't get a
- * creature (they aren't memories to revisit); everything else renders, tolerating any
- * node with no Journey per idea.md's "unsorted" non-negotiable.
+ * Matches getGraph()'s own default (App.tsx fetches the same way) — achievements and
+ * Library browsing need the REAL total, not a small sample, so this isn't independently
+ * capped. The exterior's own tile grid still naturally caps how many get a visible
+ * creature (placeCreaturesOnGrid drops whatever doesn't fit, never an error); everything
+ * else (archived nodes, transient "action" items) skips creature rendering entirely but
+ * still counts for achievements/Library, tolerating any node with no Journey per idea.md's
+ * "unsorted" non-negotiable.
  */
-export const EXTERIOR_NODE_LIMIT = 60;
+export const GRAPH_FETCH_LIMIT = 300;
 
 /** Pure: turns already-fetched API responses into the overworld's render-ready snapshot. */
 export function buildWorldSnapshot(
   graph: GraphData,
   moneySky: MoneyStar[],
   financeSummary: FinanceSummary | null,
+  fuel: Fuel | null = null,
+  streak: Streak | null = null,
 ): WorldSnapshot {
   const unplaced = graph.nodes
     .filter((n) => n.status !== "archived" && n.kind !== "action")
@@ -41,22 +51,30 @@ export function buildWorldSnapshot(
       rows: moneyStarsToBankRows(moneySky),
       safeToSpendCents: financeSummary?.budget.safeToSpendCents ?? 0,
     },
+    graph,
+    fuel,
+    streak,
   };
 }
 
 /**
- * Fetches everything the Stage-1 region needs and assembles it. `getGraph` throws on a
- * real failure (callers should show the ux-design.md error state); the finance calls are
- * already null-safe (api/finance.ts swallows failures), so missing money data degrades to
- * an empty Bank rather than blocking the whole world from loading.
+ * Fetches everything the region needs and assembles it. `getGraph` throws on a real
+ * failure (callers should show the ux-design.md error state); the finance/fuel/streak
+ * calls are already null-safe, so missing data degrades gracefully rather than blocking
+ * the whole world from loading. Also runs the achievement-unlock sync (see achievements.ts)
+ * on every real refresh, since that side effect only lives in App.tsx today and App.tsx
+ * never mounts while the Overworld is active.
  */
 export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
-  const [graph, moneySky, financeSummary] = await Promise.all([
-    getGraph(EXTERIOR_NODE_LIMIT),
+  const [graph, moneySky, financeSummary, fuel, streak] = await Promise.all([
+    getGraph(GRAPH_FETCH_LIMIT),
     getMoneySky(),
     getFinanceSummary(),
+    getFuel(),
+    getStreak(),
   ]);
-  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary);
+  syncAchievements(graph, fuel, streak);
+  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak);
 }
 
 /** FR11 — the greet action. Fire-and-forget by design (matches tendNode itself); callers

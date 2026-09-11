@@ -51,4 +51,14 @@ describe("buildWorldSnapshot", () => {
     expect(snapshot.bank.rows[0]?.isUrgent).toBe(true);
     expect(snapshot.bank.safeToSpendCents).toBe(4200);
   });
+
+  it("carries the full graph + fuel/streak through for Gym/Library to use without a second fetch", () => {
+    const graph: GraphData = { nodes: [makeNode()], links: [] };
+    const fuel = { fuel: 5, capacity: 10, jobCost: 1 };
+    const streak = { current: 3, best: 7, today: true };
+    const snapshot = buildWorldSnapshot(graph, [], null, fuel, streak);
+    expect(snapshot.graph).toBe(graph);
+    expect(snapshot.fuel).toEqual(fuel);
+    expect(snapshot.streak).toEqual(streak);
+  });
 });

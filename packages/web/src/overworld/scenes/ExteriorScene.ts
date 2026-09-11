@@ -5,14 +5,17 @@ import { tileInFront } from "../engine/interact.js";
 import { prefersReducedMotion } from "../engine/reducedMotion.js";
 import type { CreatureEntity } from "../types.js";
 import {
-  BANK_DOOR,
-  isBankBuildingTile,
-  isBankDoor,
+  allPlaces,
+  doorPlaceAt,
   isGrassTile,
   isMovementPassable,
+  objectPlaceAt,
+  placeById,
   PLAYER_SPAWN,
   REGION_HEIGHT,
   REGION_WIDTH,
+  type Place,
+  type PlaceId,
 } from "./regionLayout.js";
 
 export const TILE_SIZE = 32;
@@ -28,13 +31,13 @@ interface CreatureSprite {
 }
 
 /**
- * FR1-FR12's exterior region: the Money-region shell (grid movement, the Bank door warp,
- * the tall-grass capture trigger) plus real creatures placed via the adapter layer. This
- * scene renders/consumes data handed to it — it never fetches, so it has no opinion about
+ * The town exterior: grid movement, every building/object door-or-signpost from
+ * scenes/regionLayout.ts, plus real creatures placed via the adapter layer. This scene
+ * renders/consumes data handed to it — it never fetches, so it has no opinion about
  * loading/error states (that's OverworldRoot.tsx, per ux-design.md).
  *
  * Emitted events (consumed by OverworldRoot.tsx):
- *  - "enter-bank"              — player stepped on the Bank door tile.
+ *  - "enter-place" (placeId)   — player stepped on a door tile, or interacted facing an object tile.
  *  - "enter-grass"             — player stepped INTO the grass zone (edge-triggered once).
  *  - "greet-creature" (nodeId) — player pressed interact facing a creature.
  */
@@ -48,8 +51,11 @@ export class ExteriorScene extends Phaser.Scene {
   private unsubscribe: (() => void) | null = null;
   private wasOnGrass = false;
   private created = false;
-  /** True while a React overlay (Bank/Capture/greet dialogue) owns input focus — set by
-   *  OverworldRoot.tsx so a keypress typed into a textarea can't also walk the player. */
+  /** Tracked ourselves rather than read off Phaser's camera internals — true unless a
+   *  flyToNode() pan is currently parking the camera away from the player. */
+  private following = true;
+  /** True while a React overlay owns input focus — set by OverworldRoot.tsx so a keypress
+   *  typed into a textarea can't also walk the player. */
   private paused = false;
 
   constructor() {
@@ -92,12 +98,27 @@ export class ExteriorScene extends Phaser.Scene {
     const gfx = this.add.graphics();
     for (let y = 0; y < REGION_HEIGHT; y++) {
       for (let x = 0; x < REGION_WIDTH; x++) {
-        let color = 0x1c2540; // open ground (placeholder art — Stage 1 has no tile assets yet)
-        if (isBankBuildingTile(x, y)) color = isBankDoor(x, y) ? 0xd1a054 : 0x5a4632;
-        else if (isGrassTile(x, y)) color = 0x2f5233;
+        let color = 0x1c2540; // open ground (placeholder art — Stage 1/2 have no tile assets yet)
+        if (!isMovementPassable(x, y) && doorPlaceAt(x, y) === undefined && objectPlaceAt(x, y) === undefined) {
+          color = 0x5a4632; // a building wall tile
+        } else if (isGrassTile(x, y)) {
+          color = 0x2f5233;
+        }
         gfx.fillStyle(color, 1);
         gfx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1);
       }
+    }
+    // Doors and standalone objects each get their own tile + glyph so they read distinctly
+    // from plain ground/wall — non-color labeling for every place, not just a tint.
+    for (const place of allPlaces()) {
+      const tile = place.kind === "door" ? place.door : place.tile;
+      const color = place.kind === "door" ? 0xd1a054 : 0x7a5cff;
+      gfx.fillStyle(color, 1);
+      gfx.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1);
+      const label = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, place.glyph, {
+        fontSize: "16px",
+      });
+      label.setOrigin(0.5);
     }
   }
 
@@ -171,6 +192,7 @@ export class ExteriorScene extends Phaser.Scene {
     });
     this.movement = result.state;
     if (!result.moved) return;
+    if (!this.following) this.resumeFollow();
 
     const { x, y } = result.state.position;
     const targetX = x * TILE_SIZE + TILE_SIZE / 2;
@@ -188,8 +210,9 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   private afterStep(x: number, y: number): void {
-    if (isBankDoor(x, y)) {
-      this.events.emit("enter-bank");
+    const door = doorPlaceAt(x, y);
+    if (door) {
+      this.events.emit("enter-place", door.id);
       return;
     }
     const onGrass = isGrassTile(x, y);
@@ -205,13 +228,44 @@ export class ExteriorScene extends Phaser.Scene {
         return;
       }
     }
+    const object = objectPlaceAt(front.x, front.y);
+    if (object) this.events.emit("enter-place", object.id);
   }
 
-  /** Called by OverworldRoot.tsx when the Bank interior overlay closes, to place the
-   *  player back at the door tile (FR3 — leaving returns to the exact tile entered from). */
-  returnToDoor(): void {
-    this.movement = createMovementState(BANK_DOOR);
-    this.player.setPosition(BANK_DOOR.x * TILE_SIZE + TILE_SIZE / 2, BANK_DOOR.y * TILE_SIZE + TILE_SIZE / 2);
+  /** Called by OverworldRoot.tsx when a door-building's overlay closes, to place the player
+   *  back at the exact door tile (FR3 — leaving returns to the exact tile entered from). */
+  returnToDoor(placeId: PlaceId): void {
+    const place = placeById(placeId) as Place & { door?: { x: number; y: number } };
+    const door = place.door;
+    if (!door) return;
+    this.movement = createMovementState(door);
+    this.player.setPosition(door.x * TILE_SIZE + TILE_SIZE / 2, door.y * TILE_SIZE + TILE_SIZE / 2);
+  }
+
+  /** Soumaya chat's cited-source "fly to" — pans the camera to a creature's tile without
+   *  moving the player (2D equivalent of the galaxy's existing chat-citation navigation).
+   *  Stops following the player so the pan isn't immediately fought/overridden; walking
+   *  again re-triggers movement, which doesn't re-follow automatically — acceptable for a
+   *  one-off "look over there" moment, not a permanent camera-lock. */
+  flyToNode(nodeId: number): void {
+    const sprite = this.creatureSprites.get(nodeId);
+    if (!sprite?.entity.tile) return;
+    const { x, y } = sprite.entity.tile;
+    const targetX = x * TILE_SIZE + TILE_SIZE / 2;
+    const targetY = y * TILE_SIZE + TILE_SIZE / 2;
+    this.cameras.main.stopFollow();
+    this.following = false;
+    if (prefersReducedMotion()) {
+      this.cameras.main.centerOn(targetX, targetY);
+    } else {
+      this.cameras.main.pan(targetX, targetY, 500, "Sine.easeInOut");
+    }
+  }
+
+  /** Resumes following the player (e.g. after a fly-to, once they move again). */
+  resumeFollow(): void {
+    this.following = true;
+    this.cameras.main.startFollow(this.player, true, prefersReducedMotion() ? 1 : 0.18, prefersReducedMotion() ? 1 : 0.18);
   }
 
   update(): void {

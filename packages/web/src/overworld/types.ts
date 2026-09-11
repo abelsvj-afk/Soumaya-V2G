@@ -5,7 +5,7 @@
  * docs/overworld/architecture.md and docs/overworld/pokemon-reference.md's domain-boundary
  * table before adding a field here.
  */
-import type { CelestialClass, MoneyStarState } from "@brain/shared";
+import type { CelestialClass, MoneyStarState, NodeType } from "@brain/shared";
 
 /** D7 — the 7 CelestialClass tiers mapped 1:1 to rarity, each with a non-color badge shape. */
 export type RarityTier =
@@ -28,10 +28,13 @@ export interface RarityMeta {
 export interface CreatureEntity {
   nodeId: number;
   name: string;
+  type: NodeType;
   celestial: CelestialClass;
   rarity: RarityMeta;
   /** Raw 0..1 entropy from the server (undefined = never computed, treated as fresh/0). */
   entropy: number;
+  /** Connection count (GraphNode.degree) — shown on the Details/Summary screen. */
+  degree: number;
   /** entropy >= COOLING_ENTROPY (matches the rest of the app's convention) — render visibly dimmed. */
   isDue: boolean;
   spriteKey: string;
