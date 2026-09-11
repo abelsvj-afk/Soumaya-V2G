@@ -81,21 +81,39 @@ export function OverworldRoot() {
     };
     const game = new Phaser.Game(config);
     gameRef.current = game;
+    let cancelled = false;
 
-    const sceneConfig: ExteriorSceneConfig = { inputBus: inputBusRef.current, creatures: [] };
-    const scene = game.scene.add("exterior-scene", ExteriorScene, true, sceneConfig) as ExteriorScene;
-    sceneRef.current = scene;
+    // `game.scene.add()` returns null until the SceneManager has actually booted (its own
+    // JSDoc: "The added Scene, if it was added immediately, otherwise null") — Phaser's boot
+    // is asynchronous (DOM-ready -> renderer/canvas -> texture manager), so calling `.add()`
+    // synchronously right after `new Phaser.Game()` hit that null case in production
+    // ("Cannot read properties of null (reading 'events')"). `Phaser.Core.Events.READY` is
+    // the documented signal that boot has finished and scenes can now be added/started.
+    game.events.once(Phaser.Core.Events.READY, () => {
+      if (cancelled) return; // unmounted before boot finished
 
-    scene.events.on("enter-place", (placeId: PlaceId) => setOverlay({ kind: placeId }));
-    scene.events.on("enter-grass", () => setOverlay({ kind: "capture" }));
-    scene.events.on("greet-creature", (nodeId: number) => {
-      const creature = snapshotRef.current?.creatures.find((c) => c.nodeId === nodeId);
-      if (creature) setOverlay({ kind: "details", creature });
+      const sceneConfig: ExteriorSceneConfig = { inputBus: inputBusRef.current, creatures: [] };
+      const scene = game.scene.add("exterior-scene", ExteriorScene, true, sceneConfig) as ExteriorScene | null;
+      if (!scene) {
+        // Belt-and-braces: should be unreachable per the READY contract above, but a blank
+        // crashed screen is worse than a visible, retryable error state.
+        setLoadError("The world didn't load. Try reloading the page.");
+        return;
+      }
+      sceneRef.current = scene;
+
+      scene.events.on("enter-place", (placeId: PlaceId) => setOverlay({ kind: placeId }));
+      scene.events.on("enter-grass", () => setOverlay({ kind: "capture" }));
+      scene.events.on("greet-creature", (nodeId: number) => {
+        const creature = snapshotRef.current?.creatures.find((c) => c.nodeId === nodeId);
+        if (creature) setOverlay({ kind: "details", creature });
+      });
+
+      void refresh();
     });
 
-    void refresh();
-
     return () => {
+      cancelled = true;
       game.destroy(true);
       gameRef.current = null;
       sceneRef.current = null;
