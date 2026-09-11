@@ -23,6 +23,7 @@ import {
 import {
   ATLAS_TILE_PX,
   attendantFrameForPlace,
+  buildingTileFrame,
   creatureFrameForType,
   grassFrameFor,
   idleBobDelayMs,
@@ -31,6 +32,7 @@ import {
   TILE_ATLAS_URL,
   TileFrame,
   wallFamilyForIndex,
+  workIconForPlace,
 } from "./tileAtlas.js";
 
 export const TILE_SIZE = 32;
@@ -158,6 +160,11 @@ export class ExteriorScene extends Phaser.Scene {
     const worldWidth = REGION_WIDTH * TILE_SIZE;
     const worldHeight = REGION_HEIGHT * TILE_SIZE;
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    // The camera's own viewport size (not the world) — with Scale.RESIZE (OverworldRoot.tsx)
+    // this is genuinely the device's screen, usually smaller than the 26x18-tile world, so
+    // this is a real scrolling camera now, not a shrunk-to-fit picture of the whole map.
+    this.cameras.main.setSize(this.scale.width, this.scale.height);
+    this.scale.on("resize", this.handleResize, this);
     const lerp = prefersReducedMotion() ? 1 : 0.18;
     this.cameras.main.startFollow(this.player, true, lerp, lerp);
 
@@ -165,6 +172,12 @@ export class ExteriorScene extends Phaser.Scene {
     this.unsubscribe = this.inputBus.subscribe((event) => this.handleInput(event));
     this.startIdleBob();
     this.created = true;
+  }
+
+  /** Keeps the camera's viewport matching the real device size as it changes — a rotation,
+   *  a resized browser window, or a mobile browser's chrome showing/hiding. */
+  private handleResize(gameSize: Phaser.Structs.Size): void {
+    this.cameras.main.setSize(gameSize.width, gameSize.height);
   }
 
   /** Gentle "breathing" loop for the player while standing still — stopped before every step
@@ -234,8 +247,7 @@ export class ExteriorScene extends Phaser.Scene {
       const { x0, y0, x1, y1 } = place.footprint;
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) {
-          const isDoor = place.door.x === x && place.door.y === y;
-          const frame = isDoor ? family.door : y === y1 ? (x === x0 ? family.wallLeft : x === x1 ? family.wallRight : family.wall) : family.wall;
+          const frame = buildingTileFrame(family, { x, y }, place.door, { x0, x1 });
           this.tileAt(x, y, frame, 1);
         }
       }
@@ -286,24 +298,52 @@ export class ExteriorScene extends Phaser.Scene {
       const image = this.tileAt(post.a.x, post.a.y, frame, 1);
       const sprite: AttendantSprite = { post, image, atA: true };
       this.attendantSprites.push(sprite);
-      if (!prefersReducedMotion()) {
-        // Reuse the same deterministic hash creatures use for their own desync — the
-        // attendant index is a fine seed since it's already unique and stable per post.
-        const offset = idleBobDelayMs(index++);
-        this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.paceAttendant(sprite) });
-      }
+      // Reuse the same deterministic hash creatures use for their own desync — the
+      // attendant index is a fine seed since it's already unique and stable per post. Always
+      // runs (even under reduced motion) — real user feedback: NPCs need to "do work... not
+      // just walk back and forth", so the work-icon cue is the part that must never disappear;
+      // only the walking half of it is decorative motion.
+      const offset = idleBobDelayMs(index++);
+      this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.attendantWorkTick(sprite) });
     }
   }
 
-  private paceAttendant(sprite: AttendantSprite): void {
-    sprite.atA = !sprite.atA;
-    const target = sprite.atA ? sprite.post.a : sprite.post.b;
+  private attendantWorkTick(sprite: AttendantSprite): void {
+    if (!prefersReducedMotion()) {
+      sprite.atA = !sprite.atA;
+      const target = sprite.atA ? sprite.post.a : sprite.post.b;
+      this.tweens.add({
+        targets: sprite.image,
+        x: target.x * TILE_SIZE + TILE_SIZE / 2,
+        y: target.y * TILE_SIZE + TILE_SIZE / 2,
+        duration: 900,
+        ease: "Sine.easeInOut",
+      });
+    }
+    this.showWorkIcon(sprite);
+  }
+
+  /** A brief icon above an attendant showing what they're actually doing (tileAtlas.ts's
+   *  workIconForPlace) — the concrete "doing work" cue, not just movement. */
+  private showWorkIcon(sprite: AttendantSprite): void {
+    const icon = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.55, workIconForPlace(sprite.post.placeId), {
+      fontSize: "12px",
+    });
+    icon.setOrigin(0.5);
+    icon.setDepth(4);
+    if (prefersReducedMotion()) {
+      this.time.delayedCall(700, () => icon.destroy());
+      return;
+    }
+    icon.setAlpha(0);
     this.tweens.add({
-      targets: sprite.image,
-      x: target.x * TILE_SIZE + TILE_SIZE / 2,
-      y: target.y * TILE_SIZE + TILE_SIZE / 2,
-      duration: 900,
-      ease: "Sine.easeInOut",
+      targets: icon,
+      alpha: 1,
+      y: icon.y - 6,
+      duration: 200,
+      yoyo: true,
+      hold: 400,
+      onComplete: () => icon.destroy(),
     });
   }
 
@@ -437,6 +477,10 @@ export class ExteriorScene extends Phaser.Scene {
   /** Called by OverworldRoot.tsx whenever a React overlay opens/closes. */
   setPaused(paused: boolean): void {
     this.paused = paused;
+    // An overlay opening unmounts TouchControls, which can never fire the pointerup that
+    // would otherwise clear a held D-pad direction — clear it defensively so a finger that
+    // was mid-hold when a door opened doesn't leave the player walking on their own forever.
+    if (paused) this.inputBus.setHeldDirection(null);
   }
 
   private handleInput(event: InputEvent): void {
@@ -544,7 +588,7 @@ export class ExteriorScene extends Phaser.Scene {
 
   update(): void {
     const held = (...names: string[]) => names.some((n) => this.keys[n]?.isDown);
-    const direction = held("UP", "W")
+    const keyboardDirection = held("UP", "W")
       ? "up"
       : held("DOWN", "S")
         ? "down"
@@ -553,6 +597,9 @@ export class ExteriorScene extends Phaser.Scene {
           : held("RIGHT", "D")
             ? "right"
             : null;
+    // Touch works the same way keyboard always has: held down = keep moving, not one tap =
+    // one step (real user feedback — "you can't hold down the button to keep moving").
+    const direction = keyboardDirection ?? this.inputBus.heldDirection;
     if (direction) this.inputBus.emit({ type: "move", direction });
 
     const space = this.keys.SPACE;
@@ -563,6 +610,7 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.scale.off("resize", this.handleResize, this);
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.idleTween?.stop();

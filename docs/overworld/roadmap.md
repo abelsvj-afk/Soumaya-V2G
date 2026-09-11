@@ -263,6 +263,60 @@ never overlap a door/object/grass-zone/spawn tile, stay within their own buildin
 no two posts anywhere collide) and the full gate (1051 server + 165 web tests, typecheck,
 build). Still needs on-device confirmation like the rest of the Overworld.
 
+## Stage 2.9 — A second round of real feedback: input, camera, art, NPC substance — SHIPPED 2026-09-11
+
+Voice feedback after actually playing the Stage 2.7/2.8 build, in order of what it named:
+
+1. **All 3 galaxy-era tracks, switchable** — the galaxy let a pilot switch between
+   `ambient-loop.mp3`/`interstellar.mp3`/`slow-tide.mp3`; Stage 2.7 only ever played the first
+   one. `lib/music.ts`'s new `MUSIC_TRACKS` + `nextTrack()`/`playCurrentTrack()` restore the
+   switcher (a small ⏭️ button next to the mute button). Fixed a real bug surfaced by writing
+   the switch-test properly rather than assuming it worked: `startMusicLoop()`'s "already
+   playing this track" guard compared `currentUrl === url` *after* just having assigned
+   `currentUrl = url` on the line above — always true, so switching tracks silently did
+   nothing. Compare-then-assign now.
+2. **Hold-to-move** — keyboard already moved continuously while a key was held (`update()`
+   polls `key.isDown` every frame); `TouchControls` only ever fired one step per tap. Added
+   `InputBus.heldDirection`, set/cleared by the D-pad's pointerdown/up/leave/cancel, which
+   `update()` now polls exactly like keyboard state — holding the button moves continuously,
+   tapping still gives one step.
+3. **True mobile-first responsive camera** — `Phaser.Scale.FIT` locked the game into a fixed
+   832x576 (26:18) landscape aspect that had to letterbox on a portrait phone ("built to turn
+   your phone sideways... needs to adapt to whatever device"). Switched to `Phaser.Scale.RESIZE`:
+   the canvas genuinely fills whatever box it's given (portrait, landscape, desktop), and
+   `ExteriorScene.ts` resizes its camera's viewport to match on every change. The camera is now
+   a *real scrolling viewport* onto the still-26x18-tile world — smaller than the world on
+   almost every device — rather than a shrunk picture of the entire map. `TouchControls`'
+   buttons got a semi-transparent style so they read as an overlay, not opaque tiles blocking
+   the world underneath (a second piece of the same "buttons shouldn't block things behind
+   them" feedback).
+4. **Buildings looked hand-assembled** — the user's ask was explicit: use pre-made free assets,
+   don't hand-compose primitives. Investigation found Tiny Town has no single "complete house"
+   sprite to drop in whole — it's a modular kit by design, same as the wall/door tiles already
+   in use — but it DOES include proper roof-gable tiles (63/67) nobody had used yet; buildings
+   were capped with a flat wall row instead of an actual roof. Added `roofTan`/`roofBlue` to the
+   atlas and a new pure `buildingTileFrame()` (tileAtlas.ts, unit-tested against real
+   `regionLayout.ts` footprints) that decides wall/door/roof per tile from wherever the door
+   *actually* is. That fix also caught and corrected a real latent bug: the old inline logic
+   assumed the door was always on the footprint's bottom row, so the 3 south-row buildings
+   (Gym/Town Hall/Hangar, whose doors face north/up and sit on the *top* row) were drawing
+   plain wall tiles beside their doors instead of the tiles actually designed to sit there, and
+   putting the wrong tiles on their true wall-only row. `buildingTileFrame`'s tests assert both
+   orientations directly against `placeById("bank")`/`placeById("gym")`'s real footprints.
+5. **NPCs need to "do work... pertaining to their field", not just pace** — attendants now
+   flash a small role-specific icon above themselves on the same timer that used to only pace
+   them (`tileAtlas.ts`'s `workIconForPlace` — 💰 Bank, 📖 Library, 🧘 Sanctuary, ✉️ Post Office,
+   🔭 Observatory, 🏋️ Gym, 📜 Town Hall, 🔧 Hangar). The icon cue runs even under reduced
+   motion (it's the actual "they're working" signal); only the walking half is skipped there,
+   same as everywhere else motion is decorative in this scene.
+
+Verified via new/updated tests (`InputBus` held-direction, `TouchControls` hold-to-move
+pointer events, `music.ts` track-cycling + the fixed switch bug, `buildingTileFrame` against
+real north-row/south-row footprints, `workIconForPlace`) and the full gate (1051 server + 179
+web tests, typecheck, build). The camera/scaling rework in particular needs on-device
+reconfirmation — it's a genuine architecture change, not just a config tweak, and this
+sandbox still has no live browser to check it in.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -144,3 +144,41 @@ describe("music — playback", () => {
     expect(gain?.linearRampToValueAtTime).toHaveBeenCalled();
   });
 });
+
+describe("music — track switching (the old 3D galaxy's 3 tracks, restored)", () => {
+  it("starts on the first track", async () => {
+    const { currentTrackIndex, currentTrackUrl, MUSIC_TRACKS } = await import("./music.js");
+    expect(currentTrackIndex()).toBe(0);
+    expect(currentTrackUrl()).toBe(MUSIC_TRACKS[0]);
+  });
+
+  it("nextTrack cycles through all 3 tracks and wraps back to the first", async () => {
+    const { nextTrack, currentTrackIndex, MUSIC_TRACKS } = await import("./music.js");
+    expect(MUSIC_TRACKS).toHaveLength(3);
+    await nextTrack();
+    expect(currentTrackIndex()).toBe(1);
+    await nextTrack();
+    expect(currentTrackIndex()).toBe(2);
+    await nextTrack();
+    expect(currentTrackIndex()).toBe(0);
+  });
+
+  it("nextTrack actually starts playing the new track, replacing the old one", async () => {
+    const { nextTrack, playCurrentTrack } = await import("./music.js");
+    await playCurrentTrack();
+    expect(bufferSources).toHaveLength(1);
+    await nextTrack();
+    // The old source is stopped and a fresh one for the new track is started — never layered.
+    expect(bufferSources).toHaveLength(2);
+    expect(bufferSources[0]?.stop).toHaveBeenCalled();
+  });
+
+  it("the track choice persists across a reload (a fresh module import)", async () => {
+    const first = await import("./music.js");
+    await first.nextTrack();
+    expect(first.currentTrackIndex()).toBe(1);
+    vi.resetModules();
+    const second = await import("./music.js");
+    expect(second.currentTrackIndex()).toBe(1);
+  });
+});
