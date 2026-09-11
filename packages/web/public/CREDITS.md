@@ -6,7 +6,9 @@
 Kenney (kenney.nl) asset packs, both released under **CC0 1.0 (public domain)** — no attribution
 legally required, credited here anyway as good practice:
 - "Tiny Town" — ground (grass/path), building walls, doors, signpost.
-- "Tiny Dungeon" — the player character and the per-NodeType creature sprites.
+- "Tiny Dungeon" — the player character, the per-NodeType creature sprites, and (added in a
+  later pass) one attendant NPC sprite per building — no new sourcing needed, the pack already
+  had enough distinct humanoid characters to give every building its own look.
 
 Sourced via the community mirror https://github.com/shorepine/kenney (same CC0 assets,
 reorganized for programmatic access) — **not** from any of the Pokémon reference repos named in

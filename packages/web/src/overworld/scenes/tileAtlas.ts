@@ -41,6 +41,15 @@ export const TileFrame = {
   creatureKnowledge: 22,
   creatureConcept: 23,
   creatureOther: 24,
+  // One attendant NPC per door-building (Stage 2.8 — "NPCs autonomous per their job").
+  attendantBank: 25,
+  attendantLibrary: 26,
+  attendantSanctuary: 27,
+  attendantPostOffice: 28,
+  attendantObservatory: 29,
+  attendantGym: 30,
+  attendantTownHall: 31,
+  attendantHangar: 32,
 } as const;
 
 /** One wall/door "family" — a building's footprint always draws from a single family so its
@@ -76,6 +85,24 @@ export function wallFamilyForIndex(index: number): WallFamily {
 export function objectFrameForPlace(id: PlaceId): number {
   if (id === "soumaya") return TileFrame.soumayaMarker;
   return TileFrame.signpost;
+}
+
+/** One attendant NPC per door-building — purely decorative variety, not a role simulation;
+ *  any future door-place without dedicated art falls back to the same sprite as the player
+ *  (tolerate-unsorted-gracefully, same convention as every other fallback in this module). */
+const ATTENDANT_FRAME_BY_PLACE: Partial<Record<PlaceId, number>> = {
+  bank: TileFrame.attendantBank,
+  library: TileFrame.attendantLibrary,
+  sanctuary: TileFrame.attendantSanctuary,
+  postOffice: TileFrame.attendantPostOffice,
+  observatory: TileFrame.attendantObservatory,
+  gym: TileFrame.attendantGym,
+  townHall: TileFrame.attendantTownHall,
+  hangar: TileFrame.attendantHangar,
+};
+
+export function attendantFrameForPlace(id: PlaceId): number {
+  return ATTENDANT_FRAME_BY_PLACE[id] ?? TileFrame.player;
 }
 
 /** One creature sprite per NodeType, for visual variety — a memory's rarity is already read

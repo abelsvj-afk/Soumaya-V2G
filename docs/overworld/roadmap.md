@@ -227,11 +227,41 @@ in particular still needs the thing that surfaced these bugs in the first place 
 on-device look — to confirm it actually resolved the movement/visibility complaint; log any
 remaining playability issues the same way (a screenshot beats another guess from this sandbox).
 
-**Not addressed this pass, explicitly deferred pending clarification**: "NPCs are autonomous
-pertaining to their intended job as well" — ambiguous scope (roaming creatures? per-building
-attendant NPCs reflecting their building's role? something else?), so left as an open question
-rather than guessed at, alongside Stage 2.5's still-standing gap (Hangar ship hull/figurines
-have no 2D art to apply to).
+**Deferred pending clarification, then built**: "NPCs are autonomous pertaining to their
+intended job" was ambiguous, so the user was asked rather than guessed at — they picked
+per-building attendant NPCs, then asked for a few per building (not just one) plus creatures
+that roam a bit too, within a bounded area rather than the whole map. See Stage 2.8 below.
+
+## Stage 2.8 — Attendant NPCs + bounded creature roaming — SHIPPED 2026-09-11
+
+Two door-buildings' worth of "the town feels staffed and alive," per the user's explicit
+follow-up direction (a few NPCs per building, and creatures wandering a little, both confined to
+small areas rather than free-roaming the whole map):
+
+- **Attendant NPCs** — every door-building gets `ATTENDANTS_PER_BUILDING` (2) small NPCs pacing
+  back and forth just outside it, each on its own row so their paths never cross
+  (`regionLayout.ts`'s `attendantPosts()` — derived purely from each building's own footprint,
+  never hand-authored, so it can't drift out of sync with where the building actually is).
+  Reused already-sourced Tiny Dungeon (CC0) character art — no new asset sourcing needed, since
+  the pack had exactly enough distinct humanoid sprites for one look per building
+  (`tileAtlas.ts`'s `attendantFrameForPlace`). Attendant tiles block movement and creature
+  placement, same as any other object. Purely decorative/not interactive — no dialogue, no
+  role simulation — and the pacing loop is a no-op under `prefersReducedMotion()` (they still
+  stand at their post, just don't pace).
+- **Bounded creature roaming** — each creature now wanders within its own small "cage": its
+  home tile plus whichever orthogonal neighbors are actually open ground
+  (`ExteriorScene.ts`'s `buildRoamCage`, built from the same `isMovementPassable` collision
+  check everything else already uses — never a separate ad-hoc rule). A creature's home tile
+  (from `placement.ts`, unchanged) stays the fixed anchor used for cage-building and camera
+  fly-to; a new `currentTile` tracks where it actually is right now for interact/greet
+  hit-testing, so walking up to a mid-roam creature and pressing A still works. Desynced
+  per-node timing (reusing `idleBobDelayMs`) so creatures don't all step in lockstep. No-op
+  under reduced motion (creatures stay at home, no roaming) — same standing convention.
+
+Verified via `regionLayout.test.ts` (attendant posts: in-bounds, block movement/placement,
+never overlap a door/object/grass-zone/spawn tile, stay within their own building's width, and
+no two posts anywhere collide) and the full gate (1051 server + 165 web tests, typecheck,
+build). Still needs on-device confirmation like the rest of the Overworld.
 
 ## Stage 3 — Associative paths + region travel (post-deletion)
 

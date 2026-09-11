@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  attendantFrameForPlace,
   creatureFrameForType,
   grassFrameFor,
   IDLE_BOB_PERIOD_MS,
@@ -63,6 +64,18 @@ describe("tileAtlas", () => {
 
     it("falls back to the generic signpost for every other object id", () => {
       expect(objectFrameForPlace("bulletinBoard")).toBe(TileFrame.signpost);
+    });
+  });
+
+  describe("attendantFrameForPlace", () => {
+    it("gives every door-building its own distinct attendant sprite", () => {
+      const doorIds = ["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "townHall", "hangar"] as const;
+      const frames = new Set(doorIds.map((id) => attendantFrameForPlace(id)));
+      expect(frames.size).toBe(doorIds.length);
+    });
+
+    it("falls back to the player sprite for a place with no dedicated attendant art", () => {
+      expect(attendantFrameForPlace("bulletinBoard")).toBe(TileFrame.player);
     });
   });
 

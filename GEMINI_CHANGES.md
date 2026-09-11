@@ -1,3 +1,28 @@
+### 2026-09-11 (Claude): Soumaya Overworld — attendant NPCs + bounded creature roaming
+- [ ] Verified by Claude
+- Follow-up to the NPC-autonomy question asked earlier: user picked "attendant NPCs per
+  building," then asked for a few per building (not one) plus creatures roaming a little too —
+  both confined to small areas, explicitly not free-roaming the whole map.
+- `regionLayout.ts`: new `attendantPosts()` derives 2 patrol posts per door-building purely from
+  its own footprint (which side the door faces decides which side the posts sit on) — never
+  hand-authored, so they can't drift out of sync with a building's real position. Folded into
+  `isMovementPassable`/`isPlacementBlocked` like every other blocking concept in this file.
+- `tileAtlas.ts`: `attendantFrameForPlace` gives every building its own attendant sprite, reusing
+  Tiny Dungeon characters already sourced for Stage 2.5 — no new asset fetching needed, the pack
+  had exactly enough distinct humanoid art. Atlas grew from 25 to 33 frames.
+- `ExteriorScene.ts`: `spawnAttendants()`/`paceAttendant()` — each attendant paces its post's two
+  tiles on a desynced timer (`idleBobDelayMs`). For creatures: `buildRoamCage()` computes each
+  creature's home tile + open orthogonal neighbors (reusing `isMovementPassable`, never a
+  separate rule), and `startRoaming()`/`stepRoam()` wander it between cage tiles on its own
+  timer. `entity.tile` (home, from placement.ts) stays the fixed anchor for cage-building/camera
+  fly-to; a new `currentTile` on the creature's sprite record tracks where it actually is right
+  now, and `handleInteract` now checks against that — so greeting a mid-roam creature still
+  works. Both loops are no-ops under `prefersReducedMotion()`.
+- New tests in `regionLayout.test.ts` (attendant posts stay in-bounds, block movement/placement,
+  never collide with a door/object/grass-zone/spawn tile or each other, stay within their own
+  building's width) and `tileAtlas.test.ts` (every building gets a distinct attendant frame,
+  graceful fallback). Full gate green (1051 server + 165 web tests, typecheck, build).
+
 ### 2026-09-11 (Claude): Soumaya Overworld — music swap: rejected the synthesized track
 - [ ] Verified by Claude
 - Follow-up to the entry directly below. The user rejected the procedurally-generated loop
