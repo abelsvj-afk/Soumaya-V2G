@@ -1,3 +1,35 @@
+### 2026-09-11 (Codex): Graph reliability and multi-tenant query hardening
+- [x] Verified by Claude
+- Fixed the graph client treating an HTTP error or malformed graph payload as a successful
+  empty galaxy. `getGraph()` now throws with a useful error, allowing App's existing
+  recovery UI to preserve the last known graph rather than silently replacing it.
+- Prevented stale concurrent graph refreshes from overwriting newer mutation results by
+  accepting only the newest outstanding graph request. Added error handling to the
+  fuel/streak polling loop so a transient offline/server error does not create repeated
+  unhandled promise rejections.
+- Scoped GraphService's degree and review queries to `space_id`, eliminating global edge
+  aggregations from a single brain's overview/enrichment read. Added a regression test for
+  malformed cross-space edge data affecting a node's degree.
+- Files touched: `packages/web/src/{App.tsx,api/client.ts}`, `packages/server/src/graph/service.ts`,
+  `packages/server/src/__tests__/celestial.test.ts`.
+- **Verified by Claude (2026-09-11):** confirmed the pre-patch bug is real by reading the
+  unpatched code before applying — `getGraph()` was the one function in `client.ts` that
+  silently swallowed a bad response while every sibling function already threw on `!res.ok`;
+  worse, a failed/malformed refresh flowed into `mergeGraphData(prev, {nodes:[],links:[]})`,
+  which wipes the ENTIRE visible galaxy (the merge takes its shape from the fresh array, not
+  a union) — a real, severe bug, not a defensive nice-to-have. Confirmed the degree query was
+  genuinely unscoped (`SELECT source AS node_id FROM edges` — no space_id clause) and that
+  `EdgesRepo.create()` has no cross-space validation on `source`/`target`, so a buggy/foreign
+  edge row can legitimately alter another brain's celestial mass. Applied the diff (it was
+  not yet in the working tree), ran the full gate myself since the author's own note above
+  admitted they couldn't run `celestial.test.ts` locally (missing native `better-sqlite3` in
+  their sandbox): typecheck clean (3 workspaces), the new/edited server test passes in
+  isolation (4/4) and in the full suite (1040/1040 server, 556/556 web, all unchanged from
+  pre-patch counts), production web build succeeds. SQL bind-order double-checked against
+  each query's placeholder count. No further issues found.
+- Gate: web/server typechecks pass. The targeted server test needs native `better-sqlite3`,
+  which cannot be installed in this environment because the install dependency download failed.
+
 ### 2026-08-25 (Claude): Full-project review + fix pass (22 findings)
 - [x] Verified by Claude
 - User asked for a deep review of the whole monorepo. Ran 7 parallel review agents across

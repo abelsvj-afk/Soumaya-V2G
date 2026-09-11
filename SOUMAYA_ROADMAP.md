@@ -4,6 +4,17 @@ This document tracks identified architectural gaps, technical debt, and proposed
 
 ## 🚩 Critical Gaps
 
+### 0. Graph Read Reliability and Render Budget (2026-09-11)
+- [~] **Graph-read safety:** HTTP/malformed graph responses now surface recovery UI rather
+  than replacing the galaxy with an empty state; concurrent client refreshes are
+  sequence-protected. Remaining: add browser-level regression coverage.
+- [~] **Multi-tenant graph query cost:** degree aggregation is now `space_id` scoped.
+  Remaining: add/query-plan composite indexes and profile at production cardinality.
+- [ ] **Effective render-rate cap:** Graph3D caps its own work but the underlying
+  force-graph render loop still needs explicit render-rate control on mobile.
+- [ ] **Autonomy fairness:** the server-side autonomy loop processes every space serially;
+  persist fair scheduling and bound per-tick work as tenant count grows.
+
 ### 1. Frontend Execution Dependency
 - **Issue:** Soumaya only operates when the web client is open. Background maintenance stops when the browser is closed.
 - **Proposed Fix:** Migrate job fetching and execution logic to a server-side background worker (e.g., a simple `setInterval` or `node-cron` in the server workspace) so the brain evolves 24/7.

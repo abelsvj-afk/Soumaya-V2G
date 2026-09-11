@@ -94,6 +94,10 @@ export default function App() {
   const [space, setSpace] = useState<{ id: string; name: string } | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [data, setData] = useState<GraphData>({ nodes: [], links: [] });
+  // Several panels can request a graph refresh at once. Only the response from the
+  // newest request may update state; otherwise an older response can arrive last and
+  // overwrite a just-completed ingest/edit with stale data.
+  const graphRefreshSequenceRef = useRef(0);
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   // Fuel on the main HUD (was buried in the Soumaya tab) — polled while signed in.
@@ -189,8 +193,16 @@ export default function App() {
     if (!space) return;
     let alive = true;
     const load = () => {
-      getFuel().then((f) => alive && setFuel(f));
-      getStreak().then((s) => alive && setStreak(s));
+      void getFuel().then((f) => {
+        if (alive) setFuel(f);
+      }).catch(() => {
+        /* retain the last known gauge value while offline */
+      });
+      void getStreak().then((s) => {
+        if (alive) setStreak(s);
+      }).catch(() => {
+        /* retain the last known streak while offline */
+      });
     };
     load();
     const iv = window.setInterval(load, 30000);
@@ -549,9 +561,11 @@ export default function App() {
   }, [view.nodes, streak]);
 
   const refresh = useCallback(async (newIds?: number[], fuelEarned?: number, linkCount?: number) => {
+    const sequence = ++graphRefreshSequenceRef.current;
     try {
       console.info("[BOOT] loading graph");
       const g = await getGraph();
+      if (sequence !== graphRefreshSequenceRef.current) return;
       console.info(`[BOOT] graph received (${g.nodes.length} nodes)`);
       // Merge by node id instead of replacing wholesale (Galaxy render-stall root-cause
       // fix — see App.helpers.ts's mergeGraphData doc comment): three-forcegraph's own
@@ -594,6 +608,7 @@ export default function App() {
         }, 550);
       }
     } catch (err) {
+      if (sequence !== graphRefreshSequenceRef.current) return;
       // A stalled/failed graph load no longer freezes the app — surface a recovery
       // screen. AbortError = our boot timeout tripped.
       const timedOut = err instanceof DOMException && err.name === "AbortError";

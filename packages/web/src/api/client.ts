@@ -129,10 +129,17 @@ export function describeLlmStatus(health: Health | null): { icon: string; tone: 
 export async function getGraph(limit = 300): Promise<GraphData> {
   // Boot-critical: a short timeout so a stalled server can't freeze the loading sun.
   const res = await afetch(`${API}/graph?limit=${limit}`, {}, BOOT_TIMEOUT_MS);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `Couldn't load your galaxy (${res.status})`);
+  }
   const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
+  if (!d || !Array.isArray(d.nodes) || !Array.isArray(d.links)) {
+    throw new Error("The galaxy response was invalid. Please try again.");
+  }
   return {
-    nodes: Array.isArray(d?.nodes) ? d!.nodes! : [],
-    links: Array.isArray(d?.links) ? d!.links! : [],
+    nodes: d.nodes,
+    links: d.links,
   };
 }
 

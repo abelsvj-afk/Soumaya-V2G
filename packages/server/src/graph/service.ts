@@ -42,13 +42,13 @@ export class GraphService {
     const rows = this.h.sqlite
       .prepare(
         `SELECT node_id, COUNT(*) AS deg FROM (
-           SELECT source AS node_id FROM edges
+           SELECT source AS node_id FROM edges WHERE space_id = ?
            UNION ALL
-           SELECT target AS node_id FROM edges
+           SELECT target AS node_id FROM edges WHERE space_id = ?
          ) WHERE node_id IN (${placeholders})
          GROUP BY node_id`,
       )
-      .all(...ids) as { node_id: number; deg: number }[];
+      .all(this.spaceId, this.spaceId, ...ids) as { node_id: number; deg: number }[];
     const degreeById = new Map(rows.map((r) => [r.node_id, r.deg]));
 
     // Reinforcement: how many latent insights each memory appears in. This is the
@@ -71,8 +71,11 @@ export class GraphService {
     // star can dim toward its review point (NEURO_ALIGNMENT #1). Fetched here so it's
     // always live on read, never denormalized into the table.
     const reviewRows = this.h.sqlite
-      .prepare(`SELECT id, created_at, last_reviewed_at, review_interval_days FROM nodes WHERE id IN (${placeholders})`)
-      .all(...ids) as { id: number; created_at: string; last_reviewed_at: string | null; review_interval_days: number | null }[];
+      .prepare(
+        `SELECT id, created_at, last_reviewed_at, review_interval_days
+         FROM nodes WHERE space_id = ? AND id IN (${placeholders})`,
+      )
+      .all(this.spaceId, ...ids) as { id: number; created_at: string; last_reviewed_at: string | null; review_interval_days: number | null }[];
     const reviewById = new Map(reviewRows.map((r) => [r.id, r]));
 
     const now = Date.now();
@@ -128,16 +131,16 @@ export class GraphService {
          FROM nodes n
          LEFT JOIN (
            SELECT node_id, COUNT(*) AS deg FROM (
-             SELECT source AS node_id FROM edges
+             SELECT source AS node_id FROM edges WHERE space_id = ?
              UNION ALL
-             SELECT target AS node_id FROM edges
+             SELECT target AS node_id FROM edges WHERE space_id = ?
            ) GROUP BY node_id
          ) d ON d.node_id = n.id
          WHERE n.space_id = ? AND n.deleted_at IS NULL
          ORDER BY COALESCE(d.deg, 0) DESC, n.id DESC
          LIMIT ?`,
       )
-      .all(this.spaceId, limit) as { id: number }[];
+      .all(this.spaceId, this.spaceId, this.spaceId, limit) as { id: number }[];
     const ids = rows.map((r) => r.id);
     return { nodes: this.enrich(this.nodes.byIds(ids)), links: this.edges.within(ids) };
   }

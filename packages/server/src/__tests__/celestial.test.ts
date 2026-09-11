@@ -6,6 +6,8 @@ import { HeuristicProvider } from "../llm/heuristic.js";
 import { EMBED_DIM } from "../db/vec.js";
 import { ingest } from "../ingestion/pipeline.js";
 import { GraphService } from "../graph/service.js";
+import { NodesRepo } from "../repositories/nodes.repo.js";
+import { EdgesRepo } from "../repositories/edges.repo.js";
 
 describe("celestial mass model", () => {
   it("ranks serious + connected + emotional memories heavier", () => {
@@ -59,5 +61,19 @@ describe("graph service enrichment", () => {
     const serious = graph.nodes.find((n) => n.content.includes("death"))!;
     const trivial = graph.nodes.find((n) => n.content.includes("socks"))!;
     expect(serious.mass!).toBeGreaterThan(trivial.mass!);
+  });
+
+  it("does not count malformed cross-space edges in a brain's degree", () => {
+    const spaceA = new NodesRepo(handle, "space-a");
+    const spaceB = new NodesRepo(handle, "space-b");
+    const vector = new Float32Array(EMBED_DIM);
+    const a = spaceA.create({ label: "A", type: "concept", content: "A" }, vector);
+    const b = spaceB.create({ label: "B", type: "concept", content: "B" }, vector);
+
+    // The foreign edge is deliberately malformed data. A scoped graph read must
+    // ignore it rather than letting another space alter A's celestial mass.
+    new EdgesRepo(handle, "space-b").create({ source: a.id, target: b.id, relationship: "relates_to" });
+
+    expect(new GraphService(handle, "space-a").getNode(a.id)?.degree).toBe(0);
   });
 });
