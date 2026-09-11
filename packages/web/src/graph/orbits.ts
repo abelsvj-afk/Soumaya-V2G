@@ -39,7 +39,7 @@ export interface OrbitSystem {
   update: (dt: number, nodes: any[], cameraPos?: { x: number; y: number; z: number }) => void;
   /** Node id + every body that (transitively) orbits it — its "system". */
   getDescendants: (id: number) => Set<number>;
-  /** Current extent of the galaxy from the origin (camera + starfield enclosure). */
+  /** Current extent of the galaxy from the origin (camera far clip + overlay scenery scale). */
   getRadius: () => number;
   /** Current world position a node would occupy in its orbit (its "slot"). */
   slotOf: (id: number) => THREE.Vector3 | null;

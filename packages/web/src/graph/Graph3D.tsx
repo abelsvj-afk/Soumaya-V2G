@@ -41,10 +41,6 @@ import { selectDetailedLinks, isBoundedLinksEnabled, getDetailedLinkBudget, type
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { makeNodeObject, nodeVisualCacheKey, releaseNodeTextures } from "./nodeObject.js";
-import { makeStarfield, makeGalaxies, makeMilkyWay } from "./starfield.js";
-import { makeConstellations } from "./skybox.js";
-import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
-import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
 import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot, registerGalaxyCounts, getRendererPixelRatio } from "./perfStats.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
@@ -798,12 +794,10 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   const burstsRef = useRef<ReturnType<typeof makeCollisionBursts> | null>(null);
   const linkFormingRef = useRef<ReturnType<typeof makeLinkForming> | null>(null);
   // Scenery we scale outward as the galaxy grows, so the camera never zooms past its
-  // edge (starfield/constellations/GLB skybox). Base radii are their creation sizes.
-  const sceneryRef = useRef<{ starfield?: THREE.Object3D; constellations?: THREE.Object3D; skybox?: THREE.Object3D; equirect?: THREE.Object3D; deepspace?: THREE.Object3D; milkyway?: THREE.Object3D; galaxies?: THREE.Object3D; moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D; nebulae?: THREE.Object3D; comets?: THREE.Object3D }>({});
-  // The baked backdrop cubemap (Performance Program Stage 3) — set once the bake completes,
-  // used both to keep it slowly rotating in the tick loop and to dispose the render target
-  // (real GPU memory, distinct from a plain Texture) on unmount.
-  const bakedBackdropRef = useRef<BakedBackdrop | null>(null);
+  // edge. Base radii are their creation sizes. The background starfield/skybox/deep-space
+  // layers were removed (clean dark-space backdrop until a new celestial system is
+  // designed) — only the money-sky and journey-hubs overlays remain.
+  const sceneryRef = useRef<{ moneysky?: THREE.Object3D; journeyhubs?: THREE.Object3D }>({});
   // Push the scenery out so its radius always exceeds the camera's reach for the current
   // galaxy size (getRadius). Base radii = each object's creation size. Cheap (a transform).
   const scaleSceneryRef = useRef<() => void>(() => {});
@@ -813,16 +807,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     const fit = (obj: THREE.Object3D | undefined, base: number, mult: number) => {
       if (obj) obj.scale.setScalar(Math.max(1, (R * mult) / base));
     };
-    fit(s.starfield, 7000, 7); // stars surround the camera at any zoom-out
-    fit(s.milkyway, 8600, 7.4); // the galactic band arcs just beyond the starfield
-    fit(s.constellations, 9500, 8);
-    fit(s.galaxies, 12750, 11); // distant spiral galaxies stay beyond the memory galaxy
-    fit(s.equirect, 11500, 9.5); // optional photographic Milky Way panorama (if the asset exists)
-    fit(s.deepspace, DEEP_SPACE_BASE, 8.5); // nebula clouds / dust / galaxies / belt sit far out
     fit(s.moneysky, MONEY_SKY_BASE, 1.6); // your money constellation sits just outside the galaxy
     fit(s.journeyhubs, JOURNEY_HUBS_BASE, 1.9); // life-chapter hubs ring higher, watching over it all
-    fit(s.skybox, 12000, 10); // the nebula shell sits furthest out
-    // The far clip must exceed the (now-scaled) skybox on the far side of the galaxy, or
+    // The far clip must exceed the scaled overlays on the far side of the galaxy, or
     // everything past 30000 clips. Scale it with the ceiling (kept ≥ the old 30000).
     const fg = fgRef.current;
     const cam = fg?.camera?.() as THREE.PerspectiveCamera | undefined;
@@ -1036,11 +1023,11 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // listeners with no matching removal (those refs are only set INSIDE the deferred
   // callback, after cleanup has already run).
   const pendingDeferIdsRef = useRef<{ id: number; idle: boolean }[]>([]);
-  // One-time imperative scene setup: lights, starfield, bloom, spin loop. A `timeout` is
+  // One-time imperative scene setup: lights, bloom, spin loop. A `timeout` is
   // REQUIRED here — this app runs a continuous requestAnimationFrame render loop, so the
   // main thread is rarely ever truly "idle" and an untimed requestIdleCallback can be
   // starved indefinitely (the browser never gets a large-enough idle gap to run it),
-  // which silently dropped the starfield/nebula/galaxy scenery layers entirely. The
+  // which silently dropped deferred scenery/overlay layers entirely. The
   // timeout guarantees each deferred block still runs within ~2s even under sustained load.
   const defer = (fn: () => void) => {
     if (typeof requestIdleCallback !== 'undefined') {
@@ -1063,7 +1050,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
   // with that component). See perfDiag.ts's module doc for the full mechanism.
   const unmountDiagOverlay = diag.enabled ? mountGalaxyDiagOverlay(diag) : null;
   const controls = fg.controls?.();
-  // See the far galaxies + the nebula skybox shell (~12000 out).
+  // Initial far clip, ahead of scaleSceneryRef() recomputing it precisely once the
+  // money-sky/journey-hubs overlays are scaled to the galaxy's actual size.
   const pcam = fg.camera() as THREE.PerspectiveCamera;
   if (pcam?.isPerspectiveCamera) {
     pcam.far = Math.max(30000, maxDistRef.current * 4);
@@ -1198,60 +1186,13 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     }
     starLightPoolRef.current = starLightPool;
 
-    defer(() => {
-        const starfield = makeStarfield(gfx.starCount);
-        sceneryRef.current.starfield = starfield;
-        scene.add(starfield);
-        
-        const milkyway = makeMilkyWay(8600, gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low");
-        sceneryRef.current.milkyway = milkyway;
-        scene.add(milkyway);
+    // Background starfield / Milky Way / distant spiral galaxies / constellations /
+    // deep-space nebula+dust ambience / baked backdrop cubemap were removed entirely
+    // (clean dark-space background — scene.background stays the solid THREE.Color(BG)
+    // set above — until a new celestial background system is intentionally designed).
+    // Real memory-node bodies (stars/planets/moons/asteroids/supergiants) are untouched;
+    // this only removed the purely decorative scenery layer.
 
-        const galaxies = makeGalaxies(gfx.tier === "quality" ? 4 : gfx.tier === "balanced" ? 3 : 2);
-        sceneryRef.current.galaxies = galaxies;
-        scene.add(galaxies);
-
-        const constellations = makeConstellations();
-        sceneryRef.current.constellations = constellations;
-        scene.add(constellations);
-        
-        scaleSceneryRef.current(); // Ensure scale is applied after addition
-    });
-    
-    // Deep-space ambience. Split (Performance Program Stage 3):
-    //  - dust: a cheap live Points cloud, animated + added to the scene as before.
-    //  - the nebula-cloud / distant-galaxy SPRITES: the actual fill-rate cost (large
-    //    additive, depthWrite:false quads re-blended every frame for no reason, since
-    //    they never change shape frame-to-frame in any way that matters) — baked ONCE
-    //    into a cubemap and installed as scene.background instead of added live. The
-    //    starfield's own spiral galaxies / stars / milky way / constellations are
-    //    untouched Points-based effects and were never this cost (see backdropBake.ts).
-    // Gated on `heavyScenery` (Settings -> "Background scenery") — on by default for
-    // every tier; only Battery Saver or an explicit override turns it off. Baking means
-    // this can affordably stay on unconditionally, everywhere, even at higher fidelity
-    // than before, since the bake cost is one-time rather than paid every frame.
-    if (gfx.heavyScenery) {
-      const level = gfx.tier === "quality" ? "high" : gfx.tier === "balanced" ? "medium" : "low";
-      defer(() => {
-          const deepspace = makeDeepSpace(level);
-          sceneryRef.current.deepspace = deepspace;
-          scene.add(deepspace);
-      });
-      defer(() => {
-          const renderer = fg.renderer() as THREE.WebGLRenderer;
-          // detailTier, not tier — the adaptive controller's rung (auto mode) is what
-          // decides bake resolution; `level` above (visible cloud/galaxy COUNT) stays on
-          // the coarse tier by design (Stage 3: bake at high content density regardless
-          // of device, only resolution scales).
-          const faceSize = gfx.detailTier === "quality" ? 1024 : gfx.detailTier === "balanced" ? 768 : 512;
-          const sources = makeBackdropBakeSources(level);
-          bakedBackdropRef.current = bakeBackdrop(renderer, scene, sources, faceSize);
-          // The bake does 6 sub-renders through the SAME instrumented renderer.render()
-          // (Stage 0) — clear the rolling window so those atypical one-off samples don't
-          // sit in the perf HUD's percentiles alongside real per-frame numbers.
-          resetPerfStats();
-      });
-    }
     // Money-sky (Stage 4): your bills as stars in their own constellation. Fetched from the
     // server (state → colour/glyph/pulse; cooling=blue, urgent=red pulse) and rebuilt whenever
     // finances change.
@@ -1677,8 +1618,7 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
     let raf = 0;
     let last = performance.now() * 0.001;
     let lastFrameMs = 0; // FPS-cap gate (adaptive graphics)
-    let prevCamPos: THREE.Vector3 | null = null; // for camera-speed → starfield blur
-    let starBlur = 0;
+    let prevCamPos: THREE.Vector3 | null = null; // for the camera-speed "did it move" signal
     // Stage 6: a DEDICATED (not perfStats') "did the camera move" flag for the adaptive
     // sampler. perfStats.snapshot()'s own `movedRecently` is consume-once and already
     // has a consumer (PerfHUD's poll) — sharing it here would mean the HUD silently
@@ -2018,18 +1958,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         fig2GroupRef.current.rotation.y += 0.0008;
       }
 
-      // Camera speed → starfield blur: stars smear past when you rush by close up.
-      // Per-frame camera move, normalized; eased so it ramps instead of snapping.
+      // Camera speed → "did the camera move" signal for the adaptive controller
+      // (Stage 6). Per-frame camera move, normalized so idle frames don't lie about
+      // how much headroom the device actually has.
       {
         const cam = fgRef.current?.camera();
         if (cam) {
           if (prevCamPos) {
             const move = cam.position.distanceTo(prevCamPos);
-            const target = Math.min(1, move / 26); // ~26 u/frame = full blur
-            starBlur += (target - starBlur) * 0.25;
-            // Reuse this existing camera-speed signal to flag "the window contained real
-            // motion". Idle frames are cheap and would lie to the adaptive controller about
-            // how much headroom the device actually has (Stage 6).
             if (move > 0.5) {
               markMoved();
               movedSinceAdaptiveSample = true;
@@ -2043,20 +1979,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
 
       // 1. Update background / global objects
       const s = sceneryRef.current;
-      s.starfield?.userData?.update?.(now, starBlur);
-      s.milkyway?.userData?.update?.(now);
-      s.skybox?.userData?.update?.(now);
-      s.constellations?.userData?.update?.(now);
-      s.galaxies?.children.forEach((o: any) => o.userData?.update?.(now));
-      s.equirect?.userData?.update?.(now);
-      s.deepspace?.children.forEach((o: any) => o.userData?.update?.(now));
-      // Keep the baked backdrop (Stage 3) drifting instead of frozen — a cheap Euler
-      // rotation on scene.background, not a re-render, so this costs nothing like the
-      // per-frame blending it replaced. Scaled by motionDt (same reduced-motion slowdown
-      // as orbits/marquee) rather than a fixed per-call amount, unlike the pre-existing
-      // per-sprite rotations above, which are frame-rate-dependent and don't currently
-      // honor prefers-reduced-motion — not replicating that gap in new code.
-      if (bakedBackdropRef.current) scene.backgroundRotation.y += motionDt * 0.006;
       // Throttled to 10Hz (see auxSkyT's declaration) and skipped entirely while the
       // layer is invisible (a Lens/View isolate toggles .visible — three.js visibility
       // only gates the draw call, not this manual per-child work, so without this check
@@ -2068,17 +1990,14 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
         if (s.moneysky?.visible) s.moneysky.children.forEach((o: any) => o.userData?.update?.(now));
         if (s.journeyhubs?.visible) s.journeyhubs.children.forEach((o: any) => o.userData?.update?.(now));
       }
-      s.nebulae?.children.forEach((o: any) => o.userData?.update?.(now));
-      s.comets?.children.forEach((o: any) => o.userData?.update?.(now));
       burstsRef.current?.group?.children.forEach((o: any) => o.userData?.update?.());
       linkFormingRef.current?.group?.userData?.update?.();
       sunRef.current?.userData?.update?.(now);
       stationObjRef.current?.userData?.update?.(now);
 
       // 2. Optimized node updates (LOD + Pulse + Corona)
-      // Instead of traversing the WHOLE scene (including starfield/nebulae), we
-      // only iterate the bodies themselves. react-force-graph keeps them in a
-      // dedicated group.
+      // Instead of traversing the whole scene, we only iterate the bodies
+      // themselves. react-force-graph keeps them in a dedicated group.
       const cam = fgRef.current?.camera() as THREE.PerspectiveCamera | undefined;
       if (cam?.isPerspectiveCamera) {
         cam.updateMatrixWorld();
@@ -2687,8 +2606,8 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       }
       nodeThreeObjCacheRef.current.clear();
       // Full scene teardown: dispose every imperatively-added object's geometry/
-      // materials/textures (starfield, nebulae, skybox, ship, station, satellites,
-      // figurines, sun, bursts) plus the PMREM environment map — otherwise all of it
+      // materials/textures (ship, station, satellites, figurines, sun, bursts,
+      // money-sky, journey-hubs) plus the PMREM environment map — otherwise all of it
       // leaks on logout→remount. Lights need no disposal; disposeObject3D is idempotent.
       try {
         const scn = fg.scene?.();
@@ -2713,13 +2632,6 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           });
           (scn.environment as any)?.dispose?.();
           scn.environment = null;
-          // The baked backdrop (Stage 3) is a WebGLCubeRenderTarget, not a plain Texture
-          // like the solid-colour background it replaces — disposing the render target
-          // (not just `.texture`) is what actually frees the render-target's GPU memory.
-          if (bakedBackdropRef.current) {
-            disposeBakedBackdrop(bakedBackdropRef.current);
-            bakedBackdropRef.current = null;
-          }
           scn.background = new THREE.Color(BG);
         }
       } catch {

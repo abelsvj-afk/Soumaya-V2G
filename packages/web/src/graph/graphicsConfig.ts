@@ -201,17 +201,18 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics(), rung?: Rung
   return {
     bloom,
     bloomStrength: bloom ? (useRung ? rung!.bloomStrength : eff.animationQuality === "high" ? 0.4 : 0.3) : 0,
+    // NOTE: starCount and heavyScenery below have no consumer in the galaxy anymore —
+    // the background starfield/deep-space scenery system they fed was removed entirely
+    // (clean dark-space backdrop; see Graph3D.tsx). Left in place rather than deleted
+    // since removing them would also mean scrubbing the "Star density"/"Background
+    // scenery" Settings controls and this adaptive-controller-tested config surface —
+    // out of scope for a background-removal pass. Ready to be reconsumed by a future
+    // celestial-system redesign, or removed then.
     starCount: STAR[eff.starDensity],
     particleScale: PARTICLE[eff.particles],
     animationScale: ANIM[eff.animationQuality],
     pixelRatio,
     fpsCap,
-    // On by default for EVERY tier, not just "quality" — the deep-space backdrop is
-    // procedural and already tier-scaled internally (makeDeepSpace's own density knob),
-    // and per-tier gating here previously did nothing at all (this knob had zero
-    // consumers until now — see GEMINI_CHANGES.md). Wiring it to actually gate the
-    // backdrop must not, on its own, remove scenery from mid/low-tier phones that were
-    // already rendering it; only an explicit override or Battery Saver turns it off.
     heavyScenery:
       s.sceneryOverride === "on"
         ? true
