@@ -11,9 +11,9 @@ import type { ShaderTier } from "./shaders.js";
  * descends a small ordered "rung" ladder in response, so a phone that turns out to have
  * headroom gets MORE than its initial guess, not the same reduced preset forever.
  *
- * Two axes only — pixelRatio and a detail tier (which packs shader octaves, the star-
- * light pool size, and the baked-backdrop cube face size, all already keyed off this
- * same 3-value tier by Stages 3/4) — plus bloom last. The original plan sketched a
+ * Two graduated axes — pixelRatio and a detail tier (which packs shader octaves, the
+ * star-light pool size, and the baked-backdrop cube face size, all already keyed off
+ * this same 3-value tier by Stages 3/4) — plus bloom last. The original plan sketched a
  * finer, per-knob ladder (octaves and lights escalating independently of each other and
  * of DPR); collapsing it to the two axes Stage 4 actually shipped is a deliberate
  * simplification: a decoupled per-knob ladder would need every consumer (nodeObject.ts,
@@ -22,6 +22,16 @@ import type { ShaderTier } from "./shaders.js";
  * for a finer-grained win than this stage's budget justifies. DPR still ascends before
  * detail tier does (rungs 1/3/4 raise DPR before rung 5 raises detail) — the plan's core
  * ask, "resolution first, it's the biggest perceived-sharpness win," is preserved.
+ *
+ * `heavyScenery` (added later, not part of the original three): a single on/off floor
+ * knob, not a graduated axis — every rung keeps it on EXCEPT rung 0, the absolute floor.
+ * The deep-space backdrop is deliberately on by default for every device (see
+ * graphicsConfig.ts's own doc comment: "cheap phones get the same app, not a stripped
+ * one"), and Stage 3 already made its per-frame cost cheap (a one-time baked cubemap,
+ * not live overdraw) — so this isn't a normal escalating cost step, it's a last-resort
+ * lever for a device that has ALREADY proven, via real measurement, that it can't even
+ * afford the cheapest DPR/detail/bloom combination. A device only loses it by actually
+ * descending all the way to rung 0 — never from a first-frame tier guess.
  *
  * `step()` is a pure function: given the previous state and one new sample, it returns
  * the next state. No timers, no DOM, no randomness — the caller (Graph3D) owns the
@@ -33,18 +43,20 @@ export interface RungSettings {
   detailTier: ShaderTier;
   bloom: boolean;
   bloomStrength: number;
+  heavyScenery: boolean;
 }
 
-// Ordered by ascending cost. Index = "rung".
+// Ordered by ascending cost. Index = "rung". heavyScenery is off ONLY at rung 0 — see
+// this file's own header comment for why it's a floor knob, not a graduated axis.
 export const RUNG_TABLE: readonly RungSettings[] = [
-  { pixelRatioCap: 1.0, detailTier: "performance", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 1.25, detailTier: "performance", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 1.25, detailTier: "balanced", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 1.5, detailTier: "balanced", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 2.0, detailTier: "balanced", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 2.0, detailTier: "quality", bloom: false, bloomStrength: 0 },
-  { pixelRatioCap: 2.0, detailTier: "quality", bloom: true, bloomStrength: 0.3 },
-  { pixelRatioCap: 2.0, detailTier: "quality", bloom: true, bloomStrength: 0.4 },
+  { pixelRatioCap: 1.0, detailTier: "performance", bloom: false, bloomStrength: 0, heavyScenery: false },
+  { pixelRatioCap: 1.25, detailTier: "performance", bloom: false, bloomStrength: 0, heavyScenery: true },
+  { pixelRatioCap: 1.25, detailTier: "balanced", bloom: false, bloomStrength: 0, heavyScenery: true },
+  { pixelRatioCap: 1.5, detailTier: "balanced", bloom: false, bloomStrength: 0, heavyScenery: true },
+  { pixelRatioCap: 2.0, detailTier: "balanced", bloom: false, bloomStrength: 0, heavyScenery: true },
+  { pixelRatioCap: 2.0, detailTier: "quality", bloom: false, bloomStrength: 0, heavyScenery: true },
+  { pixelRatioCap: 2.0, detailTier: "quality", bloom: true, bloomStrength: 0.3, heavyScenery: true },
+  { pixelRatioCap: 2.0, detailTier: "quality", bloom: true, bloomStrength: 0.4, heavyScenery: true },
 ];
 export const RUNG_COUNT = RUNG_TABLE.length;
 export const MAX_RUNG = RUNG_COUNT - 1;

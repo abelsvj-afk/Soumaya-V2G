@@ -44,11 +44,19 @@ describe("adaptiveController — RUNG_TABLE", () => {
       expect(tierCost[cur.detailTier]).toBeGreaterThanOrEqual(tierCost[prev.detailTier]);
       // bloom, once on, never turns off going up the ladder
       if (prev.bloom) expect(cur.bloom).toBe(true);
+      // heavyScenery is a floor knob (off only at rung 0) — once on, it stays on too
+      if (prev.heavyScenery) expect(cur.heavyScenery).toBe(true);
     }
   });
 
-  it("rung 0 is the cheapest possible (performance tier, DPR 1, no bloom)", () => {
-    expect(RUNG_TABLE[0]).toMatchObject({ pixelRatioCap: 1.0, detailTier: "performance", bloom: false });
+  it("rung 0 is the cheapest possible (performance tier, DPR 1, no bloom, no heavy scenery)", () => {
+    expect(RUNG_TABLE[0]).toMatchObject({ pixelRatioCap: 1.0, detailTier: "performance", bloom: false, heavyScenery: false });
+  });
+
+  it("every rung above 0 keeps heavyScenery on — it is a last-resort floor lever, not a graduated cost step", () => {
+    for (let i = 1; i < RUNG_TABLE.length; i++) {
+      expect(RUNG_TABLE[i]!.heavyScenery).toBe(true);
+    }
   });
 
   it("the last rung is quality detail with bloom at its strongest", () => {

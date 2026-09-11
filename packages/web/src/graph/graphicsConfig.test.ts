@@ -63,6 +63,7 @@ describe("resolveGraphics — Stage 6 adaptive rung", () => {
     detailTier: "quality",
     bloom: true,
     bloomStrength: 0.35,
+    heavyScenery: true,
     ...over,
   });
 
@@ -111,5 +112,27 @@ describe("resolveGraphics — Stage 6 adaptive rung", () => {
     // INTERACTION for whichever mode actually applies batterySaver.)
     const g = resolveGraphics(base({ mode: "performance", batterySaver: true }), rung());
     expect(g.bloom).toBe(false);
+  });
+
+  it("in auto mode, a rung's heavyScenery:false (rung 0 — the device measured its way to the floor) turns it off", () => {
+    const g = resolveGraphics(base({ mode: "auto" }), rung({ heavyScenery: false }));
+    expect(g.heavyScenery).toBe(false);
+  });
+
+  it("in auto mode, a rung's heavyScenery:true keeps it on (every rung above 0)", () => {
+    const g = resolveGraphics(base({ mode: "auto" }), rung({ heavyScenery: true }));
+    expect(g.heavyScenery).toBe(true);
+  });
+
+  it("a rung's heavyScenery is ignored outside auto mode — an explicit pick keeps the tier default", () => {
+    for (const mode of ["performance", "balanced", "quality"] as const) {
+      const g = resolveGraphics(base({ mode }), rung({ heavyScenery: false }));
+      expect(g.heavyScenery).toBe(true); // the tier default (no Battery Saver, no override)
+    }
+  });
+
+  it("an explicit sceneryOverride still wins over the rung either direction", () => {
+    expect(resolveGraphics(base({ mode: "auto", sceneryOverride: "on" }), rung({ heavyScenery: false })).heavyScenery).toBe(true);
+    expect(resolveGraphics(base({ mode: "auto", sceneryOverride: "off" }), rung({ heavyScenery: true })).heavyScenery).toBe(false);
   });
 });

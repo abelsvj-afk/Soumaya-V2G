@@ -47,9 +47,11 @@ export interface ResolvedGraphics {
   pixelRatio: number;
   fpsCap: number;
   /** Render the deep-space backdrop (nebula clouds / distant galaxies / dust)? On by
-   *  default on every tier — see Performance Program Stage 3, which will replace this
-   *  live-composited backdrop with a one-time baked cubemap; until then this is purely
-   *  a perf-testing/battery-saver lever, not a "cheap phones get less" switch. */
+   *  default on every tier (Stage 3 baked it into a one-time cubemap, so the per-frame
+   *  cost is cheap regardless of device) — a perf-testing/battery-saver lever, not a
+   *  "cheap phones get less" switch. In auto mode, the Stage 6 adaptive controller can
+   *  also turn it off, but only once real measurement has pushed the device all the way
+   *  down to rung 0 — see adaptiveController.ts's own doc comment. */
   heavyScenery: boolean;
   /** The tier that was detected (for diagnostics + the Settings label) — a one-shot
    *  guess made before any real measurement exists. */
@@ -212,12 +214,21 @@ export function resolveGraphics(s: GraphicsSettings = getGraphics(), rung?: Rung
     // consumers until now — see GEMINI_CHANGES.md). Wiring it to actually gate the
     // backdrop must not, on its own, remove scenery from mid/low-tier phones that were
     // already rendering it; only an explicit override or Battery Saver turns it off.
+    // In auto mode with an active rung, the adaptive controller gets ONE more say: a
+    // device that has genuinely measured its way down to rung 0 (see
+    // adaptiveController.ts's own doc comment — every rung above 0 keeps this on) loses
+    // it too, as the last lever after DPR/detail/bloom are already at their floor. This
+    // is real measurement, not a first-frame guess, so it never contradicts "give every
+    // device the full experience by default" — it only ever removes something from a
+    // device that's already proven, live, that it can't afford the cheapest preset.
     heavyScenery:
       s.sceneryOverride === "on"
         ? true
         : s.sceneryOverride === "off"
           ? false
-          : !eff.batterySaver,
+          : useRung
+            ? rung!.heavyScenery && !eff.batterySaver
+            : !eff.batterySaver,
     tier,
     detailTier,
   };
