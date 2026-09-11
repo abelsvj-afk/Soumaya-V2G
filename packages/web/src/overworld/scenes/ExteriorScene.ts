@@ -17,8 +17,26 @@ import {
   type Place,
   type PlaceId,
 } from "./regionLayout.js";
+import {
+  ATLAS_TILE_PX,
+  creatureFrameForType,
+  grassFrameFor,
+  objectFrameForPlace,
+  TILE_ATLAS_KEY,
+  TILE_ATLAS_URL,
+  TileFrame,
+  wallFamilyForIndex,
+} from "./tileAtlas.js";
 
 export const TILE_SIZE = 32;
+/** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
+const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
+/** The town square: a purely cosmetic dirt-path patch around the spawn/standalone objects —
+ *  never touches collision, so it must stay inside `isMovementPassable`'s open ground. */
+const PLAZA: { x0: number; y0: number; x1: number; y1: number } = { x0: 10, y0: 8, x1: 16, y1: 11 };
+function inPlaza(x: number, y: number): boolean {
+  return x >= PLAZA.x0 && x <= PLAZA.x1 && y >= PLAZA.y0 && y <= PLAZA.y1;
+}
 
 export interface ExteriorSceneConfig {
   inputBus: InputBus;
@@ -46,7 +64,7 @@ export class ExteriorScene extends Phaser.Scene {
   private movement!: MovementState;
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
-  private player!: Phaser.GameObjects.Rectangle;
+  private player!: Phaser.GameObjects.Sprite;
   private keys!: Partial<Record<string, Phaser.Input.Keyboard.Key>>;
   private unsubscribe: (() => void) | null = null;
   private wasOnGrass = false;
@@ -70,17 +88,25 @@ export class ExteriorScene extends Phaser.Scene {
     this.created = false;
   }
 
+  preload(): void {
+    // Kenney "Tiny Town" + "Tiny Dungeon" (CC0) — see tileAtlas.ts and public/CREDITS.md.
+    this.load.spritesheet(TILE_ATLAS_KEY, TILE_ATLAS_URL, {
+      frameWidth: ATLAS_TILE_PX,
+      frameHeight: ATLAS_TILE_PX,
+    });
+  }
+
   create(): void {
     this.drawGround();
     this.renderCreatures(this.pendingCreatures);
 
-    this.player = this.add.rectangle(
+    this.player = this.add.sprite(
       this.movement.position.x * TILE_SIZE + TILE_SIZE / 2,
       this.movement.position.y * TILE_SIZE + TILE_SIZE / 2,
-      TILE_SIZE * 0.6,
-      TILE_SIZE * 0.6,
-      0xffd166,
+      TILE_ATLAS_KEY,
+      TileFrame.player,
     );
+    this.player.setScale(SPRITE_SCALE);
     this.player.setDepth(10);
 
     const worldWidth = REGION_WIDTH * TILE_SIZE;
@@ -94,31 +120,55 @@ export class ExteriorScene extends Phaser.Scene {
     this.created = true;
   }
 
+  /** Places a single atlas-frame tile, scaled up from ATLAS_TILE_PX to fill a TILE_SIZE cell. */
+  private tileAt(x: number, y: number, frame: number, depth = 0): Phaser.GameObjects.Image {
+    const img = this.add.image(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, TILE_ATLAS_KEY, frame);
+    img.setScale(SPRITE_SCALE);
+    img.setDepth(depth);
+    return img;
+  }
+
   private drawGround(): void {
-    const gfx = this.add.graphics();
+    // Base ground layer: grass everywhere, with the FR8 grass-zone and the cosmetic town-square
+    // path patch swapped in. Building interiors get painted over below (they're never walked on).
     for (let y = 0; y < REGION_HEIGHT; y++) {
       for (let x = 0; x < REGION_WIDTH; x++) {
-        let color = 0x1c2540; // open ground (placeholder art — Stage 1/2 have no tile assets yet)
-        if (!isMovementPassable(x, y) && doorPlaceAt(x, y) === undefined && objectPlaceAt(x, y) === undefined) {
-          color = 0x5a4632; // a building wall tile
-        } else if (isGrassTile(x, y)) {
-          color = 0x2f5233;
-        }
-        gfx.fillStyle(color, 1);
-        gfx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1);
+        const frame = isGrassTile(x, y) ? TileFrame.grassZone : inPlaza(x, y) ? TileFrame.path : grassFrameFor(x, y);
+        this.tileAt(x, y, frame);
       }
     }
-    // Doors and standalone objects each get their own tile + glyph so they read distinctly
-    // from plain ground/wall — non-color labeling for every place, not just a tint.
+
+    // Buildings: each door-place draws from one wall "family" so its door tile lines up
+    // seamlessly with its own walls (tileAtlas.ts's wallFamilyForIndex/WallFamily).
+    let doorIndex = 0;
+    for (const place of allPlaces()) {
+      if (place.kind !== "door") continue;
+      const family = wallFamilyForIndex(doorIndex++);
+      const { x0, y0, x1, y1 } = place.footprint;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) {
+          const isDoor = place.door.x === x && place.door.y === y;
+          const frame = isDoor ? family.door : y === y1 ? (x === x0 ? family.wallLeft : x === x1 ? family.wallRight : family.wall) : family.wall;
+          this.tileAt(x, y, frame, 1);
+        }
+      }
+    }
+
+    // Standalone objects (Bulletin Board, Soumaya) — a distinct sprite each, tolerate-gracefully
+    // fallback to a generic signpost for any future object id without dedicated art.
+    for (const place of allPlaces()) {
+      if (place.kind !== "object") continue;
+      this.tileAt(place.tile.x, place.tile.y, objectFrameForPlace(place.id), 1);
+    }
+
+    // Every place still gets its glyph label on top — non-color labeling, not just new art.
     for (const place of allPlaces()) {
       const tile = place.kind === "door" ? place.door : place.tile;
-      const color = place.kind === "door" ? 0xd1a054 : 0x7a5cff;
-      gfx.fillStyle(color, 1);
-      gfx.fillRect(tile.x * TILE_SIZE, tile.y * TILE_SIZE, TILE_SIZE - 1, TILE_SIZE - 1);
-      const label = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, place.glyph, {
-        fontSize: "16px",
+      const label = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE * 0.2, place.glyph, {
+        fontSize: "14px",
       });
       label.setOrigin(0.5);
+      label.setDepth(2);
     }
   }
 
@@ -162,7 +212,9 @@ export class ExteriorScene extends Phaser.Scene {
     container.removeAll(true);
     // FR10 — dim state is a real alpha change PLUS a non-color "?" marker; never color-only.
     const alpha = entity.isDue ? 0.45 : 1;
-    const body = this.add.circle(0, 0, TILE_SIZE * 0.3, 0x8ecae6, alpha);
+    const body = this.add.sprite(0, 0, TILE_ATLAS_KEY, creatureFrameForType(entity.type));
+    body.setScale(SPRITE_SCALE * 0.8);
+    body.setAlpha(alpha);
     container.add(body);
     if (entity.isDue) {
       const marker = this.add.text(0, -TILE_SIZE * 0.45, "?", { fontSize: "14px", color: "#ffffff" });

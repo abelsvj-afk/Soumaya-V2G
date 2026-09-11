@@ -1,5 +1,18 @@
 # Soumaya · Second Brain — Asset Credits
 
+## Overworld pixel art
+
+**`overworld/tiles.png`** — a hand-curated 25-frame atlas (16x16 tiles) assembled from two
+Kenney (kenney.nl) asset packs, both released under **CC0 1.0 (public domain)** — no attribution
+legally required, credited here anyway as good practice:
+- "Tiny Town" — ground (grass/path), building walls, doors, signpost.
+- "Tiny Dungeon" — the player character and the per-NodeType creature sprites.
+
+Sourced via the community mirror https://github.com/shorepine/kenney (same CC0 assets,
+reorganized for programmatic access) — **not** from any of the Pokémon reference repos named in
+docs/overworld/pokemon-reference.md, whose tile/sprite graphics are Nintendo's copyrighted
+assets and were consulted for architecture only, never for art.
+
 ## 3D models
 
 **The Singularity (black hole figurine)** — `blackhole.glb`

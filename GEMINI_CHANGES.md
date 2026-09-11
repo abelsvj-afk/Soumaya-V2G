@@ -1,3 +1,31 @@
+### 2026-09-11 (Claude): Soumaya Overworld — real CC0 tile/sprite art, replacing flat-rectangle placeholders
+- [ ] Verified by Claude
+- User feedback after the Stage 2 deploy: the live Overworld was "just a bunch of square tiles,"
+  and correctly called out that the build brief's named Pokémon reference repos and suggested
+  MCP tooling had gone substantively unused — I'd only done a shallow doc-level pass, no
+  sprite/tileset sourcing. Every "sprite" through Stage 2 really was a flat
+  `Phaser.GameObjects.Rectangle`/`Circle` with an emoji glyph on top.
+- Fix, not a rebuild: sourced a genuinely free tileset (explicitly ruling out the Pokémon
+  reference repos as an art source — those bundle Nintendo's actual copyrighted graphics,
+  architecture-study-only per the brief) — two Kenney (kenney.nl) packs, **CC0 / public
+  domain**, via the community mirror github.com/shorepine/kenney (downloaded over the session's
+  network proxy, inspected as generated contact-sheet images before picking any tile — measured,
+  not guessed). Hand-assembled a 25-frame 16x16 atlas (`packages/web/public/overworld/tiles.png`)
+  with Pillow; full source-tile mapping + rationale in `packages/web/src/overworld/scenes/
+  tileAtlas.ts` and `docs/overworld/roadmap.md`'s "Stage 2.5"; attribution in `public/CREDITS.md`.
+- Wired into `ExteriorScene.ts`: real grass/path ground (deterministic per-tile variation, no
+  `Math.random`), two alternating building wall/door "families" so the 8 buildings aren't
+  identical and each door lines up with its own walls, a real player sprite, a dedicated
+  "Soumaya" marker, and one creature sprite per `NodeType` (replacing the flat tinted circle).
+  Rarity badge / dim-alpha / "?" marker accessibility logic is untouched — only the shapes being
+  decorated changed. New `tileAtlas.test.ts` covers determinism and the unmapped-type fallback
+  (`moc` → generic creature, never throws). Full gate green (1051 server + 146 web tests,
+  typecheck, build) before this entry.
+- **Not done this pass** (flagged, not silently dropped): no water or decorative tree tiles (not
+  needed by the current single-region layout); Hangar's chosen ship/trail still doesn't change
+  the player sprite. Still needs on-device/browser confirmation — same standing sandbox
+  limitation as the rest of the Overworld.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — 3D galaxy deleted, Overworld is now the sole UI
 - [ ] Verified by Claude
 - Completes the staged replacement (docs/overworld/decisions.md D1) per the user's explicit

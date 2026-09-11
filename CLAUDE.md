@@ -275,6 +275,16 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   possible. **Known gap, not yet rebuilt**: memory attachment upload/text-extraction (PDF/docx)
   had no Overworld home and its dependencies were removed — flag before anyone relies on it.
 
+- **Real tile/sprite art replacing flat-rectangle placeholders (2026-09-11), not yet on-device
+  confirmed** — the user reported the deployed Overworld as "just square tiles," correctly
+  pointing out the brief's reference repos/MCP tooling had gone substantively unused. Fixed with
+  a hand-curated CC0 tile atlas (Kenney's "Tiny Town" + "Tiny Dungeon", public/CREDITS.md) wired
+  into `ExteriorScene.ts` for ground/buildings/player/per-type creature sprites — see
+  `docs/overworld/roadmap.md`'s "Stage 2.5" for the full account (what art maps to what, and
+  what's still deferred: no water/tree tiles, Hangar cosmetic choices still don't change the
+  player sprite). Same standing sandbox limitation as the rest of the Overworld: verified by
+  gate + `tileAtlas.test.ts`, not yet seen rendered in a real browser.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,
