@@ -46,6 +46,7 @@ import { makeConstellations } from "./skybox.js";
 import { makeDeepSpace, makeBackdropBakeSources, DEEP_SPACE_BASE } from "./deepSpace.js";
 import { bakeBackdrop, disposeBakedBackdrop, type BakedBackdrop } from "./backdropBake.js";
 import { beginTick, endTick, attachRenderer, markMoved, reset as resetPerfStats, snapshot as perfSnapshot, registerGalaxyCounts, getRendererPixelRatio } from "./perfStats.js";
+import { applyRenderRateCap } from "./renderRateCap.js";
 import { makeMoneySky, MONEY_SKY_BASE } from "./moneySky.js";
 import { getMoneySky } from "../api/finance.js";
 import { makeJourneyHubs, JOURNEY_HUBS_BASE } from "./journeyHubs.js";
@@ -1138,6 +1139,21 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       // true present cadence and draw-submission cost. react-force-graph owns the render
       // loop, so this is the only place a frame's completion is observable to us.
       attachRenderer(fg.renderer() as THREE.WebGLRenderer);
+      // The ACTUAL fps-cap fix (renderRateCap.ts): react-force-graph's own
+      // requestAnimationFrame loop (_animationCycle) submits a real GPU draw every
+      // native frame regardless of gfx.fpsCap — Graph3D's tick() only ever gated OUR
+      // scene-mutation work, never the library's own draw call, so "30fps" never meant
+      // 30 real GPU submissions/sec on a 60/90/120Hz display. Wraps the composer's own
+      // render() (always present — three-render-objects creates one unconditionally at
+      // init) so a throttled frame skips the GPU submission entirely, atomically —
+      // patching renderer.render directly instead would leave bloom's internal
+      // multi-pass renderer.render() calls only partially skipped, corrupting the frame.
+      try {
+        const composer = fg.postProcessingComposer?.();
+        if (composer) applyRenderRateCap(composer, () => gfxRef.current?.fpsCap ?? 60);
+      } catch {
+        /* composer not ready yet — capped on the next mount/remount instead */
+      }
       // KTX2/Basis Universal support (see gltf.ts) — must run before ANY of the
       // model-loading modules below (sun/satellites/soumaya/etc., several behind
       // defer()) get a chance to call gltfLoader().load() on a KTX2-textured model.
