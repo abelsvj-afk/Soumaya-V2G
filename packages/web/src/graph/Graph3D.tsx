@@ -2073,7 +2073,9 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
       burstsRef.current?.group?.children.forEach((o: any) => o.userData?.update?.());
       linkFormingRef.current?.group?.userData?.update?.();
       sunRef.current?.userData?.update?.(now);
-      stationObjRef.current?.userData?.update?.(now);
+      // camera.position drives the station's heavy-glTF distance LOD (spaceStation.ts,
+      // shouldHideStationModel) — optional param, same contract as orbits.update's cameraPos.
+      stationObjRef.current?.userData?.update?.(now, camera.position);
 
       // 2. Optimized node updates (LOD + Pulse + Corona)
       // Instead of traversing the WHOLE scene (including starfield/nebulae), we

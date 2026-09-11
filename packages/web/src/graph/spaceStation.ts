@@ -2,6 +2,26 @@ import * as THREE from "three";
 import { gltfLoader } from "./gltf.js";
 
 /**
+ * Distance-gated fidelity for the station's loaded glTF (perf experiment, targeting the
+ * heaviest single decorative asset in the app: space_station_3.glb, ~14.6MB / hundreds of
+ * thousands of triangles, previously rendered at full detail regardless of camera distance).
+ * Beyond `STATION_LOD_FAR`, the heavy model is hidden and the cheap procedural fallback
+ * (already built for the pre-load state — a glowing torus + aura sprite + point light) is
+ * shown instead, so the station's presence/position/glow stays intact while the expensive
+ * mesh disappears. `STATION_LOD_HYST` is an asymmetric band around the threshold — the
+ * same hysteresis pattern already used for Graph3D.tsx's MACRO_DIST/MACRO_HYST node-body
+ * LOD swap — so hovering right at the boundary doesn't flicker between the two every frame.
+ */
+export const STATION_LOD_FAR = 6000;
+export const STATION_LOD_HYST = 600;
+
+/** Pure hysteresis gate: true means "hide the heavy model, show the fallback". Exported
+ *  so the threshold/band math is unit-testable without touching GLTFLoader or the DOM. */
+export function shouldHideStationModel(dist: number, wasHidden: boolean): boolean {
+  return wasHidden ? dist > STATION_LOD_FAR - STATION_LOD_HYST : dist > STATION_LOD_FAR + STATION_LOD_HYST;
+}
+
+/**
  * A large space station that orbits the center of the galaxy.
  */
 export function makeSpaceStation(): THREE.Object3D {
@@ -48,11 +68,13 @@ export function makeSpaceStation(): THREE.Object3D {
   let mixer: THREE.AnimationMixer | null = null;
   let lastTime = 0;
   let selfSpin = 0;
+  let model: THREE.Object3D | null = null;
+  let modelHidden = false; // hysteresis state for shouldHideStationModel
 
   gltfLoader().load(
     "/space_station_3.glb",
     (gltf) => {
-      const model = gltf.scene;
+      model = gltf.scene;
 
       // Keep the model's ORIGINAL materials/colors/textures (do NOT override them).
       const box = new THREE.Box3().setFromObject(model);
@@ -71,6 +93,8 @@ export function makeSpaceStation(): THREE.Object3D {
         for (const clip of gltf.animations) mixer.clipAction(clip).play();
       }
 
+      // Default to visible (close/no-distance-info state); update() re-gates this every
+      // frame once a camera position is supplied.
       fallback.visible = false;
       group.add(model);
     },
@@ -92,7 +116,11 @@ export function makeSpaceStation(): THREE.Object3D {
     planeLift = Math.max(180, r * 0.22);
   };
 
-  group.userData.update = (time: number) => {
+  // `cameraPos` is optional and purely an LOD hint (same contract as orbits.ts's
+  // `update(dt, nodes, cameraPos?)`) — omitting it (any caller that doesn't pass a
+  // camera position) reproduces the exact pre-LOD behavior: once loaded, the model
+  // stays visible unconditionally, same as before this experiment.
+  group.userData.update = (time: number, cameraPos?: THREE.Vector3) => {
     const dt = lastTime ? Math.min(0.05, time - lastTime) : 0;
     lastTime = time;
     mixer?.update(dt); // drive the model's built-in animations
@@ -110,6 +138,13 @@ export function makeSpaceStation(): THREE.Object3D {
     );
     selfSpin += dt * 0.08; // slow, smooth barrel roll (was an erratic fast spin)
     group.rotateZ(selfSpin);
+
+    if (model && cameraPos) {
+      const dist = group.position.distanceTo(cameraPos);
+      modelHidden = shouldHideStationModel(dist, modelHidden);
+      model.visible = !modelHidden;
+      fallback.visible = modelHidden;
+    }
   };
 
   return group;
