@@ -253,6 +253,27 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **NPC Society v1 — the first two NPCs with real lives (2026-09-11), not yet on-device
+  confirmed** — real user feedback escalated across three rounds asking for NPCs with "actual
+  autonomous jobs... interact with other npcs... their own lives and personalities... a
+  governing system... town meetings... reasons for all of it." Got a full proposal + sign-off
+  round first (`docs/overworld/npc-society.md`), per CLAUDE.md Rule #1 — the user chose Hybrid
+  dialogue, a small vertical slice first, and asked to seed in **both** relationships and
+  governance-with-real-teeth rather than deferring them. Shipped on just the two Town Hall
+  attendants (Mira the Mayor, Dez the Clerk — chosen because their posts already sit next to
+  each other): a real deterministic Working/Break/Home schedule (`data/npcSchedule.ts`), a
+  break-time interaction with dialogue that grows on real achievement unlocks
+  (`data/npcDialogue.ts`) and a real pairwise relationship counter (`data/npcRelationships.ts`),
+  and governance with an actual mechanical effect — a new Synthesis Digest insight
+  (`getDigest()`) triggers a Town Meeting whose one real effect is posting a plain-language
+  summary to the Bulletin Board as a genuine quest (`data/townMeeting.ts`). The other 6
+  buildings' 12 attendants are unchanged. See `docs/overworld/roadmap.md`'s "Stage 2.11" for the
+  full account and what's deliberately deferred (rollout to the other attendants, LLM dialogue
+  variation, a town-wide walk to Town Hall). Verified by 4 new pure-logic test files + updated
+  `regionLayout.test.ts` (39 assertions) + the full gate (1051 server + 209 web tests, typecheck,
+  build) — the actual break-time interaction, speech bubbles, and 📢 meeting cue have not been
+  seen rendered in a real browser from this sandbox.
+
 - **Soumaya Overworld is now the sole UI (2026-09-11) — galaxy deleted, not yet on-device
   confirmed** — the 2D Pokémon-GBA-style overworld (`docs/overworld/`) has a real in-world place
   for all 11 former dock tabs (Details/Summary, Browse/Library, Mind/Sanctuary, Agenda/Bulletin

@@ -53,7 +53,7 @@ vi.mock("./data/loadWorldSnapshot.js", () => ({
   greetCreature: vi.fn(),
 }));
 
-vi.mock("../api/client.js", () => ({ ingestText: vi.fn() }));
+vi.mock("../api/client.js", () => ({ ingestText: vi.fn(), getDigest: vi.fn().mockResolvedValue([]) }));
 vi.mock("../api/http.js", () => ({ getSpaceId: () => "space-1" }));
 
 describe("OverworldRoot Phaser boot sequencing", () => {

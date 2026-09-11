@@ -115,6 +115,10 @@ export function isGrassTile(x: number, y: number): boolean {
 
 export interface AttendantPost {
   placeId: PlaceId;
+  /** Stable per-attendant identity ("<placeId>-<index>", 0-based) — lets an individual
+   *  attendant be addressed by name (NPC Society v1, docs/overworld/npc-society.md), distinct
+   *  from every other attendant at the same building. */
+  npcId: string;
   /** The two tiles the attendant paces between — always directly in front of its own
    *  building's door, never past the building's own left/right edge. */
   a: { x: number; y: number };
@@ -133,7 +137,7 @@ function attendantPostsFor(place: DoorPlace): AttendantPost[] {
   const posts: AttendantPost[] = [];
   for (let i = 1; i <= ATTENDANTS_PER_BUILDING; i++) {
     const row = facesDown ? y1 + i : y0 - i;
-    posts.push({ placeId: place.id, a: { x: x0, y: row }, b: { x: x1, y: row } });
+    posts.push({ placeId: place.id, npcId: `${place.id}-${i - 1}`, a: { x: x0, y: row }, b: { x: x1, y: row } });
   }
   return posts;
 }

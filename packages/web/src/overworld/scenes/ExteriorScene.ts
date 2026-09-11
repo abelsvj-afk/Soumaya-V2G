@@ -33,6 +33,10 @@ import {
   workIconForPlace,
 } from "./tileAtlas.js";
 import { allBuildingSprites, buildingSpriteForPlace } from "./buildingSprites.js";
+import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
+import { scheduleStateAt } from "../data/npcSchedule.js";
+import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
+import { loadUnlocked } from "../../components/achievements.js";
 
 export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
@@ -89,6 +93,11 @@ export class ExteriorScene extends Phaser.Scene {
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
   private attendantSprites: AttendantSprite[] = [];
+  /** NPC Society v1 (docs/overworld/npc-society.md) — one shared clock for the two Town Hall
+   *  NPCs (Mira/Dez) so their Working/Break/Home states can be checked against each other on
+   *  the same tick, instead of drifting independently like the decorative pacing timers do. */
+  private societyTickCount = 0;
+  private societyBothOnBreak = false;
   private player!: Phaser.GameObjects.Sprite;
   /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
    *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
@@ -298,6 +307,9 @@ export class ExteriorScene extends Phaser.Scene {
       const image = this.tileAt(post.a.x, post.a.y, frame, 1);
       const sprite: AttendantSprite = { post, image, atA: true };
       this.attendantSprites.push(sprite);
+      // The two Town Hall NPCs (NPC Society v1) are driven by the shared society clock below
+      // instead — everyone else keeps the original independent-timer pacing + work icon.
+      if (asSocietyNpcId(post.npcId)) continue;
       // Reuse the same deterministic hash creatures use for their own desync — the
       // attendant index is a fine seed since it's already unique and stable per post. Always
       // runs (even under reduced motion) — real user feedback: NPCs need to "do work... not
@@ -305,6 +317,106 @@ export class ExteriorScene extends Phaser.Scene {
       // only the walking half of it is decorative motion.
       const offset = idleBobDelayMs(index++);
       this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.attendantWorkTick(sprite) });
+    }
+    this.time.addEvent({ delay: 1500, loop: true, callback: () => this.tickSociety() });
+  }
+
+  /** NPC Society v1 — the shared clock tick for Mira and Dez (Town Hall). Working = the
+   *  existing pace+work-icon loop; Break with both overlapping = the interaction (walk
+   *  together, dialogue, relationship bump), once per overlapping window, not once per tick;
+   *  Home = they leave the screen area entirely, matching the proposal's "leave for a while". */
+  private tickSociety(): void {
+    this.societyTickCount += 1;
+    const societySprites = this.attendantSprites
+      .map((sprite) => ({ sprite, id: asSocietyNpcId(sprite.post.npcId) }))
+      .filter((entry): entry is { sprite: AttendantSprite; id: SocietyNpcId } => entry.id !== null)
+      .map((entry) => ({ ...entry, state: scheduleStateAt(entry.id, this.societyTickCount) }));
+
+    for (const entry of societySprites) {
+      entry.sprite.image.setVisible(entry.state !== "home");
+    }
+
+    const onBreak = societySprites.filter((entry) => entry.state === "break");
+    const [firstOnBreak, secondOnBreak] = onBreak;
+    if (firstOnBreak && secondOnBreak) {
+      if (!this.societyBothOnBreak) {
+        this.societyBothOnBreak = true;
+        this.triggerNpcInteraction(firstOnBreak, secondOnBreak);
+      }
+      return;
+    }
+    this.societyBothOnBreak = false;
+
+    for (const entry of societySprites) {
+      if (entry.state !== "working") continue;
+      if (!prefersReducedMotion()) {
+        entry.sprite.atA = !entry.sprite.atA;
+        const target = entry.sprite.atA ? entry.sprite.post.a : entry.sprite.post.b;
+        this.tweens.add({
+          targets: entry.sprite.image,
+          x: target.x * TILE_SIZE + TILE_SIZE / 2,
+          y: target.y * TILE_SIZE + TILE_SIZE / 2,
+          duration: 900,
+          ease: "Sine.easeInOut",
+        });
+      }
+      this.showWorkIcon(entry.sprite);
+    }
+  }
+
+  /** One real interaction between Mira and Dez: they step toward each other, each shows a real
+   *  dialogue line (job-flavor always available; personal lines gated on real achievements;
+   *  the friend line gated on relationship tier), and the relationship counter bumps once —
+   *  the minimal, real relationship construct the user explicitly asked to seed in for v1. */
+  private triggerNpcInteraction(
+    a: { sprite: AttendantSprite; id: SocietyNpcId },
+    b: { sprite: AttendantSprite; id: SocietyNpcId },
+  ): void {
+    if (!prefersReducedMotion()) {
+      const midX = (a.sprite.image.x + b.sprite.image.x) / 2;
+      const midY = (a.sprite.image.y + b.sprite.image.y) / 2;
+      this.tweens.add({ targets: a.sprite.image, x: midX - TILE_SIZE * 0.2, y: midY, duration: 500, ease: "Sine.easeInOut" });
+      this.tweens.add({ targets: b.sprite.image, x: midX + TILE_SIZE * 0.2, y: midY, duration: 500, ease: "Sine.easeInOut" });
+    }
+
+    const unlocked = loadUnlocked(this.spaceId);
+    const count = relationshipCount(this.spaceId, a.id, b.id);
+    const tier = relationshipTier(count);
+    const nameA = npcProfile(a.id).name;
+    const nameB = npcProfile(b.id).name;
+    const seed = this.societyTickCount;
+    this.showSpeechBubble(a.sprite, dialogueFor(a.id, unlocked, tier, nameB, seed));
+    this.showSpeechBubble(b.sprite, dialogueFor(b.id, unlocked, tier, nameA, seed + 1));
+    bumpRelationship(this.spaceId, a.id, b.id);
+  }
+
+  private showSpeechBubble(sprite: AttendantSprite, text: string): void {
+    if (!text) return;
+    const bubble = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.75, `💬 ${text}`, {
+      fontSize: "10px",
+      color: "#12142a",
+      backgroundColor: "#f4f1ff",
+      padding: { x: 4, y: 2 },
+      wordWrap: { width: 150 },
+    });
+    bubble.setOrigin(0.5, 1);
+    bubble.setDepth(6);
+    const holdMs = prefersReducedMotion() ? 1200 : 2600;
+    this.time.delayedCall(holdMs, () => bubble.destroy());
+  }
+
+  /** The town meeting's cosmetic cue on the two Town Hall NPCs — called from OverworldRoot.tsx
+   *  once the real effect (the Bulletin Board post) has actually gone through. A no-op if
+   *  either is currently in their "home" state (nothing visible to flash an icon above). */
+  announceTownMeeting(): void {
+    for (const sprite of this.attendantSprites) {
+      if (!asSocietyNpcId(sprite.post.npcId)) continue;
+      if (!sprite.image.visible) continue;
+      const icon = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.55, "📢", { fontSize: "12px" });
+      icon.setOrigin(0.5);
+      icon.setDepth(5);
+      const holdMs = prefersReducedMotion() ? 700 : 1400;
+      this.time.delayedCall(holdMs, () => icon.destroy());
     }
   }
 

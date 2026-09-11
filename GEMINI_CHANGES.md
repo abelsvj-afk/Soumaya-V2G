@@ -1,3 +1,43 @@
+### 2026-09-11 (Claude): Soumaya Overworld — NPC Society v1: the first two NPCs with real lives
+- [ ] Verified by Claude
+- Real user feedback escalated across three rounds: pacing-only → work icons → a full ask for
+  "actual autonomous jobs... interact with other npcs... their own lives and personalities...
+  a governing system... town meetings... reasons for all of it." Per CLAUDE.md Rule #1 this got
+  a full proposal + sign-off round first (`docs/overworld/npc-society.md`) — nothing was built
+  until the user answered 3 scoping questions: dialogue = Hybrid (hand-authored now, LLM-shaped
+  later), scope = small vertical slice first, and — instead of deferring both as originally
+  proposed — seed in relationships **and** governance-with-real-teeth for v1.
+- **Scope**: just the two Town Hall attendants, now named **Mira** (Mayor) and **Dez** (Clerk) —
+  chosen because their posts already sit right next to each other, so "NPCs interact" needed no
+  new pathfinding. The other 6 buildings' 12 attendants are untouched.
+- **Schedule**: `data/npcSchedule.ts` — a shared, deterministic tick clock (no Date/Math.random)
+  cycling each through Working → Break → Home, offset so they're not always in the same state.
+  Home hides the sprite (they've "left the screen for a while," per the proposal).
+- **Interaction + growth**: when both land on Break at once, they step toward each other and
+  each shows a real speech-bubble line (`data/npcDialogue.ts`) — job-flavor lines always
+  available, personal lines that unlock only once the player holds the matching REAL achievement
+  id (`cartographer`/`streak_week` for Mira, `weaver_100`/`goal_achiever` for Dez — no invented
+  thresholds), and a friend line each gated on an actual relationship tier.
+- **Relationships, seeded in (not deferred)**: `data/npcRelationships.ts` — a real pairwise
+  counter, bumped once per overlapping break window (not once per tick), persisted per space,
+  same localStorage convention as `achievements.ts`. 3 tiers: strangers/acquaintances/friends.
+- **Governance with real teeth, seeded in (not deferred)**: `data/townMeeting.ts` — a Town
+  Meeting is called the first time a NEW Synthesis Digest insight (`getDigest()`) appears, never
+  re-announced once seen. Its one concrete mechanical effect: `ingestText(text, { kind: "action"
+  })` posts a plain-language summary to the **Bulletin Board as a real quest** — the exact
+  mechanism the Bulletin Board itself already uses. Checked on every `OverworldRoot.tsx` refresh;
+  Mira/Dez flash a 📢 as the cosmetic cue once the real post has gone through.
+- Gave every `AttendantPost` a stable `npcId` (`regionLayout.ts`) so an individual attendant can
+  be addressed, distinct from every other attendant at the same building.
+- **Deliberately deferred** (see npc-society.md's own list): rolling this out to the other 12
+  attendants; actually routing dialogue through the LLM adapter; a town-wide walk to Town Hall
+  for the meeting (v1's meeting is the real post + the icon, not the animation); relationship
+  effects beyond the one extra dialogue line.
+- New tests: `npcSchedule.test.ts`, `npcRelationships.test.ts`, `npcDialogue.test.ts`,
+  `townMeeting.test.ts`, plus 2 new `regionLayout.test.ts` assertions. Full gate green (1051
+  server + 209 web tests, typecheck, build) — the actual in-world interaction/bubbles/icon have
+  not been seen rendered in a real browser from this sandbox.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — real building illustrations, not a hand-assembled kit
 - [ ] Verified by Claude
 - Follow-up to the entry directly below: its roof fix (3 copies of one 16x16 gable tile

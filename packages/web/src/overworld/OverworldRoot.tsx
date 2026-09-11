@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
-import { ingestText } from "../api/client.js";
+import { getDigest, ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
+import { checkTownMeeting, markAnnounced, meetingAnnouncementText } from "./data/townMeeting.js";
 import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
 import { ExteriorScene, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
@@ -53,12 +54,33 @@ export function OverworldRoot() {
     setSnapshotState(next);
   }, []);
 
+  /** NPC Society v1 (docs/overworld/npc-society.md) — governance's one real mechanical
+   *  effect: the first time a NEW synthesis digest insight is up, post a plain-language
+   *  summary to the Bulletin Board as a real quest, then flash the town-meeting cue on the
+   *  two Town Hall NPCs. Best-effort and never blocks/gates the refresh it rides along with —
+   *  a missed check just gets re-evaluated next refresh. */
+  const checkTownMeetingEffect = useCallback(async (): Promise<void> => {
+    const spaceId = getSpaceId() ?? "default";
+    try {
+      const digest = await getDigest();
+      const check = checkTownMeeting(spaceId, digest);
+      if (check.shouldMeet && check.insight) {
+        await ingestText(meetingAnnouncementText(check.insight), { kind: "action" });
+        markAnnounced(spaceId, check.insight.id);
+        sceneRef.current?.announceTownMeeting();
+      }
+    } catch {
+      /* best-effort — see comment above */
+    }
+  }, []);
+
   const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
     try {
       const next = await loadWorldSnapshot();
       setSnapshot(next);
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
+      void checkTownMeetingEffect();
       return next;
     } catch (err) {
       // Preserve whatever's already on screen rather than wiping it (App.tsx's own
@@ -66,7 +88,7 @@ export function OverworldRoot() {
       setLoadError(err instanceof Error ? err.message : "Couldn't reach your brain.");
       return null;
     }
-  }, [setSnapshot]);
+  }, [setSnapshot, checkTownMeetingEffect]);
 
   useEffect(() => {
     const parent = containerRef.current;
