@@ -69,8 +69,9 @@ Notable finds/decisions made while building this stage:
 only when opening a creature's Summary (not prefetched for every creature — the exterior's
 `uncharted` flag still defaults true for placement/theming purposes); Town Hall doesn't yet
 support literal region travel (neither does today's `JourneysPanel` — that's Stage 3); the
-Hangar's chosen ship/trail isn't visually applied anywhere yet (placeholder player sprite);
-placeholder programmer-art throughout (asset production, not architecture).
+Hangar's chosen ship/trail isn't visually applied anywhere yet (still the same static player
+sprite regardless of Hangar selection — see Stage 2.5 below for what that sprite now is);
+placeholder programmer-art throughout — **resolved in Stage 2.5.**
 
 **Still needs on-device/browser confirmation** for the same reason as Stage 1 — this sandbox has
 no live browser.
@@ -117,6 +118,42 @@ and wasn't one of the 11 dock tabs in scope for this parity pass — it's gone f
 until a future stage gives it one. `index.css` (128KB, largely galaxy-panel styling) was left
 un-trimmed — safe to leave (dead CSS costs bytes, not correctness) but flagged as a real cleanup
 opportunity for whoever next has the budget for a careful pass.
+
+## Stage 2.5 — Real tile/sprite art, replacing flat-rectangle placeholders — SHIPPED 2026-09-11
+
+Every "sprite" through Stage 2 was a flat `Phaser.GameObjects.Rectangle`/`Circle` with an emoji
+glyph on top — no actual pixel art anywhere. Flagged directly by the user after the Stage 2
+deploy ("just showing a bunch of square tiles") and traced to a real process gap: the brief had
+named specific Pokémon reference repos and asked for MCP tooling to help build "Pokémon type
+atmosphere," and neither was substantively used before this — only a shallow doc-level pass, no
+sprite/tileset sourcing.
+
+Fix: `packages/web/src/overworld/scenes/tileAtlas.ts` + `public/overworld/tiles.png`, a
+hand-curated 25-frame, 16x16-tile atlas assembled from two Kenney (kenney.nl) packs — **CC0 /
+public domain**, sourced via the community mirror github.com/shorepine/kenney, **not** from any
+of the Pokémon reference repos (those contain Nintendo's actual copyrighted tile/sprite
+graphics — safe to study architecturally, per the brief, never safe to extract art from; see
+public/CREDITS.md for the full attribution):
+
+- **"Tiny Town"** → grass (3 variants, deterministically varied per tile, never `Math.random`),
+  the FR8 grass-zone's distinct texture, a cosmetic dirt-path "town square" patch, and building
+  wall/door tiles (two alternating color families — tan/blue-gray — so the 8 buildings aren't
+  all identical; each building's door tile is drawn from the same family as its walls so the
+  doorway art lines up seamlessly).
+- **"Tiny Dungeon"** → the player's sprite, a distinct "Soumaya" marker for her standalone object
+  tile, and one creature sprite per `NodeType` (person/project/decision/company/meeting/daily/
+  knowledge/concept/other) — swapped in via `creatureFrameForType()`, replacing the flat tinted
+  circle. Rarity/dim-state rendering (badge shape + alpha + "?" marker) is unchanged — this pass
+  only replaced the shapes being tinted, never the accessibility-critical logic drawing on top
+  of them. An unmapped/future type (e.g. `moc`) falls back to the generic creature rather than
+  erroring — tolerate-unsorted-gracefully, same as everywhere else in the adapter layer.
+
+Every place still keeps its emoji glyph label overlaid on its tile — the new art is additive to
+the existing non-color labeling, not a replacement for it. Verified via `tileAtlas.test.ts`
+(determinism, fallback behavior) plus the full gate; the actual rendered look still needs
+on-device/browser confirmation, same standing caveat as the rest of the Overworld (no live
+browser in this sandbox). No water tiles or decorative trees were added this pass (not required
+by the current region layout) — left as a follow-up if a later stage adds a water/forest area.
 
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
