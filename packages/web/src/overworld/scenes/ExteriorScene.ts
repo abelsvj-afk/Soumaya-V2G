@@ -23,7 +23,6 @@ import {
 import {
   ATLAS_TILE_PX,
   attendantFrameForPlace,
-  buildingTileFrame,
   creatureFrameForType,
   grassFrameFor,
   idleBobDelayMs,
@@ -31,9 +30,9 @@ import {
   TILE_ATLAS_KEY,
   TILE_ATLAS_URL,
   TileFrame,
-  wallFamilyForIndex,
   workIconForPlace,
 } from "./tileAtlas.js";
+import { allBuildingSprites, buildingSpriteForPlace } from "./buildingSprites.js";
 
 export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
@@ -140,6 +139,8 @@ export class ExteriorScene extends Phaser.Scene {
       frameWidth: ATLAS_TILE_PX,
       frameHeight: ATLAS_TILE_PX,
     });
+    // Complete pre-made building illustrations, not a modular kit — see buildingSprites.ts.
+    for (const sprite of allBuildingSprites()) this.load.image(sprite.key, sprite.url);
   }
 
   create(): void {
@@ -238,19 +239,18 @@ export class ExteriorScene extends Phaser.Scene {
       }
     }
 
-    // Buildings: each door-place draws from one wall "family" so its door tile lines up
-    // seamlessly with its own walls (tileAtlas.ts's wallFamilyForIndex/WallFamily).
-    let doorIndex = 0;
+    // Buildings: one complete pre-made illustration per door-place (buildingSprites.ts),
+    // scaled to fill its footprint — real user feedback against the previous modular-tile
+    // assembly ("that's not appropriate... find already made building assets").
     for (const place of allPlaces()) {
       if (place.kind !== "door") continue;
-      const family = wallFamilyForIndex(doorIndex++);
+      const sprite = buildingSpriteForPlace(place.id);
       const { x0, y0, x1, y1 } = place.footprint;
-      for (let y = y0; y <= y1; y++) {
-        for (let x = x0; x <= x1; x++) {
-          const frame = buildingTileFrame(family, { x, y }, place.door, { x0, x1 });
-          this.tileAt(x, y, frame, 1);
-        }
-      }
+      const width = (x1 - x0 + 1) * TILE_SIZE;
+      const height = (y1 - y0 + 1) * TILE_SIZE;
+      const image = this.add.image(x0 * TILE_SIZE + width / 2, y0 * TILE_SIZE + height / 2, sprite.key);
+      image.setDisplaySize(width, height);
+      image.setDepth(1);
     }
 
     // Standalone objects (Bulletin Board, Soumaya) — a distinct sprite each, tolerate-gracefully

@@ -317,6 +317,37 @@ web tests, typecheck, build). The camera/scaling rework in particular needs on-d
 reconfirmation — it's a genuine architecture change, not just a config tweak, and this
 sandbox still has no live browser to check it in.
 
+## Stage 2.10 — Real building illustrations, replacing the roof-tile fix — SHIPPED 2026-09-11
+
+Stage 2.9's roof fix (3 copies of one 16x16 gable tile across a building's width) was still a
+hand-assembled kit, not "already made building assets" — exactly what the user asked NOT to do,
+twice now. The actual fix: `buildingSprites.ts` gives each door-building one COMPLETE, pre-made
+building illustration (a house/hall/tower/lighthouse), scaled to fill its 3x2-tile footprint,
+loaded as its own standalone texture (`this.load.image`) rather than sliced from `tileAtlas.ts`'s
+uniform 16x16 grid. Source: the "Old stone buildings" pack (Battle for Wesnoth's human-city set),
+**CC0**, via the CC0 aggregator github.com/Tiddybub/2d-assets (its own LICENSE + each pack's
+SOURCE.md confirm this — see public/CREDITS.md). Only 5 distinct buildings exist in the sourced
+pack for 8 places, so some are intentionally reused (a round tower for Bank and Hangar, an
+arched hall for Library and Sanctuary, a flagged tower for Gym and Town Hall) — every building
+still keeps its own nameplate, attendant NPC, and glyph, so a shared silhouette is never the
+only way to tell two buildings apart.
+
+Removed as dead code once nothing referenced it anymore: the wall/door/roof tile-kit
+(`WallFamily`, `wallFamilyForIndex`, `buildingTileFrame`) tileAtlas.ts/ExteriorScene.ts had built
+up over the two previous passes. The retired tile frames were left in place in `tiles.png`
+rather than renumbering the whole atlas over unused pixels.
+
+**Known simplification, not a blocker**: the pre-made art's illustrated door is drawn at a fixed
+spot in each image (usually bottom-center); for the 3 south-row buildings (Gym/Town Hall/Hangar,
+whose *walkable* door tile is on the footprint's top row, per regionLayout.ts) the illustrated
+door doesn't perfectly line up with where you actually step to enter. Every building's real
+entrance is still unambiguous (nameplate + glyph + an attendant NPC standing right there), so
+this is a minor illustrated-vs-walkable-tile mismatch, not a functional bug.
+
+Verified via new `buildingSprites.test.ts` (every door-building resolves to a real, non-empty
+sprite; the preload list covers every sprite actually in use; no duplicate texture keys) and the
+full gate (1051 server + 179 web tests, typecheck, build).
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

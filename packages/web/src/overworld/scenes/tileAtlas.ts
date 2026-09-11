@@ -21,14 +21,10 @@ export const TileFrame = {
   grassFlowers: 2,
   path: 3,
   grassZone: 4,
-  wallTan: 5,
-  wallTanLeft: 6,
-  doorTan: 7,
-  wallTanRight: 8,
-  wallBlue: 9,
-  wallBlueLeft: 10,
-  doorBlue: 11,
-  wallBlueRight: 12,
+  // 5-12 and 33-34 (a modular wall/door/roof tile kit) were retired in favor of complete
+  // pre-made building illustrations — see buildingSprites.ts. Frame indices below are
+  // unaffected (still the same numbers Phaser's spritesheet slicer assigns); the retired
+  // frames simply sit unused in tiles.png rather than being renumbered.
   signpost: 13,
   player: 14,
   soumayaMarker: 15,
@@ -50,65 +46,7 @@ export const TileFrame = {
   attendantGym: 30,
   attendantTownHall: 31,
   attendantHangar: 32,
-  // A real roof line, not a flat wall repeated to the top of the footprint — Kenney's own
-  // pre-made gable tiles (real user feedback: buildings shouldn't look hand-assembled).
-  roofTan: 33,
-  roofBlue: 34,
 } as const;
-
-/** One wall/door/roof "family" — a building's footprint always draws from a single family so
- *  its door and roof line up seamlessly with its own walls (ExteriorScene.ts's renderer). */
-export interface WallFamily {
-  wall: number;
-  wallLeft: number;
-  door: number;
-  wallRight: number;
-  roof: number;
-}
-
-const TAN_FAMILY: WallFamily = {
-  wall: TileFrame.wallTan,
-  wallLeft: TileFrame.wallTanLeft,
-  door: TileFrame.doorTan,
-  wallRight: TileFrame.wallTanRight,
-  roof: TileFrame.roofTan,
-};
-const BLUE_FAMILY: WallFamily = {
-  wall: TileFrame.wallBlue,
-  wallLeft: TileFrame.wallBlueLeft,
-  door: TileFrame.doorBlue,
-  wallRight: TileFrame.wallBlueRight,
-  roof: TileFrame.roofBlue,
-};
-
-/** Alternates building material so the 8 buildings aren't all identical — purely decorative,
- *  never the only cue for a building's identity (each also keeps its glyph + label overlay). */
-export function wallFamilyForIndex(index: number): WallFamily {
-  return index % 2 === 0 ? TAN_FAMILY : BLUE_FAMILY;
-}
-
-/**
- * Which tile a building footprint should draw at (x, y), given where its door actually is.
- * Door-facing buildings can have the door on either the footprint's top or bottom row
- * (north-row buildings face south/down, so their door is on the bottom row; south-row
- * buildings face north/up, so theirs is on the top row — regionLayout.ts's DOOR_PLACES) —
- * this must key off the door's real row, not always assume "bottom", or the row that
- * actually has no door gets treated as the door row (wrong wallLeft/wallRight tiles next to
- * a door that isn't there) while the real door row gets a plain wall instead of the tile
- * that's actually designed to sit next to the doorway. The other row is always the roofline.
- */
-export function buildingTileFrame(
-  family: WallFamily,
-  tile: { x: number; y: number },
-  door: { x: number; y: number },
-  footprint: { x0: number; x1: number },
-): number {
-  if (tile.x === door.x && tile.y === door.y) return family.door;
-  if (tile.y !== door.y) return family.roof;
-  if (tile.x === footprint.x0) return family.wallLeft;
-  if (tile.x === footprint.x1) return family.wallRight;
-  return family.wall;
-}
 
 /** Standalone object tiles (Bulletin Board / Soumaya) each get a distinct sprite; any future
  *  object id not yet given art falls back to the generic signpost (tolerate-unsorted-gracefully). */

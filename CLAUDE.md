@@ -333,6 +333,19 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   gate (1051 server + 179 web tests). The camera rework especially needs on-device
   reconfirmation — it's real architecture, not a config tweak.
 
+- **Real building illustrations, not a hand-assembled kit (2026-09-11), not yet on-device
+  confirmed** — the roof fix above was still 3 copies of one small tile, which the user
+  correctly called out as still "not appropriate." `buildingSprites.ts` now gives each
+  building one complete pre-made illustration (house/hall/tower/lighthouse — the "Old stone
+  buildings" CC0 pack, via github.com/Tiddybub/2d-assets), scaled to its footprint, loaded as
+  its own texture outside `tileAtlas.ts`'s uniform grid. The now-dead wall/door/roof-kit code
+  (`WallFamily`, `wallFamilyForIndex`, `buildingTileFrame`) was removed. See
+  `docs/overworld/roadmap.md`'s "Stage 2.10" for the reused-art mapping (only 5 buildings exist
+  in the sourced pack for 8 places) and the one known simplification (the illustrated door
+  doesn't perfectly align with the walkable door tile on the 3 south-row buildings — every
+  building's real entrance is still unambiguous via nameplate + glyph + attendant NPC). Verified
+  by new `buildingSprites.test.ts` + the full gate.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,
