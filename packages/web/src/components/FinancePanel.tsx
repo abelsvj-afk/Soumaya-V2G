@@ -3,7 +3,7 @@ import type { FinBill, BillFrequency, FinIncome, FinExpense, FinPaystub, Paystub
 import type { FinExtractionResult } from "@brain/shared";
 import { useCountUp } from "../hooks/useCountUp.js";
 import {
-  getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid,
+  getFinanceSummary, setBalance, addIncome, addExpense, createBill, deleteBill, markOccurrencePaid, listBills,
   ingestPaste, ingestImage, confirmIngest,
   listIncome, listExpense, editIncome, deleteIncome, editExpense, deleteExpense,
   getAfford, getWealthSummary,
@@ -564,7 +564,7 @@ function BillManager({ onChanged, focusBill }: { onChanged: () => void; focusBil
   const focusedBillRef = useRef<HTMLLIElement | null>(null);
 
   const load = async () => {
-    const list = await (await import("../api/finance.js")).listBills();
+    const list = await listBills();
     setBills(list ?? []);
   };
   useEffect(() => { if (open) void load(); }, [open]);

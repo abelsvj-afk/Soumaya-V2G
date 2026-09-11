@@ -1155,19 +1155,28 @@ export const Graph3D = forwardRef<Graph3DHandle, Props>(function Graph3D(
           /* composer not ready yet — bypass simply won't apply this session */
         }
       }
-      // DIAGNOSTIC ONLY (renderStageTrace.ts) — always on, negligible cost (two
-      // performance.now() calls per composer/RenderPass call), same "patch once, keep
-      // forever" precedent as attachRenderer above. Times composer.render() as a whole
-      // and RenderPass.render() (the base scene draw) specifically, so a BAD-vs-GOOD
-      // snapshot comparison (galaxyStateSnapshot.ts) can distinguish "the composer's
-      // own pass-iteration/render-target bookkeeping is slow" from "the base scene
-      // draw itself is slow" without guessing.
-      installRenderPassTrace();
-      try {
-        const composer = fg.postProcessingComposer?.();
-        if (composer) installComposerTrace(composer);
-      } catch {
-        /* composer not ready yet — traced on the next mount/remount instead */
+      // DIAGNOSTIC ONLY (renderStageTrace.ts) — gated behind Galaxy Diagnostic mode
+      // (`?galaxyDiag=1`, same `diag.enabled` flag as composerBypassDiag/nodeBodyDiag
+      // above/below), NOT installed for ordinary sessions. This was previously always
+      // on ("negligible cost" per call), but that means EVERY visitor's RenderPass.
+      // prototype got permanently monkey-patched for a forensic pass whose root cause
+      // (the link-tube geometry disposal bug) was already found and fixed — real,
+      // if small, hot-path cost with no benefit once nobody is actively debugging.
+      // Times composer.render() as a whole and RenderPass.render() (the base scene
+      // draw) specifically, so a BAD-vs-GOOD snapshot comparison (galaxyStateSnapshot.ts)
+      // can distinguish "the composer's own pass-iteration/render-target bookkeeping is
+      // slow" from "the base scene draw itself is slow" without guessing. Trade-off:
+      // the snapshot's composerMs/renderPassMs/passesInLastComposerFrame fields report
+      // null outside diagnostic mode — the core tick/render/present numbers (perfStats.ts,
+      // always on) are unaffected.
+      if (diag.enabled) {
+        installRenderPassTrace();
+        try {
+          const composer = fg.postProcessingComposer?.();
+          if (composer) installComposerTrace(composer);
+        } catch {
+          /* composer not ready yet — traced on the next mount/remount instead */
+        }
       }
     } catch {
       /* renderer not ready yet — the effect below re-applies it */
