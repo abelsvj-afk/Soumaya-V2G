@@ -1,4 +1,5 @@
 import type * as THREE from "three";
+import { getLastRefreshAt } from "./galaxyStateSnapshot.js";
 
 /**
  * Frame-timing instrument for the galaxy (Performance Program, Stage 0).
@@ -154,6 +155,77 @@ let galaxyCountsProvider: (() => GalaxyCounts) | null = null;
 /** Graph3D calls this once at mount (and with `null` on unmount). */
 export function registerGalaxyCounts(fn: (() => GalaxyCounts) | null): void {
   galaxyCountsProvider = fn;
+}
+
+/**
+ * Refresh-vs-render-stall correlation diagnostic (2026-09-11 forensic pass).
+ *
+ * Confirmed by direct source inspection (docs/specs/soumaya-galaxy-cache-disposal-audit.md,
+ * soumaya-galaxy-graphdata-refresh-audit.md, and a full read of linkTube.ts): a full
+ * `fg.refresh()` call sets three-forcegraph's internal `_flushObjects` flag, which forces
+ * a wholesale node+link object-cache clear — disposing (via the library's generic,
+ * unconditional `_deallocate()`) every currently-tracked link's cached tube geometry,
+ * which this app's own `CurvedLinkGeometryCache` then silently hands back stale on the
+ * very next frame, forcing a full GPU buffer re-upload for every tracked link at once.
+ * This is the strongest current hypothesis for the catastrophic, population-scaling
+ * `renderer.render()` spikes measured on the physical device — NOT YET CONFIRMED, which
+ * is exactly what this diagnostic exists to establish before any fix is attempted.
+ *
+ * This does not (and cannot) read the actual `_flushObjects` flag — it lives on a
+ * closure-private `state` object inside the `kapsule` library with no way to observe it
+ * from outside (see galaxyStateSnapshot.ts's `getLastRefreshAt` doc comment). Instead it
+ * correlates two independently-real signals: the timestamp of the most recent `fg.refresh()`
+ * call site (already instrumented, unchanged here) against the duration of an unusually
+ * slow real `renderer.render()` call (already measured here, unchanged). A tight,
+ * consistent correlation across MULTIPLE observations — not a single frame — is the bar
+ * for treating this as confirmed; see `getSlowFrameLog`'s doc comment for what does and
+ * doesn't count as proof.
+ *
+ * Zero cost on ordinary frames: the check is one numeric comparison (`durMs > threshold`)
+ * already sitting next to the existing `push(renderRing, ...)` call; the body (which reads
+ * `getLastRefreshAt()` and the already-registered `galaxyCountsProvider`) only executes on
+ * the rare frames that already exceed the threshold, so it never touches the hot path this
+ * file's own header comment is so careful to keep allocation-free.
+ */
+const SLOW_FRAME_THRESHOLD_MS = 300;
+/** Bounded so this can never grow — the oldest entry is dropped once full, matching every
+ *  other ring/cap pattern already used in this file (see MAX_PENDING_GPU_QUERIES above). */
+const SLOW_FRAME_LOG_MAX = 20;
+
+export interface SlowFrameSample {
+  /** Wall-clock time (performance.now()) when this render() call finished. */
+  atMs: number;
+  /** How long this single renderer.render() call actually took. */
+  durationMs: number;
+  /** Time elapsed since the most recent fg.refresh() call site fired, or `null` if none
+   *  has been recorded yet this session. This is the correlation signal: consistently
+   *  small values (roughly one frame's worth of time, i.e. the refresh happened
+   *  immediately before this slow render) support the hypothesis; consistently large or
+   *  `null` values would disprove it. */
+  msSinceRefresh: number | null;
+  /** From the already-registered galaxyCountsProvider (no new traversal added) — `null`
+   *  if no provider is registered (Graph3D not mounted) at the time this sample fires. */
+  trackedNodes: number | null;
+  trackedLinks: number | null;
+}
+
+const slowFrameLog: SlowFrameSample[] = [];
+
+/**
+ * Every observed slow-render sample this session, oldest first, capped at
+ * `SLOW_FRAME_LOG_MAX`. A single entry proves nothing (see this task's own instruction:
+ * "do not interpret a single slow frame as proof") — look for a CONSISTENT pattern across
+ * several entries: small/similar `msSinceRefresh` values paired with large `trackedLinks`
+ * counts supports the hypothesis; large/null `msSinceRefresh` values alongside slow
+ * frames would argue against it.
+ */
+export function getSlowFrameLog(): readonly SlowFrameSample[] {
+  return slowFrameLog;
+}
+
+/** Test-only / manual-reset: clear the accumulated slow-frame samples. */
+export function clearSlowFrameLog(): void {
+  slowFrameLog.length = 0;
 }
 
 /** Camera-motion flag: idle frames are cheap and lie, so the controller must ignore them. */
@@ -358,7 +430,20 @@ export function attachRenderer(r: THREE.WebGLRenderer): void {
       pendingGpuQueries.push(query);
     }
 
-    push(renderRing, t1 - t0);
+    const durationMs = t1 - t0;
+    push(renderRing, durationMs);
+    if (durationMs > SLOW_FRAME_THRESHOLD_MS) {
+      const lastRefreshAt = getLastRefreshAt();
+      const gc = galaxyCountsProvider?.() ?? null;
+      slowFrameLog.push({
+        atMs: t1,
+        durationMs,
+        msSinceRefresh: lastRefreshAt != null ? t0 - lastRefreshAt : null,
+        trackedNodes: gc?.trackedNodes ?? null,
+        trackedLinks: gc?.trackedLinks ?? null,
+      });
+      if (slowFrameLog.length > SLOW_FRAME_LOG_MAX) slowFrameLog.shift();
+    }
     if (lastPresent !== 0) {
       const presentMs = t0 - lastPresent;
       push(presentRing, presentMs);

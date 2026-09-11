@@ -97,12 +97,17 @@ export interface GalaxyDiagSnapshot {
  */
 const REFRESH_WINDOW_MS = 3000;
 const refreshCallTimestamps: number[] = [];
+/** The single most recent `noteRefreshInvoked()` timestamp, kept separately from the
+ *  windowed array above (O(1) to read) — added for the refresh-vs-render-stall
+ *  correlation diagnostic in perfStats.ts (2026-09-11). `null` until the first call. */
+let lastRefreshAt: number | null = null;
 
 /** Call this at every `fg.refresh()` call site in Graph3D.tsx. Adds one timestamp and
  *  prunes anything older than the window — bounded memory, no per-frame cost (refresh()
  *  is called at most a handful of times per second even in the worst case found so far). */
 export function noteRefreshInvoked(nowMs: number = performance.now()): void {
   refreshCallTimestamps.push(nowMs);
+  lastRefreshAt = nowMs;
   const cutoff = nowMs - REFRESH_WINDOW_MS;
   while (refreshCallTimestamps.length > 0 && refreshCallTimestamps[0]! < cutoff) {
     refreshCallTimestamps.shift();
@@ -115,8 +120,20 @@ export function getRefreshCallsInWindow(nowMs: number = performance.now()): numb
   return refreshCallTimestamps.filter((t) => t >= cutoff).length;
 }
 
+/** The `performance.now()` timestamp of the most recent `fg.refresh()` call site
+ *  anywhere in Graph3D.tsx (see the doc comment above — this is the closest honest proxy
+ *  available for "was a full node+link object-cache clear likely triggered," since the
+ *  underlying `_flushObjects` flag itself is not reachable from outside the kapsule
+ *  library). `null` if no refresh has been recorded yet this session. Read by
+ *  perfStats.ts's slow-frame diagnostic to measure elapsed time since the last refresh
+ *  at the moment a catastrophic `renderer.render()` call is observed. */
+export function getLastRefreshAt(): number | null {
+  return lastRefreshAt;
+}
+
 /** Test-only: clear recorded refresh timestamps. */
 export function __resetRefreshTrackingForTests(): void {
+  lastRefreshAt = null;
   refreshCallTimestamps.length = 0;
 }
 
