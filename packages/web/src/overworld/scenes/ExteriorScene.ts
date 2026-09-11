@@ -241,15 +241,32 @@ export class ExteriorScene extends Phaser.Scene {
       }
     }
 
-    // Every place still gets its glyph label on top — non-color labeling, not just new art.
+    // Every place gets a readable name plate, not a bare emoji glyph at 14px — small emoji
+    // at this scale reads as an ambiguous smudge (real user feedback: "buildings should have
+    // names on them, not emojis"). Doors get theirs above the roofline; standalone objects
+    // get theirs just above their single tile.
     for (const place of allPlaces()) {
-      const tile = place.kind === "door" ? place.door : place.tile;
-      const label = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE * 0.2, place.glyph, {
-        fontSize: "14px",
-      });
-      label.setOrigin(0.5);
-      label.setDepth(2);
+      if (place.kind === "door") {
+        const { x0, x1, y0 } = place.footprint;
+        const centerX = ((x0 + x1 + 1) / 2) * TILE_SIZE;
+        this.addNameplate(centerX, y0 * TILE_SIZE - 2, place.label);
+      } else {
+        this.addNameplate(place.tile.x * TILE_SIZE + TILE_SIZE / 2, place.tile.y * TILE_SIZE - 2, place.label);
+      }
     }
+  }
+
+  /** A small readable name above a place — anchored bottom-center so it floats just above
+   *  whatever it labels, regardless of the building's/object's own height. */
+  private addNameplate(x: number, y: number, text: string): void {
+    const plate = this.add.text(x, y, text, {
+      fontSize: "11px",
+      color: "#ffffff",
+      backgroundColor: "#00000099",
+      padding: { x: 4, y: 2 },
+    });
+    plate.setOrigin(0.5, 1);
+    plate.setDepth(3);
   }
 
   /**

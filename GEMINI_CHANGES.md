@@ -1,3 +1,35 @@
+### 2026-09-11 (Claude): Soumaya Overworld — real playability fix from on-device feedback + music
+- [ ] Verified by Claude
+- The user sent a real phone screenshot of the live build (first actual on-device look this
+  session got). It surfaced bugs the sandbox's no-live-browser limitation couldn't catch:
+- **Root cause of "buttons do nothing, I can't move around, buildings look cut off"**: the
+  Phaser game had zero Scale Manager config — the canvas always rendered at a hardcoded 832x576
+  CSS px, so any phone narrower than that only ever showed the map's left/top slice, with the
+  player very often walking around outside the visible crop. Fixed in `OverworldRoot.tsx`:
+  `Phaser.Scale.FIT` + `CENTER_BOTH`, plus a real CSS box (`aspect-ratio: 26/18`) on the canvas's
+  container div so FIT scales into it with zero letterboxing. Also added `touch-action: none`
+  to every `TouchControls` button as a defensive second fix against the browser eating taps as
+  scroll/zoom gestures.
+- **"Buildings should have names, not emojis"**: replaced the 14px emoji-only label with a
+  readable `place.label` text nameplate (dark background pill for contrast) above each
+  building/object, dropping the glyph from the in-world label entirely.
+- **"We need an infinite loop track for game music"**: every real CC0 music source (kenney.nl,
+  opengameart.org, itch.io, freesound.org) is blocked by this sandbox's network policy — only
+  GitHub works. Rather than reuse the pre-existing `ambient-loop.mp3` in `public/` (zero
+  license/attribution documentation anywhere, a real provenance risk), generated an original
+  38.4s/16-bar C-major loop procedurally (Python, square-wave melody + triangle-wave bass, both
+  waveform ends forced silent for a sample-accurate gapless loop). New `lib/music.ts` mirrors
+  `lib/sfx.ts`'s pattern (persisted enable/volume, shares its AudioContext), plays it via a
+  looping `AudioBufferSourceNode`, ducks on `"brain-sfx-duck"` (restoring behavior `sfx.ts`'s own
+  comment always promised but whose listener died with the galaxy deletion), starts on the first
+  real pointerdown/keydown anywhere on the page (browsers block audio pre-gesture), and is
+  mutable via a small 🔊/🔇 button on the canvas.
+- New tests: `lib/music.test.ts` (preferences, gapless-loop wiring, duck behavior, graceful
+  fetch/decode failure). Full gate green (1051 server + 158 web tests, typecheck, build).
+- **Explicitly not done, needs clarification rather than a guess**: "NPCs are autonomous
+  pertaining to their intended job" — could mean roaming creatures, per-building attendant NPCs,
+  or something else; asked the user rather than picking one.
+
 ### 2026-09-11 (Claude): Soumaya Overworld — motion polish + Hangar trail actually reflected in-world
 - [ ] Verified by Claude
 - Follow-up to the tileset fix, per the user's direction to keep bringing the world to life

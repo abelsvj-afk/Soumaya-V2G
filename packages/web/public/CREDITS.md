@@ -13,6 +13,17 @@ reorganized for programmatic access) — **not** from any of the Pokémon refere
 docs/overworld/pokemon-reference.md, whose tile/sprite graphics are Nintendo's copyrighted
 assets and were consulted for architecture only, never for art.
 
+## Overworld music
+
+**`overworld/theme.wav`** — an original town-theme loop, procedurally synthesized (square-wave
+melody + triangle-wave bass, C major, 16 bars) rather than sourced from a third party — no
+license/attribution needed, and no risk of the same "unknown provenance" problem as the
+pre-existing `ambient-loop.mp3`/`interstellar.mp3`/`slow-tide.mp3` in this folder (those three
+are unreferenced anywhere in the current code and have no entry here or anywhere documenting
+their source/license — flagged, not removed, since removing them wasn't in scope for this pass).
+Generated with a fixed loop length so both ends of the waveform are silent, for a seamless
+gapless loop when played through a Web Audio `AudioBufferSourceNode` (see `lib/music.ts`).
+
 ## 3D models
 
 **The Singularity (black hole figurine)** — `blackhole.glb`

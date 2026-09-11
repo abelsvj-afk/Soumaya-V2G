@@ -31,6 +31,7 @@ vi.mock("phaser", () => {
     default: {
       AUTO: 0,
       Core: { Events: { READY: "ready" } },
+      Scale: { FIT: "FIT", CENTER_BOTH: "CENTER_BOTH" },
       Game: FakeGame,
     },
   };
