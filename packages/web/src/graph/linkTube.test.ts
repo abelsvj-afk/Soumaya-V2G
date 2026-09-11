@@ -191,3 +191,119 @@ describe("linkTube — three-forcegraph digest-compatibility spoof (dispose/re-u
     expect(threeForcegraphWouldDisposeAndReassign(meshB.geometry, 4.5, RADIAL_SEGMENTS)).toBe(false);
   });
 });
+
+/**
+ * Regression coverage for the SECOND resource-lifecycle defect (Galaxy render-stall
+ * forensic pass, 2026-09-11 — see linkTube.ts's module doc, "SECOND resource-lifecycle
+ * defect" section): a full `fg.refresh()` sets three-forcegraph's `_flushObjects` flag,
+ * which runs the library's generic removal path against every tracked link —
+ * `_deallocate()` calls `obj.geometry.dispose()` UNCONDITIONALLY, disposing this exact
+ * cache's shared, reused geometry — the three-forcegraph digest-compatibility spoof
+ * proven above never protects against this, since it only ever guards the narrower
+ * digest-gate check, not this removal path. Before the fix, the next `update()` call
+ * handed back the SAME now-disposed geometry, forcing three.js to silently re-upload
+ * every buffer from scratch on the next draw.
+ *
+ * These tests call the REAL `THREE.BufferGeometry.prototype.dispose()` directly on the
+ * cache's own live geometry (`mesh.geometry === entry.geometry` after `update()`) —
+ * the actual three.js API three-forcegraph's `_deallocate()` calls, not a simulated
+ * flag — so the `dispose` event these tests trigger is byte-for-byte the same one a
+ * real `_flushObjects` clear would fire. What is NOT exercised here is three-forcegraph's
+ * own digest/removal machinery itself (pulling in the full library for one test would be
+ * disproportionate); that external behavior is already independently confirmed via direct
+ * source reads, cited in the module doc and docs/specs/soumaya-galaxy-cache-disposal-audit.md.
+ */
+describe("linkTube — CurvedLinkGeometryCache survives external geometry.dispose() (refresh()/_flushObjects fix)", () => {
+  const A = { x: 0, y: 0, z: 0 };
+  const B = { x: 100, y: 20, z: -30 };
+
+  it("a disposed cache entry is discarded — the next update() builds a genuinely fresh geometry, not the disposed one", () => {
+    const cache = new CurvedLinkGeometryCache();
+    const mesh = new THREE.Mesh();
+    const link = {};
+
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+    const disposedGeometry = mesh.geometry;
+
+    // Simulate three-forcegraph's _flushObjects removal path disposing this exact,
+    // shared, cached geometry out from under the cache — the real API call, not a mock.
+    disposedGeometry.dispose();
+
+    const handled = cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+
+    expect(handled).toBe(true);
+    expect(mesh.geometry).not.toBe(disposedGeometry); // never hands back the disposed object
+    expect(mesh.geometry).toBeInstanceOf(THREE.BufferGeometry);
+  });
+
+  it("the fresh post-disposal geometry has real, valid vertex data and the digest-compatibility spoof intact", () => {
+    const cache = new CurvedLinkGeometryCache();
+    const mesh = new THREE.Mesh();
+    const link = {};
+
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+    mesh.geometry.dispose();
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+
+    const pos = mesh.geometry.getAttribute("position");
+    expect(pos.count).toBeGreaterThan(0);
+    let hasNonZero = false;
+    for (let i = 0; i < pos.array.length; i++) {
+      if ((pos.array as Float32Array)[i] !== 0) { hasNonZero = true; break; }
+    }
+    expect(hasNonZero).toBe(true);
+    expect(mesh.geometry.index).not.toBeNull();
+    // The fresh geometry must still pass three-forcegraph's real digest check (see the
+    // "digest-compatibility spoof" suite above) — a rebuild must not reintroduce the
+    // FIRST defect while fixing the second.
+    expect(threeForcegraphWouldDisposeAndReassign(mesh.geometry, 1.2, RADIAL_SEGMENTS)).toBe(false);
+  });
+
+  it("a SECOND disposal (e.g. two repair cycles in one session) is handled the same way, not just the first", () => {
+    const cache = new CurvedLinkGeometryCache();
+    const mesh = new THREE.Mesh();
+    const link = {};
+
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+    mesh.geometry.dispose();
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+    const secondGeometry = mesh.geometry;
+
+    mesh.geometry.dispose(); // a second, independent _flushObjects clear
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+
+    expect(mesh.geometry).not.toBe(secondGeometry);
+    expect(mesh.geometry).toBeInstanceOf(THREE.BufferGeometry);
+  });
+
+  it("disposing ONE link's geometry never affects another link's still-valid cached geometry", () => {
+    const cache = new CurvedLinkGeometryCache();
+    const meshA = new THREE.Mesh();
+    const meshB = new THREE.Mesh();
+    const linkA = {};
+    const linkB = {};
+
+    cache.update(meshA, { start: A, end: B }, linkA, 1.2, 0.2);
+    cache.update(meshB, { start: { x: 999, y: 0, z: 0 }, end: { x: 1000, y: 5, z: 5 } }, linkB, 0.8, 0.3);
+    const bGeometryBefore = meshB.geometry;
+
+    meshA.geometry.dispose(); // only link A's geometry is disposed
+    cache.update(meshA, { start: A, end: B }, linkA, 1.2, 0.2);
+    cache.update(meshB, { start: { x: 999, y: 0, z: 0 }, end: { x: 1000, y: 5, z: 5 } }, linkB, 0.8, 0.3);
+
+    expect(meshB.geometry).toBe(bGeometryBefore); // untouched — still the original, valid entry
+  });
+
+  it("legitimate repeated updates with no disposal still reuse the same geometry (no regression to the Round-4 fix)", () => {
+    const cache = new CurvedLinkGeometryCache();
+    const mesh = new THREE.Mesh();
+    const link = {};
+
+    cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2);
+    const geomAfterFrame1 = mesh.geometry;
+    for (let i = 0; i < 5; i++) {
+      cache.update(mesh, { start: A, end: B }, link, 1.2, 0.2); // ordinary subsequent frames
+    }
+    expect(mesh.geometry).toBe(geomAfterFrame1); // still no new BufferGeometry constructed
+  });
+});

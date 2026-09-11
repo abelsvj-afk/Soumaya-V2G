@@ -95,6 +95,42 @@ import * as THREE from "three";
  * Keeping the intercepted surface to exactly "curved, nonzero-width, distinct
  * endpoints" is what makes this a small, reviewable change instead of a
  * broader rewrite of link rendering.
+ *
+ * SECOND resource-lifecycle defect, confirmed by source (Galaxy render-stall
+ * forensic pass, 2026-09-11) — distinct from the digest gap above, and NOT closed by
+ * the `.type`/`.parameters` spoofing that fixed that one: a full `fg.refresh()` call
+ * sets three-forcegraph's internal `_flushObjects` flag, which runs `data-bind-mapper`'s
+ * `digest([])` against the link map — every currently-tracked link's Object3D is torn
+ * down via the library's generic, UNCONDITIONAL removal path
+ * (`scene.remove(obj); _deallocate(obj);`, where `_deallocate` calls
+ * `obj.geometry.dispose()` regardless of `.type`/`.parameters` — that spoofing only
+ * ever protected the narrower digest-gate check quoted above, not this removal path).
+ * This disposes the EXACT SAME shared `entry.geometry` this cache hands out — and on
+ * the very next `update()` call for that same link (same WeakMap key), the cache found
+ * its entry and returned `entry.geometry` UNCHANGED, silently handing three.js a
+ * geometry whose GPU resources were just freed. Three.js has no choice but to
+ * transparently re-upload the entire buffer set (position/normal/uv/index) the next
+ * time it's drawn — for every tracked link at once, synchronously, inside that
+ * `renderer.render()` call. Population-scaling, intermittent (only when `_flushObjects`
+ * fires — Soumaya's link-repair cadence, a new link, or any node selection via
+ * `linkWidthCb`'s `activeId` dependency), and a strong match for the catastrophic,
+ * population-correlated render stalls measured on the physical device (see
+ * docs/specs/soumaya-galaxy-cache-disposal-audit.md for the identical class of bug,
+ * previously confirmed and fixed for the analogous NODE cache).
+ *
+ * `BufferGeometry` has no `Object3D`-style parent/ownership signal to check (unlike the
+ * node-cache fix's `.parent === null`), and confirmed directly against the installed
+ * three.js source, `dispose()` sets no public flag on the geometry itself — it only
+ * calls `this.dispatchEvent({type:'dispose'})` (`BufferGeometry extends EventDispatcher`).
+ * That dispatched event IS the one reliable, three.js-driven signal available — the
+ * same mechanism `WebGLRenderer`'s own internal `WebGLGeometries` uses to notice
+ * disposal — so `create()` below attaches a listener that flips `entry.disposed` (a flag
+ * THIS cache defines and owns, not a property invented on the geometry) the moment
+ * disposal genuinely happens, from whichever caller triggered it. `update()` then checks
+ * that flag before trusting a cache hit: a disposed entry is discarded and rebuilt fresh,
+ * exactly mirroring the "cache miss" path that already runs correctly for a brand-new
+ * link — no new code path, no behavior change for the (overwhelmingly common) case where
+ * nothing was disposed.
  */
 
 // Matches three-forcegraph.mjs's hardcoded `curveResolution` (tubular segments
@@ -172,6 +208,19 @@ interface LinkTubeEntry {
   cp: THREE.Vector3;
   point: THREE.Vector3;
   normal: THREE.Vector3;
+  /**
+   * Set true the moment `geometry.dispose()` actually fires (see `create()`'s listener
+   * below) — the ONLY reliable, three.js-driven signal this cache has for "my GPU
+   * resources are gone," since `BufferGeometry` (unlike `Object3D`) has no parent/
+   * ownership concept to check and `.dispose()` itself sets no public flag on the
+   * geometry (confirmed against the installed three.js source: `dispose()` only calls
+   * `dispatchEvent({type:'dispose'})` — see the module doc's "Resource-lifecycle defect"
+   * section). This is a flag WE maintain ourselves, driven by a REAL event dispatched by
+   * three.js's own `EventDispatcher` base class (the same mechanism `WebGLRenderer`'s own
+   * internal `WebGLGeometries` uses to notice disposal) — not an invented/guessed
+   * property on the geometry itself.
+   */
+  disposed: boolean;
 }
 
 export interface LinkPositions {
@@ -205,7 +254,7 @@ export class CurvedLinkGeometryCache {
       radiusTop: 0,
       radialSegments: RADIAL_SEGMENTS,
     };
-    return {
+    const entry: LinkTubeEntry = {
       geometry,
       positionAttr,
       normalAttr,
@@ -217,7 +266,17 @@ export class CurvedLinkGeometryCache {
       cp: new THREE.Vector3(),
       point: new THREE.Vector3(),
       normal: new THREE.Vector3(),
+      disposed: false,
     };
+    // The one reliable signal that this geometry's GPU resources are gone, wherever the
+    // `.dispose()` call actually came from (our own code never disposes it, but
+    // three-forcegraph's generic `_flushObjects` removal path does — see the module
+    // doc's "SECOND resource-lifecycle defect" section). A real three.js event, not a
+    // guess: `BufferGeometry.dispose()` unconditionally dispatches exactly this.
+    geometry.addEventListener("dispose", () => {
+      entry.disposed = true;
+    });
+    return entry;
   }
 
   /**
@@ -233,6 +292,17 @@ export class CurvedLinkGeometryCache {
     if (!mesh.isMesh) return false; // not tube-rendered (e.g. a thin Line for a culled/zero-width link)
 
     let entry = this.cache.get(link);
+    // A cache hit whose geometry has actually been disposed (see the module doc's
+    // "SECOND resource-lifecycle defect" section — three-forcegraph's own _flushObjects
+    // removal path can dispose this exact shared geometry without this cache's
+    // knowledge) must NOT be reused: discard the stale entry and build a genuinely
+    // fresh one, exactly as if this were a brand-new link. Every scratch object (curve,
+    // vectors, attribute arrays) is rebuilt too — cheap, and simpler/safer than trying
+    // to partially resurrect a mix of valid and invalid state.
+    if (entry?.disposed) {
+      this.cache.delete(link);
+      entry = undefined;
+    }
     if (!entry) {
       entry = this.create();
       this.cache.set(link, entry);
