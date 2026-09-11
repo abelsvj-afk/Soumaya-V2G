@@ -264,6 +264,113 @@ describe("nodeObject — Stage 7 label/glow texture refcounting", () => {
 });
 
 /**
+ * Fix #1 (per-node rendering cost): getGeometry's cache key used to include the node's
+ * own continuous, mass-derived `size` float directly — since `size` essentially never
+ * repeats bit-for-bit between two different nodes, the "cache" almost never actually hit
+ * in practice, so every node still allocated its own fresh geometry despite going through
+ * a function that looks like it shares them. Fixed by always requesting the CANONICAL
+ * unit geometry (radius/size = 1) and applying the real per-node size via
+ * `mesh.scale.setScalar(size)` instead. These tests prove (a) the cache now actually
+ * hits — different-size nodes of the same class/segment-config share one geometry
+ * instance — and (b) uniform scaling is mathematically identical to baking the radius
+ * into the geometry directly, not just visually close.
+ */
+function findFullDetailMesh(obj: THREE.Object3D): THREE.Mesh {
+  let found: THREE.Mesh | undefined;
+  obj.traverse((o: any) => {
+    if (o.isMesh && o.userData?.isFidelity && o.geometry?.type === "SphereGeometry") found = o;
+  });
+  if (!found) throw new Error("no full-detail mesh found");
+  return found;
+}
+
+function findMacroMesh(obj: THREE.Object3D): THREE.Mesh {
+  let found: THREE.Mesh | undefined;
+  obj.traverse((o: any) => {
+    if (o.isMesh && o.userData?.isMacro) found = o;
+  });
+  if (!found) throw new Error("no macro mesh found");
+  return found;
+}
+
+describe("nodeObject — Fix #1: geometry sharing via canonical-unit + scale", () => {
+  it("two stars of very different mass (different size) share the SAME full-detail geometry instance", () => {
+    const dim = findFullDetailMesh(makeNodeObject(node("star", { id: 701, importance: 0.05, degree: 0 })));
+    const bright = findFullDetailMesh(makeNodeObject(node("star", { id: 702, importance: 0.95, degree: 12 })));
+    expect(dim.geometry).toBe(bright.geometry); // the cache now actually hits
+    expect((dim.geometry as THREE.SphereGeometry).parameters.radius).toBe(1); // canonical unit, not a baked-in size
+  });
+
+  it("per-node size is still expressed — via mesh.scale, uniformly on all 3 axes", () => {
+    const dim = findFullDetailMesh(makeNodeObject(node("star", { id: 703, importance: 0.05, degree: 0 })));
+    const bright = findFullDetailMesh(makeNodeObject(node("star", { id: 704, importance: 0.95, degree: 12 })));
+    expect(dim.scale.x).toBeGreaterThan(0);
+    expect(dim.scale.x).toBe(dim.scale.y);
+    expect(dim.scale.y).toBe(dim.scale.z);
+    expect(bright.scale.x).toBeGreaterThan(dim.scale.x); // higher mass -> bigger effective size
+  });
+
+  it("the macro-LOD sibling also shares one canonical geometry across different-size nodes", () => {
+    const a = findMacroMesh(makeNodeObject(node("planet", { id: 705, importance: 0.05, degree: 0 })));
+    const b = findMacroMesh(makeNodeObject(node("planet", { id: 706, importance: 0.95, degree: 12 })));
+    expect(a.geometry).toBe(b.geometry);
+    expect((a.geometry as THREE.SphereGeometry).parameters.radius).toBe(1);
+    expect(b.scale.x).toBeGreaterThan(a.scale.x);
+  });
+
+  it("a ringed gas giant's ring geometry is canonical (inner 1.6/outer 2.4) and shared across different-mass rings, scaled via mesh.scale", () => {
+    function ringId(start: number): number {
+      let id = start;
+      while (((id * 2654435761) >>> 0) % 5 !== 0) id++;
+      return id;
+    }
+    function findRing(obj: THREE.Object3D): THREE.Mesh {
+      let found: THREE.Mesh | undefined;
+      obj.traverse((o: any) => {
+        if (o.isMesh && o.geometry?.type === "RingGeometry") found = o;
+      });
+      if (!found) throw new Error("no ring found");
+      return found;
+    }
+    const a = findRing(makeNodeObject(node("gas_giant", { id: ringId(801), importance: 0.05, degree: 0 })));
+    const b = findRing(makeNodeObject(node("gas_giant", { id: ringId(900), importance: 0.95, degree: 12 })));
+    expect(a.geometry).toBe(b.geometry);
+    const params = (a.geometry as THREE.RingGeometry).parameters;
+    expect(params.innerRadius).toBe(1.6);
+    expect(params.outerRadius).toBe(2.4);
+    expect(b.scale.x).toBeGreaterThan(a.scale.x);
+  });
+
+  it("mathematical proof: scaling a canonical unit sphere reproduces IDENTICAL vertex positions and normals to constructing the sphere at that radius directly", () => {
+    const radius = 4.7;
+    const direct = new THREE.SphereGeometry(radius, 24, 16);
+    const scaled = new THREE.SphereGeometry(1, 24, 16);
+    scaled.scale(radius, radius, radius); // BufferGeometry.scale bakes a uniform transform into the attributes directly
+
+    const directPos = direct.attributes.position!.array;
+    const scaledPos = scaled.attributes.position!.array;
+    expect(scaledPos.length).toBe(directPos.length);
+    for (let i = 0; i < directPos.length; i++) expect(scaledPos[i]!).toBeCloseTo(directPos[i]!, 5);
+
+    const directNormal = direct.attributes.normal!.array;
+    const scaledNormal = scaled.attributes.normal!.array;
+    for (let i = 0; i < directNormal.length; i++) expect(scaledNormal[i]!).toBeCloseTo(directNormal[i]!, 5);
+  });
+
+  it("mathematical proof: the same holds for a flat RingGeometry (no Z-extent, so a uniform scale reproduces the exact inner/outer radii)", () => {
+    const size = 3.3;
+    const direct = new THREE.RingGeometry(size * 1.6, size * 2.4, 48);
+    const scaled = new THREE.RingGeometry(1.6, 2.4, 48);
+    scaled.scale(size, size, size);
+
+    const directPos = direct.attributes.position!.array;
+    const scaledPos = scaled.attributes.position!.array;
+    expect(scaledPos.length).toBe(directPos.length);
+    for (let i = 0; i < directPos.length; i++) expect(scaledPos[i]!).toBeCloseTo(directPos[i]!, 5);
+  });
+});
+
+/**
  * Performance Program Round 3 (memory scaling audit): nodeThreeObjCacheRef's cache key
  * used to include raw `entropy` — a continuously-drifting float — so it invalidated on
  * almost every `refresh()` even when nothing visually meaningful changed. Fixed by

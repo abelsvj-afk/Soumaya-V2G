@@ -202,6 +202,26 @@ function getGeometry(
   return geom;
 }
 
+const ringGeometryCache = new Map<string, THREE.BufferGeometry>();
+/**
+ * Shared ring geometries, keyed by inner/outer radius + segment count — same "cache
+ * the shape, apply per-node size via mesh.scale" pattern as `getGeometry` above. Every
+ * ringed gas giant (and the action-item alert ring) uses a constant inner/outer RATIO
+ * (or, for the action ring, constant absolute values), so this cache converges to one
+ * shared geometry per distinct (inner, outer, segments) triple actually used in this
+ * file, however many ringed bodies exist.
+ */
+function getRingGeometry(innerRadius: number, outerRadius: number, segments: number): THREE.BufferGeometry {
+  const cacheKey = `${innerRadius}-${outerRadius}-${segments}`;
+  let geom = ringGeometryCache.get(cacheKey);
+  if (!geom) {
+    geom = new THREE.RingGeometry(innerRadius, outerRadius, segments);
+    geom.userData.shared = true;
+    ringGeometryCache.set(cacheKey, geom);
+  }
+  return geom;
+}
+
 
 /** A ring of drifting rock particles (asteroid belt) around a big body. */
 function makeAsteroidBelt(inner: number, outer: number, count = 360): THREE.Points {
@@ -293,8 +313,13 @@ function macroTexture(color: string): THREE.CanvasTexture {
  */
 function makeMacroBody(color: string, size: number, starLike: boolean): THREE.Mesh {
   const tex = macroTexture(color);
+  // Canonical unit sphere, scaled by `size` — every macro body in the galaxy now
+  // shares ONE geometry instead of each allocating its own (this call bypassed
+  // getGeometry's cache entirely before; see the main-body geometry comment in
+  // makeNodeObject for why uniform scaling is exactly, not approximately, identical
+  // to baking `size` into the geometry directly).
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(size, 14, 14),
+    getGeometry("sphere", 1, 14, 14),
     // emissiveMap = the surface texture so it's visible (and its spin is visible)
     // even far from the sun's light, without paying for a per-body point light.
     new THREE.MeshStandardMaterial({
@@ -306,6 +331,7 @@ function makeMacroBody(color: string, size: number, starLike: boolean): THREE.Me
       metalness: 0.0,
     }),
   );
+  mesh.scale.setScalar(size);
   mesh.userData.isMacro = true;
   mesh.userData.isBody = true; // opaque by construction — see makeNodeObject's isBody comment
   // Self-rotation at macro distance too (the tick rotates any child with .spin).
@@ -392,7 +418,7 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
     const g = new THREE.Group();
     const col = "#ffb340";
     const core = new THREE.Mesh(
-      new THREE.OctahedronGeometry(2.4, 0),
+      getGeometry("octahedron", 2.4, 0),
       new THREE.MeshStandardMaterial({
         color: col,
         emissive: new THREE.Color(col),
@@ -406,7 +432,7 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
     core.userData.pulse = { base: 1.0, amp: 0.8, speed: 3.2, phase: (node.id % 7) * 0.6 }; // fast, urgent
     g.add(core);
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(3.4, 4.1, 28),
+      getRingGeometry(3.4, 4.1, 28),
       new THREE.MeshBasicMaterial({
         color: "#ff7a3c",
         side: THREE.DoubleSide,
@@ -542,15 +568,33 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
   // the biggest/closest body (worth 32x24), a planet's terrain rarely needs more than
   // 24x16, and moons/asteroids were already conservative at 24. Down from a flat 48x48
   // for every star/planet (~4600 tris) regardless of how many screen pixels it covers.
+  //
+  // Canonical UNIT geometry (radius 1), scaled per-node via mesh.scale below — not the
+  // node's own continuous, mass-derived `size` baked directly in. getGeometry's cache
+  // key includes whatever size it's given, so with the real value (a continuous float,
+  // effectively never bit-identical between two different nodes) the cache almost never
+  // actually hit: every node still allocated its own fresh, uncached geometry despite
+  // going through a function that looks like it shares them. Every node of the same
+  // class+segment config now shares exactly ONE geometry object for the whole galaxy.
+  // Provably zero visual difference, not just measured-close: uniform scaling of a
+  // sphere/icosahedron reproduces the exact same vertex positions and normals as
+  // constructing it at that radius directly (uniform scale never distorts a normal —
+  // only non-uniform scale would), and both procedural body shaders (shaders.ts)
+  // already normalize the vertex position before sampling their noise functions
+  // (`vec3 p = normalize(vPos)`), so the granule/terrain pattern is already scale-
+  // invariant — confirmed by reading the shader source directly, not assumed. A moon's
+  // texture UV mapping (SphereGeometry's built-in theta/phi parameterization) is
+  // likewise independent of the radius parameter.
   const geom =
     cls === "asteroid"
-      ? getGeometry("icosahedron", size, 0)
+      ? getGeometry("icosahedron", 1, 0)
       : isRocky
-        ? getGeometry("sphere", size, 24)
+        ? getGeometry("sphere", 1, 24)
         : isStarLike
-          ? getGeometry("sphere", size, 32, 24)
-          : getGeometry("sphere", size, 24, 16);
+          ? getGeometry("sphere", 1, 32, 24)
+          : getGeometry("sphere", 1, 24, 16);
   const mesh = new THREE.Mesh(geom, material);
+  mesh.scale.setScalar(size);
   // Opaque by construction (none of the material branches above set `transparent: true`) —
   // tagged explicitly so Graph3D's hover-highlight effect knows this material is safe to
   // keep opaque while lit, instead of the previous unconditional `transparent = true` on
@@ -578,8 +622,13 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
   nodeGroup.add(mesh);
   
   if (cls === "gas_giant" && ((node.id * 2654435761) >>> 0) % 5 === 0) {
+    // Canonical unit-ratio ring (inner 1.6, outer 2.4 — the same ratio every ringed
+    // gas giant already used), scaled by `size` below. A RingGeometry is flat (no
+    // Z-extent), so a uniform scale reproduces the exact same inner/outer radii the
+    // old size*1.6/size*2.4 construction did — every ringed gas giant now shares one
+    // geometry instead of each allocating its own.
     const ring = new THREE.Mesh(
-      new THREE.RingGeometry(size * 1.6, size * 2.4, 48),
+      getRingGeometry(1.6, 2.4, 48),
       new THREE.MeshBasicMaterial({
         color,
         side: THREE.DoubleSide,
@@ -588,6 +637,7 @@ export function makeNodeObject(node: GraphNode, tier: ShaderTier = "quality"): T
         depthWrite: false,
       }),
     );
+    ring.scale.setScalar(size);
     ring.rotation.x = Math.PI / 2.4;
     nodeGroup.add(ring);
   }
