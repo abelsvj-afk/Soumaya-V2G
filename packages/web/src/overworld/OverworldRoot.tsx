@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
-import { musicEnabled, setMusicEnabled, startMusicLoop, stopMusicLoop } from "../lib/music.js";
+import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
-import { ExteriorScene, TILE_SIZE, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
-import { placeById, REGION_HEIGHT, REGION_WIDTH, type PlaceId } from "./scenes/regionLayout.js";
+import { ExteriorScene, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
+import { placeById, type PlaceId } from "./scenes/regionLayout.js";
 import { TouchControls } from "./ui/TouchControls.js";
 import { CreatureSummaryOverlay } from "./ui/CreatureSummaryOverlay.js";
 import { CaptureMenu } from "./ui/CaptureMenu.js";
@@ -75,22 +75,21 @@ export function OverworldRoot() {
     const config: Phaser.Types.Core.GameConfig = {
       type: Phaser.AUTO,
       parent,
-      width: REGION_WIDTH * TILE_SIZE,
-      height: REGION_HEIGHT * TILE_SIZE,
       backgroundColor: "#0c0e1a",
       pixelArt: true,
       scene: [],
-      // Without this, Phaser renders the canvas at a fixed 832x576 CSS px regardless of the
-      // real screen size — on any phone narrower than that, you only ever see the map's
-      // left/top slice (this is what made the game look "cut off" and movement look like it
-      // did nothing: the player was very often walking around outside the visible crop).
-      // FIT scales the canvas down to fit `parent`'s box, preserving pixel-art aspect ratio;
-      // the container below is sized to that exact aspect ratio so it never letterboxes.
+      // RESIZE, not FIT: FIT scales a FIXED 832x576 logical canvas to fit the screen, which
+      // forces the whole 26x18 map's landscape shape onto every device (real user feedback:
+      // "it's built to turn your phone sideways... it needs to adapt to whatever device").
+      // RESIZE instead makes the canvas genuinely match whatever box `parent` actually is —
+      // portrait phone, landscape tablet, desktop window — and ExteriorScene.ts resizes its
+      // camera to match on every change, so the camera becomes a real scrolling viewport onto
+      // the (still 26x18-tile) world rather than a shrunk-to-fit picture of the entire map.
       scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH,
-        width: REGION_WIDTH * TILE_SIZE,
-        height: REGION_HEIGHT * TILE_SIZE,
+        mode: Phaser.Scale.RESIZE,
+        parent,
+        width: parent.clientWidth || window.innerWidth,
+        height: parent.clientHeight || window.innerHeight,
       },
     };
     const game = new Phaser.Game(config);
@@ -146,7 +145,7 @@ export function OverworldRoot() {
     // (touch D-pad or a keyboard press both qualify) rather than assuming the earlier
     // login-screen click still counts by the time this mounts.
     const start = () => {
-      void startMusicLoop("/ambient-loop.mp3");
+      void playCurrentTrack();
       window.removeEventListener("pointerdown", start);
       window.removeEventListener("keydown", start);
     };
@@ -168,6 +167,10 @@ export function OverworldRoot() {
     setMusicEnabled(next);
     setMusicOn(next);
   }, [musicOn]);
+
+  const switchTrack = useCallback(() => {
+    void nextTrack();
+  }, []);
 
   const closeOverlay = useCallback(() => {
     // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
@@ -218,31 +221,43 @@ export function OverworldRoot() {
   const memoriesCount = snapshot?.graph.nodes.filter((n) => n.kind !== "action").length ?? 0;
 
   return (
-    <div style={{ position: "relative", width: "100%", maxWidth: REGION_WIDTH * TILE_SIZE, margin: "0 auto" }}>
-      <div
-        ref={containerRef}
-        data-testid="overworld-canvas-root"
-        style={{ width: "100%", aspectRatio: `${REGION_WIDTH} / ${REGION_HEIGHT}` }}
-      />
-      <button
-        type="button"
-        aria-label={musicOn ? "Mute music" : "Unmute music"}
-        onClick={toggleMusic}
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 8,
-          zIndex: 1,
-          background: "#00000099",
-          color: "#fff",
-          border: "none",
-          borderRadius: 6,
-          padding: "4px 8px",
-          fontSize: 14,
-        }}
-      >
-        {musicOn ? "🔊" : "🔇"}
-      </button>
+    // Mobile-first: fills whatever box it's given (portrait phone, landscape tablet, desktop
+    // window) — no fixed aspect ratio to letterbox around. AuthGate.tsx's wrapper is already
+    // `min-height: 100vh` with nothing else in flow, so 100% here means the real viewport.
+    <div style={{ position: "relative", width: "100%", height: "100dvh" }}>
+      <div ref={containerRef} data-testid="overworld-canvas-root" style={{ width: "100%", height: "100%" }} />
+      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 1, display: "flex", gap: 4 }}>
+        <button
+          type="button"
+          aria-label="Next track"
+          onClick={switchTrack}
+          style={{
+            background: "#00000099",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 14,
+          }}
+        >
+          ⏭️
+        </button>
+        <button
+          type="button"
+          aria-label={musicOn ? "Mute music" : "Unmute music"}
+          onClick={toggleMusic}
+          style={{
+            background: "#00000099",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 14,
+          }}
+        >
+          {musicOn ? "🔊" : "🔇"}
+        </button>
+      </div>
       {loadError && (
         <div
           role="alert"
@@ -266,7 +281,12 @@ export function OverworldRoot() {
           </button>
         </div>
       )}
-      {overlay.kind === "none" && <TouchControls onEvent={(event) => inputBusRef.current.emit(event)} />}
+      {overlay.kind === "none" && (
+        <TouchControls
+          onEvent={(event) => inputBusRef.current.emit(event)}
+          onHoldChange={(direction) => inputBusRef.current.setHeldDirection(direction)}
+        />
+      )}
 
       {overlay.kind === "bank" && snapshot && (
         <BankOverlay rows={snapshot.bank.rows} safeToSpendCents={snapshot.bank.safeToSpendCents} onClose={closeOverlay} />

@@ -35,4 +35,20 @@ describe("InputBus", () => {
       { type: "move", direction: "left" },
     ]);
   });
+
+  describe("held direction (hold-to-move for touch)", () => {
+    it("starts with nothing held", () => {
+      expect(new InputBus().heldDirection).toBeNull();
+    });
+
+    it("tracks whichever direction was last set, and clears back to null", () => {
+      const bus = new InputBus();
+      bus.setHeldDirection("up");
+      expect(bus.heldDirection).toBe("up");
+      bus.setHeldDirection("right");
+      expect(bus.heldDirection).toBe("right");
+      bus.setHeldDirection(null);
+      expect(bus.heldDirection).toBeNull();
+    });
+  });
 });

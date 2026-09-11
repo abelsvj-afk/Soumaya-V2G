@@ -316,6 +316,23 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   map — both purely decorative, both no-ops under `prefersReducedMotion()`. See
   `docs/overworld/roadmap.md`'s "Stage 2.8". Verified by `regionLayout.test.ts` + the full gate.
 
+- **A second round of real feedback: input, camera, art, NPC substance (2026-09-11), not yet
+  on-device confirmed** — (1) all 3 galaxy-era tracks restored + switchable, which also caught a
+  real bug: `startMusicLoop()`'s "already playing" guard compared `currentUrl` to itself
+  post-assignment, so track-switching silently no-opped; (2) hold-to-move for the touch D-pad
+  (`InputBus.heldDirection`, polled by `update()` the same way keyboard state already was);
+  (3) a genuine architecture change from `Phaser.Scale.FIT` (a fixed landscape aspect that
+  forced letterboxing on portrait phones) to `Phaser.Scale.RESIZE` — the camera is now a real
+  scrolling viewport sized to the actual device, not a shrunk picture of the whole map;
+  (4) buildings capped with an actual roof (Kenney's own pre-made gable tiles, `buildingTileFrame`
+  in tileAtlas.ts) instead of a flat wall row — which also fixed a latent bug where the 3
+  south-row buildings (doors facing up, not down) were drawing the wrong wall tiles beside their
+  doors; (5) attendants now flash a role-specific work icon (💰📖🧘✉️🔭🏋️📜🔧), not just pace.
+  See `docs/overworld/roadmap.md`'s "Stage 2.9". Verified by new/updated tests (input, touch
+  controls, music, `buildingTileFrame` against real building footprints, work icons) + the full
+  gate (1051 server + 179 web tests). The camera rework especially needs on-device
+  reconfirmation — it's real architecture, not a config tweak.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,

@@ -1,3 +1,39 @@
+### 2026-09-11 (Claude): Soumaya Overworld — second feedback round: input, camera, art, NPC substance
+- [ ] Verified by Claude
+- User actually played the build and named 5 things in one message. In order:
+- **3-track music, restored** — the galaxy let a pilot switch between `ambient-loop.mp3`/
+  `interstellar.mp3`/`slow-tide.mp3`; the earlier fix only ever played the first. `lib/music.ts`
+  gained `MUSIC_TRACKS`/`nextTrack()`/`playCurrentTrack()` + a ⏭️ button. Writing the switch
+  test properly (not assuming it worked) caught a real bug: `startMusicLoop()`'s "already
+  playing" guard compared `currentUrl === url` *after* assigning `currentUrl = url` right above
+  it — always true, so switching silently did nothing. Fixed the ordering.
+- **Hold-to-move** — keyboard already moved continuously (per-frame `key.isDown` poll);
+  `TouchControls` only fired one step per tap ("you can't hold down the button to keep
+  moving"). New `InputBus.heldDirection`, set/cleared by the D-pad's pointer events, polled by
+  `update()` exactly like keyboard.
+- **Real mobile-first responsive camera** — this is the big one. `Phaser.Scale.FIT` locked the
+  canvas to a fixed 832x576 landscape aspect ("built to turn your phone sideways... needs to
+  adapt to whatever device"). Switched to `Phaser.Scale.RESIZE`: canvas fills whatever box it's
+  given, `ExteriorScene.ts` resizes the camera's viewport on every change, and the camera is now
+  a genuine scrolling viewport onto the 26x18-tile world (usually smaller than the world) rather
+  than a shrunk-to-fit picture of the entire map. `TouchControls` buttons went semi-transparent
+  (same "buttons shouldn't block things behind them" feedback).
+- **Buildings looked hand-assembled** — user's explicit ask: use pre-made assets, don't hand-
+  compose primitives. Confirmed Tiny Town has no single "complete house" sprite (it's a modular
+  kit by design) but DOES have pre-made roof-gable tiles (63/67) nobody had used — buildings were
+  topped with a flat wall row instead. Added `roofTan`/`roofBlue` + a pure `buildingTileFrame()`
+  (unit-tested against `placeById("bank")`/`placeById("gym")`'s real footprints) that resolves
+  wall/door/roof from wherever the door actually is — which also caught and fixed a real latent
+  bug: the 3 south-row buildings (doors facing up, not down) were getting the wrong wall tiles
+  beside their doors because the old inline logic assumed the door was always on the bottom row.
+- **NPCs need to "do work... not just walk back and forth"** — attendants now flash a
+  role-specific icon (💰 Bank, 📖 Library, 🧘 Sanctuary, ✉️ Post Office, 🔭 Observatory, 🏋️ Gym,
+  📜 Town Hall, 🔧 Hangar) on the same timer that used to only pace them; the icon still fires
+  under reduced motion (it's the actual signal), only the walking is skipped there.
+- New/updated tests across `input.test.ts`, `TouchControls.test.tsx`, `music.test.ts`,
+  `tileAtlas.test.ts` (`buildingTileFrame`, `workIconForPlace`). Full gate green (1051 server +
+  179 web tests, typecheck, build).
+
 ### 2026-09-11 (Claude): Soumaya Overworld — attendant NPCs + bounded creature roaming
 - [ ] Verified by Claude
 - Follow-up to the NPC-autonomy question asked earlier: user picked "attendant NPCs per

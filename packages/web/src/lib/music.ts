@@ -14,7 +14,42 @@ import { prefersReducedMotion } from "./motion.js";
 
 const ENABLED_KEY = "music.enabled";
 const VOLUME_KEY = "music.volume";
+const TRACK_INDEX_KEY = "music.trackIndex";
 const DEFAULT_VOLUME = 0.35;
+
+/** The 3 tracks the old 3D galaxy let a pilot switch between — same files, same order,
+ *  just given an actual switcher here instead of only ever playing one fixed loop. */
+export const MUSIC_TRACKS = ["/ambient-loop.mp3", "/interstellar.mp3", "/slow-tide.mp3"] as const;
+
+export function currentTrackIndex(): number {
+  try {
+    const v = parseInt(localStorage.getItem(TRACK_INDEX_KEY) ?? "0", 10);
+    return Number.isFinite(v) && v >= 0 && v < MUSIC_TRACKS.length ? v : 0;
+  } catch {
+    return 0;
+  }
+}
+
+export function currentTrackUrl(): string {
+  return MUSIC_TRACKS[currentTrackIndex()] ?? MUSIC_TRACKS[0];
+}
+
+/** Starts (or resumes) whichever track is currently selected. */
+export async function playCurrentTrack(): Promise<void> {
+  await startMusicLoop(currentTrackUrl());
+}
+
+/** Switches to the next track in the list (wrapping around) and starts playing it
+ *  immediately — startMusicLoop already replaces rather than layers when the url changes. */
+export async function nextTrack(): Promise<void> {
+  const next = (currentTrackIndex() + 1) % MUSIC_TRACKS.length;
+  try {
+    localStorage.setItem(TRACK_INDEX_KEY, String(next));
+  } catch {
+    /* ignore */
+  }
+  await startMusicLoop(MUSIC_TRACKS[next] ?? MUSIC_TRACKS[0]);
+}
 
 let musicGain: GainNode | null = null;
 let source: AudioBufferSourceNode | null = null;
@@ -81,9 +116,11 @@ async function loadBuffer(ac: AudioContext, url: string): Promise<AudioBuffer | 
 /** Starts (or is a no-op if already playing) a gapless loop of `url`. Safe to call
  *  repeatedly/speculatively — disabled-by-preference and already-playing both short-circuit. */
 export async function startMusicLoop(url: string): Promise<void> {
-  currentUrl = url;
   if (!musicEnabled()) return;
-  if (source && currentUrl === url) return; // already playing this track
+  // Compared BEFORE reassigning currentUrl below — comparing against the value already
+  // assigned to itself is always true, which silently broke switching tracks entirely.
+  if (source && currentUrl === url) return; // already playing this exact track
+  currentUrl = url;
   const ac = audioContext();
   if (!ac) return;
   const buffer = await loadBuffer(ac, url);

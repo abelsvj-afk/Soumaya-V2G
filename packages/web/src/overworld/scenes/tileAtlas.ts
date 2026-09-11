@@ -50,15 +50,20 @@ export const TileFrame = {
   attendantGym: 30,
   attendantTownHall: 31,
   attendantHangar: 32,
+  // A real roof line, not a flat wall repeated to the top of the footprint — Kenney's own
+  // pre-made gable tiles (real user feedback: buildings shouldn't look hand-assembled).
+  roofTan: 33,
+  roofBlue: 34,
 } as const;
 
-/** One wall/door "family" — a building's footprint always draws from a single family so its
- *  door tile lines up seamlessly with its own walls (see ExteriorScene.ts's building renderer). */
+/** One wall/door/roof "family" — a building's footprint always draws from a single family so
+ *  its door and roof line up seamlessly with its own walls (ExteriorScene.ts's renderer). */
 export interface WallFamily {
   wall: number;
   wallLeft: number;
   door: number;
   wallRight: number;
+  roof: number;
 }
 
 const TAN_FAMILY: WallFamily = {
@@ -66,18 +71,43 @@ const TAN_FAMILY: WallFamily = {
   wallLeft: TileFrame.wallTanLeft,
   door: TileFrame.doorTan,
   wallRight: TileFrame.wallTanRight,
+  roof: TileFrame.roofTan,
 };
 const BLUE_FAMILY: WallFamily = {
   wall: TileFrame.wallBlue,
   wallLeft: TileFrame.wallBlueLeft,
   door: TileFrame.doorBlue,
   wallRight: TileFrame.wallBlueRight,
+  roof: TileFrame.roofBlue,
 };
 
 /** Alternates building material so the 8 buildings aren't all identical — purely decorative,
  *  never the only cue for a building's identity (each also keeps its glyph + label overlay). */
 export function wallFamilyForIndex(index: number): WallFamily {
   return index % 2 === 0 ? TAN_FAMILY : BLUE_FAMILY;
+}
+
+/**
+ * Which tile a building footprint should draw at (x, y), given where its door actually is.
+ * Door-facing buildings can have the door on either the footprint's top or bottom row
+ * (north-row buildings face south/down, so their door is on the bottom row; south-row
+ * buildings face north/up, so theirs is on the top row — regionLayout.ts's DOOR_PLACES) —
+ * this must key off the door's real row, not always assume "bottom", or the row that
+ * actually has no door gets treated as the door row (wrong wallLeft/wallRight tiles next to
+ * a door that isn't there) while the real door row gets a plain wall instead of the tile
+ * that's actually designed to sit next to the doorway. The other row is always the roofline.
+ */
+export function buildingTileFrame(
+  family: WallFamily,
+  tile: { x: number; y: number },
+  door: { x: number; y: number },
+  footprint: { x0: number; x1: number },
+): number {
+  if (tile.x === door.x && tile.y === door.y) return family.door;
+  if (tile.y !== door.y) return family.roof;
+  if (tile.x === footprint.x0) return family.wallLeft;
+  if (tile.x === footprint.x1) return family.wallRight;
+  return family.wall;
 }
 
 /** Standalone object tiles (Bulletin Board / Soumaya) each get a distinct sprite; any future
@@ -103,6 +133,25 @@ const ATTENDANT_FRAME_BY_PLACE: Partial<Record<PlaceId, number>> = {
 
 export function attendantFrameForPlace(id: PlaceId): number {
   return ATTENDANT_FRAME_BY_PLACE[id] ?? TileFrame.player;
+}
+
+/** A brief "doing their job" icon each attendant flashes above themselves while pacing —
+ *  real user feedback: NPCs should "do work... pertaining to their field", not just walk back
+ *  and forth. Purely decorative flavor (no simulation), one per building's actual function.
+ *  A future door-place with no mapped work falls back to a plain work tool, never nothing. */
+const WORK_ICON_BY_PLACE: Partial<Record<PlaceId, string>> = {
+  bank: "💰",
+  library: "📖",
+  sanctuary: "🧘",
+  postOffice: "✉️",
+  observatory: "🔭",
+  gym: "🏋️",
+  townHall: "📜",
+  hangar: "🔧",
+};
+
+export function workIconForPlace(id: PlaceId): string {
+  return WORK_ICON_BY_PLACE[id] ?? "🔧";
 }
 
 /** One creature sprite per NodeType, for visual variety — a memory's rarity is already read
