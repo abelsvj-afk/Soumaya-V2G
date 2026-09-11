@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { figurineOptions, hangarKeys, shipOptions, trailOptions } from "./hangarOptions.js";
+import { figurineOptions, hangarKeys, shipOptions, trailColorHex, trailOptions } from "./hangarOptions.js";
 
 describe("hangarOptions (ports HangarPanel.tsx's exact gates)", () => {
   it("default ship is always unlocked; organic gates on the achievement OR the memory-count threshold", () => {
@@ -35,5 +35,12 @@ describe("hangarOptions (ports HangarPanel.tsx's exact gates)", () => {
     const keys = hangarKeys("space-1");
     expect(keys.ship).toBe("brain.hangar.ship.space-1");
     expect(keys.trail).toBe("brain.hangar.trail.space-1");
+  });
+
+  it("trailColorHex gives every real trail option a distinct color, and a safe default for anything else", () => {
+    const colors = ["blue", "neon", "gold", "purple"].map(trailColorHex);
+    expect(new Set(colors).size).toBe(4); // all distinct
+    expect(trailColorHex("blue")).toBe(trailColorHex("anything-unrecognized")); // graceful fallback
+    expect(() => trailColorHex("")).not.toThrow();
   });
 });

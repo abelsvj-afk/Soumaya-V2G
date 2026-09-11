@@ -112,3 +112,14 @@ export function grassFrameFor(x: number, y: number): number {
   if (roll === 0) return TileFrame.grassFlowers;
   return roll % 2 === 0 ? TileFrame.grassA : TileFrame.grassB;
 }
+
+/** Idle-bob "breathing" cycle length for every creature — one shared constant so
+ *  `idleBobDelayMs` below has a real period to desync within (ExteriorScene.ts). */
+export const IDLE_BOB_PERIOD_MS = 900;
+
+/** Per-creature phase offset (deterministic, same node id -> same offset every render) so a
+ *  town full of creatures doesn't bob in unison — a small "the world is alive" touch, not a
+ *  gameplay signal, so it's fine that it's decorative-only and skipped under reduced motion. */
+export function idleBobDelayMs(nodeId: number): number {
+  return hash32(nodeId, 0) % IDLE_BOB_PERIOD_MS;
+}

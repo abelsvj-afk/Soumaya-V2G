@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
+import { musicEnabled, setMusicEnabled, startMusicLoop, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
 import { ExteriorScene, TILE_SIZE, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
 import { placeById, REGION_HEIGHT, REGION_WIDTH, type PlaceId } from "./scenes/regionLayout.js";
@@ -45,6 +46,7 @@ export function OverworldRoot() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [overlay, setOverlay] = useState<Overlay>({ kind: "none" });
   const [greetBusy, setGreetBusy] = useState(false);
+  const [musicOn, setMusicOn] = useState(musicEnabled());
 
   const setSnapshot = useCallback((next: WorldSnapshot | null) => {
     snapshotRef.current = next;
@@ -78,6 +80,18 @@ export function OverworldRoot() {
       backgroundColor: "#0c0e1a",
       pixelArt: true,
       scene: [],
+      // Without this, Phaser renders the canvas at a fixed 832x576 CSS px regardless of the
+      // real screen size — on any phone narrower than that, you only ever see the map's
+      // left/top slice (this is what made the game look "cut off" and movement look like it
+      // did nothing: the player was very often walking around outside the visible crop).
+      // FIT scales the canvas down to fit `parent`'s box, preserving pixel-art aspect ratio;
+      // the container below is sized to that exact aspect ratio so it never letterboxes.
+      scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH,
+        width: REGION_WIDTH * TILE_SIZE,
+        height: REGION_HEIGHT * TILE_SIZE,
+      },
     };
     const game = new Phaser.Game(config);
     gameRef.current = game;
@@ -92,7 +106,11 @@ export function OverworldRoot() {
     game.events.once(Phaser.Core.Events.READY, () => {
       if (cancelled) return; // unmounted before boot finished
 
-      const sceneConfig: ExteriorSceneConfig = { inputBus: inputBusRef.current, creatures: [] };
+      const sceneConfig: ExteriorSceneConfig = {
+        inputBus: inputBusRef.current,
+        creatures: [],
+        spaceId: getSpaceId() ?? "default",
+      };
       const scene = game.scene.add("exterior-scene", ExteriorScene, true, sceneConfig) as ExteriorScene | null;
       if (!scene) {
         // Belt-and-braces: should be unreachable per the READY contract above, but a blank
@@ -123,14 +141,44 @@ export function OverworldRoot() {
   }, []);
 
   useEffect(() => {
+    // Browsers block audio until a genuine user gesture. Mirrors Phaser's own sound-manager
+    // unlock pattern: wait for the first real pointerdown/keydown ANYWHERE on the page
+    // (touch D-pad or a keyboard press both qualify) rather than assuming the earlier
+    // login-screen click still counts by the time this mounts.
+    const start = () => {
+      void startMusicLoop("/overworld/theme.wav");
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
+    };
+    window.addEventListener("pointerdown", start, { once: true });
+    window.addEventListener("keydown", start, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", start);
+      window.removeEventListener("keydown", start);
+      stopMusicLoop();
+    };
+  }, []);
+
+  useEffect(() => {
     sceneRef.current?.setPaused(overlay.kind !== "none");
   }, [overlay.kind]);
+
+  const toggleMusic = useCallback(() => {
+    const next = !musicOn;
+    setMusicEnabled(next);
+    setMusicOn(next);
+  }, [musicOn]);
 
   const closeOverlay = useCallback(() => {
     // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
     if (overlay.kind !== "none" && overlay.kind !== "capture" && overlay.kind !== "details" && DOOR_PLACE_IDS.has(overlay.kind)) {
       sceneRef.current?.returnToDoor(overlay.kind);
+    }
+    // Leaving the Hangar may have changed the saved trail color — pick it up immediately
+    // rather than waiting for a full scene reload.
+    if (overlay.kind === "hangar") {
+      sceneRef.current?.refreshTrailColor();
     }
     setOverlay({ kind: "none" });
   }, [overlay.kind]);
@@ -171,7 +219,30 @@ export function OverworldRoot() {
 
   return (
     <div style={{ position: "relative", width: "100%", maxWidth: REGION_WIDTH * TILE_SIZE, margin: "0 auto" }}>
-      <div ref={containerRef} data-testid="overworld-canvas-root" />
+      <div
+        ref={containerRef}
+        data-testid="overworld-canvas-root"
+        style={{ width: "100%", aspectRatio: `${REGION_WIDTH} / ${REGION_HEIGHT}` }}
+      />
+      <button
+        type="button"
+        aria-label={musicOn ? "Mute music" : "Unmute music"}
+        onClick={toggleMusic}
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          zIndex: 1,
+          background: "#00000099",
+          color: "#fff",
+          border: "none",
+          borderRadius: 6,
+          padding: "4px 8px",
+          fontSize: 14,
+        }}
+      >
+        {musicOn ? "🔊" : "🔇"}
+      </button>
       {loadError && (
         <div
           role="alert"

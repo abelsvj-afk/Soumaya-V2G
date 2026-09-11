@@ -30,6 +30,7 @@ export function TouchControls({ onEvent }: TouchControlsProps) {
         justifyContent: "space-between",
         padding: 16,
         pointerEvents: "none",
+        touchAction: "none",
       }}
     >
       <div
@@ -41,6 +42,7 @@ export function TouchControls({ onEvent }: TouchControlsProps) {
           gridTemplateRows: "repeat(3, 40px)",
           gap: 2,
           pointerEvents: "auto",
+          touchAction: "none",
         }}
       >
         {DPAD.map((btn) => (
@@ -48,20 +50,21 @@ export function TouchControls({ onEvent }: TouchControlsProps) {
             key={btn.direction}
             type="button"
             aria-label={btn.direction}
-            style={{ ...btn.style, fontSize: 16 }}
+            style={{ ...btn.style, fontSize: 16, touchAction: "none" }}
             onPointerDown={() => onEvent({ type: "move", direction: btn.direction })}
           >
             {btn.label}
           </button>
         ))}
       </div>
-      <div style={{ display: "flex", gap: 8, pointerEvents: "auto" }}>
+      <div style={{ display: "flex", gap: 8, pointerEvents: "auto", touchAction: "none" }}>
         <button type="button" aria-label="B" disabled>
           B
         </button>
         <button
           type="button"
           aria-label="A / Interact"
+          style={{ touchAction: "none" }}
           onPointerDown={() => onEvent({ type: "interact" })}
         >
           A

@@ -285,6 +285,29 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
   player sprite). Same standing sandbox limitation as the rest of the Overworld: verified by
   gate + `tileAtlas.test.ts`, not yet seen rendered in a real browser.
 
+- **Motion polish + a real Hangar tie-in (2026-09-11), not yet on-device confirmed** — player
+  step-hop + idle breathing, desynced creature idle bobs, and Soumaya's marker getting the same
+  bob (the Bulletin Board correctly doesn't — it's a sign). Closed a real flagged gap: the
+  Hangar's "Cosmic Trail" cosmetic now actually renders as a fading trail behind the player's
+  footsteps (`ExteriorScene.ts`'s `readTrailColor`/`refreshTrailColor`), instead of only ever
+  affecting a menu selection. Ship hull/figurine choices still have no visual effect (no 2D
+  art to apply them to) — still flagged in `HangarOverlay.tsx`. Everything new is a no-op
+  under `prefersReducedMotion()`. See `docs/overworld/roadmap.md`'s "Stage 2.6". Verified by
+  gate + new tests, not yet seen rendered in a real browser.
+
+- **Real playability fix from actual on-device feedback (2026-09-11)** — a phone screenshot
+  (this session's first real on-device look) surfaced a genuine bug: the Phaser game had no
+  Scale Manager config, so the canvas always rendered at a fixed 832x576 CSS px, cropping the
+  visible map on any narrower phone and making movement look broken (the player was very often
+  off in the unseen slice). Fixed with `Phaser.Scale.FIT` + a real CSS aspect-ratio box for it
+  to scale into (`OverworldRoot.tsx`), plus `touch-action: none` on `TouchControls`. Also:
+  emoji-only building labels replaced with readable text nameplates, and an original
+  procedurally-generated music loop added (`lib/music.ts`, `public/overworld/theme.wav` — see
+  `docs/overworld/roadmap.md`'s "Stage 2.7" for why it's original rather than sourced, and the
+  flagged-but-unremoved orphaned `ambient-loop.mp3`/etc.). Still needs on-device reconfirmation
+  that the Scale Manager fix actually resolves the reported symptom — that's what actually
+  caught this bug, so it's the standard to hold the fix to, not another guess from this sandbox.
+
 - **Superseded by the Overworld deletion (2026-09-11).** Every entry that used to live here
   (Cinematic Intro, GalaxyViews Visibility, Link LOD, Observatory card squish, planets not lit,
   hub names stuck, nebula backdrop color, the Fly-billing-hold on-device-confirmation backlog,
