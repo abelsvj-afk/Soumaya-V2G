@@ -1,3 +1,53 @@
+### 2026-09-11 (Claude): Soumaya Overworld — design package + Stage 1 engine shell/adapter layer
+- [ ] Verified by Claude
+- Per the user's build brief, produced a full spec-first design package
+  (`docs/overworld/*` — idea/vision/requirements/user-stories/architecture/decisions/ux-design/
+  roadmap + a Pokémon-reference note) for replacing the 3D galaxy with a 2D GBA/SNES-era
+  Pokémon-style overworld, and got explicit user sign-off before writing any implementation code
+  (CLAUDE.md Rule #1 / WORKFLOW.md Phase A gate). User decisions captured in `decisions.md`: full
+  replacement (staged, not a big-bang rewrite), real-time grid movement, no combat ever, literal
+  ship travel between regions.
+- Key research finding: the hardest-sounding part of the brief — the dimming/greet-to-revisit
+  mechanic — needs **zero changes** to `packages/shared` or `packages/server`. It already exists
+  end-to-end: `GraphNode.entropy` (`entropyFrom()`/`COOLING_ENTROPY = 0.45` in
+  `packages/shared/src/celestial.ts`) and `POST /api/nodes/:id/tend` (`tendNode()` in
+  `api/client.ts`). Likewise `GET /api/finance/sky` (`MoneyStar[]`) already returns bills/goals in
+  exactly the shape a Bank building needs. Stage 1 is therefore a pure presentation-layer build.
+- Implemented the roadmap's suggested first PR (engine shell + adapter layer, no scene wiring to
+  real data yet): new `packages/web/src/overworld/` tree —
+  - `adapter/{rarity,nodeToCreature,financeAdapter,journeyAdapter,placement}.ts` — pure functions
+    mapping real `GraphNode`/`MoneyStar`/`Journey` API shapes into overworld entities (rarity
+    tiers 1:1 with the real 7 `CelestialClass` values per decisions.md D7, not the brief's 6;
+    deterministic seeded creature placement so a node never "teleports" tiles between sessions).
+  - `engine/{movement,input,reducedMotion}.ts` — pure grid-movement/collision/tween-lock state
+    machine, a typed input event bus shared by keyboard and touch, and a single
+    `prefers-reduced-motion` check used by both the React UI and the Phaser scene.
+  - `scenes/ProofScene.ts` + `OverworldRoot.tsx` + `ui/TouchControls.tsx` — a real, running Phaser
+    3 game (grid movement, collision, camera-follow, on-screen D-pad/A-B) against a static proof
+    map, deliberately with zero API calls yet (that's the next stage). Mounted only behind an
+    explicit `?overworld=1` opt-in added to `main.tsx`, lazy-loaded exactly like `Graph3D` — the
+    default app path is unchanged and unaffected (decisions.md D1/D6 staging).
+  - Added `phaser@^3.90.0` to `packages/web` (D5) — its own dependency tree introduced no new
+    `npm audit` findings (the one pre-existing high-severity finding, `@xmldom/xmldom` via
+    `mammoth`, predates this change).
+- Files touched: `packages/web/src/overworld/**` (new), `packages/web/src/main.tsx`,
+  `packages/web/package.json`, `package-lock.json`, `docs/overworld/**` (new).
+- Gate: `npm run typecheck` (all 3 workspaces) and `npm test --workspaces` both green — 1051
+  server tests + 618 web tests (including 40 new overworld tests across 9 files: rarity,
+  nodeToCreature incl. the dim-state threshold measured exactly at `COOLING_ENTROPY`, finance
+  adapter, journey adapter, placement determinism/no-collision/blocked-tile/capacity,
+  engine movement incl. the mid-tween-input-ignored case, the input bus, reduced-motion, and
+  TouchControls). `npm run build -w @brain/web` succeeds; `OverworldRoot` lands in its own
+  ~334 kB gzip lazy chunk, separate from the default bundle, confirming the lazy-loading
+  discipline requirement held.
+- **Note for whoever verifies this**: node_modules in this sandbox was missing several
+  dependencies (including `vitest` itself) before this session's `npm install` — that was a
+  pre-existing environment gap, not caused by this change (confirmed via `git stash` — the gap
+  predated any package.json edit here).
+- Next: wire `ProofScene`'s replacement — the real Money/Bank region — to
+  `getGraph()`/`getMoneySky()`/`getFinanceSummary()`, plus the capture flow and the greet
+  interaction end-to-end (roadmap.md items 3–6).
+
 ### 2026-09-11 (Codex): Graph reliability and multi-tenant query hardening
 - [x] Verified by Claude
 - Fixed the graph client treating an HTTP error or malformed graph payload as a successful

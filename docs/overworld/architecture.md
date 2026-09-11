@@ -72,8 +72,11 @@ Fuel/streak polling) → creature visibly brightens.
   binary dependency required for a map this small); creature/NPC placement is data (adapter
   output), not baked into the tilemap.
 - **Collision**: a `passable: boolean` grid layer parallel to the visual tile layer (mirrors the
-  GBA metatile-attribute pattern from `pokemon-reference.md`), read via Phaser's arcade physics
-  tilemap collision.
+  GBA metatile-attribute pattern from `pokemon-reference.md`). Implemented as pure functions in
+  `engine/movement.ts` (`tryMove`/`completeMove`, no Phaser import) driving a manual tile-to-tile
+  tween — not Phaser's arcade-physics tilemap collider, since grid movement has no physics body to
+  collide and keeping the rule Phaser-free is what makes it directly unit-testable (see
+  `engine/movement.test.ts`) without a browser/WebGL context.
 - **Camera**: Phaser `Camera.startFollow(player)`, grid-snapped movement (tween one tile per
   input, ignore input mid-tween) so there's no analog drift to fight with `prefers-reduced-motion`.
 - **Sprites**: 16×16 or 32×32, ≤4 colors per sprite as an aesthetic target (not a hard technical

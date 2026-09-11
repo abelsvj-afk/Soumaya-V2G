@@ -1,7 +1,17 @@
 import { createRoot } from "react-dom/client";
+import { lazy, Suspense } from "react";
 import App from "./App.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import "./index.css";
+
+// Soumaya Overworld — additive, staged replacement of the 3D galaxy (docs/overworld/decisions.md
+// D1/D6). Only mounts behind an explicit opt-in during the additive phase, so the default app is
+// provably unaffected; Phaser is lazy-loaded so it never touches the default bundle/boot path.
+const overworldRequested =
+  typeof window !== "undefined" && new URLSearchParams(window.location.search).get("overworld") === "1";
+const OverworldRoot = lazy(() =>
+  import("./overworld/OverworldRoot.js").then((m) => ({ default: m.OverworldRoot })),
+);
 
 // Global error visibility (vanilla DOM, not React — works even if React itself is
 // wedged). An uncaught error or promise rejection anywhere — a WebGL/three.js tick,
@@ -48,7 +58,13 @@ import "./index.css";
 // starfield, render loop) that double-invocation would duplicate.
 createRoot(document.getElementById("root")!).render(
   <ErrorBoundary>
-    <App />
+    {overworldRequested ? (
+      <Suspense fallback={null}>
+        <OverworldRoot />
+      </Suspense>
+    ) : (
+      <App />
+    )}
   </ErrorBoundary>,
 );
 
