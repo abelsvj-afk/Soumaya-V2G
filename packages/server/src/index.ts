@@ -5,6 +5,7 @@ import { setTelegramWebhook, sendDailyDigests, tgSend } from "./telegram/bot.js"
 import { TelegramLinksRepo } from "./telegram/links.js";
 import { runToolRouter } from "./agent/tools/router.js";
 import { selectJob, executeJob, researchEnabled } from "./maintenance/agent.js";
+import { nextAutonomyBatch } from "./maintenance/autonomyBatch.js";
 import { evolveLore } from "./lore/engine.js";
 import { refreshPersona } from "./persona/derive.js";
 import { reconcileConstellations } from "./analysis/constellationReconcile.js";
@@ -177,13 +178,25 @@ setInterval(() => {
 // tab — so it can never overspend. Set AUTONOMY=off to disable entirely.
 if (process.env.AUTONOMY !== "off") {
   const AUTONOMY_MS = Number(process.env.AUTONOMY_MS ?? 1000 * 60 * 5);
+  // Bounded, rotating per-tick space batch (see autonomyBatch.ts's own doc comment):
+  // with the default cap, a deployment with <= AUTONOMY_MAX_SPACES_PER_TICK spaces
+  // still processes every space every tick (no behavior change from before this
+  // existed) — only once the tenant count actually grows past the cap does this
+  // bound per-tick work and rotate fairly through the full list across ticks,
+  // instead of the same early rows (by id order) winning forever while a slow tick
+  // starves everything after them. In-memory only — see the module for why a
+  // restart resetting it to the start of the list is harmless.
+  const AUTONOMY_MAX_SPACES_PER_TICK = Number(process.env.AUTONOMY_MAX_SPACES_PER_TICK ?? 20);
+  let autonomyCursor = 0;
   let running = false;
   setInterval(async () => {
     if (running) return;
     running = true;
     try {
-      const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces`).all() as { id: string }[];
-      const spaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
+      const rows = ctx.handle.sqlite.prepare(`SELECT id FROM spaces ORDER BY id ASC`).all() as { id: string }[];
+      const allSpaceIds = rows.length > 0 ? rows.map((r) => r.id) : [DEFAULT_SPACE];
+      const { batch: spaceIds, nextCursor } = nextAutonomyBatch(allSpaceIds, autonomyCursor, AUTONOMY_MAX_SPACES_PER_TICK);
+      autonomyCursor = nextCursor;
       // Per-tick ceiling on cloud-LLM jobs across ALL brains, so a deployment with many
       // spaces can't fire a burst of paid work before the USD counter catches up.
       const MAX_PAID_PER_TICK = Number(process.env.AUTONOMY_MAX_PAID_PER_TICK ?? 4);
