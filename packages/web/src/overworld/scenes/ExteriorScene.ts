@@ -80,6 +80,12 @@ const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
  *  player's own 140ms/tile step (Stage 2.20 measured this directly: 160ms is already slower, by
  *  design — "NPCs shouldn't fly across the map or move any quicker than I can"). */
 const NPC_STEP_MS = 160;
+/** Town Persistence (docs/overworld/town-persistence.md, task #68) — the NPC schedule's own
+ *  tick length, in real ms. `tickSociety()` derives its tick from `Date.now() / SOCIETY_TICK_MS`
+ *  rather than counting timer fires, so the schedule phase is always consistent with real
+ *  elapsed time even across a reload — the cycle LENGTH itself (CYCLE_TICKS * this) is
+ *  unchanged from the original arcade-paced 60 real seconds. */
+const SOCIETY_TICK_MS = 1500;
 /** The passability rule NPC travel uses — real walls/objects/bounds, but not other attendants'
  *  fixed posts (npc-autonomy.md decision #2). One frozen object reused everywhere it's needed. */
 const NPC_PATH_GRID: MovementGrid = { width: REGION_WIDTH, height: REGION_HEIGHT, isPassable: isNpcPathPassable };
@@ -648,7 +654,7 @@ export class ExteriorScene extends Phaser.Scene {
       const offset = idleBobDelayMs(index++);
       this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.attendantWorkTick(sprite) });
     }
-    this.time.addEvent({ delay: 1500, loop: true, callback: () => this.tickSociety() });
+    this.time.addEvent({ delay: SOCIETY_TICK_MS, loop: true, callback: () => this.tickSociety() });
     this.spawnOutingTimers();
   }
 
@@ -672,9 +678,18 @@ export class ExteriorScene extends Phaser.Scene {
    *  enter-exit transition (applySocietyState), then per BUILDING, check whether its own two
    *  attendants are both on Break at once — if so, trigger their interaction, once per
    *  overlapping window, not once per tick. Working attendants flash their work icon from the
-   *  door tile they've just entered (never nothing — "doing work", not just gone quiet). */
+   *  door tile they've just entered (never nothing — "doing work", not just gone quiet).
+   *
+   *  Town Persistence (docs/overworld/town-persistence.md, task #68) — the tick is derived from
+   *  real wall-clock time (`Date.now() / SOCIETY_TICK_MS`), not counted up from a session-local
+   *  `+= 1` that reset to 0 on every reload. `scheduleStateAt` needed zero changes for this — it
+   *  was already a pure function of whatever tick number it's given. The practical effect: close
+   *  the game for any real stretch of time and every NPC's Working/Break/Home phase is exactly
+   *  where a continuously-running clock would put it the instant it reopens, matching how
+   *  neglect/treasury already behave, instead of always resuming frozen at "just started
+   *  Working." */
   private tickSociety(): void {
-    this.societyTickCount += 1;
+    this.societyTickCount = Math.floor(Date.now() / SOCIETY_TICK_MS);
     const byPlace = new Map<PlaceId, Array<{ sprite: AttendantSprite; id: SocietyNpcId; state: ScheduleState }>>();
     for (const sprite of this.attendantSprites) {
       const id = asSocietyNpcId(sprite.post.npcId);

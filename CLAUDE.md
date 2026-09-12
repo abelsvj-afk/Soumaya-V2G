@@ -253,6 +253,28 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Does the town run without the player? (2026-09-12), not yet on-device confirmed** —
+  answered the task's own question honestly first (`docs/overworld/town-persistence.md`), from
+  reading the real code: `buildingNeglect.ts`'s neglect (and civic concern/Town Health/Business
+  Neglect built on it) already runs independent of the player — it's computed from a real stored
+  timestamp vs. `Date.now()` at read time, never a tick. What did NOT: the NPC Working/Break/Home
+  schedule (`ExteriorScene.tickSociety()`), driven by a session-local counter that reset to 0 on
+  every reload. What CANNOT, as a genuine architecture boundary: any of that schedule's VISUAL
+  consequences (walk tweens, outings, the meeting gathering) — this app has no server-side job/
+  worker, so animating anything with no tab open needs real new infrastructure, not a client
+  tweak; explicitly not attempted. The one real, safe fix shipped: the schedule's tick is now
+  derived from `Date.now() / SOCIETY_TICK_MS` instead of counted up from a session field —
+  `npcSchedule.ts`'s `scheduleStateAt` needed zero changes, already a pure function of its tick
+  input. Measured, not assumed: a real reproduction script confirmed the OLD behavior always
+  resumed frozen at "just started Working" regardless of real elapsed time, the NEW behavior
+  correctly reflects a simulated 3-hour gap, and the new tick is mathematically identical to
+  continuous incrementing the whole time (confirmed via direct arithmetic check). The 60-second
+  cycle length itself is unchanged. Verified by that measurement + the full gate (1056 server +
+  369 web tests, typecheck, build) — no dedicated `ExteriorScene.ts` test exists (consistent with
+  this file's own convention of verifying Phaser-integration code by measurement rather than a
+  unit test), so this entry documents the verification directly. Not yet seen rendered in a real
+  browser from this sandbox.
+
 - **A real multi-business economy (2026-09-12), not yet on-device confirmed** — direct answer to
   the task's own name: "more than one Market." Specced first (`docs/overworld/business.md`):
   mirrors housing's own zoning-gated, player-built, treasury-priced pattern for the OTHER zone
