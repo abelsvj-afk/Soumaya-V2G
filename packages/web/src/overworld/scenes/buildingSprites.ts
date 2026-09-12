@@ -37,6 +37,10 @@ const BUILDING_SPRITE_BY_PLACE: Partial<Record<PlaceId, BuildingSprite>> = {
   // silhouette in the sourced pack); Park falls through to the COTTAGE default below, same as
   // every other unmapped place — no new art was invented for it.
   market: ARCHED_HALL,
+  // Mayor's Hall (mayors-hall.md, task #63) — reuses the same civic-banner illustration Town
+  // Hall/Gym already use; no new art was invented for it either. The building actually reads
+  // as "the biggest" via its footprint (4x any other), not a distinct silhouette.
+  mayorsHall: FLAG_TOWER,
 };
 
 export function buildingSpriteForPlace(id: PlaceId): BuildingSprite {

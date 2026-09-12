@@ -782,6 +782,36 @@ Verified by 10 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases,
 `isPlacementBlocked`), and the full gate (1056 server + 313 web tests, typecheck, build). Not yet
 seen rendered in a real browser from this sandbox.
 
+## Stage 2.24 — Mayor's Hall: literally the biggest building on the map (task #63)
+
+Direct answer to "somebody needs the biggest building on the map, which is for the mayor."
+Specced first (`docs/overworld/mayors-hall.md`) per Rule #1, resolving soumaya-governance.md
+decision #5's open questions: 12x6 (72 tiles) vs. every other building's uniform 6x3 (18 tiles) —
+4x the area, unmistakably the largest. Placed in its own row below the south row (extending
+`REGION_HEIGHT` the same way the region's width already derives from its rightmost building) —
+every collision/passability/attendant-post function in `regionLayout.ts` was already generic over
+a `DoorPlace`'s own footprint/door fields, so the bigger footprint needed zero changes to any of
+them, verified by a real ASCII-map print of the generated layout (ordinary uniform-grid buildings
+above, the much bigger hall centered below, clean margins on every side, no overlaps).
+
+**"Her security"** — the working interpretation from soumaya-governance.md confirmed: two real
+attendant NPCs (Wren, Cass), the exact same `ATTENDANTS_PER_BUILDING` pattern every other building
+already has, with real `npcDialogue.ts` profiles so they're full NPC Society members (schedule,
+dialogue, relationships) like all 20 other attendants, not a special case.
+
+**What walking in shows — a real Mayor's Office dashboard**, not a new invented screen: the same
+Town Treasury (`townLedger.ts`), per-building neglect (`buildingNeglect.ts`), and zoning plan
+(`zoning.ts`) already real elsewhere, shown together at the town level for the first time.
+Read-only this round — no interaction exists yet to credit as real work, stated plainly rather
+than inventing one.
+
+Reuses `FLAG_TOWER` (the same civic-banner illustration Town Hall/Gym already use) and the generic
+player-sprite attendant fallback — no new art was invented; a distinct look is tracked under task
+#74. Verified by 2 new/updated `regionLayout.test.ts` cases (11 real door-buildings; Mayor's Hall
+is 4x any other building's area), 6 new `MayorsHallOverlay.test.tsx` cases, the real ASCII-map
+measurement above, and the full gate (1056 server + 320 web tests, typecheck, build). Not yet seen
+rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

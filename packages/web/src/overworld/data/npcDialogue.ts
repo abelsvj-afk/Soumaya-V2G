@@ -298,6 +298,30 @@ const PROFILE_LIST: NpcProfile[] = [
     ],
     (other) => `${other} and I rebuilt half this hangar together. Wouldn't trust anyone else with it.`,
   ),
+
+  // Mayor's Hall (mayors-hall.md, task #63) — "her security": Wren (gate), Cass (watch).
+  profile(
+    "mayorsHall",
+    0,
+    "Wren",
+    ["Keeping the gate. The Mayor's always out doing her rounds — someone's got to hold the fort.", "Biggest building in town, smallest job title. Suits me fine."],
+    [
+      { achievementId: "sentinel_command", line: "Five beacons stood. I know a real watch when I see one." },
+      { achievementId: "consistent_pilot", line: "A real consistent streak — that's the kind of steadiness this post respects." },
+    ],
+    (other) => `${other} and I split the gate shifts fair. Never once had to ask twice.`,
+  ),
+  profile(
+    "mayorsHall",
+    1,
+    "Cass",
+    ["On watch for the Hall. The Mayor comes through here more than people think, just never stays long.", "Real quiet post most days. Suits the job."],
+    [
+      { achievementId: "inner_circle", line: "A real inner circle built. That's exactly the kind of trust this post is built to protect." },
+      { achievementId: "enduring_light", line: "Something kept lit that long deserves real watching over. I take that seriously." },
+    ],
+    (other) => `${other} covers the far door when I can't be two places at once. Good partner to have.`,
+  ),
 ];
 
 const PROFILES: Record<string, NpcProfile> = {};
