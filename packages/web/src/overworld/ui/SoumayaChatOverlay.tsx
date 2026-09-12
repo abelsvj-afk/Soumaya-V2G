@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { NodeRef } from "@brain/shared";
 import { askChat } from "../../api/client.js";
 import type { CreatureEntity } from "../types.js";
+import { actionButtonStyle, fieldStyle, leaveButtonStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface SoumayaChatOverlayProps {
   onClose: () => void;
@@ -57,59 +58,51 @@ export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode }: SoumayaC
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Soumaya"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🛰️ Soumaya</h2>
-      <div style={{ flex: 1, overflowY: "auto" }}>
-        {turns.length === 0 && <p>Hey — what's on your mind?</p>}
-        {turns.map((t, i) => (
-          <div key={i} style={{ marginBottom: 8, textAlign: t.role === "you" ? "right" : "left" }}>
-            <div>{t.text}</div>
-            {t.citations && t.citations.length > 0 && (
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                {t.citations.map((c) => (
-                  <span key={c.id} style={{ fontSize: 12, border: "1px solid #4b4b8f", padding: "2px 6px" }}>
-                    {c.label}
-                    {creatureByNodeId.has(c.id) && (
-                      <button type="button" onClick={() => goTo(c.id)} style={{ marginLeft: 4 }}>
-                        📍 Go there
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-            )}
+    <OverlayShell
+      icon="🛰️"
+      title="Soumaya"
+      onClose={onClose}
+      footer={
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              aria-label="Ask Soumaya"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && ask()}
+              style={{ ...fieldStyle, flex: 1 }}
+            />
+            <button type="button" onClick={ask} disabled={!question.trim() || asking} style={actionButtonStyle(!question.trim() || asking)}>
+              Ask
+            </button>
           </div>
-        ))}
-        {asking && <p>...</p>}
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <input
-          aria-label="Ask Soumaya"
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && ask()}
-          style={{ flex: 1 }}
-        />
-        <button type="button" onClick={ask} disabled={!question.trim() || asking}>
-          Ask
-        </button>
-      </div>
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+          <button type="button" onClick={onClose} style={leaveButtonStyle}>
+            Leave
+          </button>
+        </div>
+      }
+    >
+      {turns.length === 0 && <p style={{ marginTop: 0 }}>Hey — what's on your mind?</p>}
+      {turns.map((t, i) => (
+        <div key={i} style={{ marginBottom: 8, textAlign: t.role === "you" ? "right" : "left" }}>
+          <div>{t.text}</div>
+          {t.citations && t.citations.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4, justifyContent: t.role === "you" ? "flex-end" : "flex-start" }}>
+              {t.citations.map((c) => (
+                <span key={c.id} style={{ fontSize: 12, border: "1px solid #4a4d7a", borderRadius: 4, padding: "2px 6px" }}>
+                  {c.label}
+                  {creatureByNodeId.has(c.id) && (
+                    <button type="button" onClick={() => goTo(c.id)} style={{ ...actionButtonStyle(), marginLeft: 4, padding: "2px 6px", fontSize: 11 }}>
+                      📍 Go there
+                    </button>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      {asking && <p>...</p>}
+    </OverlayShell>
   );
 }

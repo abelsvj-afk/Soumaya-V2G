@@ -2,6 +2,7 @@ import { useState } from "react";
 import { loadUnlocked } from "../../components/achievements.js";
 import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOption } from "../data/hangarOptions.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface HangarOverlayProps {
   spaceId: string;
@@ -24,7 +25,7 @@ function OptionSelect({
     <div style={{ marginBottom: 12 }}>
       <label style={{ display: "block", marginBottom: 4 }}>
         {label}
-        <select value={value} onChange={(e) => onChange(e.target.value)} style={{ display: "block", width: "100%" }}>
+        <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...fieldStyle, display: "block", width: "100%" }}>
           {options.map((o) => (
             <option key={o.value} value={o.value} disabled={!o.unlocked}>
               {o.unlocked ? o.label : `🔒 ${o.label} — ${o.lockedHint ?? "locked"}`}
@@ -62,20 +63,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Hangar"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🛠️ Hangar</h2>
+    <OverlayShell icon="🛠️" title="Hangar" onClose={onClose}>
       <OptionSelect label="Spaceship Hull" options={shipOptions(unlocked, memoriesCount)} value={ship} onChange={(v) => persist(keys.ship, v, setShip)} />
       <OptionSelect label="Cosmic Trail" options={trailOptions(unlocked)} value={trail} onChange={(v) => persist(keys.trail, v, setTrail)} />
       <OptionSelect
@@ -90,9 +78,6 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
         value={fig2}
         onChange={(v) => persist(keys.fig2, v, setFig2)}
       />
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

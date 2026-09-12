@@ -1,5 +1,6 @@
 import type { Fuel, GraphData, Streak } from "@brain/shared";
 import { listAchievements } from "../data/achievements.js";
+import { OverlayShell } from "./OverlayShell.js";
 
 export interface GymOverlayProps {
   graph: GraphData;
@@ -19,21 +20,8 @@ export function GymOverlay({ graph, fuel, streak, onClose }: GymOverlayProps) {
   const unlockedCount = views.filter((v) => v.unlocked).length;
 
   return (
-    <div
-      role="dialog"
-      aria-label="Gym"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🏆 Gym</h2>
-      <p>
+    <OverlayShell icon="🏆" title="Gym" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>
         🔥 Streak: <strong>{streak?.current ?? 0}</strong> days (best {streak?.best ?? 0})
         {streak?.today ? " — tended today" : ""}
       </p>
@@ -43,11 +31,18 @@ export function GymOverlay({ graph, fuel, streak, onClose }: GymOverlayProps) {
       <p>
         🎖️ Badges: {unlockedCount} / {views.length}
       </p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {views.map(({ achievement, unlocked, progress }) => (
           <li
             key={achievement.id}
-            style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", opacity: unlocked ? 1 : 0.6 }}
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "flex-start",
+              padding: "8px 0",
+              borderBottom: "1px solid #2a2c55",
+              opacity: unlocked ? 1 : 0.6,
+            }}
           >
             <span aria-hidden="true">{unlocked ? achievement.icon : "🔒"}</span>
             <span style={{ flex: 1 }}>
@@ -64,9 +59,6 @@ export function GymOverlay({ graph, fuel, streak, onClose }: GymOverlayProps) {
           </li>
         ))}
       </ul>
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

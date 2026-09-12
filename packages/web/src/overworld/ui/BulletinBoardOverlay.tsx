@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { ackReminder, deleteNode, ingestText } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface BulletinBoardOverlayProps {
   graph: GraphData;
@@ -62,30 +63,19 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Bulletin Board"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>📋 Bulletin Board</h2>
-
-      <h3>Active quests</h3>
+    <OverlayShell icon="📋" title="Bulletin Board" onClose={onClose}>
+      <h3 style={{ marginTop: 0 }}>Active quests</h3>
       {quests.length === 0 ? (
         <p>Nothing posted right now.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {quests.map((q) => (
-            <li key={q.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+            <li
+              key={q.id}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+            >
               <span style={{ flex: 1 }}>{q.label}</span>
-              <button type="button" onClick={() => turnIn(q)} disabled={busyId === q.id}>
+              <button type="button" onClick={() => turnIn(q)} disabled={busyId === q.id} style={actionButtonStyle(busyId === q.id)}>
                 {busyId === q.id ? "…" : "Turn in"}
               </button>
             </li>
@@ -97,11 +87,14 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
       {reminders.length === 0 ? (
         <p>No reminders waiting.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {reminders.map((r) => (
-            <li key={r.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+            <li
+              key={r.id}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+            >
               <span style={{ flex: 1 }}>{r.label}</span>
-              <button type="button" onClick={() => ack(r)} disabled={busyId === r.id}>
+              <button type="button" onClick={() => ack(r)} disabled={busyId === r.id} style={actionButtonStyle(busyId === r.id)}>
                 {busyId === r.id ? "…" : "Ack"}
               </button>
             </li>
@@ -115,17 +108,13 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
         value={newQuest}
         onChange={(e) => setNewQuest(e.target.value)}
         rows={2}
-        style={{ width: "100%", maxWidth: 360 }}
+        style={{ ...fieldStyle, width: "100%", maxWidth: 360, resize: "vertical" }}
       />
-      <div>
-        <button type="button" onClick={postQuest} disabled={!newQuest.trim() || posting}>
+      <div style={{ marginTop: 6 }}>
+        <button type="button" onClick={postQuest} disabled={!newQuest.trim() || posting} style={actionButtonStyle(!newQuest.trim() || posting)}>
           {posting ? "Posting…" : "Post"}
         </button>
       </div>
-
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

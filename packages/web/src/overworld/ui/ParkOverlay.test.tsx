@@ -12,7 +12,10 @@ describe("ParkOverlay", () => {
     render(<ParkOverlay onClose={vi.fn()} />);
     expect(screen.getByText("Bank")).toBeTruthy();
     expect(screen.getByText("Market")).toBeTruthy();
-    expect(screen.queryByText("Park")).toBeNull();
+    // The overlay's own header legitimately says "Park" (you're in it) — the assertion that
+    // matters is that the LIST of other buildings never lists Park as one of its own rows.
+    const rowLabels = screen.getAllByRole("listitem").map((li) => li.textContent);
+    expect(rowLabels.some((text) => text?.includes("Park"))).toBe(false);
   });
 
   it("marks a never-worked building as needing a visit — the real neglect signal, never invented", () => {

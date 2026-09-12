@@ -2,6 +2,7 @@ import { useState } from "react";
 import { readNotifications, writeNotifications, type InboxNotification } from "../../components/Toasts.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import type { PlaceId } from "../scenes/regionLayout.js";
+import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface PostOfficeOverlayProps {
   spaceId: string;
@@ -69,45 +70,36 @@ export function PostOfficeOverlay({ spaceId, onClose, onOpenPlace }: PostOfficeO
   const unreadCount = items.filter((n) => !n.seen).length;
 
   return (
-    <div
-      role="dialog"
-      aria-label="Post Office"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>📮 Post Office</h2>
-      <p>{unreadCount} unread</p>
+    <OverlayShell icon="📮" title="Post Office" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>{unreadCount} unread</p>
       {items.length === 0 ? (
         <p>No mail right now.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {items.map((n) => (
             <li
               key={n.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", opacity: n.seen ? 0.6 : 1 }}
+              style={{
+                display: "flex",
+                gap: 8,
+                alignItems: "center",
+                padding: "6px 0",
+                borderBottom: "1px solid #2a2c55",
+                opacity: n.seen ? 0.6 : 1,
+              }}
             >
               <span aria-hidden="true">{n.icon}</span>
               <span style={{ flex: 1 }}>
                 {n.text} {!n.seen && <strong>(new)</strong>}
                 {n.priority === "high" && " — urgent"}
               </span>
-              <button type="button" onClick={() => open(n)}>
+              <button type="button" onClick={() => open(n)} style={actionButtonStyle()}>
                 {routeFor(n) ? "Open" : "Read"}
               </button>
             </li>
           ))}
         </ul>
       )}
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

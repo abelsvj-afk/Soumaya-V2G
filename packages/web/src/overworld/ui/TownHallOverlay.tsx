@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Journey, JourneyLinkSummary } from "@brain/shared";
 import { createJourney, deleteJourney, getJourneys, journeyLinks, patchJourney } from "../../api/journeys.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface TownHallOverlayProps {
   spaceId: string;
@@ -68,37 +69,28 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Town Hall"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🗺️ Town Hall</h2>
+    <OverlayShell icon="🗺️" title="Town Hall" onClose={onClose}>
       {journeys === null ? (
-        <p>Loading your Journeys...</p>
+        <p style={{ marginTop: 0 }}>Loading your Journeys...</p>
       ) : journeys.length === 0 ? (
-        <p>No Journeys yet — this life chapter is unstarted.</p>
+        <p style={{ marginTop: 0 }}>No Journeys yet — this life chapter is unstarted.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {journeys.map((j) => (
-            <li key={j.id} style={{ padding: "6px 0" }}>
+            <li key={j.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span aria-hidden="true">{j.icon ?? "🧭"}</span>
-                <button type="button" onClick={() => toggleExpand(j)} style={{ flex: 1, textAlign: "left" }}>
+                <button
+                  type="button"
+                  onClick={() => toggleExpand(j)}
+                  style={{ ...actionButtonStyle(), flex: 1, textAlign: "left", background: "transparent", border: "none" }}
+                >
                   {j.title} — {Math.round(j.progress * 100)}% ({j.status})
                 </button>
-                <button type="button" onClick={() => bumpProgress(j, 0.1)} aria-label={`Advance ${j.title}`}>
+                <button type="button" onClick={() => bumpProgress(j, 0.1)} aria-label={`Advance ${j.title}`} style={actionButtonStyle()}>
                   +10%
                 </button>
-                <button type="button" onClick={() => remove(j)} aria-label={`Delete ${j.title}`}>
+                <button type="button" onClick={() => remove(j)} aria-label={`Delete ${j.title}`} style={actionButtonStyle()}>
                   Delete
                 </button>
               </div>
@@ -126,16 +118,12 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
 
       <h3>Start a new Journey</h3>
       <div style={{ display: "flex", gap: 8 }}>
-        <input aria-label="Journey icon" value={icon} onChange={(e) => setIcon(e.target.value)} style={{ width: 48 }} />
-        <input aria-label="Journey title" value={title} onChange={(e) => setTitle(e.target.value)} style={{ flex: 1 }} />
-        <button type="button" onClick={create} disabled={!title.trim() || creating}>
+        <input aria-label="Journey icon" value={icon} onChange={(e) => setIcon(e.target.value)} style={{ ...fieldStyle, width: 48 }} />
+        <input aria-label="Journey title" value={title} onChange={(e) => setTitle(e.target.value)} style={{ ...fieldStyle, flex: 1 }} />
+        <button type="button" onClick={create} disabled={!title.trim() || creating} style={actionButtonStyle(!title.trim() || creating)}>
           {creating ? "…" : "Begin"}
         </button>
       </div>
-
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

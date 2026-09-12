@@ -1,4 +1,5 @@
 import type { BankLedgerRow } from "../types.js";
+import { OverlayShell } from "./OverlayShell.js";
 
 export interface BankOverlayProps {
   rows: BankLedgerRow[];
@@ -17,31 +18,18 @@ function formatCents(cents: number): string {
  */
 export function BankOverlay({ rows, safeToSpendCents, onClose }: BankOverlayProps) {
   return (
-    <div
-      role="dialog"
-      aria-label="Bank"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🏦 Bank</h2>
+    <OverlayShell icon="🏦" title="Bank" onClose={onClose}>
       <p>
         Safe to spend: <strong>{formatCents(safeToSpendCents)}</strong>
       </p>
       {rows.length === 0 ? (
         <p>Nothing on the ledger yet.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {rows.map((row) => (
             <li
               key={`${row.kind}-${row.id}`}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
             >
               <span aria-hidden="true">{row.icon}</span>
               <span style={{ flex: 1 }}>{row.label}</span>
@@ -54,9 +42,6 @@ export function BankOverlay({ rows, safeToSpendCents, onClose }: BankOverlayProp
           ))}
         </ul>
       )}
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }
