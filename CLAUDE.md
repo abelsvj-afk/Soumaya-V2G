@@ -253,6 +253,21 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Reviving the dormant memory-storytelling systems (2026-09-12), not yet on-device
+  confirmed** — investigated first, not guessed (`docs/overworld/storytelling-revival.md`):
+  genuinely 3 distinct systems (a real naming collision calls both "the Chronicle" in different
+  comments), all with fully working, already-typed client wrappers sitting unused —
+  `getLore`/`evolveLore`, `getTimeline`/`addTimelineChapter`/`deleteTimelineChapter`,
+  `getCodexDiscoveries`/`claimCodexReward`. The gap was never the API layer, only that nothing
+  in the Overworld called them. Each got the real in-world home its data already implies:
+  Lore → `CreatureSummaryOverlay.tsx` (a memory's own evolving story, latest chapter + "✦
+  Evolve"); Timeline → `TownHallOverlay.tsx` (a life chapter is the same concept Journeys
+  already represent; deleting only offered for `origin === "user"` chapters, never Soumaya's own
+  auto-generated ones); Codex → `GymOverlay.tsx` (joins the one real Codex meta-achievement that
+  already lives there). Verified by 9 new tests across the three overlays + the full gate (1056
+  server + 389 web tests, typecheck, build). Not yet seen rendered in a real browser from this
+  sandbox.
+
 - **Reviving Lenses (2026-09-12), not yet on-device confirmed** — a real orphaned feature,
   confirmed by direct investigation (`docs/overworld/lenses-revival.md`): the server route/repo/
   shared types were never touched by the Overworld rewrite — only the entire client side

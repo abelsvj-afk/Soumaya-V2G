@@ -9,6 +9,11 @@ vi.mock("../../api/journeys.js", () => ({
   deleteJourney: vi.fn().mockResolvedValue({ ok: true }),
   journeyLinks: vi.fn().mockResolvedValue([]),
 }));
+vi.mock("../../api/client.js", () => ({
+  getTimeline: vi.fn().mockResolvedValue([]),
+  addTimelineChapter: vi.fn(),
+  deleteTimelineChapter: vi.fn(),
+}));
 
 function makeJourney(overrides = {}) {
   return { id: 1, title: "Moving out", description: "", status: "active", progress: 0.4, createdAt: "", updatedAt: "", ...overrides };
@@ -49,5 +54,63 @@ describe("TownHallOverlay", () => {
     await waitFor(() => screen.getByText(/Moving out/));
     fireEvent.click(screen.getByLabelText("Advance Moving out"));
     await waitFor(() => expect(patchJourney).toHaveBeenCalledWith(1, { progress: 1 }));
+  });
+
+  describe("Timeline (storytelling-revival.md, task #71)", () => {
+    function makeChapter(overrides = {}) {
+      return {
+        id: 1,
+        title: "A quiet season",
+        summary: "Not much changed.",
+        theme: "steady",
+        trend: "neutral" as const,
+        score: 0.1,
+        periodStart: "",
+        periodEnd: "",
+        memoryIds: [],
+        photoIds: [],
+        threads: [],
+        origin: "auto" as const,
+        createdAt: "",
+        ...overrides,
+      };
+    }
+
+    it("shows real chapters with a real, non-color trend badge", async () => {
+      const { getJourneys } = await import("../../api/journeys.js");
+      (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getTimeline } = await import("../../api/client.js");
+      (getTimeline as ReturnType<typeof vi.fn>).mockResolvedValue([makeChapter({ trend: "growth" })]);
+      render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/A quiet season/)).toBeTruthy());
+      expect(screen.getByText(/📈 growth/)).toBeTruthy();
+    });
+
+    it("only offers Delete for chapters the player wrote (origin === user)", async () => {
+      const { getJourneys } = await import("../../api/journeys.js");
+      (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getTimeline } = await import("../../api/client.js");
+      (getTimeline as ReturnType<typeof vi.fn>).mockResolvedValue([
+        makeChapter({ id: 1, title: "Soumaya's chapter", origin: "auto" }),
+        makeChapter({ id: 2, title: "My own chapter", origin: "user" }),
+      ]);
+      render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/My own chapter/)).toBeTruthy());
+      expect(screen.getAllByText("Delete")).toHaveLength(1);
+      expect(screen.getByLabelText("Delete My own chapter")).toBeTruthy();
+    });
+
+    it("marking a chapter now calls the real addTimelineChapter and refreshes the list", async () => {
+      const { getJourneys } = await import("../../api/journeys.js");
+      (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getTimeline, addTimelineChapter } = await import("../../api/client.js");
+      (getTimeline as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (addTimelineChapter as ReturnType<typeof vi.fn>).mockResolvedValue(makeChapter());
+      render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => screen.getByText(/No chapters chronicled yet/));
+      fireEvent.click(screen.getByText("+ Mark this chapter now"));
+      await waitFor(() => expect(addTimelineChapter).toHaveBeenCalled());
+      await waitFor(() => expect(getTimeline).toHaveBeenCalledTimes(2));
+    });
   });
 });
