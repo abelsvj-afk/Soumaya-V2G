@@ -253,6 +253,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real bug fix: Soumaya's chat overlay flashing open-then-closed (2026-09-12), not yet
+  on-device confirmed** — real user report: touching the A button to talk to Soumaya opened her
+  chat, which instantly closed again (holding the button was the only workaround). Root cause,
+  found by reading `TouchControls.tsx`: A's `onPointerDown` opened the overlay immediately, but
+  the browser still synthesizes a compatibility `click` after a touch gesture unless
+  `preventDefault()` is called — that ghost click landed on `OverlayShell`'s full-width Leave
+  button, which now sits at the exact screen position A occupied a frame earlier, closing the
+  overlay that had just opened. Fixed with `e.preventDefault()` in A's pointerdown handler (the
+  standard cross-browser fix for a lingering synthetic click after a touch gesture). Verified by
+  a new `TouchControls.test.tsx` assertion (`fireEvent.pointerDown` returns `false` — the signal
+  a cancelable event's `preventDefault()` was actually called) + the full gate (1051 server + 288
+  web tests, typecheck, build). Root-caused correctly from the report alone; still needs a real
+  on-device tap to confirm the flash is actually gone.
+
 - **Spaced repetition surfaced in the Overworld (2026-09-12), not yet on-device confirmed** —
   the SM-2 review engine (`analysis/review.ts`), its route, and even the typed client fetch
   functions (`getDueReviews`/`gradeReview`) were all already real and shipped, just never called

@@ -17,6 +17,13 @@ describe("TouchControls", () => {
     expect(onEvent).toHaveBeenCalledWith({ type: "interact" });
   });
 
+  it("A's pointerdown suppresses the browser's synthetic click (real bug: the overlay it opens has a" +
+    " Leave button that lands at this same screen position, and a lingering compatibility click was closing it)", () => {
+    render(<TouchControls onEvent={vi.fn()} onHoldChange={vi.fn()} />);
+    const event = fireEvent.pointerDown(screen.getByLabelText("A / Interact"));
+    expect(event).toBe(false); // fireEvent returns false when preventDefault() was called
+  });
+
   it("B is present but inert (no combat/menu system exists yet)", () => {
     render(<TouchControls onEvent={vi.fn()} onHoldChange={vi.fn()} />);
     expect((screen.getByLabelText("B") as HTMLButtonElement).disabled).toBe(true);

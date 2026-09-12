@@ -83,7 +83,20 @@ export function TouchControls({ onEvent, onHoldChange }: TouchControlsProps) {
         <button type="button" aria-label="B" disabled style={buttonStyle}>
           B
         </button>
-        <button type="button" aria-label="A / Interact" style={buttonStyle} onPointerDown={() => onEvent({ type: "interact" })}>
+        <button
+          type="button"
+          aria-label="A / Interact"
+          style={buttonStyle}
+          onPointerDown={(e) => {
+            // Real bug report: A opens an overlay (e.g. talking to Soumaya) whose Leave button
+            // then sits at this same screen position; without this, the browser still fires a
+            // synthetic compatibility "click" after the touch gesture, landing on whatever's now
+            // under the finger — Leave — so the overlay flashed open and instantly closed.
+            // preventDefault() on the pointer event suppresses that synthetic click entirely.
+            e.preventDefault();
+            onEvent({ type: "interact" });
+          }}
+        >
           A
         </button>
       </div>
