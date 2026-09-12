@@ -1,8 +1,16 @@
 import { useEffect, useState } from "react";
-import type { Journey, JourneyLinkSummary } from "@brain/shared";
+import type { Journey, JourneyLinkSummary, TimelineChapter } from "@brain/shared";
 import { createJourney, deleteJourney, getJourneys, journeyLinks, patchJourney } from "../../api/journeys.js";
+import { addTimelineChapter, deleteTimelineChapter, getTimeline } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+
+const TREND_BADGE: Record<TimelineChapter["trend"], string> = {
+  growth: "📈 growth",
+  decline: "📉 decline",
+  neutral: "➖ neutral",
+  mixed: "🔀 mixed",
+};
 
 export interface TownHallOverlayProps {
   spaceId: string;
@@ -16,6 +24,12 @@ export interface TownHallOverlayProps {
  * JourneysPanel's current actual scope (it doesn't do literal travel either). Starting a real
  * Journey, or advancing one's real progress, is Town Hall's own real work event
  * (npc-economy.md) — the same real Journey CRUD that's already Mira/Dez's civic theme.
+ *
+ * Timeline (revived, docs/overworld/storytelling-revival.md, task #71) — a life chapter is
+ * the same concept Journeys already represent here; the real, already-working
+ * `getTimeline`/`addTimelineChapter`/`deleteTimelineChapter` were simply never called from the
+ * Overworld. Deleting is only ever offered for chapters YOU wrote (`origin === "user"`) —
+ * Soumaya's own auto-generated ones are her real computed narrative, not a stray click's to erase.
  */
 export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
@@ -24,12 +38,33 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
   const [title, setTitle] = useState("");
   const [icon, setIcon] = useState("🧭");
   const [creating, setCreating] = useState(false);
+  const [chapters, setChapters] = useState<TimelineChapter[] | null>(null);
+  const [markingChapter, setMarkingChapter] = useState(false);
 
   const load = async () => setJourneys(await getJourneys());
+  const loadTimeline = async () => setChapters(await getTimeline());
 
   useEffect(() => {
     void load();
+    void loadTimeline();
   }, []);
+
+  const markChapter = async () => {
+    setMarkingChapter(true);
+    try {
+      const created = await addTimelineChapter();
+      if (created) {
+        recordBuildingWork(spaceId, "townHall");
+        await loadTimeline();
+      }
+    } finally {
+      setMarkingChapter(false);
+    }
+  };
+
+  const removeChapter = async (chapter: TimelineChapter) => {
+    if (await deleteTimelineChapter(chapter.id)) await loadTimeline();
+  };
 
   const create = async () => {
     const trimmed = title.trim();
@@ -124,6 +159,34 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
           {creating ? "…" : "Begin"}
         </button>
       </div>
+
+      <h3>Timeline</h3>
+      {chapters === null ? (
+        <p>Loading your Timeline...</p>
+      ) : chapters.length === 0 ? (
+        <p>No chapters chronicled yet.</p>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {chapters.map((c) => (
+            <li key={c.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <span style={{ flex: 1 }}>
+                <div>
+                  {c.title} — {TREND_BADGE[c.trend]}
+                </div>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>{c.summary}</div>
+              </span>
+              {c.origin === "user" && (
+                <button type="button" onClick={() => void removeChapter(c)} aria-label={`Delete ${c.title}`} style={actionButtonStyle()}>
+                  Delete
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <button type="button" onClick={markChapter} disabled={markingChapter} style={actionButtonStyle(markingChapter)}>
+        {markingChapter ? "…" : "+ Mark this chapter now"}
+      </button>
     </OverlayShell>
   );
 }

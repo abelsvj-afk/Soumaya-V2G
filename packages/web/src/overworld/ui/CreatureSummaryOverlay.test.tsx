@@ -6,8 +6,10 @@ import type { CreatureEntity } from "../types.js";
 vi.mock("../../api/journeys.js", () => ({
   journeysFor: vi.fn(),
 }));
-vi.mock("../../api/features.js", () => ({
+vi.mock("../../api/client.js", () => ({
   gradeReview: vi.fn(),
+  getLore: vi.fn().mockResolvedValue([]),
+  evolveLore: vi.fn(),
 }));
 
 function makeCreature(overrides: Partial<CreatureEntity> = {}): CreatureEntity {
@@ -74,7 +76,7 @@ describe("CreatureSummaryOverlay (Details tab equivalent)", () => {
   it("a recall check hides content until revealed, then grades a real attempt and closes", async () => {
     const { journeysFor } = await import("../../api/journeys.js");
     (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    const { gradeReview } = await import("../../api/features.js");
+    const { gradeReview } = await import("../../api/client.js");
     (gradeReview as ReturnType<typeof vi.fn>).mockResolvedValue(true);
     const onClose = vi.fn();
     const onGraded = vi.fn();
@@ -92,5 +94,48 @@ describe("CreatureSummaryOverlay (Details tab equivalent)", () => {
     await waitFor(() => expect(gradeReview).toHaveBeenCalledWith(1, true));
     await waitFor(() => expect(onGraded).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("Lore (storytelling-revival.md, task #71)", () => {
+    it("shows the real latest chapter once its lore loads", async () => {
+      const { journeysFor } = await import("../../api/journeys.js");
+      (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getLore } = await import("../../api/client.js");
+      (getLore as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, subjectType: "memory", subjectId: "1", version: 1, text: "It began quietly.", trigger: "genesis", createdAt: "" },
+        { id: 2, subjectType: "memory", subjectId: "1", version: 2, text: "It grew, connected to others.", trigger: "evolved", createdAt: "" },
+      ]);
+      render(<CreatureSummaryOverlay creature={makeCreature()} onGreet={vi.fn()} onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("It grew, connected to others.")).toBeTruthy());
+      expect(screen.getByText("Chapter 2")).toBeTruthy();
+      expect(getLore).toHaveBeenCalledWith("memory", "1");
+    });
+
+    it("shows a never-chronicled message rather than a blank Lore section", async () => {
+      const { journeysFor } = await import("../../api/journeys.js");
+      (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getLore } = await import("../../api/client.js");
+      (getLore as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      render(<CreatureSummaryOverlay creature={makeCreature()} onGreet={vi.fn()} onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/No story chronicled yet/)).toBeTruthy());
+    });
+
+    it("evolving writes and shows the real next chapter", async () => {
+      const { journeysFor } = await import("../../api/journeys.js");
+      (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getLore, evolveLore } = await import("../../api/client.js");
+      (getLore as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, subjectType: "memory", subjectId: "1", version: 1, text: "It began quietly.", trigger: "genesis", createdAt: "" },
+      ]);
+      (evolveLore as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, subjectType: "memory", subjectId: "1", version: 1, text: "It began quietly.", trigger: "genesis", createdAt: "" },
+        { id: 2, subjectType: "memory", subjectId: "1", version: 2, text: "Something new happened.", trigger: "manual", createdAt: "" },
+      ]);
+      render(<CreatureSummaryOverlay creature={makeCreature()} onGreet={vi.fn()} onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("It began quietly.")).toBeTruthy());
+      fireEvent.click(screen.getByText("✦ Evolve"));
+      await waitFor(() => expect(evolveLore).toHaveBeenCalledWith("memory", "1"));
+      await waitFor(() => expect(screen.getByText("Something new happened.")).toBeTruthy());
+    });
   });
 });

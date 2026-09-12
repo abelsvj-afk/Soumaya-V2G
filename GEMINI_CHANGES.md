@@ -1,3 +1,23 @@
+### 2026-09-12 (Claude): Reviving the dormant memory-storytelling systems (task #71)
+- [ ] Verified by Claude
+- Investigated first, not guessed (`docs/overworld/storytelling-revival.md`) per Rule #1:
+  genuinely 3 distinct systems, not 2 — Lore and Timeline are structurally separate (different
+  tables/routes/types) despite both being called "the Chronicle" in different comments. All
+  three have fully working, already-typed client wrappers sitting unused in
+  `api/client.ts`/`features.ts` — the gap was never the API layer.
+- Each system got the real in-world home its own data already implies, not a new place:
+  - **Lore** → `CreatureSummaryOverlay.tsx` — a memory's own evolving story, latest chapter
+    shown, a real "✦ Evolve" button writes the next one.
+  - **Timeline** → `TownHallOverlay.tsx` — a life chapter is the same concept Journeys already
+    represent. Real chapters with a non-color trend badge; deleting only offered for
+    `origin === "user"` chapters, never Soumaya's own auto-generated ones.
+  - **Codex** → `GymOverlay.tsx` — joins the one real Codex meta-achievement already there.
+    Claiming shows the real idempotent-server result and disables that button for the session —
+    no invented "already claimed" tracking, since no such signal is actually exposed.
+- Verified by 9 new tests across `CreatureSummaryOverlay.test.tsx`/`TownHallOverlay.test.tsx`/
+  `GymOverlay.test.tsx` + the full gate (1056 server + 389 web tests, typecheck, build). Not yet
+  seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Reviving Lenses (task #72)
 - [ ] Verified by Claude
 - A real orphaned feature, confirmed by direct investigation before writing anything

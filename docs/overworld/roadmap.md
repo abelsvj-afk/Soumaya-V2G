@@ -1059,6 +1059,33 @@ API calls) + 3 existing cases updated for the new `getLenses` call on open, and 
 (1056 server + 380 web tests, typecheck, build). Not yet seen rendered in a real browser from
 this sandbox.
 
+## Stage 2.33 — Reviving the dormant memory-storytelling systems (task #71)
+
+Investigated first, not guessed (`docs/overworld/storytelling-revival.md`), per Rule #1: this is
+genuinely **3 distinct systems**, not 2 — a real naming collision in the codebase calls both
+Lore and Timeline "the Chronicle" in different comments, but they have separate DB tables,
+routes, and shared types. All three have fully working, already-typed client wrappers
+(`getLore`/`evolveLore`, `getTimeline`/`addTimelineChapter`/`deleteTimelineChapter`,
+`getCodexDiscoveries`/`claimCodexReward`) sitting unused in `api/client.ts`/`features.ts` — the
+gap was never the API layer, only that nothing in the Overworld ever called them.
+
+Each system got the real in-world home its own data already implies, not a new place:
+- **Lore** → `CreatureSummaryOverlay.tsx`. A memory's own evolving story belongs right where you
+  already read everything else about that memory — latest chapter shown, a real "✦ Evolve"
+  button writes the next one.
+- **Timeline** → `TownHallOverlay.tsx`. A life chapter is the same concept Journeys already
+  represent at Town Hall. Real chapters list with a non-color trend badge (📈/📉/➖/🔀); deleting
+  is only ever offered for chapters origin === "user" wrote — Soumaya's own auto-generated ones
+  are her real computed narrative, not a stray click's to erase.
+- **Codex** → `GymOverlay.tsx`. Already the real home of the one Codex meta-achievement that
+  exists today; the browsable discoveries feed joins its own achievement family. Claiming shows
+  the real idempotent-server result and disables that one button for the session — no invented
+  "already claimed" tracking, since no such signal is actually exposed client-side.
+
+Verified by 3 new `CreatureSummaryOverlay.test.tsx` cases, 3 new `TownHallOverlay.test.tsx`
+cases, 3 new `GymOverlay.test.tsx` cases, and the full gate (1056 server + 389 web tests,
+typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
