@@ -59,4 +59,22 @@ describe("HangarOverlay", () => {
       expect(screen.getAllByText("Armed")).toHaveLength(1); // only Bench, not Garden Bed too
     });
   });
+
+  describe("Zoning (zoning.md)", () => {
+    it("shows zero zoned tiles per type with an empty plan, and arming is free regardless of treasury", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText(/Residential — 0 zoned/)).toBeTruthy();
+      expect(screen.getByText(/Commercial — 0 zoned/)).toBeTruthy();
+      fireEvent.click(screen.getAllByText("Zone")[0]!); // Residential — no treasury needed
+      expect(screen.getByText("Residential")).toBeTruthy(); // the "ready to paint" banner's <strong>
+    });
+
+    it("arming a second zone type re-arms rather than queuing", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Zone")[0]!); // Residential
+      fireEvent.click(screen.getAllByText("Zone")[0]!); // Commercial (Residential's button now says "Armed")
+      expect(screen.getByText("Commercial")).toBeTruthy();
+      expect(screen.getAllByText("Armed")).toHaveLength(1);
+    });
+  });
 });

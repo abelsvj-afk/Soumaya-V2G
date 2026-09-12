@@ -1,3 +1,27 @@
+### 2026-09-12 (Claude): Zoning — the real foundation under housing and business
+- [ ] Verified by Claude
+- Direct answer to "I also need zoning to be a thing... where homes can go... where commercial
+  buildings can go to earn income." Specced first (`docs/overworld/zoning.md`) per Rule #1: a
+  zone is a per-tile tag (matching town-builder's own tile-at-a-time mechanic, not a drawn
+  region), 4 real types (residential/commercial/sidewalk/transit — transit marks a stop only,
+  no moving buses/trains yet, stated as deferred not hidden), and zoning itself is FREE — only
+  building on a zoned tile later costs anything, once tasks #66/#67 exist and actually gate
+  placement by zone type.
+- Reuses town-builder's exact arm-then-place interaction as a second, parallel arm mode in
+  `handleInteract()` — kept separate rather than merged, since tagging a tile and placing a
+  decor item are conceptually different actions.
+- New `data/zoning.ts` (pure, localStorage-backed, same shape as `townBuilder.ts`); zoned tiles
+  render as a distinct low-alpha glyph per type (🏠🏪➰🚏, never color-only); a new "Zoning"
+  section in the Hangar arms a type for free, showing a real per-type count — never an invented
+  score, since the actual economic effect only becomes real once #66/#67 land.
+- Also fixed a stale comment on `NPC_STEP_MS` (left over from before the movement-speed round)
+  that still claimed NPCs move faster than the player — factually wrong against the real,
+  already-measured 160ms vs 140ms numbers.
+- Verified by 10 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases, the same
+  857-of-1104-tiles-zonable measurement town-builder's own placement already proved (both reuse
+  `isPlacementBlocked`), and the full gate (1056 server + 313 web tests, typecheck, build). Not
+  yet seen rendered in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): NPCs read as walking, not gliding; Park stops looking like a building
 - [ ] Verified by Claude
 - "NPCs shouldn't fly across the map or move any quicker than I can": measured the real numbers

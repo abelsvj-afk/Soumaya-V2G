@@ -4,7 +4,15 @@ import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOpti
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
+import { armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneType } from "../data/zoning.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+
+const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
+  residential: { label: "Residential", icon: "🏠" },
+  commercial: { label: "Commercial", icon: "🏪" },
+  sidewalk: { label: "Sidewalk", icon: "➰" },
+  transit: { label: "Transit stop", icon: "🚏" },
+};
 
 export interface HangarOverlayProps {
   spaceId: string;
@@ -59,6 +67,11 @@ function formatCents(cents: number): string {
  * item; closing this overlay and pressing interact facing an open tile in the world places it
  * (ExteriorScene.ts). Only ever one item armed at a time — buying a second re-arms rather than
  * queuing, and the real work credit for a placement happens at that moment, not here at purchase.
+ *
+ * Zoning (docs/overworld/zoning.md, task #75) — the real SimCity foundation under housing/
+ * business: arming a zone type is FREE (a planning decision, never a purchase), then the same
+ * walk-up-and-press-A action tags a tile instead of placing an item. Its own real, honest
+ * "positive/negative effect" is the plain per-type count below — never an invented score.
  */
 export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlayProps) {
   const keys = hangarKeys(spaceId);
@@ -69,6 +82,8 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [fig2, setFig2] = useState(() => localStorage.getItem(keys.fig2) || "none");
   const [armed, setArmed] = useState(() => armedItemId(spaceId));
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
+  const [armedZone, setArmedZone] = useState(() => armedZoneType(spaceId));
+  const counts = zoneCounts(spaceId);
 
   const persist = (key: string, value: string, setter: (v: string) => void) => {
     localStorage.setItem(key, value);
@@ -82,6 +97,11 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
       setArmed(itemId);
       setBalance(treasuryBalanceCents(spaceId));
     }
+  };
+
+  const armZone = (type: ZoneType) => {
+    armZoneType(spaceId, type);
+    setArmedZone(type);
   };
 
   return (
@@ -129,6 +149,33 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
                 style={actionButtonStyle(isArmed || !affordable)}
               >
                 {isArmed ? "Armed" : affordable ? "Buy" : "Can't afford"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <h3>Zoning</h3>
+      <p style={{ marginTop: 0 }}>
+        Free to plan — only building on a zoned tile later costs anything.
+        {armedZone && (
+          <>
+            {" "}
+            — <strong>{ZONE_META[armedZone].label}</strong> is ready to paint: leave here, walk up to an open tile, and press A.
+          </>
+        )}
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {ZONE_TYPES.map((type) => {
+          const isArmed = armedZone === type;
+          return (
+            <li key={type} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <span aria-hidden="true">{ZONE_META[type].icon}</span>
+              <span style={{ flex: 1 }}>
+                {ZONE_META[type].label} — {counts[type]} zoned
+              </span>
+              <button type="button" onClick={() => armZone(type)} disabled={isArmed} style={actionButtonStyle(isArmed)}>
+                {isArmed ? "Armed" : "Zone"}
               </button>
             </li>
           );

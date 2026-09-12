@@ -253,6 +253,23 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Zoning: the real foundation under housing and business (2026-09-12), not yet on-device
+  confirmed** — direct answer to "I also need zoning to be a thing... where homes can go...
+  where commercial buildings can go to earn income." Specced first
+  (`docs/overworld/zoning.md`): a zone is a per-tile tag (matching town-builder's own
+  tile-at-a-time mechanic), 4 real types (residential/commercial/sidewalk/transit), zoning
+  itself is FREE — only building on a zoned tile later costs anything, once tasks #66/#67 exist.
+  Reuses town-builder's exact arm-then-place interaction as a second, parallel arm mode; new
+  `data/zoning.ts`; zoned tiles render as a distinct low-alpha glyph per type
+  (🏠🏪➰🚏, never color-only); a new Hangar "Zoning" section arms a type for free. The
+  request's "positive/negative economic effect" becomes real once #66/#67 gate placement by
+  zone — this slice's own honest contribution is a real per-type count, never an invented
+  score. Also fixed a stale comment on `NPC_STEP_MS` left over from before the movement-speed
+  fix that contradicted the real, already-measured numbers. Verified by 10 new + 2 updated
+  tests + the same 857-of-1104-tiles measurement town-builder's own placement already proved +
+  the full gate (1056 server + 313 web tests, typecheck, build) — not yet seen rendered in a
+  real browser.
+
 - **NPCs read as walking, not gliding; Park stops looking like a building (2026-09-12), not yet
   on-device confirmed** — two complaints, each checked against the actual code, not guessed.
   "NPCs shouldn't move quicker than I can": measured the real numbers — the player's step tween

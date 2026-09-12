@@ -104,6 +104,7 @@ export function OverworldRoot() {
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
       sceneRef.current?.refreshPlacedItems();
+      sceneRef.current?.refreshZoneMarkers();
       void checkTownMeetingEffect();
       return next;
     } catch (err) {
@@ -174,6 +175,12 @@ export function OverworldRoot() {
       // town-builder.md — a real placement is the Hangar's own real work event, same as any
       // cosmetic change there; the actual persistence + rendering already happened in the scene.
       scene.events.on("item-placed", () => {
+        const spaceIdForWork = getSpaceId();
+        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
+      });
+      // zoning.md — a real zoning decision is also the Hangar's own real work event, even
+      // though zoning itself is free (only building on a zoned tile will later cost anything).
+      scene.events.on("tile-zoned", () => {
         const spaceIdForWork = getSpaceId();
         if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
       });
