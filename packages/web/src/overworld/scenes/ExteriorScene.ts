@@ -180,6 +180,12 @@ export class ExteriorScene extends Phaser.Scene {
    *  transition or a Town Meeting call can cleanly interrupt one in flight (kill the in-progress
    *  walk tween) instead of fighting it. */
   private outingActive = new Set<string>();
+  /** Cross-building social depth (docs/overworld/social-depth.md, task #59) — npcIds (post.npcId)
+   *  currently genuinely LINGERING at their outing destination, mapped to which place that is.
+   *  Present only during the linger phase (added when the outbound walk completes, removed the
+   *  moment the return leg begins) — this is the real "who's actually standing at Park/Market
+   *  right now" signal a cross-building encounter checks against. */
+  private outingArrivedAt = new Map<string, PlaceId>();
   private soumaya: SoumayaSprite | null = null;
   /** Town Builder (docs/overworld/town-builder.md, task #65) — real player-placed decor, keyed
    *  by its persisted PlacedItem id so a single placement can be re-rendered without redrawing
@@ -757,6 +763,7 @@ export class ExteriorScene extends Phaser.Scene {
     if (this.outingActive.delete(sprite.post.npcId)) {
       this.tweens.killTweensOf(sprite.image);
     }
+    this.outingArrivedAt.delete(sprite.post.npcId); // no longer a real encounter target either way
     const door = this.doorTileFor(sprite.post.placeId);
     const doorX = door.x * TILE_SIZE + TILE_SIZE / 2;
     const doorY = door.y * TILE_SIZE + TILE_SIZE / 2;
@@ -864,15 +871,17 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** Alternates Park and Market deterministically per NPC (never Math.random) — the two real
-   *  off-duty destinations this round ships (npc-autonomy.md decision #4). Falls back to the
-   *  NPC's own post if neither building's posts can be found, which should be unreachable in
-   *  practice (both are always in DOOR_PLACES) but keeps this tolerate-gracefully rather than
-   *  throwing on a future layout change. */
+   *  off-duty destinations this round ships (npc-autonomy.md decision #4). */
+  private outingDestinationPlaceId(sequence: number): PlaceId {
+    return sequence % 2 === 0 ? "park" : "market";
+  }
+
+  /** Falls back to the NPC's own post if neither building's posts can be found, which should be
+   *  unreachable in practice (both are always in DOOR_PLACES) but keeps this
+   *  tolerate-gracefully rather than throwing on a future layout change. */
   private outingDestinationTile(sprite: AttendantSprite, sequence: number): GridPosition {
     const posts = attendantPosts();
-    const park = posts.find((p) => p.placeId === "park");
-    const market = posts.find((p) => p.placeId === "market");
-    const chosen = sequence % 2 === 0 ? park : market;
+    const chosen = posts.find((p) => p.placeId === this.outingDestinationPlaceId(sequence));
     return (chosen ?? sprite.post).a;
   }
 
@@ -886,6 +895,7 @@ export class ExteriorScene extends Phaser.Scene {
 
     const sequence = sprite.outingCount ?? 0;
     sprite.outingCount = sequence + 1;
+    const destinationPlaceId = this.outingDestinationPlaceId(sequence);
     const destination = this.outingDestinationTile(sprite, sequence);
     const outbound = findPath(this.spriteTile(sprite), destination, NPC_PATH_GRID);
     if (!outbound) return; // genuinely unreachable — tolerate gracefully, just skip this outing
@@ -899,11 +909,16 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.image.setVisible(true);
     sprite.image.setAlpha(1);
     this.walkPath(sprite, outbound, () => {
+      // Cross-building social depth (social-depth.md) — genuinely arrived and about to linger;
+      // this is the real moment to check whether anyone else is already there.
+      this.outingArrivedAt.set(sprite.post.npcId, destinationPlaceId);
+      this.tryCrossBuildingEncounter(sprite, destinationPlaceId);
       const lingerMs = prefersReducedMotion() ? 200 : 1800;
       this.time.delayedCall(lingerMs, () => {
         // A real schedule transition may have already reclaimed this sprite (applySocietyState
         // deletes from outingActive and kills the tween) — if so, there's nothing left to do.
         if (!this.outingActive.has(sprite.post.npcId)) return;
+        this.outingArrivedAt.delete(sprite.post.npcId); // leaving — no longer a real encounter target
         const inbound = findPath(destination, sprite.post.a, NPC_PATH_GRID);
         if (!inbound) {
           // Couldn't route back — snap straight to post rather than leaving them stranded
@@ -952,6 +967,55 @@ export class ExteriorScene extends Phaser.Scene {
     // the no-dark-patterns rule (a paused number, not a punished one).
     const placeId = npcProfile(a.id).placeId;
     if (!isNeglected(buildingNeglect(this.spaceId, placeId))) {
+      bumpRelationship(this.spaceId, a.id, b.id);
+    }
+  }
+
+  /** Cross-building social depth (docs/overworld/social-depth.md, task #59) — checks whether
+   *  another NPC (from a DIFFERENT building; same-building pairs already meet at their own
+   *  post via `triggerNpcInteraction`) is already genuinely lingering at the same real outing
+   *  destination this sprite just arrived at. At most one encounter per arrival — if several
+   *  NPCs are already there, this pairs with whichever is found first, a real, disclosed
+   *  simplification rather than an exhaustive N-way check. */
+  private tryCrossBuildingEncounter(sprite: AttendantSprite, placeId: PlaceId): void {
+    const selfId = asSocietyNpcId(sprite.post.npcId);
+    if (!selfId) return;
+    for (const [otherNpcId, otherPlaceId] of this.outingArrivedAt) {
+      if (otherNpcId === sprite.post.npcId || otherPlaceId !== placeId) continue;
+      const otherId = asSocietyNpcId(otherNpcId);
+      if (!otherId) continue;
+      const otherSprite = this.attendantSprites.find((s) => s.post.npcId === otherNpcId);
+      if (!otherSprite) continue;
+      this.triggerCrossBuildingInteraction({ sprite, id: selfId }, { sprite: otherSprite, id: otherId });
+      return;
+    }
+  }
+
+  /** The cross-building twin of `triggerNpcInteraction` — same real speech-bubble + relationship
+   *  shape, with two deliberate differences (social-depth.md decisions #2/#3): the dialogue pool
+   *  is capped at "acquaintances" (every hand-authored "friend line" assumes a same-building
+   *  partner — reusing one verbatim here would put a misdescriptive line in an NPC's mouth), and
+   *  relationship growth pauses if EITHER npc's own home building is neglected, not just one. */
+  private triggerCrossBuildingInteraction(
+    a: { sprite: AttendantSprite; id: SocietyNpcId },
+    b: { sprite: AttendantSprite; id: SocietyNpcId },
+  ): void {
+    if (!prefersReducedMotion()) {
+      const midX = (a.sprite.image.x + b.sprite.image.x) / 2;
+      const midY = (a.sprite.image.y + b.sprite.image.y) / 2;
+      this.tweens.add({ targets: a.sprite.image, x: midX - TILE_SIZE * 0.2, y: midY, duration: 500, ease: "Sine.easeInOut" });
+      this.tweens.add({ targets: b.sprite.image, x: midX + TILE_SIZE * 0.2, y: midY, duration: 500, ease: "Sine.easeInOut" });
+    }
+
+    const unlocked = loadUnlocked(this.spaceId);
+    const nameA = npcProfile(a.id).name;
+    const nameB = npcProfile(b.id).name;
+    const seed = this.societyTickCount;
+    this.showSpeechBubble(a.sprite, dialogueFor(a.id, unlocked, "acquaintances", nameB, seed));
+    this.showSpeechBubble(b.sprite, dialogueFor(b.id, unlocked, "acquaintances", nameA, seed + 1));
+    const aNeglected = isNeglected(buildingNeglect(this.spaceId, npcProfile(a.id).placeId));
+    const bNeglected = isNeglected(buildingNeglect(this.spaceId, npcProfile(b.id).placeId));
+    if (!aNeglected && !bNeglected) {
       bumpRelationship(this.spaceId, a.id, b.id);
     }
   }
@@ -1025,6 +1089,7 @@ export class ExteriorScene extends Phaser.Scene {
     if (this.outingActive.delete(sprite.post.npcId)) {
       this.tweens.killTweensOf(sprite.image);
     }
+    this.outingArrivedAt.delete(sprite.post.npcId); // no longer a real encounter target either way
     sprite.atMeeting = true;
     sprite.image.setVisible(true);
     sprite.image.setAlpha(1);
