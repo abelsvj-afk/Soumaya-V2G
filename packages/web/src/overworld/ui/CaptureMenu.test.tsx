@@ -13,6 +13,7 @@ function makeCreature(): CreatureEntity {
     entropy: 0,
     degree: 0,
     isDue: false,
+    dueForRecall: false,
     spriteKey: "creature_default",
     uncharted: true,
   };

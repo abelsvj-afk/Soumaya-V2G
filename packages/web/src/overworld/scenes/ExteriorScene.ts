@@ -896,6 +896,13 @@ export class ExteriorScene extends Phaser.Scene {
       marker.setOrigin(0.5);
       container.add(marker);
     }
+    // spaced-repetition.md — a DIFFERENT signal from isDue's ambient entropy dim, offset to a
+    // different anchor so both markers can render at once without overlapping.
+    if (entity.dueForRecall) {
+      const recallMarker = this.add.text(TILE_SIZE * 0.4, -TILE_SIZE * 0.45, "💭", { fontSize: "13px" });
+      recallMarker.setOrigin(0.5);
+      container.add(recallMarker);
+    }
     const badge = this.add.text(TILE_SIZE * 0.22, TILE_SIZE * 0.22, entity.rarity.badge, { fontSize: "10px" });
     badge.setOrigin(0.5);
     container.add(badge);

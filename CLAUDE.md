@@ -253,6 +253,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Spaced repetition surfaced in the Overworld (2026-09-12), not yet on-device confirmed** —
+  the SM-2 review engine (`analysis/review.ts`), its route, and even the typed client fetch
+  functions (`getDueReviews`/`gradeReview`) were all already real and shipped, just never called
+  anywhere in the client — this round is a presentation gap closed, not new backend. Added a
+  second, independent-from-entropy `dueForRecall` signal (a "💭" in-world marker distinct from
+  the existing "?" dim marker — the two can co-occur), a real "Recall check" in
+  `CreatureSummaryOverlay` (hides content until you choose to try to recall it, then grades a
+  real attempt), and a one-line proactive nudge in Soumaya's chat greeting naming the weakest due
+  memory with a real "📍 Go there" — deliberately NOT a separate review-deck screen (rejected as
+  the literal Anki-deck shape NEURO_ALIGNMENT says to avoid). See `docs/overworld/spaced-
+  repetition.md` and `docs/overworld/roadmap.md`'s "Stage 2.15". Verified by new/updated tests
+  (nodeToCreature, loadWorldSnapshot, CreatureSummaryOverlay, SoumayaChatOverlay) + the full gate
+  (1051 server + 287 web tests, typecheck, build) — not yet seen rendered in a real browser.
+
 - **Dialogue duration + a real themed overlay panel (2026-09-12), not yet on-device confirmed**
   — two concrete complaints from a roadmap discussion: dialogue "doesn't stick around long
   enough to read," and every building overlay "look[s] ugly" next to the old galaxy panels.

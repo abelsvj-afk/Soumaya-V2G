@@ -27,6 +27,9 @@ export function spriteKeyForType(type: NodeType): string {
 export interface NodeToCreatureOpts {
   /** Whether this node is linked to at least one Journey — false places it in the "uncharted" strip. */
   hasJourney?: boolean;
+  /** Is this node in the server's SM-2 due-for-review list right now (spaced-repetition.md)?
+   *  A different signal from entropy/`isDue` — never derived from it. */
+  dueForRecall?: boolean;
 }
 
 /**
@@ -46,6 +49,7 @@ export function nodeToCreature(node: GraphNode, opts: NodeToCreatureOpts = {}): 
     entropy,
     degree: node.degree ?? 0,
     isDue: entropy >= COOLING_ENTROPY,
+    dueForRecall: opts.dueForRecall ?? false,
     spriteKey: spriteKeyForType(node.type),
     uncharted: !opts.hasJourney,
   };

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { NodeRef } from "@brain/shared";
 import { askChat } from "../../api/client.js";
+import type { DueReview } from "../../api/features.js";
 import type { CreatureEntity } from "../types.js";
 import { actionButtonStyle, fieldStyle, leaveButtonStyle, OverlayShell } from "./OverlayShell.js";
 
@@ -11,6 +12,9 @@ export interface SoumayaChatOverlayProps {
   /** Pans the exterior scene's camera to a creature's tile — the 2D equivalent of the
    *  galaxy's existing chat-citation "fly to" feature. */
   onFlyToNode: (nodeId: number) => void;
+  /** spaced-repetition.md — the server's current SM-2 due list, so Soumaya can nudge by name
+   *  in her own voice instead of a separate review-deck screen. */
+  dueReviews?: DueReview[];
 }
 
 interface Turn {
@@ -25,12 +29,14 @@ interface Turn {
  * region gets a "📍 Go there" button that pans the camera, mirroring the galaxy's existing
  * fly-to-citation behavior (CLAUDE.md).
  */
-export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode }: SoumayaChatOverlayProps) {
+export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode, dueReviews = [] }: SoumayaChatOverlayProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState(false);
 
   const creatureByNodeId = new Map(creatures.map((c) => [c.nodeId, c]));
+  const strongestDue = dueReviews.length > 0 ? dueReviews[0] : null;
+  const strongestDueCreature = strongestDue ? creatureByNodeId.get(strongestDue.id) : undefined;
 
   const ask = async () => {
     const text = question.trim();
@@ -82,7 +88,24 @@ export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode }: SoumayaC
         </div>
       }
     >
-      {turns.length === 0 && <p style={{ marginTop: 0 }}>Hey — what's on your mind?</p>}
+      {turns.length === 0 && dueReviews.length === 0 && <p style={{ marginTop: 0 }}>Hey — what's on your mind?</p>}
+      {turns.length === 0 && strongestDue && (
+        <div style={{ marginTop: 0, marginBottom: 8 }}>
+          <p style={{ margin: 0 }}>
+            Hey — {dueReviews.length === 1 ? "one memory's" : `${dueReviews.length} memories are`} ready for a recall
+            check whenever you want. "{strongestDue.label}" is the one that could use it most.
+          </p>
+          {strongestDueCreature && (
+            <button
+              type="button"
+              onClick={() => goTo(strongestDueCreature.nodeId)}
+              style={{ ...actionButtonStyle(), marginTop: 6, padding: "2px 6px", fontSize: 11 }}
+            >
+              📍 Go there
+            </button>
+          )}
+        </div>
+      )}
       {turns.map((t, i) => (
         <div key={i} style={{ marginBottom: 8, textAlign: t.role === "you" ? "right" : "left" }}>
           <div>{t.text}</div>

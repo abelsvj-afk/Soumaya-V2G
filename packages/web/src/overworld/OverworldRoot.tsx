@@ -353,12 +353,23 @@ export function OverworldRoot() {
       {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
-        <SoumayaChatOverlay onClose={closeOverlay} creatures={snapshot?.creatures ?? []} onFlyToNode={flyToNode} />
+        <SoumayaChatOverlay
+          onClose={closeOverlay}
+          creatures={snapshot?.creatures ?? []}
+          onFlyToNode={flyToNode}
+          dueReviews={snapshot?.dueReviews ?? []}
+        />
       )}
 
       {overlay.kind === "capture" && <CaptureMenu onSubmit={handleCaptureSubmit} onClose={closeOverlay} />}
       {overlay.kind === "details" && (
-        <CreatureSummaryOverlay creature={overlay.creature} onGreet={handleGreetConfirm} onClose={closeOverlay} busy={greetBusy} />
+        <CreatureSummaryOverlay
+          creature={overlay.creature}
+          onGreet={handleGreetConfirm}
+          onClose={closeOverlay}
+          busy={greetBusy}
+          onGraded={() => void refresh()}
+        />
       )}
     </div>
   );

@@ -6,6 +6,9 @@ import type { CreatureEntity } from "../types.js";
 vi.mock("../../api/journeys.js", () => ({
   journeysFor: vi.fn(),
 }));
+vi.mock("../../api/features.js", () => ({
+  gradeReview: vi.fn(),
+}));
 
 function makeCreature(overrides: Partial<CreatureEntity> = {}): CreatureEntity {
   return {
@@ -17,6 +20,7 @@ function makeCreature(overrides: Partial<CreatureEntity> = {}): CreatureEntity {
     entropy: 0.1,
     degree: 3,
     isDue: false,
+    dueForRecall: false,
     spriteKey: "creature_default",
     uncharted: true,
     ...overrides,
@@ -57,6 +61,36 @@ describe("CreatureSummaryOverlay (Details tab equivalent)", () => {
     fireEvent.click(screen.getByText("Greet"));
     expect(onGreet).toHaveBeenCalled();
     fireEvent.click(screen.getByText("Close"));
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("hides no recall check when the node isn't dueForRecall", async () => {
+    const { journeysFor } = await import("../../api/journeys.js");
+    (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    render(<CreatureSummaryOverlay creature={makeCreature()} onGreet={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.queryByText(/recall check/)).toBeNull();
+  });
+
+  it("a recall check hides content until revealed, then grades a real attempt and closes", async () => {
+    const { journeysFor } = await import("../../api/journeys.js");
+    (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    const { gradeReview } = await import("../../api/features.js");
+    (gradeReview as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+    const onClose = vi.fn();
+    const onGraded = vi.fn();
+    render(
+      <CreatureSummaryOverlay
+        creature={makeCreature({ dueForRecall: true })}
+        onGreet={vi.fn()}
+        onClose={onClose}
+        onGraded={onGraded}
+      />,
+    );
+    expect(screen.queryByText("I remembered")).toBeNull();
+    fireEvent.click(screen.getByText("Try to recall it first"));
+    fireEvent.click(screen.getByText("I remembered"));
+    await waitFor(() => expect(gradeReview).toHaveBeenCalledWith(1, true));
+    await waitFor(() => expect(onGraded).toHaveBeenCalled());
     expect(onClose).toHaveBeenCalled();
   });
 });

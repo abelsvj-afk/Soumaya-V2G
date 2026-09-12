@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Journey } from "@brain/shared";
 import { journeysFor } from "../../api/journeys.js";
+import { gradeReview } from "../../api/features.js";
 import type { CreatureEntity } from "../types.js";
 
 export interface CreatureSummaryOverlayProps {
@@ -8,6 +9,9 @@ export interface CreatureSummaryOverlayProps {
   onGreet: () => void;
   onClose: () => void;
   busy?: boolean;
+  /** spaced-repetition.md — called after a real recall attempt is graded, so the caller can
+   *  refresh the world snapshot (the same pattern onGreet already uses for tendNode). */
+  onGraded?: () => void;
 }
 
 /**
@@ -15,13 +19,31 @@ export interface CreatureSummaryOverlayProps {
  * and which Journey it belongs to (idea.md: "a memory can belong to no Journey" — shown
  * as "Uncharted", never an error). Every interaction with a creature opens this first;
  * greeting (FR11/FR12) is one action available from it, not a separate screen.
+ *
+ * spaced-repetition.md — when the node is on the server's SM-2 due list (`dueForRecall`,
+ * a DIFFERENT signal from `isDue`'s ambient entropy dim), it also grows a real "Recall check":
+ * content stays hidden until you choose to try to recall it first, then grades the real
+ * attempt via the now-finally-used `gradeReview` — never a client-side memory-strength guess.
  */
-export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy }: CreatureSummaryOverlayProps) {
+export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy, onGraded }: CreatureSummaryOverlayProps) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
+  const [revealed, setRevealed] = useState(false);
+  const [grading, setGrading] = useState(false);
 
   useEffect(() => {
     void journeysFor("node", creature.nodeId).then(setJourneys);
   }, [creature.nodeId]);
+
+  const grade = async (remembered: boolean) => {
+    setGrading(true);
+    try {
+      await gradeReview(creature.nodeId, remembered);
+      onGraded?.();
+    } finally {
+      setGrading(false);
+      onClose();
+    }
+  };
 
   return (
     <div
@@ -64,6 +86,25 @@ export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy }: Cre
           Close
         </button>
       </div>
+      {creature.dueForRecall && (
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2c55" }}>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>💭 This one's ready for a recall check.</div>
+          {!revealed ? (
+            <button type="button" style={{ marginTop: 6 }} onClick={() => setRevealed(true)}>
+              Try to recall it first
+            </button>
+          ) : (
+            <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+              <button type="button" disabled={grading} onClick={() => void grade(true)}>
+                {grading ? "…" : "I remembered"}
+              </button>
+              <button type="button" disabled={grading} onClick={() => void grade(false)}>
+                {grading ? "…" : "Let's refresh it"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
