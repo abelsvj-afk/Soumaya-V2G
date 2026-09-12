@@ -61,4 +61,18 @@ describe("buildWorldSnapshot", () => {
     expect(snapshot.fuel).toEqual(fuel);
     expect(snapshot.streak).toEqual(streak);
   });
+
+  it("marks a creature dueForRecall from the SM-2 due list, independent of entropy/isDue (spaced-repetition.md)", () => {
+    const graph: GraphData = {
+      nodes: [makeNode({ id: 1, entropy: 0 }), makeNode({ id: 2, entropy: 0 })],
+      links: [],
+    };
+    const dueReviews = [{ id: 1, label: "n", strength: 0.2, reviewCount: 1 }];
+    const snapshot = buildWorldSnapshot(graph, [], null, null, null, dueReviews);
+    const byId = new Map(snapshot.creatures.map((c) => [c.nodeId, c]));
+    expect(byId.get(1)?.dueForRecall).toBe(true);
+    expect(byId.get(1)?.isDue).toBe(false); // entropy 0 — the two signals stay independent
+    expect(byId.get(2)?.dueForRecall).toBe(false);
+    expect(snapshot.dueReviews).toEqual(dueReviews);
+  });
 });

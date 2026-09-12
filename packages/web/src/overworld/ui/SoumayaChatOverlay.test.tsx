@@ -17,6 +17,7 @@ function makeCreature(nodeId: number): CreatureEntity {
     entropy: 0,
     degree: 0,
     isDue: false,
+    dueForRecall: false,
     spriteKey: "creature_default",
     uncharted: true,
     tile: { x: 3, y: 3 },
@@ -78,5 +79,34 @@ describe("SoumayaChatOverlay", () => {
     fireEvent.change(screen.getByLabelText("Ask Soumaya"), { target: { value: "x" } });
     fireEvent.click(screen.getByText("Ask"));
     await waitFor(() => expect(screen.getByText("offline")).toBeTruthy());
+  });
+
+  it("greets plainly when there are no due reviews (spaced-repetition.md — never nags)", () => {
+    render(<SoumayaChatOverlay onClose={vi.fn()} creatures={[]} onFlyToNode={vi.fn()} dueReviews={[]} />);
+    expect(screen.getByText(/what's on your mind/)).toBeTruthy();
+    expect(screen.queryByText(/recall check/)).toBeNull();
+  });
+
+  it("nudges by name, once, naming the strongest due memory, with a Go there for a placed creature", () => {
+    const dueReviews = [
+      { id: 1, label: "Rent", strength: 0.1, reviewCount: 1 },
+      { id: 9, label: "Something else", strength: 0.3, reviewCount: 0 },
+    ];
+    const onFlyToNode = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <SoumayaChatOverlay onClose={onClose} creatures={[makeCreature(1)]} onFlyToNode={onFlyToNode} dueReviews={dueReviews} />,
+    );
+    expect(screen.getByText(/"Rent"/)).toBeTruthy();
+    fireEvent.click(screen.getByText(/📍 Go there/));
+    expect(onFlyToNode).toHaveBeenCalledWith(1);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("names the strongest due memory without a Go there when it isn't placed as a creature here", () => {
+    const dueReviews = [{ id: 42, label: "Unplaced", strength: 0.1, reviewCount: 1 }];
+    render(<SoumayaChatOverlay onClose={vi.fn()} creatures={[]} onFlyToNode={vi.fn()} dueReviews={dueReviews} />);
+    expect(screen.getByText(/"Unplaced"/)).toBeTruthy();
+    expect(screen.queryByText(/📍 Go there/)).toBeNull();
   });
 });

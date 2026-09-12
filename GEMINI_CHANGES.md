@@ -1,3 +1,29 @@
+### 2026-09-12 (Claude): Soumaya Overworld — spaced repetition finally gets a place in the world
+- [ ] Verified by Claude
+- Tier 2, priority 1 of the roadmap discussion ("I really want all of it. Mostly tier 2."). Per
+  Rule #1, researched before writing code (`docs/overworld/spaced-repetition.md`) — the SM-2
+  review engine (`analysis/review.ts`), its route (`GET /api/review/due`, `POST /api/review/:id`),
+  and even the typed client fetch functions (`getDueReviews`/`gradeReview`, `api/features.ts`)
+  were **all already real and shipped**, just never called anywhere in the client. This round is
+  a presentation gap closed, not new backend.
+- Added `CreatureEntity.dueForRecall` — a SECOND, independent decay signal from the existing
+  entropy `isDue`/"?" dim marker (same neglect theme, different mechanism: SM-2 ease/interval vs.
+  `daysSinceTended`/degree). Sourced from the server's due list in `loadWorldSnapshot.ts`, never
+  re-derived client-side. Gets its own "💭" in-world marker, offset from "?" so both can render
+  on the same creature at once.
+- `CreatureSummaryOverlay.tsx`: a real "Recall check" for a `dueForRecall` creature — content
+  stays hidden until you choose to try to recall it first, then "I remembered"/"Let's refresh it"
+  call the now-finally-used `gradeReview` and refresh the world, mirroring the existing greet flow.
+- `SoumayaChatOverlay.tsx`: a one-line proactive nudge in her greeting (only when something's due,
+  naming the weakest memory) with a real "📍 Go there" reusing the exact citation-button
+  affordance the chat already has — deliberately NOT a separate review-deck screen (rejected as
+  the literal Anki-deck shape NEURO_ALIGNMENT explicitly says to avoid).
+- Grading a recall already credited Fuel + the daily streak server-side (`EARN_REVIEW`,
+  `STREAK_DAY_BONUS`) from a much earlier round; this round just finally lets the player reach it.
+- Verified by new/updated tests (`nodeToCreature.test.ts`, `loadWorldSnapshot.test.ts`,
+  `CreatureSummaryOverlay.test.tsx`, `SoumayaChatOverlay.test.tsx`) + full gate (1051 server + 287
+  web tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): Soumaya Overworld — real dialogue duration + a real themed overlay panel
 - [ ] Verified by Claude
 - Direct follow-up to a roadmap discussion: two concrete complaints — NPC dialogue "doesn't

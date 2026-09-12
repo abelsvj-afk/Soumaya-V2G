@@ -37,6 +37,9 @@ export interface CreatureEntity {
   degree: number;
   /** entropy >= COOLING_ENTROPY (matches the rest of the app's convention) — render visibly dimmed. */
   isDue: boolean;
+  /** In the server's SM-2 due-for-review list (spaced-repetition.md) — a DIFFERENT signal from
+   *  `isDue`'s ambient entropy dimming; a node can be either, neither, or both independently. */
+  dueForRecall: boolean;
   spriteKey: string;
   /**
    * Deterministic per-node grid position, filled in by `adapter/placement.ts`'s

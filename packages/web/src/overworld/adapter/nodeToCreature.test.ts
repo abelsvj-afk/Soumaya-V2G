@@ -57,4 +57,9 @@ describe("nodeToCreature", () => {
     const node = makeNode({ label: "raw label", celestialTitle: "Pretty Title" });
     expect(nodeToCreature(node).name).toBe("Pretty Title");
   });
+
+  it("defaults dueForRecall to false and only sets it from the opt (spaced-repetition.md — never derived from entropy)", () => {
+    expect(nodeToCreature(makeNode({ entropy: 1 })).dueForRecall).toBe(false);
+    expect(nodeToCreature(makeNode({ entropy: 0 }), { dueForRecall: true }).dueForRecall).toBe(true);
+  });
 });

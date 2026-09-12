@@ -549,6 +549,38 @@ overlay tests updated/passing (one test's assertion was legitimately outdated by
 the overlay's own header now correctly says "Park"), and the full gate (1051 server + 280 web
 tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.15 — Spaced repetition finally gets a place in the world (Tier 2, priority 1)
+
+Direct follow-up to the roadmap discussion ("I really want all of it. Mostly tier 2."). Research
+first, per Rule #1 (`docs/overworld/spaced-repetition.md`): the SM-2 review engine
+(`analysis/review.ts`), its route (`GET /api/review/due`, `POST /api/review/:id`), and even the
+typed client fetch functions (`getDueReviews`/`gradeReview`, `api/features.ts`) were **all already
+real and shipped** — just never called from anywhere in the client. This round is a presentation
+gap closed, not new backend.
+
+The one real design decision: this is a SECOND, independent decay signal from the entropy
+`isDue`/"?" dim marker that already exists — same neglect *theme*, completely different
+mechanism (`review_interval_days`/SM-2 ease vs. `daysSinceTended`/degree), so it needed its own
+non-color, non-overlapping marker rather than reusing or merging with "?" — a node can be
+entropy-fresh but SM-2-due, or the reverse, independently.
+
+Shipped: `CreatureEntity.dueForRecall` (sourced from the server's due list in
+`loadWorldSnapshot.ts`, never re-derived client-side); a "💭" in-world marker offset from the
+existing "?" so both can render on the same creature; a real "Recall check" in
+`CreatureSummaryOverlay.tsx` — content-free until you choose to try to recall it first, then
+"I remembered"/"Let's refresh it" call the now-finally-used `gradeReview` and refresh the world
+exactly like the existing greet flow; and a one-line proactive nudge in `SoumayaChatOverlay.tsx`'s
+greeting (only when there's something due, naming the weakest memory, with a "📍 Go there" reusing
+the exact citation-button affordance the chat already has) instead of a separate review-deck
+screen — deliberately rejected as the literal Anki-deck shape NEURO_ALIGNMENT says to avoid.
+Grading a recall already credited Fuel + the daily streak server-side (`EARN_REVIEW`,
+`STREAK_DAY_BONUS`) from a much earlier round — this round just finally lets the player reach it.
+
+Verified by new/updated tests in `nodeToCreature.test.ts`, `loadWorldSnapshot.test.ts`,
+`CreatureSummaryOverlay.test.tsx`, and `SoumayaChatOverlay.test.tsx`, plus the full gate (1051
+server + 287 web tests, typecheck, build). Not yet seen rendered in a real browser from this
+sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
