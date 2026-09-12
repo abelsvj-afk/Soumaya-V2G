@@ -253,6 +253,32 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **NPC Autonomy round — real cross-town movement (2026-09-12), not yet on-device confirmed** —
+  direct follow-up to "are they autonomous?": the honest answer was that their schedule and
+  break-time interaction run on their own, but they never actually went anywhere beyond their
+  own doorstep, and income was entirely reactive to the player. Per Rule #1, got its own spec
+  (`docs/overworld/npc-autonomy.md`) since `overworld/engine/*` is explicitly Claude's own
+  Red Zone. Shipped a real, pure, budget-capped BFS pathfinder (`engine/pathfinding.ts` — plain
+  BFS, not A\*, since the small uniform-cost region doesn't need it), a new
+  `isNpcPathPassable` in `regionLayout.ts` (the player's own passability rule minus the
+  attendant-tile block, so a building's post tiles are valid NPC destinations), and
+  footprint-derived Town Hall meeting slots. Real off-duty "outings" now send each of the 20
+  society NPCs on an occasional real walk to Park or Market while genuinely Home, and
+  `announceTownMeeting()` now sends every one of them walking to a real meeting slot near Town
+  Hall and back — both were explicitly scaled back in the Town Economy round for a crowding
+  risk that real pathfinding now resolves (real travel time from spread-out buildings staggers
+  arrivals for free). Measured, not assumed: a script computed real paths across the actual
+  46x24 map (40-50+ tile opposite-corner trips) and timed all 20 attendants pathing to a
+  meeting slot at once — under 10ms total. A real bug was caught in review before shipping (an
+  outing's return leg wasn't protected against a real schedule transition firing mid-walk,
+  which would have left two tweens fighting over one sprite) and fixed. See
+  `docs/overworld/roadmap.md`'s "Stage 2.13" for the full account and what's deliberately
+  deferred (cross-building relationships/visiting a specific friend; anything beyond plain BFS;
+  the player's own movement, unchanged). Verified by 9 new pathfinding tests + 10 new
+  regionLayout tests + the real-path measurement above + the full gate (1051 server + 276 web
+  tests, typecheck, build) — the actual in-world outings and Town Meeting gathering have not
+  been seen rendered in a real browser from this sandbox.
+
 - **Town Economy round — bigger buildings, a real wage/neglect loop, Market + Park
   (2026-09-12), not yet on-device confirmed** — a single message asked for a lot at once:
   more NPCs, ~3x-bigger buildings, NPCs that enter/exit buildings, a wage economy, work created

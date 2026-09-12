@@ -462,6 +462,57 @@ prop, the ASCII-map layout reproduction above, and the full gate (1051 server + 
 typecheck, build) — the actual bigger buildings, enter/exit animation, and Market/Park screens
 have not been seen rendered in a real browser from this sandbox.
 
+## Stage 2.13 — NPC Autonomy: real cross-town movement (docs/overworld/npc-autonomy.md)
+
+Direct follow-up to "are they autonomous?" — the honest answer was: their schedule and
+break-time interaction run on their own, but they never actually go anywhere beyond their own
+doorstep, and their income is entirely reactive to the player. This round gives them real
+movement, resolving the two things npc-economy.md had explicitly scaled back for being unsafe
+without real pathfinding.
+
+**What shipped:**
+- **`engine/pathfinding.ts`** — a real, pure, budget-capped BFS (plain BFS chosen over A\* since
+  the region is small and uniform-cost; A\* would buy nothing here). Reuses `engine/movement.ts`'s
+  own `MovementGrid` shape. Measured, not assumed: a throwaway script computed real paths across
+  the actual 46x24 map (opposite-corner trips of 40-50+ tiles) and timed all 20 attendants
+  pathing to a meeting slot at once — under 10ms total, confirming this is safe to run
+  synchronously without any frame-budget concern.
+- **`regionLayout.ts`'s `isNpcPathPassable`** — the player's own `isMovementPassable` minus the
+  attendant-tile block, so a building's own (or another's) post tiles are valid NPC travel
+  destinations without touching the player's collision rules at all.
+- **`regionLayout.ts`'s `townHallMeetingSlots()`** — footprint-derived (never hand-typed) real
+  tiles beyond Town Hall's own attendant band, deliberately more than any one building has
+  attendants, so a full 20-NPC gathering spreads out.
+- **Off-duty outings** — each society NPC gets its own desynced real-time timer that, only
+  while they're genuinely Home, sends them on a real walk to Park or Market (alternating) via
+  `findPath`, a brief linger, then a real walk back. Decoupled from the schedule's own short
+  Home window on purpose (a real cross-town round trip can take far longer than Home lasts) —
+  if a real schedule transition happens mid-outing, it's cleanly interrupted (the in-flight
+  tween is killed, never fought) and the normal transition takes over from wherever they are.
+- **A real Town Meeting gathering** — `announceTownMeeting()` now sends every one of the 20
+  attendants walking to a real meeting slot near Town Hall, shows 📢 there, then walks them
+  back to wherever their own schedule says they currently belong. This is the ORIGINAL
+  npc-society.md proposal, only ever scaled back for a crowding risk a straight-line tween
+  couldn't safely handle — real pathfinding removes that risk (real travel time from spread-out
+  buildings staggers arrivals for free, no invented queueing system needed). An `atMeeting` flag
+  suspends the normal per-tick schedule rendering for exactly the sprites that are away, so a
+  Working/Break/Home transition can never fight the meeting's own tweens mid-trip.
+- **Caught in review, not by accident**: `outingActive`'s lifecycle was initially cleared as
+  soon as an outing's RETURN leg started, which would have left that leg's walk tween
+  unprotected against a real schedule transition firing mid-walk-home (nothing left to kill, two
+  tweens fighting over the same sprite). Fixed to stay active for the entire round trip.
+
+**Deliberately deferred, not silently dropped** (npc-autonomy.md's own list): cross-building
+relationships / visiting a specific friend rather than a fixed destination (the relationship
+model still only tracks a building's own pair); A\*/weighted terrain/anything beyond plain BFS;
+NPCs choosing an outing "personality-driven" beyond the fixed Park/Market alternation; the
+player's own movement is unchanged (still direct input, never pathfound).
+
+Verified by 9 new pathfinding tests + 10 new regionLayout tests (all 276 web + 1051 server
+tests green), the ASCII-map-style real-path measurement above (not just green tests), and the
+full gate (typecheck, build). The actual in-world outings and Town Meeting gathering have not
+been seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

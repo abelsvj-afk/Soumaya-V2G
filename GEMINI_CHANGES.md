@@ -1,3 +1,48 @@
+### 2026-09-12 (Claude): Soumaya Overworld — NPC Autonomy round: real cross-town movement
+- [ ] Verified by Claude
+- Direct follow-up to the user asking "are they autonomous?" after the Town Economy round. The
+  honest answer: their schedule and break-time interaction ran on their own, but they never
+  actually went anywhere beyond their own doorstep, and their income was entirely reactive to
+  the player. Per CLAUDE.md Rule #1 this got its own spec (`docs/overworld/npc-autonomy.md`) —
+  `overworld/engine/*` is explicitly Claude's own Red Zone, real architecture, not a polish pass.
+- **`engine/pathfinding.ts`** — a real, pure BFS (`findPath`), budget-capped the same way
+  `achievements.ts`'s own bounded `pathfinder_quest` DFS already taught this codebase to (never
+  hang on an unreachable goal). Plain BFS over A\*: the 46x24 region is small and uniform-cost,
+  so BFS already gives the real shortest path with far less to get wrong. Reuses
+  `engine/movement.ts`'s own `MovementGrid` shape.
+- **`regionLayout.ts`'s `isNpcPathPassable`** — the player's `isMovementPassable` minus the
+  attendant-tile block (NPCs don't physically collide with each other), so a building's own or
+  another's post tiles become valid travel destinations without touching player collision.
+- **`regionLayout.ts`'s `townHallMeetingSlots()`** — footprint-derived, more slots than any one
+  building has attendants, so a full 20-NPC gathering spreads out instead of stacking.
+- **Real off-duty outings** (`ExteriorScene.ts`) — each of the 20 society NPCs gets its own
+  desynced real-time timer that, only while genuinely Home, sends them walking to Park or
+  Market (alternating) and back. Deliberately decoupled from the schedule's own ~6-second Home
+  window (measured real cross-town trips at 40-50+ tiles — nowhere near enough time) — if a
+  real schedule transition interrupts mid-outing, the in-flight tween is killed cleanly, never
+  fought.
+- **A real Town Meeting gathering** — `announceTownMeeting()` now sends every one of the 20
+  attendants walking to a real meeting slot near Town Hall, shows 📢, then walks back to
+  wherever their schedule currently says they belong. This is the ORIGINAL npc-society.md
+  proposal ("every attendant walks to Town Hall, gathers"), only ever scaled back in the Town
+  Economy round for a crowding risk a straight-line tween couldn't safely handle — real
+  pathfinding removes that risk entirely (real travel time from spread-out buildings staggers
+  arrivals for free). An `atMeeting` flag suspends the normal per-tick rendering for exactly the
+  sprites that are away.
+- **A real bug caught in review, not shipped by accident**: the outing system's `outingActive`
+  bookkeeping was initially cleared as soon as the RETURN leg started, which would have left
+  that leg's walk tween completely unprotected — a real schedule transition firing mid-walk-home
+  would have found nothing to kill, and its own tween would have fought the still-running
+  return-walk tween on the same sprite. Fixed to stay active for the whole round trip.
+- Measured, not assumed (CLAUDE.md's "verify before you build"): a throwaway script computed
+  real paths across the actual 46x24 map (opposite-corner trips measured at 40-52 tiles) and
+  timed all 20 attendants pathing to a real meeting slot simultaneously — under 10ms total,
+  confirming this is safe to run synchronously with zero frame-budget risk.
+- New tests: `pathfinding.test.ts` (9 tests — shortest path, wall routing, unreachable goals,
+  budget cap, determinism), 10 new `regionLayout.test.ts` assertions (isNpcPathPassable parity
+  with the player's rule, meeting slot coverage/no-overlap/determinism). Full gate green
+  (1051 server + 276 web tests, typecheck, build).
+
 ### 2026-09-12 (Claude): Soumaya Overworld — Town Economy round: bigger buildings, a real wage/neglect loop, Market + Park
 - [ ] Verified by Claude
 - One message asked for a lot at once: roll NPC Society out further, buildings ~3x their size,
