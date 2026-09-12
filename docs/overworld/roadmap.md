@@ -715,6 +715,44 @@ Verified by the new `heuristic.test.ts` regression suite + the full gate (1056 s
 tests, typecheck, build). Not yet re-tested against a real LLM key from this sandbox (only the
 offline heuristic path and the prompt text itself were directly verifiable here).
 
+## Stage 2.20 — NPCs read as walking, not gliding; Park stops looking like a building
+
+Two direct, concrete complaints, each checked by reading the actual numbers/code rather than
+guessed at. **"NPCs shouldn't fly across the map or move any quicker than I can."** Measured: the
+player's own step tween is 140ms/tile (`handleInput`); `NPC_STEP_MS` is 160ms/tile — NPCs (and
+Soumaya) were already never faster per tile than the player. The real gap was the missing
+footstep cue: every NPC walk was a pure linear glide with no squash/stretch, while the player has
+had one since Stage 1 — over a long unbroken path (Soumaya's town tour, a Town Meeting gathering)
+that reads as sliding/flying even at an equal or slower rate. Fixed with `hopStep()`, the exact
+same squash/stretch shape as the player's own step-hop, now firing on every NPC/Soumaya step
+(`walkPath` for attendants, `walkSoumayaPath` for Soumaya) — a real per-step visual, not a speed
+change (the rate was already correct).
+
+**"[The Park] look[s] stupid... not a park, and nobody's going to it."** Read, not guessed:
+`buildingSprites.ts` never had art for Park, so it fell through to the generic `COTTAGE`
+building illustration — the Park was being rendered as a stone building, the literal opposite of
+an open public space. Fixed by excluding Park from the building-illustration pass entirely and
+painting its footprint with the plaza's own `path` tile instead — a real paved courtyard, not
+grass indistinguishable from the rest of the ground and not a building nobody could tell was
+walkable. Genuine park decor (benches, trees) still needs real art that doesn't exist in the
+loaded atlas yet — tracked as part of task #74's asset sourcing, not invented here. Passability is
+unchanged (still a walled footprint entered via the door, like every other building) — a fully
+open, walk-anywhere park interior is a deeper follow-up, not attempted in this pass.
+
+Also this round: real design decisions made per the user's "do all of them, they complement each
+other" direction — **Zoning** (task #75, new) is the real missing foundation the SimCity framing
+was pointing at: it determines WHERE housing (#66) and business types (#67) can even go, so both
+now formally depend on it rather than being built ahead of it. **Fuel stays exactly what it
+already is** (the real LLM-job-cost meter) — it is NOT being reinterpreted for NPCs; the
+NPC/town-facing "morale" concept the user was reaching for is a new, distinct aggregate built from
+real existing data (buildingNeglect + townLedger + npcRelationships), folded into task #64 under
+the working name "Town Morale" pending its own design pass.
+
+Verified by reading the actual step-duration constants (the real measurement above) + the full
+gate (1056 server + 301 web tests, typecheck, build). Not yet seen rendered in a real browser —
+the hop cue and the Park courtyard especially need real on-device eyes, since this is exactly the
+kind of visual fix that's easy to get subtly wrong from source alone.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
