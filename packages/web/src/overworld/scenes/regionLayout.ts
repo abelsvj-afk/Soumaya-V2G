@@ -14,6 +14,8 @@
  * either way, per "verify before you build").
  */
 
+import type { GridPosition } from "../engine/movement.js";
+
 interface Rect {
   x0: number;
   y0: number;
@@ -231,6 +233,37 @@ export function isMovementPassable(x: number, y: number): boolean {
   if (objectPlaceAt(x, y)) return false;
   if (isAttendantTile(x, y)) return false;
   return true;
+}
+
+/** NPC Autonomy round (docs/overworld/npc-autonomy.md) — the same rule as `isMovementPassable`
+ *  MINUS the attendant-tile block. NPCs traveling across town don't physically collide with
+ *  each other (plain sprites, not physics bodies), so a building's own or another building's
+ *  post tiles are valid pathfinding destinations, unlike for the player. Every other real rule
+ *  (walls, objects, bounds) stays identical. */
+export function isNpcPathPassable(x: number, y: number): boolean {
+  if (!inBounds(x, y)) return false;
+  if (isBuildingWallTile(x, y)) return false;
+  if (objectPlaceAt(x, y)) return false;
+  return true;
+}
+
+/** A few real tiles just beyond Town Hall's own attendant band, derived purely from its
+ *  footprint (never hand-typed, same convention as `attendantPosts()`) — the Town Meeting
+ *  gathering's real destination. Deliberately more slots than any one building has attendants,
+ *  so up to all 20 arriving NPCs spread out rather than stacking on the same couple of tiles. */
+const MEETING_ROWS_OUT = 2;
+
+export function townHallMeetingSlots(): readonly GridPosition[] {
+  const townHall = DOOR_PLACES.find((p) => p.id === "townHall");
+  if (!townHall) return [];
+  const { x0, x1, y0, y1 } = townHall.footprint;
+  const facesDown = townHall.door.y === y1;
+  const slots: GridPosition[] = [];
+  for (let i = ATTENDANTS_PER_BUILDING + 1; i <= ATTENDANTS_PER_BUILDING + MEETING_ROWS_OUT; i++) {
+    const row = facesDown ? y1 + i : y0 - i;
+    for (let x = x0; x <= x1; x++) slots.push({ x, y: row });
+  }
+  return slots;
 }
 
 /** Creatures never spawn inside a building, on an object tile, on an attendant's patrol tile,

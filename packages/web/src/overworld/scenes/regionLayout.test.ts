@@ -5,12 +5,14 @@ import {
   doorPlaceAt,
   isGrassTile,
   isMovementPassable,
+  isNpcPathPassable,
   isPlacementBlocked,
   objectPlaceAt,
   placeById,
   PLAYER_SPAWN,
   REGION_HEIGHT,
   REGION_WIDTH,
+  townHallMeetingSlots,
 } from "./regionLayout.js";
 
 describe("regionLayout — every place", () => {
@@ -200,5 +202,86 @@ describe("regionLayout — Town Economy round (generated layout, docs/overworld/
       expect(place.footprint.x1).toBeLessThan(REGION_WIDTH);
       expect(place.footprint.y1).toBeLessThan(REGION_HEIGHT);
     }
+  });
+});
+
+describe("regionLayout — NPC Autonomy round (real pathfinding, docs/overworld/npc-autonomy.md)", () => {
+  describe("isNpcPathPassable", () => {
+    it("agrees with isMovementPassable everywhere except real attendant post tiles", () => {
+      let sawADifference = false;
+      for (let y = 0; y < REGION_HEIGHT; y++) {
+        for (let x = 0; x < REGION_WIDTH; x++) {
+          const player = isMovementPassable(x, y);
+          const npc = isNpcPathPassable(x, y);
+          if (player !== npc) {
+            sawADifference = true;
+            expect(npc).toBe(true); // NPC travel is only ever MORE permissive, never less
+          }
+        }
+      }
+      expect(sawADifference).toBe(true); // the attendant-tile carve-out actually does something
+    });
+
+    it("makes every real attendant post tile a valid NPC travel destination", () => {
+      for (const post of attendantPosts()) {
+        for (const tile of [post.a, post.b]) {
+          expect(isNpcPathPassable(tile.x, tile.y)).toBe(true);
+        }
+      }
+    });
+
+    it("still blocks real building walls and standalone objects, same as the player", () => {
+      for (const place of allPlaces()) {
+        if (place.kind === "door") {
+          const { x0, y0, x1, y1 } = place.footprint;
+          for (let y = y0; y <= y1; y++) {
+            for (let x = x0; x <= x1; x++) {
+              if (x === place.door.x && y === place.door.y) continue;
+              expect(isNpcPathPassable(x, y)).toBe(false);
+            }
+          }
+        } else {
+          expect(isNpcPathPassable(place.tile.x, place.tile.y)).toBe(false);
+        }
+      }
+    });
+
+    it("out-of-bounds tiles are never passable", () => {
+      expect(isNpcPathPassable(-1, 0)).toBe(false);
+      expect(isNpcPathPassable(REGION_WIDTH, 0)).toBe(false);
+    });
+  });
+
+  describe("townHallMeetingSlots", () => {
+    it("gives more real slots than any one building has attendants, so a full gathering can spread out", () => {
+      expect(townHallMeetingSlots().length).toBeGreaterThan(2);
+    });
+
+    it("every slot is in-bounds and a real NPC-passable tile", () => {
+      for (const slot of townHallMeetingSlots()) {
+        expect(slot.x).toBeGreaterThanOrEqual(0);
+        expect(slot.x).toBeLessThan(REGION_WIDTH);
+        expect(slot.y).toBeGreaterThanOrEqual(0);
+        expect(slot.y).toBeLessThan(REGION_HEIGHT);
+        expect(isNpcPathPassable(slot.x, slot.y)).toBe(true);
+      }
+    });
+
+    it("no slot collides with Town Hall's own attendant posts (no overlap between the two systems)", () => {
+      const townHallPosts = attendantPosts().filter((p) => p.placeId === "townHall");
+      const postKeys = new Set(townHallPosts.flatMap((p) => [`${p.a.x},${p.a.y}`, `${p.b.x},${p.b.y}`]));
+      for (const slot of townHallMeetingSlots()) {
+        expect(postKeys.has(`${slot.x},${slot.y}`)).toBe(false);
+      }
+    });
+
+    it("no two slots share a tile", () => {
+      const keys = townHallMeetingSlots().map((s) => `${s.x},${s.y}`);
+      expect(new Set(keys).size).toBe(keys.length);
+    });
+
+    it("is deterministic across calls", () => {
+      expect(townHallMeetingSlots()).toEqual(townHallMeetingSlots());
+    });
   });
 });

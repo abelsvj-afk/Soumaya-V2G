@@ -11,15 +11,19 @@ import {
   doorPlaceAt,
   isGrassTile,
   isMovementPassable,
+  isNpcPathPassable,
   objectPlaceAt,
   placeById,
   PLAYER_SPAWN,
   REGION_HEIGHT,
   REGION_WIDTH,
+  townHallMeetingSlots,
   type AttendantPost,
   type Place,
   type PlaceId,
 } from "./regionLayout.js";
+import { findPath } from "../engine/pathfinding.js";
+import type { GridPosition, MovementGrid } from "../engine/movement.js";
 import {
   ATLAS_TILE_PX,
   attendantFrameForPlace,
@@ -42,6 +46,13 @@ import { loadUnlocked } from "../../components/achievements.js";
 export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
 const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
+/** Real cross-town paths measured 40-50 tiles for opposite corners (npc-autonomy.md's own
+ *  reproduction) — at the player's own 140ms/tile that's 6-7 real seconds one-way, too slow for
+ *  a background decorative walk. NPCs move faster per tile than the player deliberately does. */
+const NPC_STEP_MS = 160;
+/** The passability rule NPC travel uses — real walls/objects/bounds, but not other attendants'
+ *  fixed posts (npc-autonomy.md decision #2). One frozen object reused everywhere it's needed. */
+const NPC_PATH_GRID: MovementGrid = { width: REGION_WIDTH, height: REGION_HEIGHT, isPassable: isNpcPathPassable };
 /** The town square: a purely cosmetic dirt-path patch around the spawn/standalone objects —
  *  never touches collision, so it must stay inside `isMovementPassable`'s open ground. */
 const PLAZA: { x0: number; y0: number; x1: number; y1: number } = { x0: 10, y0: 8, x1: 16, y1: 11 };
@@ -77,8 +88,17 @@ interface AttendantSprite {
   atA: boolean;
   /** NPC Society — the schedule state this sprite was last painted for, so the enter/exit
    *  transition (applySocietyState) only animates on an actual state CHANGE, not every tick.
-   *  Undefined until the first society tick (spawnAttendants leaves every sprite at post.a). */
+   *  Undefined until the first society tick (spawnAttendants leaves every sprite at post.a).
+   *  Kept up to date even while `atMeeting` is true (see tickSociety), so it always reflects
+   *  the real underlying schedule even when that isn't currently being rendered. */
   societyState?: ScheduleState;
+  /** NPC Autonomy round (docs/overworld/npc-autonomy.md) — how many off-duty outings this NPC
+   *  has taken, used only to alternate Park/Market deterministically (never Math.random). */
+  outingCount?: number;
+  /** True while this sprite is away at a real Town Meeting gathering — tickSociety's normal
+   *  per-tick rendering is suspended for exactly this sprite so the meeting's own walk/return
+   *  tweens are never fought by a Working/Break/Home transition firing mid-trip. */
+  atMeeting?: boolean;
 }
 
 /**
@@ -105,6 +125,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  interfere with each other. */
   private societyTickCount = 0;
   private societyBothOnBreak = new Map<PlaceId, boolean>();
+  /** NPC Autonomy round — npcIds (post.npcId) currently mid-outing, so a real schedule
+   *  transition or a Town Meeting call can cleanly interrupt one in flight (kill the in-progress
+   *  walk tween) instead of fighting it. */
+  private outingActive = new Set<string>();
   private player!: Phaser.GameObjects.Sprite;
   /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
    *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
@@ -326,6 +350,22 @@ export class ExteriorScene extends Phaser.Scene {
       this.time.addEvent({ delay: 2600 + offset, loop: true, callback: () => this.attendantWorkTick(sprite) });
     }
     this.time.addEvent({ delay: 1500, loop: true, callback: () => this.tickSociety() });
+    this.spawnOutingTimers();
+  }
+
+  /** NPC Autonomy round — one independent, desynced timer per society NPC that occasionally
+   *  tries to send them on a real off-duty outing (Park or Market) while they're genuinely
+   *  Home. Decoupled from the schedule's own short Home window on purpose (npc-autonomy.md
+   *  decision #3) — a real round trip across town can take longer than Home lasts, so this
+   *  just tries periodically and skips silently whenever the NPC isn't actually Home right now. */
+  private spawnOutingTimers(): void {
+    let index = 0;
+    for (const sprite of this.attendantSprites) {
+      if (!asSocietyNpcId(sprite.post.npcId)) continue;
+      const offset = idleBobDelayMs(index++) * 30; // spreads the 0..900ms hash out to 0..27s
+      const period = 25000 + offset; // roughly every 25-52 real seconds, desynced per NPC
+      this.time.addEvent({ delay: period, loop: true, callback: () => this.maybeStartOuting(sprite) });
+    }
   }
 
   /** NPC Society — the shared clock tick, now for every building's pair (npc-economy.md's
@@ -341,14 +381,22 @@ export class ExteriorScene extends Phaser.Scene {
       const id = asSocietyNpcId(sprite.post.npcId);
       if (!id) continue;
       const state = scheduleStateAt(id, this.societyTickCount);
-      this.applySocietyState(sprite, state);
+      // A sprite away at a real Town Meeting keeps its OWN walk/return tweens running
+      // uninterrupted (npc-autonomy.md) — the real schedule state is still tracked underneath
+      // (restingTileFor reads it the moment they get back) but never rendered while they're away.
+      if (sprite.atMeeting) {
+        sprite.societyState = state;
+      } else {
+        this.applySocietyState(sprite, state);
+      }
       const list = byPlace.get(sprite.post.placeId) ?? [];
       list.push({ sprite, id, state });
       byPlace.set(sprite.post.placeId, list);
     }
 
     for (const [placeId, entries] of byPlace) {
-      const onBreak = entries.filter((e) => e.state === "break");
+      const available = entries.filter((e) => !e.sprite.atMeeting);
+      const onBreak = available.filter((e) => e.state === "break");
       const [first, second] = onBreak;
       const wasBothOnBreak = this.societyBothOnBreak.get(placeId) ?? false;
       if (first && second) {
@@ -359,7 +407,7 @@ export class ExteriorScene extends Phaser.Scene {
       } else {
         this.societyBothOnBreak.set(placeId, false);
       }
-      for (const entry of entries) {
+      for (const entry of available) {
         if (entry.state === "working") this.showWorkIcon(entry.sprite);
       }
     }
@@ -385,6 +433,12 @@ export class ExteriorScene extends Phaser.Scene {
     if (sprite.societyState === state) return;
     const firstPaint = sprite.societyState === undefined;
     sprite.societyState = state;
+    // A real schedule transition always wins over an in-flight outing — kill its walk tween
+    // (never fires the walk's own onComplete chain, so it can't fight this transition's own
+    // tween on the same sprite.image) rather than letting the two compete.
+    if (this.outingActive.delete(sprite.post.npcId)) {
+      this.tweens.killTweensOf(sprite.image);
+    }
     const door = this.doorTileFor(sprite.post.placeId);
     const doorX = door.x * TILE_SIZE + TILE_SIZE / 2;
     const doorY = door.y * TILE_SIZE + TILE_SIZE / 2;
@@ -450,6 +504,100 @@ export class ExteriorScene extends Phaser.Scene {
     if (neglected) this.showWorkIcon(sprite, "❓");
   }
 
+  /** The tile a sprite is currently standing on/nearest to, derived from its own pixel position
+   *  — used as a pathfinding start point for a sprite that might be anywhere (mid-outing,
+   *  mid-meeting, or simply at its post), never assumed to be exactly at post.a. */
+  private spriteTile(sprite: AttendantSprite): GridPosition {
+    return {
+      x: Math.round((sprite.image.x - TILE_SIZE / 2) / TILE_SIZE),
+      y: Math.round((sprite.image.y - TILE_SIZE / 2) / TILE_SIZE),
+    };
+  }
+
+  /** Walks a sprite along a real path tile-by-tile (skipping the path's own first entry, which
+   *  is just its current tile), then calls `onComplete`. A no-op straight jump under reduced
+   *  motion — same convention as every other tween-driven movement in this scene. */
+  private walkPath(sprite: AttendantSprite, path: GridPosition[], onComplete?: () => void): void {
+    const last = path[path.length - 1];
+    if (prefersReducedMotion() || path.length <= 1 || !last) {
+      if (last) sprite.image.setPosition(last.x * TILE_SIZE + TILE_SIZE / 2, last.y * TILE_SIZE + TILE_SIZE / 2);
+      onComplete?.();
+      return;
+    }
+    const steps = path.slice(1);
+    const animateStep = (index: number): void => {
+      if (index >= steps.length) {
+        onComplete?.();
+        return;
+      }
+      const tile = steps[index]!;
+      this.tweens.add({
+        targets: sprite.image,
+        x: tile.x * TILE_SIZE + TILE_SIZE / 2,
+        y: tile.y * TILE_SIZE + TILE_SIZE / 2,
+        duration: NPC_STEP_MS,
+        ease: "Linear",
+        onComplete: () => animateStep(index + 1),
+      });
+    };
+    animateStep(0);
+  }
+
+  /** Alternates Park and Market deterministically per NPC (never Math.random) — the two real
+   *  off-duty destinations this round ships (npc-autonomy.md decision #4). Falls back to the
+   *  NPC's own post if neither building's posts can be found, which should be unreachable in
+   *  practice (both are always in DOOR_PLACES) but keeps this tolerate-gracefully rather than
+   *  throwing on a future layout change. */
+  private outingDestinationTile(sprite: AttendantSprite, sequence: number): GridPosition {
+    const posts = attendantPosts();
+    const park = posts.find((p) => p.placeId === "park");
+    const market = posts.find((p) => p.placeId === "market");
+    const chosen = sequence % 2 === 0 ? park : market;
+    return (chosen ?? sprite.post).a;
+  }
+
+  /** NPC Autonomy round — tries to send this NPC on a real off-duty outing. Only actually
+   *  starts one while they're genuinely Home right now and not already on one; otherwise it's
+   *  a silent no-op (spawnOutingTimers just tries again next period, tolerate-gracefully). */
+  private maybeStartOuting(sprite: AttendantSprite): void {
+    if (sprite.societyState !== "home") return;
+    if (sprite.atMeeting) return;
+    if (this.outingActive.has(sprite.post.npcId)) return;
+
+    const sequence = sprite.outingCount ?? 0;
+    sprite.outingCount = sequence + 1;
+    const destination = this.outingDestinationTile(sprite, sequence);
+    const outbound = findPath(this.spriteTile(sprite), destination, NPC_PATH_GRID);
+    if (!outbound) return; // genuinely unreachable — tolerate gracefully, just skip this outing
+
+    // Stays in outingActive for the ENTIRE round trip (out, linger, AND back) — only cleared
+    // by a real interrupting transition (applySocietyState) or the outing's own natural
+    // completion below. Clearing it as soon as the return leg starts would leave that leg's
+    // walk tween unprotected: a real transition firing mid-return would have nothing left to
+    // kill, and its own tween would fight the still-running return-walk tween on the same sprite.
+    this.outingActive.add(sprite.post.npcId);
+    sprite.image.setVisible(true);
+    sprite.image.setAlpha(1);
+    this.walkPath(sprite, outbound, () => {
+      const lingerMs = prefersReducedMotion() ? 200 : 1800;
+      this.time.delayedCall(lingerMs, () => {
+        // A real schedule transition may have already reclaimed this sprite (applySocietyState
+        // deletes from outingActive and kills the tween) — if so, there's nothing left to do.
+        if (!this.outingActive.has(sprite.post.npcId)) return;
+        const inbound = findPath(destination, sprite.post.a, NPC_PATH_GRID);
+        if (!inbound) {
+          this.outingActive.delete(sprite.post.npcId);
+          sprite.image.setVisible(false); // couldn't route back — fail safely hidden, matches Home
+          return;
+        }
+        this.walkPath(sprite, inbound, () => {
+          this.outingActive.delete(sprite.post.npcId);
+          if (sprite.societyState === "home") sprite.image.setVisible(false); // resume Home's own hidden state
+        });
+      });
+    });
+  }
+
   /** One real interaction between a building's own two attendants: they step toward each
    *  other, each shows a real dialogue line (job-flavor always available; personal lines gated
    *  on real achievements; the friend line gated on relationship tier), and the relationship
@@ -500,19 +648,75 @@ export class ExteriorScene extends Phaser.Scene {
     this.time.delayedCall(holdMs, () => bubble.destroy());
   }
 
-  /** The town meeting's cosmetic cue on the two Town Hall NPCs — called from OverworldRoot.tsx
-   *  once the real effect (the Bulletin Board post) has actually gone through. A no-op if
-   *  either is currently in their "home" state (nothing visible to flash an icon above). */
+  /** Where a sprite should actually end up once it's back from an errand, and whether it
+   *  should be visible there — read from the real schedule state, not assumed. `null` means
+   *  "just go hidden, no need to walk anywhere" (Home already means gone for the day, matching
+   *  every other Home transition in this scene). */
+  private restingTileFor(sprite: AttendantSprite): { tile: GridPosition; visible: boolean } | null {
+    if (sprite.societyState === "working") return { tile: this.doorTileFor(sprite.post.placeId), visible: false };
+    if (sprite.societyState === "break") return { tile: sprite.post.a, visible: true };
+    return null;
+  }
+
+  /** The Town Meeting gathering (npc-autonomy.md) — real teeth, real distance. Every one of
+   *  the 20 society NPCs actually walks to a real meeting slot near Town Hall (spread across
+   *  more slots than any one building has attendants, so up to 20 arrivals never stack on the
+   *  same tile), shows the 📢 cue there, then walks back to wherever their own schedule says
+   *  they currently belong. Called from OverworldRoot.tsx once the real effect (the Bulletin
+   *  Board post) has actually gone through. Sending everyone was the ORIGINAL npc-society.md
+   *  proposal — only ever scaled back for the crowding risk a straight-line tween couldn't
+   *  safely handle; real pathfinding removes that risk (arrivals now stagger by real travel
+   *  time instead of all teleporting to the same spot at once). */
   announceTownMeeting(): void {
+    const slots = townHallMeetingSlots();
+    if (slots.length === 0) return; // defensive — Town Hall always has slots in practice
+    let slotIndex = 0;
     for (const sprite of this.attendantSprites) {
       if (!asSocietyNpcId(sprite.post.npcId)) continue;
-      if (!sprite.image.visible) continue;
+      const slot = slots[slotIndex % slots.length];
+      slotIndex++;
+      if (slot) this.sendToMeeting(sprite, slot);
+    }
+  }
+
+  private sendToMeeting(sprite: AttendantSprite, slot: GridPosition): void {
+    if (sprite.atMeeting) return; // already on their way from a very recent double-fire
+    const outbound = findPath(this.spriteTile(sprite), slot, NPC_PATH_GRID);
+    if (!outbound) return; // genuinely unreachable — tolerate gracefully, this one NPC just stays put
+
+    // A real gathering always wins over an in-flight outing.
+    if (this.outingActive.delete(sprite.post.npcId)) {
+      this.tweens.killTweensOf(sprite.image);
+    }
+    sprite.atMeeting = true;
+    sprite.image.setVisible(true);
+    sprite.image.setAlpha(1);
+    this.walkPath(sprite, outbound, () => {
       const icon = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.55, "📢", { fontSize: "12px" });
       icon.setOrigin(0.5);
       icon.setDepth(5);
-      const holdMs = prefersReducedMotion() ? 700 : 1400;
-      this.time.delayedCall(holdMs, () => icon.destroy());
-    }
+      const holdMs = prefersReducedMotion() ? 700 : 1600;
+      this.time.delayedCall(holdMs, () => {
+        icon.destroy();
+        const resting = this.restingTileFor(sprite);
+        if (!resting) {
+          sprite.atMeeting = false;
+          sprite.image.setVisible(false);
+          return;
+        }
+        const inbound = findPath(slot, resting.tile, NPC_PATH_GRID);
+        if (!inbound) {
+          sprite.atMeeting = false;
+          sprite.image.setVisible(resting.visible);
+          return;
+        }
+        this.walkPath(sprite, inbound, () => {
+          sprite.atMeeting = false;
+          sprite.image.setVisible(resting.visible);
+          if (resting.visible) this.applyNeglectVisual(sprite);
+        });
+      });
+    });
   }
 
   private attendantWorkTick(sprite: AttendantSprite): void {
