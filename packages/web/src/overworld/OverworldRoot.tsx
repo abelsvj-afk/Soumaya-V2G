@@ -28,6 +28,8 @@ import { MarketOverlay } from "./ui/MarketOverlay.js";
 import { ParkOverlay } from "./ui/ParkOverlay.js";
 import { MayorsHallOverlay } from "./ui/MayorsHallOverlay.js";
 import { BusinessOverlay } from "./ui/BusinessOverlay.js";
+import { SettingsOverlay } from "./ui/SettingsOverlay.js";
+import { TownHud } from "./ui/TownHud.js";
 import { greetCreature, loadWorldSnapshot, type WorldSnapshot } from "./data/loadWorldSnapshot.js";
 import type { CreatureEntity } from "./types.js";
 
@@ -36,6 +38,7 @@ type Overlay =
   | { kind: "capture" }
   | { kind: "details"; creature: CreatureEntity }
   | { kind: "business"; businessId: string }
+  | { kind: "settings" }
   | { kind: PlaceId };
 
 const DOOR_PLACE_IDS = new Set<PlaceId>([
@@ -292,7 +295,13 @@ export function OverworldRoot() {
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
     if (overlay.kind === "business") {
       sceneRef.current?.returnToBusinessDoor(overlay.businessId);
-    } else if (overlay.kind !== "none" && overlay.kind !== "capture" && overlay.kind !== "details" && DOOR_PLACE_IDS.has(overlay.kind)) {
+    } else if (
+      overlay.kind !== "none" &&
+      overlay.kind !== "capture" &&
+      overlay.kind !== "details" &&
+      overlay.kind !== "settings" &&
+      DOOR_PLACE_IDS.has(overlay.kind)
+    ) {
       sceneRef.current?.returnToDoor(overlay.kind);
     }
     // Leaving the Hangar may have changed the saved trail color — pick it up immediately
@@ -349,7 +358,23 @@ export function OverworldRoot() {
     // `min-height: 100vh` with nothing else in flow, so 100% here means the real viewport.
     <div style={{ position: "relative", width: "100%", height: "100dvh" }}>
       <div ref={containerRef} data-testid="overworld-canvas-root" style={{ width: "100%", height: "100%" }} />
+      {snapshot && <TownHud spaceId={spaceId} fuel={snapshot.fuel} streak={snapshot.streak} />}
       <div style={{ position: "absolute", top: 8, right: 8, zIndex: 1, display: "flex", gap: 4 }}>
+        <button
+          type="button"
+          aria-label="Settings & Help"
+          onClick={() => setOverlay({ kind: "settings" })}
+          style={{
+            background: "#00000099",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 14,
+          }}
+        >
+          ⚙️
+        </button>
         <button
           type="button"
           aria-label="Next track"
@@ -432,6 +457,7 @@ export function OverworldRoot() {
       {overlay.kind === "mayorsHall" && <MayorsHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
       {overlay.kind === "business" && <BusinessOverlay spaceId={spaceId} businessId={overlay.businessId} onClose={closeOverlay} />}
+      {overlay.kind === "settings" && <SettingsOverlay onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
         <SoumayaChatOverlay
           onClose={closeOverlay}

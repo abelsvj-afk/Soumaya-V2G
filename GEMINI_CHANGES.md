@@ -1,3 +1,19 @@
+### 2026-09-12 (Claude): A persistent town HUD + a Settings/Help entry point (task #73)
+- [ ] Verified by Claude
+- Direct answer to a real flagged gap from the 2026-09-11 parity audit ("no persistent Fuel/
+  Streak HUD or Settings/Help entry point anywhere"). Confirmed still true by reading the real
+  code first (`docs/overworld/town-hud.md`) per Rule #1: Streak/Fuel only ever showed inside the
+  Gym, Treasury only inside Market/Hangar/Mayor's Hall, no Settings/Help surface at all.
+- New `ui/TownHud.tsx` — compact, always-visible, top-left (music controls own top-right): 🔥
+  streak, ⚡ fuel (both `GymOverlay.tsx`'s own established icon convention, reused not
+  reinvented), 🏦 real Town Treasury. Three real numbers only, never a score.
+- New `ui/SettingsOverlay.tsx`, opened by a new ⚙️ button: "Sound" (the same real
+  `musicEnabled`/`setMusicEnabled`/`nextTrack` the floating buttons already use) and "How to
+  Play" (only the real, already-true controls read from `ExteriorScene.ts`'s own key
+  bindings — nothing invented).
+- Verified by 7 new tests (`TownHud.test.tsx` x3, `SettingsOverlay.test.tsx` x4) and the full
+  gate (1056 server + 376 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Cross-building NPC relationships (task #59)
 - [ ] Verified by Claude
 - Direct answer to real feedback asking for NPCs who "interact with other npcs" beyond their

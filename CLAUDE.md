@@ -253,6 +253,18 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **A persistent town HUD + a Settings/Help entry point (2026-09-12), not yet on-device
+  confirmed** — direct answer to a real flagged gap from the 2026-09-11 parity audit, confirmed
+  still true by reading the real code first (`docs/overworld/town-hud.md`): Streak/Fuel only
+  ever showed inside the Gym, Treasury only inside Market/Hangar/Mayor's Hall, no Settings/Help
+  anywhere. New `ui/TownHud.tsx` — a compact, always-visible top-left bar (🔥 streak, ⚡ fuel, 🏦
+  Treasury; the first two reuse `GymOverlay.tsx`'s own icon convention). New
+  `ui/SettingsOverlay.tsx` behind a new ⚙️ button: real Sound controls (the same real
+  `musicEnabled`/`setMusicEnabled`/`nextTrack` the floating buttons already use) and a real "How
+  to Play" (only the actual key bindings `ExteriorScene.ts` already has — nothing invented).
+  Verified by 7 new tests + the full gate (1056 server + 376 web tests, typecheck, build). Not
+  yet seen rendered in a real browser from this sandbox.
+
 - **Cross-building NPC relationships (2026-09-12), not yet on-device confirmed** — direct
   answer to real feedback asking for NPCs who "interact with other npcs" beyond their own
   building's coworker. Specced first (`docs/overworld/social-depth.md`): the real gap was

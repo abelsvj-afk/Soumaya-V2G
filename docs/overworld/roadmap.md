@@ -1006,6 +1006,30 @@ Verified by the full gate (1056 server + 369 web tests, typecheck, build) — no
 verified by careful review + the full gate, not a unit test). Not yet seen rendered in a real
 browser from this sandbox.
 
+## Stage 2.31 — A persistent town HUD + a Settings/Help entry point (task #73)
+
+Direct answer to a real flagged gap from the 2026-09-11 parity audit: "no persistent Fuel/
+Streak HUD or Settings/Help entry point anywhere." Confirmed still true by reading the real
+code first, per Rule #1 (`docs/overworld/town-hud.md`) — Streak/Fuel only ever showed inside the
+Gym, Treasury only ever inside Market/Hangar/Mayor's Hall, and there was no Settings/Help surface
+at all beyond the two bare floating music buttons.
+
+New `ui/TownHud.tsx` — a compact, always-visible, top-left bar (the existing music controls
+already own top-right): 🔥 streak, ⚡ fuel (both `GymOverlay.tsx`'s own established icon
+convention, reused not reinvented), 🏦 real Town Treasury balance. Three real numbers only, never
+a score, never an invented "town health %".
+
+New `ui/SettingsOverlay.tsx`, opened by a new ⚙️ button joining the existing top-right music
+controls: "Sound" (the SAME real `musicEnabled`/`setMusicEnabled`/`nextTrack` the floating
+buttons already use, exposed a second, more discoverable way) and "How to Play" (only the real,
+already-true controls read from `ExteriorScene.ts`'s own key bindings — WASD/arrows to move,
+Space/Enter or the touch A button to interact, walk onto a door to enter, walk into tall grass to
+capture a memory — nothing invented).
+
+Verified by 7 new tests (`TownHud.test.tsx` x3, `SettingsOverlay.test.tsx` x4) and the full gate
+(1056 server + 376 web tests, typecheck, build). Not yet seen rendered in a real browser from
+this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
