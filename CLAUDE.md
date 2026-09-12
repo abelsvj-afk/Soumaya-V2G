@@ -253,6 +253,19 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Reviving Lenses (2026-09-12), not yet on-device confirmed** — a real orphaned feature,
+  confirmed by direct investigation (`docs/overworld/lenses-revival.md`): the server route/repo/
+  shared types were never touched by the Overworld rewrite — only the entire client side
+  (`api/lenses.ts`, `LensChips.tsx`, `LensesPanel.tsx`) was deleted with the old galaxy UI,
+  leaving a fully live server feature unreachable. `api/lenses.ts` recreated VERBATIM from git
+  history (same 5 function signatures, same safe-fallback shape), re-exported from `client.ts`.
+  Real in-world home: the Library, since a Lens is literally "a saved way to browse the
+  shelves" (the same `graph.nodes` Library already reads). Deliberately minimal vertical slice:
+  a lens is exactly the search you just typed, saved and re-runnable by name — the other 7 real
+  query fields the server supports are explicitly deferred, not invented. Verified by 4 new +
+  3 updated `LibraryOverlay.test.tsx` cases and the full gate (1056 server + 380 web tests,
+  typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 - **A persistent town HUD + a Settings/Help entry point (2026-09-12), not yet on-device
   confirmed** — direct answer to a real flagged gap from the 2026-09-11 parity audit, confirmed
   still true by reading the real code first (`docs/overworld/town-hud.md`): Streak/Fuel only

@@ -1,3 +1,23 @@
+### 2026-09-12 (Claude): Reviving Lenses (task #72)
+- [ ] Verified by Claude
+- A real orphaned feature, confirmed by direct investigation before writing anything
+  (`docs/overworld/lenses-revival.md`) per Rule #1: the server route/repo/shared types
+  (`/api/lenses`, `lenses.repo.ts`, `Lens`/`LensQuery`) were never touched by the Overworld
+  rewrite — only the entire client side (`api/lenses.ts`, `LensChips.tsx`, `LensesPanel.tsx`)
+  was deleted outright in the galaxy-deletion commit.
+- `api/lenses.ts` recreated VERBATIM from git history (`git show` on the pre-deletion commit) —
+  same 5 function signatures (`getLenses`/`createLens`/`updateLens`/`deleteLens`/`lensNodes`),
+  same `afetch`-wrapped safe-fallback shape, re-exported from `client.ts` the same way every
+  other feature domain already is.
+- Real in-world home: the Library, since a Lens is literally "a saved way to browse the
+  shelves" — the exact same `graph.nodes` Library already reads.
+- Deliberately minimal vertical slice: a lens is exactly the search you just typed
+  (`query.text`), saved and re-runnable by name, rather than a 7-field query-builder built from
+  nothing. `LibraryOverlay.tsx` gained a "Saved Lenses" list (name, real count, pinned marker,
+  View/Delete) and a "Save this search as a Lens" button.
+- Verified by 4 new + 3 updated `LibraryOverlay.test.tsx` cases and the full gate (1056 server +
+  380 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): A persistent town HUD + a Settings/Help entry point (task #73)
 - [ ] Verified by Claude
 - Direct answer to a real flagged gap from the 2026-09-11 parity audit ("no persistent Fuel/

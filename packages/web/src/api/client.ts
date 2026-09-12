@@ -18,6 +18,9 @@ export * from "./mind.js";
 export * from "./attachments.js";
 export * from "./companion.js";
 export * from "./ops.js";
+// Lenses (revived, docs/overworld/lenses-revival.md, task #72) — the server route was never
+// removed; only this client file was deleted with the old galaxy UI.
+export * from "./lenses.js";
 
 export interface AuthResult {
   id: string;
