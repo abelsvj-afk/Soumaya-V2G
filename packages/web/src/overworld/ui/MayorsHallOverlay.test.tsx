@@ -5,6 +5,7 @@ import { markWorked } from "../data/buildingNeglect.js";
 import { creditHour } from "../data/townLedger.js";
 import { armZoneType, zoneTileAt } from "../data/zoning.js";
 import { armHomeType, placeArmedHome } from "../data/housing.js";
+import { armBusinessType, placeArmedBusiness } from "../data/business.js";
 
 describe("MayorsHallOverlay (mayors-hall.md)", () => {
   beforeEach(() => localStorage.clear());
@@ -63,6 +64,26 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     placeArmedHome("space-1", 2, 10);
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/1 of \d+ residents have a real home — 1 living alone, 0 sharing/)).toBeTruthy();
+  });
+
+  it("reports no real businesses built on a fresh town, never a fake one", () => {
+    render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+    expect(screen.getByText(/No real businesses built yet/)).toBeTruthy();
+  });
+
+  it("reports a real, never-worked business as needing a visit — same neglect math as everything else", () => {
+    for (let y = 10; y <= 17; y++) {
+      for (let x = 2; x <= 9; x++) {
+        armZoneType("space-1", "commercial");
+        zoneTileAt("space-1", x, y);
+      }
+    }
+    for (let i = 0; i < 16; i++) creditHour("space-1", "bank"); // 16 * 25c = $4.00 = bakery price
+    armBusinessType("space-1", "bakery");
+    placeArmedBusiness("space-1", 2, 10);
+    render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+    expect(screen.getByText(/1 of 1 businesses could use a visit/)).toBeTruthy();
+    expect(screen.getByText("Bakery")).toBeTruthy();
   });
 
   it("calls onClose when leaving", () => {

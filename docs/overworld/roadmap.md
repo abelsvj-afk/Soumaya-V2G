@@ -885,6 +885,43 @@ every building/object/attendant/grass/spawn tile before using it in tests), and 
 (1056 server + 345 web tests, typecheck, build). Not yet seen rendered in a real browser from
 this sandbox.
 
+## Stage 2.27 — A real multi-business economy (task #67)
+
+Direct answer to the task's own name: "more than one Market." Specced first
+(`docs/overworld/business.md`) per Rule #1 — mirrors housing.md (task #66) almost exactly on
+purpose: the same zoning-gated, player-built, treasury-priced pattern, now for the `"commercial"`
+zone type that also did nothing until this round. Since a tile holds exactly one zone type at a
+time, a business can never legally overlap a home — the zoning gate alone prevents that, no
+cross-module check needed.
+
+New `data/business.ts`: 3 business types (Bakery 2x2/$4.00, Tailor 3x2/$6.00, Bookshop
+3x3/$8.00), each with its own small real goods catalog (never overlapping Market's own goods).
+Unlike a home, a placed business is a real place you WALK INTO — stepping onto its own door tile
+(a second, dynamic check alongside the static `doorPlaceAt` in `afterStep`) opens a generic
+`BusinessOverlay.tsx`, parameterized by the business's own real type/goods rather than one
+hand-built screen per type. Buying a good there credits THAT business's own real hours and resets
+its own real neglect clock — confirmed before writing any code that `creditHour`/`markWorked`
+(`townLedger.ts`/`buildingNeglect.ts`) were already string-keyed, so a dynamic business id needed
+zero changes to either file.
+
+Rendered by reusing ARCHED_HALL (the same illustration Market itself already uses), scaled to
+each business's own footprint, plus a type-glyph badge (🥐/🧵/📖). `HangarOverlay.tsx` gained a
+"Business" section; `MayorsHallOverlay.tsx` gained a "Business Neglect" list, same shape as its
+existing door-building "Town Health" list. `ExteriorScene.ts` gained `returnToBusinessDoor` (a
+dynamic-id twin of `returnToDoor`) so leaving a business's overlay puts the player back where
+they entered from, same as any real door-building.
+
+Deliberately, explicitly deferred (both carried over unchanged from housing.md): no new collision
+enforcement for any placed footprint (`isMovementPassable` still doesn't know about ANY dynamic
+placement — a pre-existing gap, not introduced or worsened here); NPCs working at a placed
+business (these are player-run shops this round, not staffed ones — task #68's territory); any
+distinct art per business type (task #74).
+
+Verified by 14 new `business.test.ts` cases, 6 new `BusinessOverlay.test.tsx` cases, 2 new
+`HangarOverlay.test.tsx` cases (plus 1 existing assertion updated for the new catalog), 2 new
+`MayorsHallOverlay.test.tsx` cases, and the full gate (1056 server + 369 web tests, typecheck,
+build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

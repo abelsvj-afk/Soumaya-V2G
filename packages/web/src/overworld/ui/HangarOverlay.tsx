@@ -6,6 +6,7 @@ import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
 import { armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneType } from "../data/zoning.js";
 import { armedHomeTypeId, armHomeType, canAffordHome, HOME_TYPES } from "../data/housing.js";
+import { armBusinessType, armedBusinessTypeId, BUSINESS_TYPES, canAffordBusiness } from "../data/business.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
@@ -79,6 +80,11 @@ function formatCents(cents: number): string {
  * decor item does, then a multi-tile footprint gets placed at the walked-up-to tile. NPCs are
  * assigned to built homes automatically (housing.md decision #3) — the honest "who lives where"
  * summary lives in Mayor's Hall, not repeated here.
+ *
+ * Business (docs/overworld/business.md, task #67) — the same real pattern as Housing, mirrored
+ * onto the OTHER zone type: a business can only be built on ground already zoned commercial.
+ * Unlike a home, walking INTO a placed business (stepping on its own door tile) opens a real
+ * shop overlay with its own real goods, spending the same Town Treasury.
  */
 export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlayProps) {
   const keys = hangarKeys(spaceId);
@@ -91,6 +97,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
   const [armedZone, setArmedZone] = useState(() => armedZoneType(spaceId));
   const [armedHome, setArmedHome] = useState(() => armedHomeTypeId(spaceId));
+  const [armedBusiness, setArmedBusiness] = useState(() => armedBusinessTypeId(spaceId));
   const counts = zoneCounts(spaceId);
 
   const persist = (key: string, value: string, setter: (v: string) => void) => {
@@ -115,6 +122,13 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const buyAndArmHome = (typeId: string) => {
     if (armHomeType(spaceId, typeId)) {
       setArmedHome(typeId);
+      setBalance(treasuryBalanceCents(spaceId));
+    }
+  };
+
+  const buyAndArmBusiness = (typeId: string) => {
+    if (armBusinessType(spaceId, typeId)) {
+      setArmedBusiness(typeId);
       setBalance(treasuryBalanceCents(spaceId));
     }
   };
@@ -221,6 +235,40 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
               <button
                 type="button"
                 onClick={() => buyAndArmHome(type.id)}
+                disabled={isArmed || !affordable}
+                style={actionButtonStyle(isArmed || !affordable)}
+              >
+                {isArmed ? "Armed" : affordable ? "Buy" : "Can't afford"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <h3>Business</h3>
+      <p style={{ marginTop: 0 }}>
+        Only buildable on ground already zoned Commercial above. Walk into a built one to shop.
+        {armedBusiness && (
+          <>
+            {" "}
+            — <strong>{BUSINESS_TYPES.find((t) => t.id === armedBusiness)?.name ?? armedBusiness}</strong> is ready to place:
+            leave here, walk up to a zoned spot, and press A.
+          </>
+        )}
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {BUSINESS_TYPES.map((type) => {
+          const affordable = canAffordBusiness(spaceId, type);
+          const isArmed = armedBusiness === type.id;
+          return (
+            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <span aria-hidden="true">{type.icon}</span>
+              <span style={{ flex: 1 }}>
+                {type.name} — {formatCents(type.priceCents)}
+              </span>
+              <button
+                type="button"
+                onClick={() => buyAndArmBusiness(type.id)}
                 disabled={isArmed || !affordable}
                 style={actionButtonStyle(isArmed || !affordable)}
               >

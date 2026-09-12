@@ -56,6 +56,15 @@ export function homeBuildingSprite(): BuildingSprite {
   return COTTAGE;
 }
 
+/** A real multi-business economy (docs/overworld/business.md, task #67) — every player-built
+ *  business reuses the same "marketplace" illustration Market itself already uses (ARCHED_HALL),
+ *  scaled to its own footprint; the 3 types stay tellable apart by footprint size plus a
+ *  type-glyph badge (ExteriorScene.ts), same convention as `homeBuildingSprite`. No new art was
+ *  sourced for this round (task #74 covers real asset sourcing). */
+export function businessBuildingSprite(): BuildingSprite {
+  return ARCHED_HALL;
+}
+
 /** Every distinct sprite that actually needs preloading (deduplicated by key) — always
  *  includes the fallback, so an unmapped future door-place still has something to load. */
 export function allBuildingSprites(): BuildingSprite[] {

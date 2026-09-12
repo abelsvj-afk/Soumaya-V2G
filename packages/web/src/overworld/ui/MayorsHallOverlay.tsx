@@ -1,4 +1,5 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
+import { businessNeglect, businessTypeById, placedBusinesses } from "../data/business.js";
 import { housingSummary } from "../data/housing.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { zoneCounts, ZONE_TYPES } from "../data/zoning.js";
@@ -30,6 +31,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
   const doorPlaces = allPlaces().filter((p) => p.kind === "door" && p.id !== "mayorsHall");
   const neglectedCount = doorPlaces.filter((p) => isNeglected(buildingNeglect(spaceId, p.id))).length;
   const housing = housingSummary(spaceId);
+  const businesses = placedBusinesses(spaceId);
 
   return (
     <OverlayShell icon="🏛️" title="Mayor's Office" onClose={onClose}>
@@ -65,6 +67,28 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
           ? `None of the town's ${housing.total} residents have a home yet — build one in the Hangar on residential-zoned land.`
           : `${housing.housed} of ${housing.total} residents have a real home — ${housing.livingAlone} living alone, ${housing.sharing} sharing a home with others.`}
       </p>
+
+      <h3>Business Neglect</h3>
+      <p style={{ marginTop: 0 }}>
+        {businesses.length === 0
+          ? "No real businesses built yet — build one in the Hangar on commercial-zoned land."
+          : `${businesses.filter((b) => isNeglected(businessNeglect(spaceId, b))).length} of ${businesses.length} businesses could use a visit.`}
+      </p>
+      {businesses.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {businesses.map((business) => {
+            const neglected = isNeglected(businessNeglect(spaceId, business));
+            const type = businessTypeById(business.typeId);
+            return (
+              <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <span aria-hidden="true">{neglected ? "❓" : "🌱"}</span>
+                <span style={{ flex: 1 }}>{type?.name ?? business.typeId}</span>
+                <span style={{ fontSize: 12, opacity: 0.8 }}>{neglected ? "could use a visit" : "doing fine"}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <h3>Zoning Plan</h3>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
