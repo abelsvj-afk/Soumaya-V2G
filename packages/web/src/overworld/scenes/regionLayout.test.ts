@@ -13,6 +13,7 @@ import {
   REGION_HEIGHT,
   REGION_WIDTH,
   townHallMeetingSlots,
+  type DoorPlace,
 } from "./regionLayout.js";
 
 describe("regionLayout — every place", () => {
@@ -166,21 +167,44 @@ describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
 });
 
 describe("regionLayout — Town Economy round (generated layout, docs/overworld/npc-economy.md)", () => {
-  it("has all 10 door-buildings, including the two new ones (Market, Park)", () => {
+  it("has all 11 door-buildings, including Market/Park and Mayor's Hall", () => {
     const doorIds = allPlaces()
       .filter((p) => p.kind === "door")
       .map((p) => p.id);
     expect(new Set(doorIds)).toEqual(
-      new Set(["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "market", "townHall", "park", "hangar"]),
+      new Set([
+        "bank",
+        "library",
+        "sanctuary",
+        "postOffice",
+        "observatory",
+        "gym",
+        "market",
+        "townHall",
+        "park",
+        "hangar",
+        "mayorsHall",
+      ]),
     );
   });
 
-  it("every door-building's footprint is exactly 3x the original 6-tile area (18 tiles)", () => {
+  it("every uniform-grid door-building's footprint is exactly 3x the original 6-tile area (18 tiles) — Mayor's Hall is deliberately bigger (mayors-hall.md)", () => {
     for (const place of allPlaces()) {
-      if (place.kind !== "door") continue;
+      if (place.kind !== "door" || place.id === "mayorsHall") continue;
       const { x0, y0, x1, y1 } = place.footprint;
       const area = (x1 - x0 + 1) * (y1 - y0 + 1);
       expect(area).toBe(18);
+    }
+  });
+
+  it("Mayor's Hall is literally the biggest building on the map — 4x any other building's area", () => {
+    const mayorsHall = allPlaces().find((p) => p.id === "mayorsHall" && p.kind === "door") as DoorPlace;
+    const { x0, y0, x1, y1 } = mayorsHall.footprint;
+    expect((x1 - x0 + 1) * (y1 - y0 + 1)).toBe(72);
+    for (const place of allPlaces()) {
+      if (place.kind !== "door" || place.id === "mayorsHall") continue;
+      const { x0: ox0, y0: oy0, x1: ox1, y1: oy1 } = place.footprint;
+      expect((ox1 - ox0 + 1) * (oy1 - oy0 + 1)).toBeLessThan((x1 - x0 + 1) * (y1 - y0 + 1));
     }
   });
 

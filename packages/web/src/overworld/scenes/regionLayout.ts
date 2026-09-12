@@ -34,6 +34,7 @@ export type PlaceId =
   | "townHall"
   | "park"
   | "hangar"
+  | "mayorsHall"
   | "bulletinBoard"
   | "soumaya";
 
@@ -114,12 +115,41 @@ const SOUTH_ROW_SPECS: RowBuildingSpec[] = [
   { id: "hangar", label: "Hangar", glyph: "🛠️" },
 ];
 
-const DOOR_PLACES: DoorPlace[] = [...layoutRow(NORTH_ROW_SPECS, NORTH_Y0, true), ...layoutRow(SOUTH_ROW_SPECS, SOUTH_Y0, false)];
+const ROWS_DOOR_PLACES: DoorPlace[] = [...layoutRow(NORTH_ROW_SPECS, NORTH_Y0, true), ...layoutRow(SOUTH_ROW_SPECS, SOUTH_Y0, false)];
 
-const RIGHTMOST_X1 = Math.max(...DOOR_PLACES.map((p) => p.footprint.x1));
+const RIGHTMOST_X1 = Math.max(...ROWS_DOOR_PLACES.map((p) => p.footprint.x1));
 export const REGION_WIDTH = RIGHTMOST_X1 + SIDE_MARGIN + 1;
-/** South row's bottom edge + one clear margin row below it. */
-export const REGION_HEIGHT = SOUTH_Y0 + BUILDING_HEIGHT + 1;
+/** South row's bottom edge + one clear margin row below it — where Mayor's Hall's own row starts. */
+const SOUTH_ROW_BOTTOM = SOUTH_Y0 + BUILDING_HEIGHT + 1;
+
+// Mayor's Hall (docs/overworld/mayors-hall.md, task #63) — soumaya-governance.md's real
+// governing role for Soumaya gets literally the biggest building on the map: 4x any other
+// building's area (12x6 = 72 tiles vs. every other place's uniform 6x3 = 18), in its own row
+// below the south row rather than squeezed into the uniform grid — every collision/passability/
+// attendant-post function here is already generic over a DoorPlace's own footprint/door fields,
+// so a bigger footprint needs zero changes anywhere else.
+const MAYORS_HALL_WIDTH = 12;
+const MAYORS_HALL_HEIGHT = 6;
+
+function mayorsHallPlace(): DoorPlace {
+  const x0 = Math.round((REGION_WIDTH - MAYORS_HALL_WIDTH) / 2);
+  const x1 = x0 + MAYORS_HALL_WIDTH - 1;
+  const y0 = SOUTH_ROW_BOTTOM;
+  const y1 = y0 + MAYORS_HALL_HEIGHT - 1;
+  return {
+    id: "mayorsHall",
+    kind: "door",
+    label: "Mayor's Hall",
+    glyph: "🏛️",
+    footprint: { x0, y0, x1, y1 },
+    door: { x: x0 + Math.floor(MAYORS_HALL_WIDTH / 2), y: y0 },
+  };
+}
+
+const DOOR_PLACES: DoorPlace[] = [...ROWS_DOOR_PLACES, mayorsHallPlace()];
+
+/** Mayor's Hall's own bottom edge + one clear margin row below it. */
+export const REGION_HEIGHT = SOUTH_ROW_BOTTOM + MAYORS_HALL_HEIGHT + 1;
 
 const CENTER_X = Math.round(REGION_WIDTH / 2);
 /** The plaza band (open ground between the two attendant bands) — roughly rows 6..17 with the

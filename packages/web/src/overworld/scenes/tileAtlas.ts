@@ -92,6 +92,9 @@ const WORK_ICON_BY_PLACE: Partial<Record<PlaceId, string>> = {
   // still their own, since those cost no new art.
   market: "🛒",
   park: "🌿",
+  // Mayor's Hall (mayors-hall.md, task #63) — "her security" flashes a shield, same
+  // no-dedicated-attendant-sprite tolerate-gracefully convention as Market/Park's own.
+  mayorsHall: "🛡️",
 };
 
 export function workIconForPlace(id: PlaceId): string {

@@ -1,3 +1,27 @@
+### 2026-09-12 (Claude): Mayor's Hall — literally the biggest building on the map
+- [ ] Verified by Claude
+- Direct answer to "somebody needs the biggest building on the map, which is for the mayor."
+  Specced first (`docs/overworld/mayors-hall.md`) per Rule #1: 12x6 (72 tiles) vs. every other
+  building's uniform 6x3 (18 tiles) — 4x the area. Placed in its own row below the south row,
+  extending `REGION_HEIGHT` the same way width already derives from the rightmost building.
+- Every collision/passability/attendant-post function in `regionLayout.ts` was already generic
+  over a `DoorPlace`'s own footprint/door fields — the bigger footprint needed zero changes to
+  any of them. Verified with a real ASCII-map print of the generated layout (not just passing
+  tests): uniform-grid buildings above, the much bigger hall centered below, clean margins, no
+  overlaps.
+- "Her security": two real attendant NPCs (Wren, Cass) with full `npcDialogue.ts` profiles — the
+  same NPC Society membership (schedule, dialogue, relationships) all 20 other attendants
+  already have, not a special case.
+- What walking in shows: a real Mayor's Office dashboard combining the Town Treasury
+  (`townLedger.ts`), per-building neglect (`buildingNeglect.ts`), and the zoning plan
+  (`zoning.ts`) — all already-real data shown together at the town level for the first time.
+  Read-only this round; no interaction exists yet to credit as real work.
+- Reuses `FLAG_TOWER` (Town Hall/Gym's own illustration) and the generic attendant fallback — no
+  new art invented; a distinct look is tracked under task #74.
+- Verified by 2 new/updated `regionLayout.test.ts` cases, 6 new `MayorsHallOverlay.test.tsx`
+  cases, the ASCII-map measurement above, and the full gate (1056 server + 320 web tests,
+  typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): Zoning — the real foundation under housing and business
 - [ ] Verified by Claude
 - Direct answer to "I also need zoning to be a thing... where homes can go... where commercial

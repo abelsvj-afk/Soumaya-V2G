@@ -253,6 +253,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Mayor's Hall — literally the biggest building on the map (2026-09-12), not yet on-device
+  confirmed** — direct answer to "somebody needs the biggest building on the map, which is for
+  the mayor." Specced first (`docs/overworld/mayors-hall.md`): 12x6 (72 tiles) vs. every other
+  building's uniform 6x3 (18 tiles) — 4x the area. Every collision/passability/attendant-post
+  function was already generic over a footprint, so the bigger size needed zero changes
+  anywhere — verified by a real ASCII-map print of the generated layout. "Her security" is two
+  real attendant NPCs (Wren, Cass) with full NPC Society profiles, not a special case. Walking
+  in shows a real Mayor's Office dashboard combining the Town Treasury, per-building neglect,
+  and the zoning plan — all already-real data, nothing new invented, read-only since no
+  interaction exists yet to credit as work. Reuses the same civic-banner illustration Town
+  Hall/Gym already use — no new art. Verified by 2 new/updated + 6 new tests + the ASCII-map
+  measurement + full gate (1056 server + 320 web tests, typecheck, build) — not yet seen
+  rendered in a real browser.
+
 - **Zoning: the real foundation under housing and business (2026-09-12), not yet on-device
   confirmed** — direct answer to "I also need zoning to be a thing... where homes can go...
   where commercial buildings can go to earn income." Specced first

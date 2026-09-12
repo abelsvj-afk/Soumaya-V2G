@@ -24,6 +24,7 @@ import { HangarOverlay } from "./ui/HangarOverlay.js";
 import { SoumayaChatOverlay } from "./ui/SoumayaChatOverlay.js";
 import { MarketOverlay } from "./ui/MarketOverlay.js";
 import { ParkOverlay } from "./ui/ParkOverlay.js";
+import { MayorsHallOverlay } from "./ui/MayorsHallOverlay.js";
 import { greetCreature, loadWorldSnapshot, type WorldSnapshot } from "./data/loadWorldSnapshot.js";
 import type { CreatureEntity } from "./types.js";
 
@@ -44,6 +45,7 @@ const DOOR_PLACE_IDS = new Set<PlaceId>([
   "townHall",
   "park",
   "hangar",
+  "mayorsHall",
 ]);
 
 /**
@@ -365,6 +367,7 @@ export function OverworldRoot() {
       {overlay.kind === "market" && <MarketOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "townHall" && <TownHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
+      {overlay.kind === "mayorsHall" && <MayorsHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
         <SoumayaChatOverlay
