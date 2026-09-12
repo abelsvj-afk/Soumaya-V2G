@@ -135,6 +135,7 @@ export function OverworldRoot() {
       sceneRef.current?.setCreatures(next.creatures);
       sceneRef.current?.refreshPlacedItems();
       sceneRef.current?.refreshZoneMarkers();
+      sceneRef.current?.refreshPlacedHomes();
       void checkTownMeetingEffect();
       void checkCivicConcernEffect();
       return next;
@@ -212,6 +213,12 @@ export function OverworldRoot() {
       // zoning.md — a real zoning decision is also the Hangar's own real work event, even
       // though zoning itself is free (only building on a zoned tile will later cost anything).
       scene.events.on("tile-zoned", () => {
+        const spaceIdForWork = getSpaceId();
+        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
+      });
+      // housing.md — building a real home is also the Hangar's own real work event, same as
+      // any other town-builder placement.
+      scene.events.on("home-placed", () => {
         const spaceIdForWork = getSpaceId();
         if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
       });

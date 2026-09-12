@@ -1,3 +1,33 @@
+### 2026-09-12 (Claude): Real housing/real-estate types (task #66)
+- [ ] Verified by Claude
+- Direct answer to the SimCity framing's "give the NPCs homes... our individual life is not
+  identical to another" and "hot zoning is how many homes there are." Specced first
+  (`docs/overworld/housing.md`) per Rule #1 — gives zoning (task #75) and the Hangar town-builder
+  (task #65) their first real mechanical consequence: a home can only be built on ground already
+  tagged residential.
+- New `data/housing.ts`: a small catalog of 4 home types (Cottage 2x2/1 resident, Duplex 3x2/2,
+  House 3x3/3, Apartment Block 4x3/4), a stricter multi-tile version of town-builder's own
+  arm-then-place flow, paid from the real Town Treasury.
+- NPC-to-home assignment (`assignResidents`) is deterministic and capacity-packed — never random,
+  never an invented backstory: homes fill in real build order, each to its own real capacity,
+  from the town's real, fixed 20 society NPCs (`npcDialogue.ts` gained `allSocietyNpcIds()`).
+  This is what actually produces "not identical" NPC living situations: an NPC in a Cottage
+  genuinely lives alone; one in an Apartment Block genuinely shares with 3 others.
+- `ExteriorScene.ts` renders a placed home the same way a real door-building is drawn (COTTAGE's
+  already-loaded illustration, scaled to the home's own footprint) plus a type-glyph badge
+  (🏠/🏡/🏘️/🏢, never color-only) — no new art sourced (task #74 covers that). `HangarOverlay.tsx`
+  gained a "Housing" section; `MayorsHallOverlay.tsx` gained an honest "Housing" summary (real
+  counts only, never an invented family story).
+- Deliberately, explicitly deferred: routing the NPC schedule's "Home" state to actually pathfind
+  to the assigned home. That tween-driven state machine is the most fragile part of this
+  codebase (a real cross-tween conflict was already caught and fixed there once) — shipping the
+  real-estate layer itself without risking that working, verified machinery is the safer
+  sequencing; wiring actual home-going is a clearly-scoped follow-up.
+- Verified by 13 new `housing.test.ts` cases, 2 new `MayorsHallOverlay.test.tsx` cases, 2 new
+  `HangarOverlay.test.tsx` cases (+1 existing assertion updated), a real open-ground probe
+  against the actual 46x31 map, and the full gate (1056 server + 345 web tests, typecheck,
+  build). Not yet seen rendered in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): The townwide civic-concern signal (D3-compliant crime/policing reframe)
 - [ ] Verified by Claude
 - Direct reframe of "add the criminals system and policing" — `decisions.md` D3 is a hard,

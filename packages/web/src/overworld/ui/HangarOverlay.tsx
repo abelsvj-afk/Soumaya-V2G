@@ -5,6 +5,7 @@ import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
 import { armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneType } from "../data/zoning.js";
+import { armedHomeTypeId, armHomeType, canAffordHome, HOME_TYPES } from "../data/housing.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
@@ -72,6 +73,12 @@ function formatCents(cents: number): string {
  * business: arming a zone type is FREE (a planning decision, never a purchase), then the same
  * walk-up-and-press-A action tags a tile instead of placing an item. Its own real, honest
  * "positive/negative effect" is the plain per-type count below — never an invented score.
+ *
+ * Housing (docs/overworld/housing.md, task #66) — a home can only be BUILT on ground already
+ * zoned residential above; buying one spends the real Town Treasury and arms it the same way a
+ * decor item does, then a multi-tile footprint gets placed at the walked-up-to tile. NPCs are
+ * assigned to built homes automatically (housing.md decision #3) — the honest "who lives where"
+ * summary lives in Mayor's Hall, not repeated here.
  */
 export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlayProps) {
   const keys = hangarKeys(spaceId);
@@ -83,6 +90,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [armed, setArmed] = useState(() => armedItemId(spaceId));
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
   const [armedZone, setArmedZone] = useState(() => armedZoneType(spaceId));
+  const [armedHome, setArmedHome] = useState(() => armedHomeTypeId(spaceId));
   const counts = zoneCounts(spaceId);
 
   const persist = (key: string, value: string, setter: (v: string) => void) => {
@@ -102,6 +110,13 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const armZone = (type: ZoneType) => {
     armZoneType(spaceId, type);
     setArmedZone(type);
+  };
+
+  const buyAndArmHome = (typeId: string) => {
+    if (armHomeType(spaceId, typeId)) {
+      setArmedHome(typeId);
+      setBalance(treasuryBalanceCents(spaceId));
+    }
   };
 
   return (
@@ -176,6 +191,40 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
               </span>
               <button type="button" onClick={() => armZone(type)} disabled={isArmed} style={actionButtonStyle(isArmed)}>
                 {isArmed ? "Armed" : "Zone"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      <h3>Housing</h3>
+      <p style={{ marginTop: 0 }}>
+        Only buildable on ground already zoned Residential above.
+        {armedHome && (
+          <>
+            {" "}
+            — <strong>{HOME_TYPES.find((t) => t.id === armedHome)?.name ?? armedHome}</strong> is ready to place: leave here,
+            walk up to a zoned spot, and press A.
+          </>
+        )}
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {HOME_TYPES.map((type) => {
+          const affordable = canAffordHome(spaceId, type);
+          const isArmed = armedHome === type.id;
+          return (
+            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <span aria-hidden="true">{type.icon}</span>
+              <span style={{ flex: 1 }}>
+                {type.name} — {type.capacity} resident{type.capacity === 1 ? "" : "s"} — {formatCents(type.priceCents)}
+              </span>
+              <button
+                type="button"
+                onClick={() => buyAndArmHome(type.id)}
+                disabled={isArmed || !affordable}
+                style={actionButtonStyle(isArmed || !affordable)}
+              >
+                {isArmed ? "Armed" : affordable ? "Buy" : "Can't afford"}
               </button>
             </li>
           );

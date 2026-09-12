@@ -253,6 +253,28 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real housing/real-estate types (2026-09-12), not yet on-device confirmed** — direct answer
+  to the SimCity framing's "give the NPCs homes... our individual life is not identical to
+  another" and "hot zoning is how many homes there are." Specced first
+  (`docs/overworld/housing.md`): gives zoning (task #75) and the Hangar town-builder (task #65)
+  their first real mechanical consequence — a home can only be built on ground already tagged
+  residential. New `data/housing.ts`: 4 home types (Cottage/Duplex/House/Apartment Block, 1-4
+  real residents each), a stricter multi-tile version of town-builder's own arm-then-place flow,
+  paid from the real Town Treasury. NPC-to-home assignment is deterministic and capacity-packed,
+  never random — homes fill in real build order from the town's real 20 society NPCs
+  (`allSocietyNpcIds()`), which is what actually makes NPC living situations genuinely vary (an
+  NPC in a Cottage lives alone; one in an Apartment Block shares with 3 others — a real number,
+  never an invented trait). Rendered by reusing the already-loaded COTTAGE illustration scaled to
+  each home's footprint, plus a type-glyph badge (no new art — task #74 covers that). Deliberately
+  deferred: routing the NPC schedule's "Home" state to actually walk to the assigned home — its
+  tween-driven state machine is the most fragile part of this codebase (a real cross-tween
+  conflict was already caught and fixed there once), so this round ships the buildable/assigned/
+  honestly-reported real-estate layer without risking that working, verified machinery. Verified
+  by 13 new `housing.test.ts` cases, 2 new `MayorsHallOverlay.test.tsx` cases, 2 new
+  `HangarOverlay.test.tsx` cases, a real open-ground probe against the actual 46x31 map, and the
+  full gate (1056 server + 345 web tests, typecheck, build) — not yet seen rendered in a real
+  browser from this sandbox.
+
 - **The townwide civic-concern signal (2026-09-12), not yet on-device confirmed** — the
   D3-compliant reframe of "add the criminals system and policing" (`decisions.md` D3 is a hard,
   permanent no-combat rule). Specced first (`docs/overworld/civic-concern.md`): a real majority

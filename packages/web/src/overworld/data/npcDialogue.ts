@@ -340,6 +340,12 @@ export function asSocietyNpcId(id: string): SocietyNpcId | null {
   return PROFILES[id] ? id : null;
 }
 
+/** The town's real, fixed 20 society NPCs, in one stable declaration order (PROFILE_LIST's own
+ *  order) — housing.ts's single source of "who exists" for deterministic home assignment. */
+export function allSocietyNpcIds(): readonly SocietyNpcId[] {
+  return PROFILE_LIST.map((p) => p.id);
+}
+
 /** The other attendant at the same building, if this npcId is a real one — used to find who
  *  an interaction partner actually is without hard-coding building-specific pairs anywhere. */
 export function partnerNpcId(id: SocietyNpcId): SocietyNpcId | null {

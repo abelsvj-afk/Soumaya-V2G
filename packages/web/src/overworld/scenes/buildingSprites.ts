@@ -47,6 +47,15 @@ export function buildingSpriteForPlace(id: PlaceId): BuildingSprite {
   return BUILDING_SPRITE_BY_PLACE[id] ?? COTTAGE;
 }
 
+/** Housing (docs/overworld/housing.md, task #66) — every player-built home reuses this same
+ *  real house illustration regardless of type (cottage/duplex/house/apartment), scaled to its
+ *  own footprint; the 4 types stay tellable apart by footprint size plus a type-glyph badge
+ *  (ExteriorScene.ts), never by a distinct silhouette. No new art was sourced for this round
+ *  (task #74 covers real asset sourcing). */
+export function homeBuildingSprite(): BuildingSprite {
+  return COTTAGE;
+}
+
 /** Every distinct sprite that actually needs preloading (deduplicated by key) — always
  *  includes the fallback, so an unmapped future door-place still has something to load. */
 export function allBuildingSprites(): BuildingSprite[] {
