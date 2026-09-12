@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { MoneyStar, MoneyStarState } from "@brain/shared";
-import { canAfford, moneyStarToBankRow, moneyStarsToBankRows } from "./financeAdapter.js";
+import { canAfford, detectBankWork, moneyStarToBankRow, moneyStarsToBankRows } from "./financeAdapter.js";
 
 function makeStar(state: MoneyStarState, overrides: Partial<MoneyStar> = {}): MoneyStar {
   return {
@@ -58,5 +58,41 @@ describe("canAfford (FR6 — the shop-counter check)", () => {
   });
   it("greys out anything above safe-to-spend", () => {
     expect(canAfford(1001, 1000)).toBe(false);
+  });
+});
+
+describe("detectBankWork (Town Economy round — real Bank work, npc-economy.md)", () => {
+  it("detects a bill transitioning into paid", () => {
+    const old = moneyStarsToBankRows([makeStar("overdue", { id: 1 })]);
+    const next = moneyStarsToBankRows([makeStar("paid", { id: 1 })]);
+    expect(detectBankWork(old, next)).toBe(true);
+  });
+
+  it("detects a goal transitioning into reached", () => {
+    const old = moneyStarsToBankRows([makeStar("goal_filling", { id: 1, kind: "goal" })]);
+    const next = moneyStarsToBankRows([makeStar("goal_reached", { id: 1, kind: "goal" })]);
+    expect(detectBankWork(old, next)).toBe(true);
+  });
+
+  it("never re-credits a row that was already paid/reached before", () => {
+    const old = moneyStarsToBankRows([makeStar("paid", { id: 1 })]);
+    const next = moneyStarsToBankRows([makeStar("paid", { id: 1 })]);
+    expect(detectBankWork(old, next)).toBe(false);
+  });
+
+  it("is false when nothing actually changed state", () => {
+    const old = moneyStarsToBankRows([makeStar("overdue", { id: 1 })]);
+    const next = moneyStarsToBankRows([makeStar("overdue", { id: 1 })]);
+    expect(detectBankWork(old, next)).toBe(false);
+  });
+
+  it("never confuses a bill and a goal that happen to share the same real id", () => {
+    const old = moneyStarsToBankRows([makeStar("paid", { id: 1, kind: "bill" })]);
+    const next = moneyStarsToBankRows([makeStar("goal_reached", { id: 1, kind: "goal" })]);
+    expect(detectBankWork(old, next)).toBe(true);
+  });
+
+  it("is false for an empty diff (e.g. the very first load, with no prior state)", () => {
+    expect(detectBankWork([], [])).toBe(false);
   });
 });

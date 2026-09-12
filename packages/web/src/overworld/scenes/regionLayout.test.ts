@@ -162,3 +162,43 @@ describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
     expect(new Set(townHallIds)).toEqual(new Set(["townHall-0", "townHall-1"]));
   });
 });
+
+describe("regionLayout — Town Economy round (generated layout, docs/overworld/npc-economy.md)", () => {
+  it("has all 10 door-buildings, including the two new ones (Market, Park)", () => {
+    const doorIds = allPlaces()
+      .filter((p) => p.kind === "door")
+      .map((p) => p.id);
+    expect(new Set(doorIds)).toEqual(
+      new Set(["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "market", "townHall", "park", "hangar"]),
+    );
+  });
+
+  it("every door-building's footprint is exactly 3x the original 6-tile area (18 tiles)", () => {
+    for (const place of allPlaces()) {
+      if (place.kind !== "door") continue;
+      const { x0, y0, x1, y1 } = place.footprint;
+      const area = (x1 - x0 + 1) * (y1 - y0 + 1);
+      expect(area).toBe(18);
+    }
+  });
+
+  it("no two door-building footprints overlap, even by one tile (generated, not hand-typed)", () => {
+    const doorPlaces = allPlaces().filter((p) => p.kind === "door");
+    for (let i = 0; i < doorPlaces.length; i++) {
+      for (let j = i + 1; j < doorPlaces.length; j++) {
+        const a = doorPlaces[i]!.footprint;
+        const b = doorPlaces[j]!.footprint;
+        const overlaps = a.x0 <= b.x1 && b.x0 <= a.x1 && a.y0 <= b.y1 && b.y0 <= a.y1;
+        expect(overlaps).toBe(false);
+      }
+    }
+  });
+
+  it("REGION_WIDTH/REGION_HEIGHT actually contain every building, with room to spare for the margin", () => {
+    for (const place of allPlaces()) {
+      if (place.kind !== "door") continue;
+      expect(place.footprint.x1).toBeLessThan(REGION_WIDTH);
+      expect(place.footprint.y1).toBeLessThan(REGION_HEIGHT);
+    }
+  });
+});

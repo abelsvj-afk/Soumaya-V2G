@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Journey, JourneyLinkSummary } from "@brain/shared";
 import { createJourney, deleteJourney, getJourneys, journeyLinks, patchJourney } from "../../api/journeys.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 
 export interface TownHallOverlayProps {
+  spaceId: string;
   onClose: () => void;
 }
 
@@ -10,9 +12,11 @@ export interface TownHallOverlayProps {
  * Town Hall (Journeys tab equivalent) — the region/world-map screen. Real Journey CRUD via
  * api/journeys.ts; travel between regions (Stage 3, decisions.md D4) doesn't exist yet since
  * there's only one physical region so far, so this is a management view for now, same as
- * JourneysPanel's current actual scope (it doesn't do literal travel either).
+ * JourneysPanel's current actual scope (it doesn't do literal travel either). Starting a real
+ * Journey, or advancing one's real progress, is Town Hall's own real work event
+ * (npc-economy.md) — the same real Journey CRUD that's already Mira/Dez's civic theme.
  */
-export function TownHallOverlay({ onClose }: TownHallOverlayProps) {
+export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
@@ -32,6 +36,7 @@ export function TownHallOverlay({ onClose }: TownHallOverlayProps) {
     setCreating(true);
     try {
       await createJourney({ title: trimmed, icon });
+      recordBuildingWork(spaceId, "townHall");
       setTitle("");
       await load();
     } finally {
@@ -42,6 +47,7 @@ export function TownHallOverlay({ onClose }: TownHallOverlayProps) {
   const bumpProgress = async (j: Journey, delta: number) => {
     const next = Math.max(0, Math.min(1, j.progress + delta));
     await patchJourney(j.id, { progress: next });
+    recordBuildingWork(spaceId, "townHall");
     await load();
   };
 

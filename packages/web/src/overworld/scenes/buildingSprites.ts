@@ -33,6 +33,10 @@ const BUILDING_SPRITE_BY_PLACE: Partial<Record<PlaceId, BuildingSprite>> = {
   observatory: LIGHTHOUSE,
   gym: FLAG_TOWER,
   townHall: FLAG_TOWER,
+  // Town Economy round (npc-economy.md) — Market reuses the arched hall (a real marketplace
+  // silhouette in the sourced pack); Park falls through to the COTTAGE default below, same as
+  // every other unmapped place — no new art was invented for it.
+  market: ARCHED_HALL,
 };
 
 export function buildingSpriteForPlace(id: PlaceId): BuildingSprite {

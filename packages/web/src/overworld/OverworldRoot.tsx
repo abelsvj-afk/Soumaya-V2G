@@ -3,6 +3,8 @@ import Phaser from "phaser";
 import { getDigest, ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
 import { checkTownMeeting, markAnnounced, meetingAnnouncementText } from "./data/townMeeting.js";
+import { detectBankWork } from "./adapter/financeAdapter.js";
+import { recordBuildingWork } from "./data/npcJobs.js";
 import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
 import { ExteriorScene, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
@@ -20,6 +22,8 @@ import { GymOverlay } from "./ui/GymOverlay.js";
 import { TownHallOverlay } from "./ui/TownHallOverlay.js";
 import { HangarOverlay } from "./ui/HangarOverlay.js";
 import { SoumayaChatOverlay } from "./ui/SoumayaChatOverlay.js";
+import { MarketOverlay } from "./ui/MarketOverlay.js";
+import { ParkOverlay } from "./ui/ParkOverlay.js";
 import { greetCreature, loadWorldSnapshot, type WorldSnapshot } from "./data/loadWorldSnapshot.js";
 import type { CreatureEntity } from "./types.js";
 
@@ -29,7 +33,18 @@ type Overlay =
   | { kind: "details"; creature: CreatureEntity }
   | { kind: PlaceId };
 
-const DOOR_PLACE_IDS = new Set<PlaceId>(["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "townHall", "hangar"]);
+const DOOR_PLACE_IDS = new Set<PlaceId>([
+  "bank",
+  "library",
+  "sanctuary",
+  "postOffice",
+  "observatory",
+  "gym",
+  "market",
+  "townHall",
+  "park",
+  "hangar",
+]);
 
 /**
  * The Overworld's town: every dock-tab equivalent lives here as a real place (Stage 2,
@@ -76,7 +91,15 @@ export function OverworldRoot() {
 
   const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
     try {
+      const previousBankRows = snapshotRef.current?.bank.rows ?? [];
       const next = await loadWorldSnapshot();
+      // Town Economy round (npc-economy.md) — the Bank has no button of its own to hook (a
+      // read-only ledger), so its real work is detected by diffing the previous snapshot
+      // against this one (see detectBankWork's own doc comment for why).
+      if (detectBankWork(previousBankRows, next.bank.rows)) {
+        const spaceIdForWork = getSpaceId();
+        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "bank");
+      }
       setSnapshot(next);
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
@@ -313,17 +336,21 @@ export function OverworldRoot() {
       {overlay.kind === "bank" && snapshot && (
         <BankOverlay rows={snapshot.bank.rows} safeToSpendCents={snapshot.bank.safeToSpendCents} onClose={closeOverlay} />
       )}
-      {overlay.kind === "library" && snapshot && <LibraryOverlay graph={snapshot.graph} onClose={closeOverlay} />}
-      {overlay.kind === "sanctuary" && <SanctuaryOverlay onClose={closeOverlay} />}
-      {overlay.kind === "bulletinBoard" && snapshot && (
-        <BulletinBoardOverlay graph={snapshot.graph} onClose={closeOverlay} refresh={refresh} />
+      {overlay.kind === "library" && snapshot && (
+        <LibraryOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} />
       )}
-      {overlay.kind === "observatory" && <ObservatoryOverlay onClose={closeOverlay} />}
+      {overlay.kind === "sanctuary" && <SanctuaryOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "bulletinBoard" && snapshot && (
+        <BulletinBoardOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} refresh={refresh} />
+      )}
+      {overlay.kind === "observatory" && <ObservatoryOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "postOffice" && <PostOfficeOverlay spaceId={spaceId} onClose={closeOverlay} onOpenPlace={openPlace} />}
       {overlay.kind === "gym" && snapshot && (
         <GymOverlay graph={snapshot.graph} fuel={snapshot.fuel} streak={snapshot.streak} onClose={closeOverlay} />
       )}
-      {overlay.kind === "townHall" && <TownHallOverlay onClose={closeOverlay} />}
+      {overlay.kind === "market" && <MarketOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "townHall" && <TownHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
         <SoumayaChatOverlay onClose={closeOverlay} creatures={snapshot?.creatures ?? []} onFlyToNode={flyToNode} />

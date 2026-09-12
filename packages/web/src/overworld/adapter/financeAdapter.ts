@@ -37,3 +37,17 @@ export function moneyStarsToBankRows(stars: readonly MoneyStar[]): BankLedgerRow
 export function canAfford(priceCents: number, safeToSpendCents: number): boolean {
   return priceCents <= safeToSpendCents;
 }
+
+/**
+ * Town Economy round (docs/overworld/npc-economy.md) — real Bank "work": a bill actually paid
+ * or a goal actually reached since the last snapshot. BankOverlay.tsx has no button of its own
+ * (it's a read-only ledger), so unlike every other building this is detected by diffing two
+ * snapshots rather than hooked at a single call site — OverworldRoot.tsx calls this on every
+ * refresh with the previous and current rows. Never re-credits a row already paid/reached
+ * before (no free hours just from re-opening the Bank).
+ */
+export function detectBankWork(oldRows: readonly BankLedgerRow[], newRows: readonly BankLedgerRow[]): boolean {
+  const DONE_STATES: ReadonlySet<MoneyStarState> = new Set(["paid", "goal_reached"]);
+  const wasDone = new Set(oldRows.filter((r) => DONE_STATES.has(r.state)).map((r) => `${r.kind}-${r.id}`));
+  return newRows.some((r) => DONE_STATES.has(r.state) && !wasDone.has(`${r.kind}-${r.id}`));
+}

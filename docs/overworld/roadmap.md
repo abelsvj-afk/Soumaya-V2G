@@ -389,6 +389,79 @@ Verified via `npcSchedule.test.ts`, `npcRelationships.test.ts`, `npcDialogue.tes
 full gate (1051 server + 209 web tests, typecheck, build) — the actual break-time interaction,
 speech bubbles, and 📢 cue have not been seen rendered in a real browser from this sandbox.
 
+## Stage 2.12 — Town Economy: bigger buildings, a real wage/neglect loop, Market + Park (docs/overworld/npc-economy.md)
+
+A single message asked for a lot at once: roll NPC Society out further, buildings ~3x their
+size, NPCs that visibly enter/exit buildings, a wage economy, work created by the player's own
+interactions, new shops/recreation, "adapt to health," and reusing "old mechanics." Per Rule #1
+this got its own spec (`docs/overworld/npc-economy.md`) with the biggest ambiguities resolved
+directly with the user before any code: wages are a **purely cosmetic in-game ledger, never
+real Bank/finance or the real `Fuel` resource** (checked `Fuel`'s actual meaning —
+"cost the agent pays per autonomous LLM job" — before assuming it was spendable); "health" is
+the old galaxy's own neglect math (`entropyFrom`/`COOLING_ENTROPY`) extended to buildings, not a
+new invented stat; "old mechanics" meant the real per-building data already wired into every
+Overlay, not the deleted galaxy's clustering/codex/sector systems.
+
+**What shipped:**
+- **A generated region layout**, replacing the hand-typed coordinate table (`regionLayout.ts`):
+  a small per-row building-spec list + fixed spacing produces every footprint/door, so overlap
+  is structurally impossible rather than something a test discovers after the fact. Buildings
+  grew to 3x their original footprint AREA (6 tiles → 18: 6 wide x 3 tall — stated explicitly
+  since "3x every dimension" would have dwarfed the old region). Region grew from 26x18 to
+  46x24 to fit. Reproduced/measured, not assumed: a throwaway script printed the actual
+  generated layout as an ASCII map before this shipped, confirming the geometry matched the
+  design exactly (`docs/overworld/roadmap.md`'s own "verify before you build" standard).
+- **Two new buildings**: **Market** (a real shop) and **Park** (recreation + a real "how's the
+  town doing" board — see below), added to the south row alongside Gym/Town Hall/Hangar.
+- **NPC Society rolled out from 2 to 20 NPCs** (all 10 buildings' attendant pairs, not just Town
+  Hall's Mira/Dez) — `npcDialogue.ts`'s profile table grew to 20 hand-authored NPCs, each with
+  their own job/personal/friend lines tied to real achievement ids and their own building's
+  pair.
+- **NPCs actually enter and exit buildings** (real user feedback) — Working now means walking
+  to the door and disappearing (truly "inside," not just standing at a post); the work-icon cue
+  still flashes from that door position. Break means visibly exiting to their own post, where
+  their building's own pair has their interaction (see the Deferred note below for why this
+  stayed local rather than routing everyone to Park).
+- **Real wages from real interaction** (`data/townLedger.ts`, `data/npcJobs.ts`) — every
+  building's attendants earn a fictional hour/wage only when a REAL mutating call that Overlay
+  already makes actually succeeds: a search in the Library, a thought logged in the Sanctuary, a
+  quest posted/turned in at the Bulletin Board, an insight resolved at the Observatory, a
+  notification read at the Post Office, a Journey saved at Town Hall, a cosmetic changed at the
+  Hangar, a purchase made at the Market. The Bank and Gym have no button of their own to hook
+  (read-only ledgers), so their real work is detected by diffing snapshots instead
+  (`detectBankWork` in `financeAdapter.ts`; the Gym reuses `syncAchievements`'s own
+  freshly-unlocked-ids return in `loadWorldSnapshot.ts`) — never a timer, never invented.
+- **Neglect cascades** (`data/buildingNeglect.ts`) — reuses `entropyFrom()`'s exact shape
+  (the SAME math a neglected memory's dim state already comes from) applied to "time since this
+  building's last real work event." A neglected building's own attendant pair still visibly
+  breaks, but their relationship growth pauses (never decays negative — no dark patterns) and
+  they render dimmed with the same non-color "?" cue a neglected memory gets — the user's own
+  "if I never do anything... that strains relationships... cascading issues," resolved with real
+  data, not an invented simulation.
+- **Market**: a real shop spending the **Town Treasury** (the sum of every building's real
+  earned wages) on a small cosmetic catalog (`data/marketGoods.ts`) — the exact same "selection
+  state tracked correctly, no further in-world rendering yet" precedent `HangarOverlay.tsx`
+  already established for its own ship-hull/figurine choices, not a new convention.
+- **Park**: a real bench showing which buildings actually have real work waiting
+  (`buildingNeglect.ts` again) — a plain-language read on the town's wellbeing, never a score to
+  optimize.
+
+**Deliberately deferred, not silently dropped** (flagged in npc-economy.md's own list):
+- Rolling this out to a "Mall" as its own multi-stall complex — Market ships as one shop.
+- Routing every building's Break-time attendants to a shared Park tile — revised **while
+  building**, not just at spec time: with 10 buildings' pairs on the same shared clock, up to 20
+  sprites converging on a couple of Park tiles was a real crowding risk with no queueing system
+  to verify it was safe. Scaled back to the proven-safe local-to-building interaction instead.
+- LLM-generated dialogue variation (still deferred from npc-society.md v1).
+- Any real-money/Fuel integration for the shop — Town Treasury only, by design.
+
+Verified via 6 new/updated pure-logic test files (`buildingNeglect`, `townLedger`, `npcJobs`,
+`marketGoods`, an expanded `npcDialogue`, an expanded `regionLayout`), 2 new overlay test files
+(`MarketOverlay`, `ParkOverlay`), updated tests on 5 existing overlays for the new `spaceId`
+prop, the ASCII-map layout reproduction above, and the full gate (1051 server + 258 web tests,
+typecheck, build) — the actual bigger buildings, enter/exit animation, and Market/Park screens
+have not been seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -2,9 +2,11 @@ import { useState } from "react";
 import type { GraphData } from "@brain/shared";
 import { search, type SearchHit } from "../../api/client.js";
 import { groupIntoFolders } from "../data/libraryFolders.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 
 export interface LibraryOverlayProps {
   graph: GraphData;
+  spaceId: string;
   onClose: () => void;
 }
 
@@ -12,8 +14,9 @@ export interface LibraryOverlayProps {
  * The Library (Browse tab equivalent) — card-catalog shelves grouped exactly like
  * LibraryPanel.tsx's FOLDER_ORDER when browsing, and the real full-text `search()` (hits
  * the whole brain, not just the region's capped creature sample) once you type a query.
+ * A real search performed is the Library's own real work event (npc-economy.md).
  */
-export function LibraryOverlay({ graph, onClose }: LibraryOverlayProps) {
+export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps) {
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SearchHit[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -28,6 +31,7 @@ export function LibraryOverlay({ graph, onClose }: LibraryOverlayProps) {
     setSearching(true);
     try {
       setHits(await search(q));
+      recordBuildingWork(spaceId, "library");
     } finally {
       setSearching(false);
     }

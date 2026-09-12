@@ -1,9 +1,11 @@
 import { useState } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { ackReminder, deleteNode, ingestText } from "../../api/client.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 
 export interface BulletinBoardOverlayProps {
   graph: GraphData;
+  spaceId: string;
   onClose: () => void;
   refresh: () => Promise<unknown>;
 }
@@ -13,9 +15,10 @@ export interface BulletinBoardOverlayProps {
  * kind === "action" (client.ts's own convention — no dedicated endpoint); completing one
  * is deleteNode (matches ActionsPanel today: completion = deletion, server pays a fuel
  * reward for actions older than its own minimum-age guard). Reminders are any node with
- * remindAt set; acking clears it server-side via ackReminder.
+ * remindAt set; acking clears it server-side via ackReminder. Posting or turning in a real
+ * quest is this building's own real work event (npc-economy.md).
  */
-export function BulletinBoardOverlay({ graph, onClose, refresh }: BulletinBoardOverlayProps) {
+export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: BulletinBoardOverlayProps) {
   const [newQuest, setNewQuest] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
@@ -27,6 +30,7 @@ export function BulletinBoardOverlay({ graph, onClose, refresh }: BulletinBoardO
     setBusyId(node.id);
     try {
       await deleteNode(node.id);
+      recordBuildingWork(spaceId, "bulletinBoard");
       await refresh();
     } finally {
       setBusyId(null);
@@ -49,6 +53,7 @@ export function BulletinBoardOverlay({ graph, onClose, refresh }: BulletinBoardO
     setPosting(true);
     try {
       await ingestText(text, { kind: "action" });
+      recordBuildingWork(spaceId, "bulletinBoard");
       setNewQuest("");
       await refresh();
     } finally {

@@ -1,3 +1,60 @@
+### 2026-09-12 (Claude): Soumaya Overworld — Town Economy round: bigger buildings, a real wage/neglect loop, Market + Park
+- [ ] Verified by Claude
+- One message asked for a lot at once: roll NPC Society out further, buildings ~3x their size,
+  NPCs that enter/exit buildings, a wage economy, work created by the player's own real
+  interactions, new shops/recreation, "adapt to health," and reusing "old mechanics." Per
+  CLAUDE.md Rule #1 this got its own spec (`docs/overworld/npc-economy.md`), with the biggest
+  ambiguities resolved directly with the user before any code:
+  - **Wages are a purely cosmetic in-game ledger** — never real Bank/finance, never the real
+    `Fuel` resource (checked `shared/types.ts` first: `Fuel` is "cost the agent pays per
+    autonomous LLM job," an LLM cost meter, not a player-spendable currency — Hangar's own
+    cosmetics are achievement/count-gated, not Fuel-purchased, re-confirmed directly rather than
+    assumed).
+  - **"Health" = the old galaxy's own neglect math, extended** — `entropyFrom()`/
+    `COOLING_ENTROPY` (shared/celestial.ts, the exact function behind a memory's dim "?" state)
+    applied to a new subject: time since a building's last REAL work event. Not a new stat.
+  - **"Old mechanics" = the real per-building data already wired into every Overlay** — not the
+    deleted galaxy's clustering/codex/sector systems, confirmed those weren't what was meant.
+- **Generated region layout** — `regionLayout.ts`'s hand-typed `DOOR_PLACES` table is now a
+  small per-row spec list + fixed spacing that PRODUCES every footprint/door; overlap is
+  structurally impossible instead of something a test has to catch. Buildings grew to 3x their
+  original footprint AREA (6→18 tiles: 6 wide x 3 tall — not 3x every dimension, which would
+  have dwarfed the old region). Region grew 26x18 → 46x24. Verified by printing the ACTUAL
+  generated layout as an ASCII map (not just trusting green tests) — geometry matched the
+  design exactly, zero overlaps, zero surprises.
+- **Two new buildings**: Market (a real shop) and Park (recreation + a real town-wellbeing
+  board), added to the south row.
+- **NPC Society: 2 NPCs → 20** — every building's attendant pair now has the full schedule/
+  dialogue/relationship system `npc-society.md` shipped for Town Hall only; `npcDialogue.ts`
+  grew to 20 hand-authored profiles (job/personal/friend lines each, personal lines gated on
+  real achievement ids specific to that building's theme).
+- **NPCs actually enter and exit buildings** (real user feedback) — Working now means walking to
+  the door and disappearing (truly "inside"), not pacing visibly outside; the work-icon cue
+  still flashes from the door. Break means visibly exiting to their own post, where their
+  building's own pair has the interaction.
+- **Real wages from real interaction** (`data/townLedger.ts`, `data/npcJobs.ts`) — one call,
+  `recordBuildingWork(spaceId, placeId)`, added right after the real mutating API call each
+  Overlay already makes: a search (Library), a thought logged (Sanctuary), a quest posted/
+  turned in (Bulletin Board), an insight resolved (Observatory), a notification read (Post
+  Office), a Journey saved (Town Hall), a cosmetic changed (Hangar), a purchase (Market). The
+  Bank and Gym have no button of their own (read-only ledgers) — their work is detected by
+  diffing snapshots instead: `detectBankWork` (financeAdapter.ts, a bill paid/goal reached
+  transition) and reusing `syncAchievements`'s own freshly-unlocked-ids return
+  (loadWorldSnapshot.ts). Never a timer, never invented.
+- **Neglect cascades** (`data/buildingNeglect.ts`) — a neglected building's attendants still
+  visibly break, but their relationship growth pauses (never decays negative) and they render
+  dimmed with the same non-color "?" cue a neglected memory gets. The user's own "if I never do
+  anything... that strains relationships... cascading issues," built from real data.
+- **Market**: spends the real Town Treasury (sum of every building's real earned wages) on a
+  small cosmetic catalog (`data/marketGoods.ts`) — the exact "selection tracked correctly, no
+  further in-world rendering yet" precedent `HangarOverlay.tsx` already established, not a new
+  convention.
+- **Park**: shows which buildings actually have real work waiting, reusing buildingNeglect.ts.
+- New/updated tests: `buildingNeglect.test.ts`, `townLedger.test.ts`, `npcJobs.test.ts`,
+  `marketGoods.test.ts`, expanded `npcDialogue.test.ts`/`regionLayout.test.ts`, new
+  `MarketOverlay.test.tsx`/`ParkOverlay.test.tsx`, updated `spaceId`-prop tests on 5 existing
+  overlays. Full gate green (1051 server + 258 web tests, typecheck, build).
+
 ### 2026-09-11 (Claude): Soumaya Overworld — NPC Society v1: the first two NPCs with real lives
 - [ ] Verified by Claude
 - Real user feedback escalated across three rounds: pacing-only → work icons → a full ask for
