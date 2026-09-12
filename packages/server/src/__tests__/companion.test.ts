@@ -154,7 +154,7 @@ describe("AI Companion — auto-derived persona (About Me)", () => {
     }
     const persona = refreshPersona(handle, "legacy", true);
     expect(persona.length).toBeGreaterThan(20);
-    expect(persona).toMatch(/galaxy holds \d+ memories/);
+    expect(persona).toMatch(/holds \d+ memories/);
   });
 });
 

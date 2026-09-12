@@ -677,6 +677,44 @@ Verified by 10 new `townBuilder.test.ts` cases, 3 new `HangarOverlay.test.tsx` c
 measurement above, and the full gate (1051 server + 301 web tests, typecheck, build) — not yet
 seen rendered in a real browser from this sandbox.
 
+## Stage 2.19 — Soumaya stops talking like a spaceship, and a real old-galaxy parity audit
+
+Direct user complaint: "Samaya shouldn't be responding to me like she's still a spaceship flying
+through a space galaxy." Confirmed real by reading the actual prompt/fallback text, not assumed:
+`llm/prompts.ts`'s `ANSWER_SYSTEM` (the real prompt shaping every Gemini/OpenAI reply) literally
+introduced her as "the starpilot of the memory galaxy... tend[ing] from a small craft", and
+`llm/heuristic.ts`'s OFFLINE fallback replies (used with no API key) said things like "Cruising
+the quiet outer reaches of your galaxy" and "Stardate: ..." — reaching the player in BOTH modes.
+Fixed: `ANSWER_SYSTEM` now introduces her as "the Mayor of the user's own town" (matching
+soumaya-governance.md); every heuristic fallback string rewritten to plain, town-appropriate
+language; `persona/derive.ts`'s "this person's galaxy holds N memories" line (fed to the LLM as
+context, so the model could echo it back) fixed the same way; the "GALAXY NAVIGATION"/"GALAXY
+ENTITIES" prompt section renamed to "GO-THERE NAVIGATION"/"PLACES YOU MAY POINT THEM TO". A real
+regression test (`heuristic.test.ts`) now asserts no space-cosmology word ever appears in her
+offline replies, not just a one-off prose edit.
+
+**A real parity audit**, not a guess, in response to "everything that came from that old galaxy
+needs to be transformed and added to this": read the actual deleted files (`git show <commit>:<path>`
+against the pre-deletion commit) rather than relying on the roadmap's own Stage 2 dock-parity table,
+which only ever covered the 11 TAB-shaped features — it never claimed to cover ambient, cross-cutting
+ones. Found 5 real, evidence-backed gaps, each now tracked rather than lost: **MindSpace** (task
+#70) — an always-present overlay floating your live working-memory thoughts as glowing "motes",
+reading the exact `getThoughts()` API `SanctuaryOverlay` already uses, just never as an ambient
+layer; the user's own explicit ask, plus a real enhancement idea (NPCs "aware" of the floating
+motes, commenting on them). **Dormant memory-storytelling systems** (task #71) — per-memory
+evolving lore (`getLore`/`evolveLore`, itself still space-themed and needing the same prompt fix),
+the Chronicle "flowing river" timeline, and Codex discoveries — all real, all fetchable, all with
+zero Overworld UI. **Lenses** (task #72) — saved filtered views; the server route is still live
+but the client API file was deleted outright, a bigger gap than the others. **No persistent
+ambient HUD** (task #73) — Fuel and Streak are only ever visible inside the Gym, and there's no
+Settings/Help access point anywhere. Plus a real asset-sourcing task (#74) for the SimCity-style
+expansion the user asked for (schools, homes, businesses, character animations), scoped explicitly
+around real licensing + performance constraints, not "pull in whatever."
+
+Verified by the new `heuristic.test.ts` regression suite + the full gate (1056 server + 301 web
+tests, typecheck, build). Not yet re-tested against a real LLM key from this sandbox (only the
+offline heuristic path and the prompt text itself were directly verifiable here).
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

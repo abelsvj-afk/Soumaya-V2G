@@ -253,6 +253,26 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Soumaya stops talking like a spaceship; a real old-galaxy parity audit (2026-09-12), not yet
+  on-device confirmed** — direct complaint: "Samaya shouldn't be responding to me like she's
+  still a spaceship flying through a space galaxy." Confirmed real by reading the actual code:
+  `llm/prompts.ts`'s `ANSWER_SYSTEM` (the real Gemini/OpenAI system prompt) called her "the
+  starpilot of the memory galaxy... tend[ing] from a small craft"; `llm/heuristic.ts`'s offline
+  fallback replies said "Cruising the quiet outer reaches of your galaxy" and "Stardate: ...".
+  Both fixed — she's introduced as "the Mayor of the user's own town" now, every heuristic
+  fallback rewritten, `persona/derive.ts`'s "galaxy holds N memories" line fixed too (it's fed to
+  the LLM as context, so it could get echoed back). New regression test asserts no
+  space-cosmology word ever appears in her offline replies.
+  A real parity audit (reading the actual deleted pre-Overworld files via `git show`, not
+  guessing) found 5 real gaps now tracked: MindSpace's ambient floating-thought overlay (task
+  #70, the user's own explicit ask); three dormant memory-storytelling systems — per-memory
+  evolving lore, the Chronicle timeline, Codex discoveries (task #71); Lenses, whose client API
+  was deleted outright while the server route stayed live (task #72); no persistent Fuel/Streak
+  HUD or Settings/Help entry point anywhere (task #73). Plus a real asset-sourcing task (#74) for
+  the SimCity-style expansion (schools, homes, businesses), scoped around real licensing +
+  performance constraints. Verified by the full gate (1056 server + 301 web tests, typecheck,
+  build) — not yet re-tested against a real LLM key from this sandbox.
+
 - **The Hangar becomes a real town-builder (2026-09-12), not yet on-device confirmed** — direct
   answer to "go to the hangar, and that's where you can select items to be placed in the map...
   think of Sims." Specced first (`docs/overworld/town-builder.md`) per Rule #1: a small catalog of
