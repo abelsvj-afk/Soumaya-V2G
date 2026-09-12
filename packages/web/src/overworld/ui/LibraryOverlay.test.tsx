@@ -18,7 +18,7 @@ describe("LibraryOverlay", () => {
       ],
       links: [],
     };
-    render(<LibraryOverlay graph={graph} onClose={vi.fn()} />);
+    render(<LibraryOverlay graph={graph} spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/People \(1\)/)).toBeTruthy();
     expect(screen.queryByText("Alice")).toBeNull(); // not expanded yet
     fireEvent.click(screen.getByText(/People \(1\)/));
@@ -30,7 +30,7 @@ describe("LibraryOverlay", () => {
     (search as ReturnType<typeof vi.fn>).mockResolvedValue([
       { id: 9, label: "Distant memory", type: "concept", content: "", createdAt: "2026-01-01T00:00:00.000Z", similarity: 0.9 },
     ]);
-    render(<LibraryOverlay graph={{ nodes: [], links: [] }} onClose={vi.fn()} />);
+    render(<LibraryOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Search the library"), { target: { value: "distant" } });
     fireEvent.click(screen.getByText("Search"));
     await waitFor(() => expect(screen.getByText(/Distant memory/)).toBeTruthy());
@@ -38,7 +38,7 @@ describe("LibraryOverlay", () => {
   });
 
   it("shows an empty-library message rather than a blank screen", () => {
-    render(<LibraryOverlay graph={{ nodes: [], links: [] }} onClose={vi.fn()} />);
+    render(<LibraryOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/library is empty/)).toBeTruthy();
   });
 });

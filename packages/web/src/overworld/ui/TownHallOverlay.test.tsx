@@ -20,7 +20,7 @@ describe("TownHallOverlay", () => {
   it("shows a loading state, then real journeys with real progress", async () => {
     const { getJourneys } = await import("../../api/journeys.js");
     (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([makeJourney()]);
-    render(<TownHallOverlay onClose={vi.fn()} />);
+    render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/Loading your Journeys/)).toBeTruthy();
     await waitFor(() => expect(screen.getByText(/Moving out — 40%/)).toBeTruthy());
   });
@@ -28,14 +28,14 @@ describe("TownHallOverlay", () => {
   it("shows an empty state rather than a blank screen", async () => {
     const { getJourneys } = await import("../../api/journeys.js");
     (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    render(<TownHallOverlay onClose={vi.fn()} />);
+    render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText(/No Journeys yet/)).toBeTruthy());
   });
 
   it("creating a journey calls createJourney with the entered title/icon", async () => {
     const { getJourneys, createJourney } = await import("../../api/journeys.js");
     (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    render(<TownHallOverlay onClose={vi.fn()} />);
+    render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => screen.getByText(/No Journeys yet/));
     fireEvent.change(screen.getByLabelText("Journey title"), { target: { value: "New chapter" } });
     fireEvent.click(screen.getByText("Begin"));
@@ -45,7 +45,7 @@ describe("TownHallOverlay", () => {
   it("advancing progress calls patchJourney with a clamped 0..1 value", async () => {
     const { getJourneys, patchJourney } = await import("../../api/journeys.js");
     (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([makeJourney({ progress: 0.95 })]);
-    render(<TownHallOverlay onClose={vi.fn()} />);
+    render(<TownHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => screen.getByText(/Moving out/));
     fireEvent.click(screen.getByLabelText("Advance Moving out"));
     await waitFor(() => expect(patchJourney).toHaveBeenCalledWith(1, { progress: 1 }));

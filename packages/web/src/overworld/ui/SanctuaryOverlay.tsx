@@ -12,8 +12,10 @@ import {
   type CognitiveItem,
   type Thought,
 } from "../../api/mind.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 
 export interface SanctuaryOverlayProps {
+  spaceId: string;
   onClose: () => void;
 }
 
@@ -22,8 +24,11 @@ export interface SanctuaryOverlayProps {
  * real server state (GET/POST /working, api/mind.ts) — they're ephemeral thoughts, not a
  * client-only ambient effect. Cognitive items (goals/ideas/skills/…) are the durable
  * cognitive layer, grouped by COGNITIVE_META the same way the galaxy already labels them.
+ * A thought actually logged, or a goal/idea/skill actually planted, is the Sanctuary's own
+ * real work event (npc-economy.md) — every OTHER action here (reinforce/promote/dismiss/bump)
+ * is real too, but those are gestures toward EXISTING items, not new real work created.
  */
-export function SanctuaryOverlay({ onClose }: SanctuaryOverlayProps) {
+export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
   const [thoughts, setThoughts] = useState<Thought[] | null>(null);
   const [items, setItems] = useState<CognitiveItem[] | null>(null);
   const [newThought, setNewThought] = useState("");
@@ -70,6 +75,7 @@ export function SanctuaryOverlay({ onClose }: SanctuaryOverlayProps) {
     const text = newThought.trim();
     if (!text) return;
     await addThought(text, "manual");
+    recordBuildingWork(spaceId, "sanctuary");
     setNewThought("");
     await loadThoughts();
   };
@@ -82,6 +88,7 @@ export function SanctuaryOverlay({ onClose }: SanctuaryOverlayProps) {
     const label = newGoal.trim();
     if (!label) return;
     await createCognitive(newGoalKind, label);
+    recordBuildingWork(spaceId, "sanctuary");
     setNewGoal("");
     await loadItems();
   };

@@ -25,7 +25,7 @@ describe("BulletinBoardOverlay", () => {
       ],
       links: [],
     };
-    render(<BulletinBoardOverlay graph={graph} onClose={vi.fn()} refresh={vi.fn()} />);
+    render(<BulletinBoardOverlay graph={graph} spaceId="space-1" onClose={vi.fn()} refresh={vi.fn()} />);
     expect(screen.getByText("Call the bank")).toBeTruthy();
     expect(screen.getByText("Dentist follow-up")).toBeTruthy();
     expect(screen.queryByText("Untouched memory")).toBeNull();
@@ -35,7 +35,7 @@ describe("BulletinBoardOverlay", () => {
     const { deleteNode } = await import("../../api/client.js");
     const refresh = vi.fn();
     const graph: GraphData = { nodes: [makeNode({ id: 1, kind: "action", label: "Call the bank" })], links: [] };
-    render(<BulletinBoardOverlay graph={graph} onClose={vi.fn()} refresh={refresh} />);
+    render(<BulletinBoardOverlay graph={graph} spaceId="space-1" onClose={vi.fn()} refresh={refresh} />);
     fireEvent.click(screen.getByText("Turn in"));
     await waitFor(() => expect(deleteNode).toHaveBeenCalledWith(1));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -45,7 +45,7 @@ describe("BulletinBoardOverlay", () => {
     const { ackReminder } = await import("../../api/client.js");
     const refresh = vi.fn();
     const graph: GraphData = { nodes: [makeNode({ id: 2, label: "Dentist", remindAt: "2026-02-01" })], links: [] };
-    render(<BulletinBoardOverlay graph={graph} onClose={vi.fn()} refresh={refresh} />);
+    render(<BulletinBoardOverlay graph={graph} spaceId="space-1" onClose={vi.fn()} refresh={refresh} />);
     fireEvent.click(screen.getByText("Ack"));
     await waitFor(() => expect(ackReminder).toHaveBeenCalledWith(2));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -54,7 +54,7 @@ describe("BulletinBoardOverlay", () => {
   it("posting a new quest calls ingestText with kind action", async () => {
     const { ingestText } = await import("../../api/client.js");
     const refresh = vi.fn();
-    render(<BulletinBoardOverlay graph={{ nodes: [], links: [] }} onClose={vi.fn()} refresh={refresh} />);
+    render(<BulletinBoardOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} refresh={refresh} />);
     fireEvent.change(screen.getByLabelText("New quest"), { target: { value: "Renew passport" } });
     fireEvent.click(screen.getByText("Post"));
     await waitFor(() => expect(ingestText).toHaveBeenCalledWith("Renew passport", { kind: "action" }));

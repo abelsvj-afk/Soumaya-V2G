@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { readNotifications, writeNotifications, type InboxNotification } from "../../components/Toasts.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 import type { PlaceId } from "../scenes/regionLayout.js";
 
 export interface PostOfficeOverlayProps {
@@ -46,9 +47,13 @@ export function PostOfficeOverlay({ spaceId, onClose, onOpenPlace }: PostOfficeO
   );
 
   const markRead = (id: string) => {
+    const wasUnread = items.find((n) => n.id === id)?.seen === false;
     const next = items.map((n) => (n.id === id ? { ...n, seen: true, seenAt: Date.now() } : n));
     setItems(next);
     writeNotifications(next, spaceId);
+    // A real notification actually read for the FIRST time is the Post Office's own real work
+    // event (npc-economy.md) — never re-credited for re-opening something already read.
+    if (wasUnread) recordBuildingWork(spaceId, "postOffice");
   };
 
   const open = (n: InboxNotification) => {

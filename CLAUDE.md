@@ -253,6 +253,36 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Town Economy round — bigger buildings, a real wage/neglect loop, Market + Park
+  (2026-09-12), not yet on-device confirmed** — a single message asked for a lot at once:
+  more NPCs, ~3x-bigger buildings, NPCs that enter/exit buildings, a wage economy, work created
+  by real interactions, new shops/recreation, "health"-driven adaptation, and reusing "old
+  mechanics." Got its own spec (`docs/overworld/npc-economy.md`) per Rule #1, with the biggest
+  ambiguities resolved directly with the user first: wages are a **purely cosmetic in-game
+  ledger, never real Bank/finance or the real `Fuel` resource** (`Fuel` is an LLM-job-cost
+  meter, confirmed by reading it, not a spendable currency); "health" is the old galaxy's own
+  `entropyFrom`/`COOLING_ENTROPY` neglect math extended to buildings, not a new invented stat;
+  "old mechanics" meant the real per-building data already wired into every Overlay. Shipped: a
+  **generated** region layout (`regionLayout.ts` — no more hand-typed coordinates, so a building
+  can't silently overlap another), buildings at 3x their original footprint area, two new
+  buildings (Market, Park), NPC Society rolled out from 2 to all 20 attendants (every building,
+  not just Town Hall), NPCs that actually walk into their door and disappear while Working and
+  come back out for Break, real wages/hours from real interactions at every building
+  (`data/townLedger.ts`, `data/npcJobs.ts` — the Bank/Gym have no button of their own, so their
+  work is detected by diffing snapshots instead), a neglect cascade that pauses relationship
+  growth and dims a building's attendants when real work hasn't happened there in a while
+  (`data/buildingNeglect.ts`), a real Market spending the Town Treasury on a small cosmetic
+  catalog, and a Park showing which buildings actually need a visit. See
+  `docs/overworld/roadmap.md`'s "Stage 2.12" for the full account and what's deliberately
+  deferred (a Mall as its own complex; routing every building's Break time to a shared Park tile
+  — revised mid-build once it looked like a real crowding risk with no way to verify it was
+  safe this round; LLM dialogue variation; any real-money/Fuel integration for the shop).
+  Verified by 6 new/updated pure-logic test files, 2 new overlay tests, a printed ASCII-map
+  reproduction of the actual generated layout (not just passing tests) confirming the geometry
+  matched the design, and the full gate (1051 server + 258 web tests, typecheck, build) — the
+  actual bigger buildings, enter/exit animation, and Market/Park screens have not been seen
+  rendered in a real browser from this sandbox.
+
 - **NPC Society v1 — the first two NPCs with real lives (2026-09-11), not yet on-device
   confirmed** — real user feedback escalated across three rounds asking for NPCs with "actual
   autonomous jobs... interact with other npcs... their own lives and personalities... a

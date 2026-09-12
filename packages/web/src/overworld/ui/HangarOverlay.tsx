@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { loadUnlocked } from "../../components/achievements.js";
 import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOption } from "../data/hangarOptions.js";
+import { recordBuildingWork } from "../data/npcJobs.js";
 
 export interface HangarOverlayProps {
   spaceId: string;
@@ -56,6 +57,8 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const persist = (key: string, value: string, setter: (v: string) => void) => {
     localStorage.setItem(key, value);
     setter(value);
+    // A cosmetic actually changed is the Hangar's own real work event (npc-economy.md).
+    recordBuildingWork(spaceId, "hangar");
   };
 
   return (

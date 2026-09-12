@@ -20,7 +20,7 @@ describe("SanctuaryOverlay", () => {
     const { getThoughts, getCognitive } = await import("../../api/mind.js");
     (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 1, text: "maybe move to Denver", source: "manual", strength: 0.8, reinforceCount: 0, createdAt: "" }]);
     (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 2, kind: "goal", label: "Get promoted", content: "", progress: 0.3, completedAt: null, degree: 0, aliases: [], createdAt: "", remindAt: null }]);
-    render(<SanctuaryOverlay onClose={vi.fn()} />);
+    render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => expect(screen.getByText("maybe move to Denver")).toBeTruthy());
     expect(screen.getByText(/Get promoted/)).toBeTruthy();
     expect(screen.getByText(/30%/)).toBeTruthy();
@@ -30,7 +30,7 @@ describe("SanctuaryOverlay", () => {
     const { getThoughts, getCognitive, addThought } = await import("../../api/mind.js");
     (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
     (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    render(<SanctuaryOverlay onClose={vi.fn()} />);
+    render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => screen.getByText("Nothing drifting right now."));
     fireEvent.change(screen.getByLabelText("New thought"), { target: { value: "a stray idea" } });
     fireEvent.click(screen.getByText("Drop a thought"));
@@ -41,7 +41,7 @@ describe("SanctuaryOverlay", () => {
     const { getThoughts, getCognitive, promoteThought } = await import("../../api/mind.js");
     (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 1, text: "x", source: "manual", strength: 0.5, reinforceCount: 0, createdAt: "" }]);
     (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
-    render(<SanctuaryOverlay onClose={vi.fn()} />);
+    render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
     await waitFor(() => screen.getByText("x"));
     fireEvent.click(screen.getByText("★ Save"));
     await waitFor(() => expect(promoteThought).toHaveBeenCalledWith(1));

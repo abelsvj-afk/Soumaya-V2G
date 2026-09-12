@@ -34,8 +34,9 @@ import {
 } from "./tileAtlas.js";
 import { allBuildingSprites, buildingSpriteForPlace } from "./buildingSprites.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
-import { scheduleStateAt } from "../data/npcSchedule.js";
+import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
+import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { loadUnlocked } from "../../components/achievements.js";
 
 export const TILE_SIZE = 32;
@@ -74,6 +75,10 @@ interface AttendantSprite {
   post: AttendantPost;
   image: Phaser.GameObjects.Image;
   atA: boolean;
+  /** NPC Society — the schedule state this sprite was last painted for, so the enter/exit
+   *  transition (applySocietyState) only animates on an actual state CHANGE, not every tick.
+   *  Undefined until the first society tick (spawnAttendants leaves every sprite at post.a). */
+  societyState?: ScheduleState;
 }
 
 /**
@@ -93,11 +98,13 @@ export class ExteriorScene extends Phaser.Scene {
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
   private attendantSprites: AttendantSprite[] = [];
-  /** NPC Society v1 (docs/overworld/npc-society.md) — one shared clock for the two Town Hall
-   *  NPCs (Mira/Dez) so their Working/Break/Home states can be checked against each other on
-   *  the same tick, instead of drifting independently like the decorative pacing timers do. */
+  /** NPC Society (docs/overworld/npc-society.md, rolled out to all 10 buildings by
+   *  npc-economy.md) — one shared clock so every building's two attendants can be checked
+   *  against EACH OTHER on the same tick, instead of drifting independently like the old
+   *  decorative pacing timers did. Keyed per building so 10 buildings' interactions never
+   *  interfere with each other. */
   private societyTickCount = 0;
-  private societyBothOnBreak = false;
+  private societyBothOnBreak = new Map<PlaceId, boolean>();
   private player!: Phaser.GameObjects.Sprite;
   /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
    *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
@@ -321,53 +328,135 @@ export class ExteriorScene extends Phaser.Scene {
     this.time.addEvent({ delay: 1500, loop: true, callback: () => this.tickSociety() });
   }
 
-  /** NPC Society v1 — the shared clock tick for Mira and Dez (Town Hall). Working = the
-   *  existing pace+work-icon loop; Break with both overlapping = the interaction (walk
-   *  together, dialogue, relationship bump), once per overlapping window, not once per tick;
-   *  Home = they leave the screen area entirely, matching the proposal's "leave for a while". */
+  /** NPC Society — the shared clock tick, now for every building's pair (npc-economy.md's
+   *  rollout from Town Hall-only to all 10). For each society NPC: apply its Working/Break/Home
+   *  enter-exit transition (applySocietyState), then per BUILDING, check whether its own two
+   *  attendants are both on Break at once — if so, trigger their interaction, once per
+   *  overlapping window, not once per tick. Working attendants flash their work icon from the
+   *  door tile they've just entered (never nothing — "doing work", not just gone quiet). */
   private tickSociety(): void {
     this.societyTickCount += 1;
-    const societySprites = this.attendantSprites
-      .map((sprite) => ({ sprite, id: asSocietyNpcId(sprite.post.npcId) }))
-      .filter((entry): entry is { sprite: AttendantSprite; id: SocietyNpcId } => entry.id !== null)
-      .map((entry) => ({ ...entry, state: scheduleStateAt(entry.id, this.societyTickCount) }));
-
-    for (const entry of societySprites) {
-      entry.sprite.image.setVisible(entry.state !== "home");
+    const byPlace = new Map<PlaceId, Array<{ sprite: AttendantSprite; id: SocietyNpcId; state: ScheduleState }>>();
+    for (const sprite of this.attendantSprites) {
+      const id = asSocietyNpcId(sprite.post.npcId);
+      if (!id) continue;
+      const state = scheduleStateAt(id, this.societyTickCount);
+      this.applySocietyState(sprite, state);
+      const list = byPlace.get(sprite.post.placeId) ?? [];
+      list.push({ sprite, id, state });
+      byPlace.set(sprite.post.placeId, list);
     }
 
-    const onBreak = societySprites.filter((entry) => entry.state === "break");
-    const [firstOnBreak, secondOnBreak] = onBreak;
-    if (firstOnBreak && secondOnBreak) {
-      if (!this.societyBothOnBreak) {
-        this.societyBothOnBreak = true;
-        this.triggerNpcInteraction(firstOnBreak, secondOnBreak);
+    for (const [placeId, entries] of byPlace) {
+      const onBreak = entries.filter((e) => e.state === "break");
+      const [first, second] = onBreak;
+      const wasBothOnBreak = this.societyBothOnBreak.get(placeId) ?? false;
+      if (first && second) {
+        if (!wasBothOnBreak) {
+          this.societyBothOnBreak.set(placeId, true);
+          this.triggerNpcInteraction(first, second);
+        }
+      } else {
+        this.societyBothOnBreak.set(placeId, false);
       }
-      return;
-    }
-    this.societyBothOnBreak = false;
-
-    for (const entry of societySprites) {
-      if (entry.state !== "working") continue;
-      if (!prefersReducedMotion()) {
-        entry.sprite.atA = !entry.sprite.atA;
-        const target = entry.sprite.atA ? entry.sprite.post.a : entry.sprite.post.b;
-        this.tweens.add({
-          targets: entry.sprite.image,
-          x: target.x * TILE_SIZE + TILE_SIZE / 2,
-          y: target.y * TILE_SIZE + TILE_SIZE / 2,
-          duration: 900,
-          ease: "Sine.easeInOut",
-        });
+      for (const entry of entries) {
+        if (entry.state === "working") this.showWorkIcon(entry.sprite);
       }
-      this.showWorkIcon(entry.sprite);
     }
   }
 
-  /** One real interaction between Mira and Dez: they step toward each other, each shows a real
-   *  dialogue line (job-flavor always available; personal lines gated on real achievements;
-   *  the friend line gated on relationship tier), and the relationship counter bumps once —
-   *  the minimal, real relationship construct the user explicitly asked to seed in for v1. */
+  /** The real doorway a society NPC's building enters/exits through. Attendants only ever
+   *  exist at door-buildings (regionLayout.ts's attendantPosts), so this is never called for
+   *  anything else — throwing on a mismatch surfaces a real bug instead of silently misplacing
+   *  a sprite. */
+  private doorTileFor(placeId: PlaceId): { x: number; y: number } {
+    const place = placeById(placeId);
+    if (place.kind !== "door") throw new Error(`${placeId} has no door — attendants only exist at door-buildings`);
+    return place.door;
+  }
+
+  /** "Enter buildings when working, exit for break, and exit when off as well" (real user
+   *  feedback) — animates the transition exactly once per actual state CHANGE (sprite.
+   *  societyState tracks what was last painted), never re-running every tick while a state
+   *  holds. Working = walk to the door, then hidden (truly "gone inside" — the work icon still
+   *  flashes from that same door position). Break = appear at the door, step out to their own
+   *  post. Home = fade out where they stand (left for the day, unchanged from v1). */
+  private applySocietyState(sprite: AttendantSprite, state: ScheduleState): void {
+    if (sprite.societyState === state) return;
+    const firstPaint = sprite.societyState === undefined;
+    sprite.societyState = state;
+    const door = this.doorTileFor(sprite.post.placeId);
+    const doorX = door.x * TILE_SIZE + TILE_SIZE / 2;
+    const doorY = door.y * TILE_SIZE + TILE_SIZE / 2;
+    const postX = sprite.post.a.x * TILE_SIZE + TILE_SIZE / 2;
+    const postY = sprite.post.a.y * TILE_SIZE + TILE_SIZE / 2;
+    const reduced = prefersReducedMotion();
+
+    if (state === "working") {
+      sprite.image.setVisible(true);
+      if (reduced || firstPaint) {
+        sprite.image.setPosition(doorX, doorY);
+        sprite.image.setVisible(false);
+      } else {
+        this.tweens.add({
+          targets: sprite.image,
+          x: doorX,
+          y: doorY,
+          duration: 500,
+          ease: "Sine.easeInOut",
+          onComplete: () => sprite.image.setVisible(false),
+        });
+      }
+      return;
+    }
+
+    if (state === "home") {
+      if (reduced || firstPaint) {
+        sprite.image.setVisible(false);
+      } else {
+        sprite.image.setAlpha(1);
+        this.tweens.add({
+          targets: sprite.image,
+          alpha: 0,
+          duration: 400,
+          ease: "Sine.easeIn",
+          onComplete: () => {
+            sprite.image.setVisible(false);
+            sprite.image.setAlpha(1);
+          },
+        });
+      }
+      return;
+    }
+
+    // break
+    sprite.image.setVisible(true);
+    if (reduced || firstPaint) {
+      sprite.image.setPosition(postX, postY);
+    } else {
+      sprite.image.setPosition(doorX, doorY);
+      this.tweens.add({ targets: sprite.image, x: postX, y: postY, duration: 500, ease: "Sine.easeInOut" });
+    }
+    this.applyNeglectVisual(sprite);
+  }
+
+  /** A neglected building's attendants render exactly like a neglected memory does — a real
+   *  alpha change PLUS a non-color "?" marker, never color-only (buildingNeglect.ts reuses the
+   *  same entropy math a creature's own dim state already comes from). Only painted while
+   *  actually visible (Break) — no point marking a sprite that's currently hidden anyway. */
+  private applyNeglectVisual(sprite: AttendantSprite): void {
+    const neglected = isNeglected(buildingNeglect(this.spaceId, sprite.post.placeId));
+    sprite.image.setAlpha(neglected ? 0.45 : 1);
+    if (neglected) this.showWorkIcon(sprite, "❓");
+  }
+
+  /** One real interaction between a building's own two attendants: they step toward each
+   *  other, each shows a real dialogue line (job-flavor always available; personal lines gated
+   *  on real achievements; the friend line gated on relationship tier), and the relationship
+   *  counter bumps once — the minimal, real relationship construct the user explicitly asked
+   *  to seed in, now running independently at all 10 buildings. A neglected building (real
+   *  work hasn't happened there in a while — buildingNeglect.ts) pauses this: its attendants
+   *  still visibly break, but the growth stops until someone actually interacts there again. */
   private triggerNpcInteraction(
     a: { sprite: AttendantSprite; id: SocietyNpcId },
     b: { sprite: AttendantSprite; id: SocietyNpcId },
@@ -387,7 +476,13 @@ export class ExteriorScene extends Phaser.Scene {
     const seed = this.societyTickCount;
     this.showSpeechBubble(a.sprite, dialogueFor(a.id, unlocked, tier, nameB, seed));
     this.showSpeechBubble(b.sprite, dialogueFor(b.id, unlocked, tier, nameA, seed + 1));
-    bumpRelationship(this.spaceId, a.id, b.id);
+    // A neglected building's relationship growth pauses — the user's own "if I never do
+    // anything... that strains relationships" cascade — never decays into a negative, matches
+    // the no-dark-patterns rule (a paused number, not a punished one).
+    const placeId = npcProfile(a.id).placeId;
+    if (!isNeglected(buildingNeglect(this.spaceId, placeId))) {
+      bumpRelationship(this.spaceId, a.id, b.id);
+    }
   }
 
   private showSpeechBubble(sprite: AttendantSprite, text: string): void {
@@ -436,9 +531,10 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** A brief icon above an attendant showing what they're actually doing (tileAtlas.ts's
-   *  workIconForPlace) — the concrete "doing work" cue, not just movement. */
-  private showWorkIcon(sprite: AttendantSprite): void {
-    const icon = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.55, workIconForPlace(sprite.post.placeId), {
+   *  workIconForPlace) — the concrete "doing work" cue, not just movement. An explicit
+   *  `iconOverride` (the neglect "?" marker) takes priority over the building's own work icon. */
+  private showWorkIcon(sprite: AttendantSprite, iconOverride?: string): void {
+    const icon = this.add.text(sprite.image.x, sprite.image.y - TILE_SIZE * 0.55, iconOverride ?? workIconForPlace(sprite.post.placeId), {
       fontSize: "12px",
     });
     icon.setOrigin(0.5);

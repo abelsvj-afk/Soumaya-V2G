@@ -59,11 +59,27 @@ describe("tileAtlas", () => {
     it("falls back to the player sprite for a place with no dedicated attendant art", () => {
       expect(attendantFrameForPlace("bulletinBoard")).toBe(TileFrame.player);
     });
+
+    it("Market/Park (Town Economy round) fall back to the same player sprite too — no new attendant art was invented for them", () => {
+      expect(attendantFrameForPlace("market")).toBe(TileFrame.player);
+      expect(attendantFrameForPlace("park")).toBe(TileFrame.player);
+    });
   });
 
   describe("workIconForPlace", () => {
-    it("gives every door-building its own distinct work icon", () => {
-      const doorIds = ["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "townHall", "hangar"] as const;
+    it("gives every door-building its own distinct work icon, including Market/Park", () => {
+      const doorIds = [
+        "bank",
+        "library",
+        "sanctuary",
+        "postOffice",
+        "observatory",
+        "gym",
+        "market",
+        "townHall",
+        "park",
+        "hangar",
+      ] as const;
       const icons = new Set(doorIds.map((id) => workIconForPlace(id)));
       expect(icons.size).toBe(doorIds.length);
     });

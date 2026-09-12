@@ -4,11 +4,22 @@
  * fixed footprint + one door tile (step onto it to enter); standalone objects (Soumaya, the
  * Bulletin Board) are a single impassable tile you face and press interact on, matching a
  * GBA signpost. Pure/no-Phaser so it's directly unit-testable (pokemon-reference.md).
+ *
+ * Town Economy round (docs/overworld/npc-economy.md, 2026-09-12): buildings grew to 3x their
+ * original footprint AREA (6 tiles -> 18: 6 wide x 3 tall, not 3x every linear dimension, which
+ * would dwarf the whole old region) and two buildings (Market, Park) were added. Rather than
+ * hand-typing a bigger coordinate table and risking a silent overlap, placement is now
+ * GENERATED from a small per-row spec list + fixed spacing — overlap is structurally impossible
+ * instead of something a test has to catch after the fact (still covered by regionLayout.test.ts
+ * either way, per "verify before you build").
  */
 
-export const REGION_WIDTH = 26;
-export const REGION_HEIGHT = 18;
-export const PLAYER_SPAWN = { x: 13, y: 9 } as const;
+interface Rect {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
 
 export type PlaceId =
   | "bank"
@@ -17,17 +28,12 @@ export type PlaceId =
   | "postOffice"
   | "observatory"
   | "gym"
+  | "market"
   | "townHall"
+  | "park"
   | "hangar"
   | "bulletinBoard"
   | "soumaya";
-
-interface Rect {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
-}
 
 export interface DoorPlace {
   id: PlaceId;
@@ -50,27 +56,91 @@ export interface ObjectPlace {
 
 export type Place = DoorPlace | ObjectPlace;
 
-// North row — Bank, Library, Sanctuary, Post Office, Observatory.
-const DOOR_PLACES: DoorPlace[] = [
-  { id: "bank", kind: "door", label: "Bank", glyph: "🏦", footprint: { x0: 1, y0: 1, x1: 3, y1: 2 }, door: { x: 2, y: 2 } },
-  { id: "library", kind: "door", label: "Library", glyph: "📚", footprint: { x0: 5, y0: 1, x1: 7, y1: 2 }, door: { x: 6, y: 2 } },
-  { id: "sanctuary", kind: "door", label: "Sanctuary", glyph: "🧘", footprint: { x0: 9, y0: 1, x1: 11, y1: 2 }, door: { x: 10, y: 2 } },
-  { id: "postOffice", kind: "door", label: "Post Office", glyph: "📮", footprint: { x0: 13, y0: 1, x1: 15, y1: 2 }, door: { x: 14, y: 2 } },
-  { id: "observatory", kind: "door", label: "Observatory", glyph: "🔭", footprint: { x0: 17, y0: 1, x1: 19, y1: 2 }, door: { x: 18, y: 2 } },
-  // South row — Gym, Town Hall, Hangar.
-  { id: "gym", kind: "door", label: "Gym", glyph: "🏆", footprint: { x0: 1, y0: 14, x1: 3, y1: 15 }, door: { x: 2, y: 14 } },
-  { id: "townHall", kind: "door", label: "Town Hall", glyph: "🗺️", footprint: { x0: 11, y0: 14, x1: 13, y1: 15 }, door: { x: 12, y: 14 } },
-  { id: "hangar", kind: "door", label: "Hangar", glyph: "🛠️", footprint: { x0: 21, y0: 14, x1: 23, y1: 15 }, door: { x: 22, y: 14 } },
+// --- Generated door-building layout -----------------------------------------------------
+
+const BUILDING_WIDTH = 6;
+const BUILDING_HEIGHT = 3;
+/** Horizontal walking space between two buildings in the same row. */
+const ROW_GAP = 3;
+/** Outer walking margin kept clear on every edge of the region. */
+const SIDE_MARGIN = 2;
+/** Top of the north row / top of the south row — chosen so the 2-row attendant band each
+ *  building's `attendantPostsFor` derives (just outside its own door) never reaches into the
+ *  open plaza in between (verified by regionLayout.test.ts, not just eyeballed). */
+const NORTH_Y0 = 1;
+const SOUTH_Y0 = 20;
+
+interface RowBuildingSpec {
+  id: PlaceId;
+  label: string;
+  glyph: string;
+}
+
+/** Lays out a row of same-size buildings left to right, each door centered on the side
+ *  facing the plaza — `facesDown` buildings (north row) door on their bottom edge, the rest
+ *  (south row) on their top edge. Footprints can never overlap within a row: each building's
+ *  x0 starts exactly `ROW_GAP` tiles past the previous one's x1. */
+function layoutRow(specs: readonly RowBuildingSpec[], y0: number, facesDown: boolean): DoorPlace[] {
+  let x = SIDE_MARGIN;
+  return specs.map((spec) => {
+    const x0 = x;
+    const x1 = x0 + BUILDING_WIDTH - 1;
+    const y1 = y0 + BUILDING_HEIGHT - 1;
+    const door = { x: x0 + Math.floor(BUILDING_WIDTH / 2), y: facesDown ? y1 : y0 };
+    x = x1 + 1 + ROW_GAP;
+    return { id: spec.id, kind: "door" as const, label: spec.label, glyph: spec.glyph, footprint: { x0, y0, x1, y1 }, door };
+  });
+}
+
+// North row — Bank, Library, Sanctuary, Post Office, Observatory (unchanged from Stage 2).
+const NORTH_ROW_SPECS: RowBuildingSpec[] = [
+  { id: "bank", label: "Bank", glyph: "🏦" },
+  { id: "library", label: "Library", glyph: "📚" },
+  { id: "sanctuary", label: "Sanctuary", glyph: "🧘" },
+  { id: "postOffice", label: "Post Office", glyph: "📮" },
+  { id: "observatory", label: "Observatory", glyph: "🔭" },
 ];
+
+// South row — Gym, Market, Town Hall, Park, Hangar. Market and Park are new (npc-economy.md):
+// Market is the cosmetic shop (spends the Town Treasury, never real Fuel/finance — see the
+// doc's "Fuel is NOT the shop currency" note); Park is the NPCs' real Break-time destination.
+const SOUTH_ROW_SPECS: RowBuildingSpec[] = [
+  { id: "gym", label: "Gym", glyph: "🏆" },
+  { id: "market", label: "Market", glyph: "🛒" },
+  { id: "townHall", label: "Town Hall", glyph: "🗺️" },
+  { id: "park", label: "Park", glyph: "🌳" },
+  { id: "hangar", label: "Hangar", glyph: "🛠️" },
+];
+
+const DOOR_PLACES: DoorPlace[] = [...layoutRow(NORTH_ROW_SPECS, NORTH_Y0, true), ...layoutRow(SOUTH_ROW_SPECS, SOUTH_Y0, false)];
+
+const RIGHTMOST_X1 = Math.max(...DOOR_PLACES.map((p) => p.footprint.x1));
+export const REGION_WIDTH = RIGHTMOST_X1 + SIDE_MARGIN + 1;
+/** South row's bottom edge + one clear margin row below it. */
+export const REGION_HEIGHT = SOUTH_Y0 + BUILDING_HEIGHT + 1;
+
+const CENTER_X = Math.round(REGION_WIDTH / 2);
+/** The plaza band (open ground between the two attendant bands) — roughly rows 6..17 with the
+ *  current constants; derived, not hand-typed, so it can't silently drift if the constants
+ *  above ever change. */
+const PLAZA_CENTER_Y = Math.round((NORTH_Y0 + BUILDING_HEIGHT + 2 + (SOUTH_Y0 - 2)) / 2);
+
+export const PLAYER_SPAWN = { x: CENTER_X, y: PLAZA_CENTER_Y - 1 } as const;
 
 // Standalone objects in the town square.
 const OBJECT_PLACES: ObjectPlace[] = [
-  { id: "bulletinBoard", kind: "object", label: "Bulletin Board", glyph: "📋", tile: { x: 12, y: 10 } },
-  { id: "soumaya", kind: "object", label: "Soumaya", glyph: "🛰️", tile: { x: 14, y: 10 } },
+  { id: "bulletinBoard", kind: "object", label: "Bulletin Board", glyph: "📋", tile: { x: CENTER_X - 2, y: PLAZA_CENTER_Y } },
+  { id: "soumaya", kind: "object", label: "Soumaya", glyph: "🛰️", tile: { x: CENTER_X + 2, y: PLAZA_CENTER_Y } },
 ];
 
-/** The open field on the region's east edge — FR8's tall-grass capture trigger. */
-const GRASS_ZONE: Rect = { x0: 21, y0: 4, x1: 24, y1: 7 };
+/** The open field near the region's east edge — FR8's tall-grass capture trigger. Sized up
+ *  along with the rest of the region this round (6x4, was 4x4). */
+const GRASS_ZONE: Rect = {
+  x0: REGION_WIDTH - 10,
+  y0: PLAZA_CENTER_Y - 4,
+  x1: REGION_WIDTH - 5,
+  y1: PLAZA_CENTER_Y - 1,
+};
 
 function within(x: number, y: number, r: Rect): boolean {
   return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
@@ -116,8 +186,8 @@ export function isGrassTile(x: number, y: number): boolean {
 export interface AttendantPost {
   placeId: PlaceId;
   /** Stable per-attendant identity ("<placeId>-<index>", 0-based) — lets an individual
-   *  attendant be addressed by name (NPC Society v1, docs/overworld/npc-society.md), distinct
-   *  from every other attendant at the same building. */
+   *  attendant be addressed by name (NPC Society, docs/overworld/npc-society.md /
+   *  npc-economy.md), distinct from every other attendant at the same building. */
   npcId: string;
   /** The two tiles the attendant paces between — always directly in front of its own
    *  building's door, never past the building's own left/right edge. */
@@ -132,7 +202,7 @@ const ATTENDANTS_PER_BUILDING = 2;
 function attendantPostsFor(place: DoorPlace): AttendantPost[] {
   const { x0, x1, y0, y1 } = place.footprint;
   // Stand just outside on whichever side the door actually faces (north-row doors face
-  // south/down at y1; south-row doors face north/up at y0 — see the DOOR_PLACES comments).
+  // south/down at y1; south-row doors face north/up at y0 — see the row-spec comments above).
   const facesDown = place.door.y === y1;
   const posts: AttendantPost[] = [];
   for (let i = 1; i <= ATTENDANTS_PER_BUILDING; i++) {

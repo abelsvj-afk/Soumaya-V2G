@@ -86,6 +86,12 @@ const WORK_ICON_BY_PLACE: Partial<Record<PlaceId, string>> = {
   gym: "🏋️",
   townHall: "📜",
   hangar: "🔧",
+  // Town Economy round (npc-economy.md) — Market/Park's attendants reuse tileAtlas's own
+  // player-sprite fallback (ATTENDANT_FRAME_BY_PLACE below has no dedicated art for either yet,
+  // same tolerate-gracefully convention as every other unmapped place); their work icons are
+  // still their own, since those cost no new art.
+  market: "🛒",
+  park: "🌿",
 };
 
 export function workIconForPlace(id: PlaceId): string {

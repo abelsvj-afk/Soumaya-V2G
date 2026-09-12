@@ -1,11 +1,13 @@
 import type { Fuel, GraphData, MoneyStar, Streak } from "@brain/shared";
 import { getFuel, getGraph, getStreak, tendNode } from "../../api/client.js";
 import { getFinanceSummary, getMoneySky, type FinanceSummary } from "../../api/finance.js";
+import { getSpaceId } from "../../api/http.js";
 import { nodeToCreature } from "../adapter/nodeToCreature.js";
 import { moneyStarsToBankRows } from "../adapter/financeAdapter.js";
 import { placeCreaturesOnGrid } from "../adapter/placement.js";
 import { isPlacementBlocked, REGION_HEIGHT, REGION_WIDTH } from "../scenes/regionLayout.js";
 import { syncAchievements } from "./achievements.js";
+import { recordBuildingWork } from "./npcJobs.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -64,6 +66,12 @@ export function buildWorldSnapshot(
  * the whole world from loading. Also runs the achievement-unlock sync (see achievements.ts)
  * on every real refresh, since that side effect only lives in App.tsx today and App.tsx
  * never mounts while the Overworld is active.
+ *
+ * Town Economy round (docs/overworld/npc-economy.md) — a freshly-unlocked achievement here IS
+ * the Gym's own real work event (it has no button of its own to hook, same situation as the
+ * Bank; unlike the Bank, the diff it needs is already computed right here by syncAchievements,
+ * so crediting it stays local to this function rather than needing OverworldRoot.tsx to diff
+ * anything itself).
  */
 export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
   const [graph, moneySky, financeSummary, fuel, streak] = await Promise.all([
@@ -73,7 +81,9 @@ export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
     getFuel(),
     getStreak(),
   ]);
-  syncAchievements(graph, fuel, streak);
+  const freshAchievements = syncAchievements(graph, fuel, streak);
+  const spaceId = getSpaceId();
+  if (spaceId && freshAchievements.length > 0) recordBuildingWork(spaceId, "gym");
   return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak);
 }
 
