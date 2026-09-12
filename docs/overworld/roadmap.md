@@ -1030,6 +1030,35 @@ Verified by 7 new tests (`TownHud.test.tsx` x3, `SettingsOverlay.test.tsx` x4) a
 (1056 server + 376 web tests, typecheck, build). Not yet seen rendered in a real browser from
 this sandbox.
 
+## Stage 2.32 — Reviving Lenses (task #72)
+
+A real orphaned feature, confirmed by direct investigation before writing anything
+(`docs/overworld/lenses-revival.md`), per Rule #1: the server route/repo/shared types
+(`/api/lenses`, `lenses.repo.ts`, `Lens`/`LensQuery` in `@brain/shared`) were never touched by
+the Overworld rewrite — a Lens is a real, deterministic (no-LLM) saved filter over the `nodes`
+table. Only the entire client side (`api/lenses.ts`, `LensChips.tsx`, `LensesPanel.tsx`) was
+deleted outright in the galaxy-deletion commit, leaving a fully live server feature with zero
+way to reach it.
+
+`api/lenses.ts` is recreated VERBATIM from git history (`git show` on the pre-deletion commit) —
+same 5 function signatures (`getLenses`/`createLens`/`updateLens`/`deleteLens`/`lensNodes`), same
+`afetch`-wrapped safe-fallback shape — not redesigned, then re-exported from `client.ts` the same
+way every other feature domain already is.
+
+The real in-world home is the Library — a Lens is literally "a saved way to browse the shelves,"
+the exact same `graph.nodes` Library already reads. This round ships a real, deliberately
+minimal vertical slice: a lens is exactly the search you just typed (`query.text`), saved and
+re-runnable by name, rather than a 7-field query-builder built from nothing. `LibraryOverlay.tsx`
+gained a "Saved Lenses" list (name, real count, pinned marker, View/Delete) and a "Save this
+search as a Lens" button that appears once a real search has real results; viewing a lens
+filters the already-loaded shelf nodes down to `lensNodes(id)`'s real matching ids, reusing the
+exact same results-list rendering search hits already use.
+
+Verified by 4 new `LibraryOverlay.test.tsx` cases (list/save/view/delete, all against real mocked
+API calls) + 3 existing cases updated for the new `getLenses` call on open, and the full gate
+(1056 server + 380 web tests, typecheck, build). Not yet seen rendered in a real browser from
+this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
