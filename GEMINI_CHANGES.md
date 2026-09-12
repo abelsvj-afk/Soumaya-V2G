@@ -1,3 +1,20 @@
+### 2026-09-12 (Claude): Deepening the player-action feedback loop (task #69)
+- [ ] Verified by Claude
+- Found two real gaps by reading `npc-economy.md`'s own "which real API call feeds which
+  building" table against every real `recordBuildingWork` call site in the codebase
+  (`docs/overworld/town-growth-loop.md`), not guessed.
+- Gap 1: a fresh memory capture (`OverworldRoot.tsx`'s `handleCaptureSubmit` →
+  `ingestText(kind: "memory")`) — the single most central real action in the app — credited zero
+  building. Resolved: credits the Library, since a captured memory becomes exactly one more real
+  node in the same `graph.nodes` collection `LibraryOverlay.tsx`'s own "shelves" already read.
+- Gap 2: the Town Meeting / civic-concern Bulletin Board posts (both the exact same real
+  `ingestText(kind: "action")` mutation `BulletinBoardOverlay.tsx`'s own direct posts already
+  credit correctly) never called `recordBuildingWork` themselves. Both now do.
+- Both fixes are the same one-line pattern every other real mutation already uses — deliberately
+  no new stat/UI/concept invented.
+- Verified by the full gate (1056 server + 369 web tests, typecheck, build) and the existing
+  `OverworldRoot.test.tsx` suite passing unchanged. Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Does the town run without the player present? (task #68)
 - [ ] Verified by Claude
 - Answered the task's own question honestly first (`docs/overworld/town-persistence.md`) per

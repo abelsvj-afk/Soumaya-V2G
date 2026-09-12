@@ -87,6 +87,10 @@ export function OverworldRoot() {
       const check = checkTownMeeting(spaceId, digest);
       if (check.shouldMeet && check.insight) {
         await ingestText(meetingAnnouncementText(check.insight), { kind: "action" });
+        // Town Growth Loop (docs/overworld/town-growth-loop.md, task #69) — this is the exact
+        // same real "a quest posted" mutation BulletinBoardOverlay.tsx's own direct posts
+        // already credit; it earned nothing just because it happened via a different call site.
+        recordBuildingWork(spaceId, "bulletinBoard");
         markAnnounced(spaceId, check.insight.id);
         sceneRef.current?.announceTownMeeting();
       }
@@ -113,6 +117,9 @@ export function OverworldRoot() {
       );
       if (check.shouldMeet) {
         await ingestText(concernAnnouncementText(check.neglectedLabels, doorPlaces.length), { kind: "action" });
+        // Town Growth Loop (task #69) — same real Bulletin Board post credit as the
+        // digest-triggered meeting above.
+        recordBuildingWork(spaceId, "bulletinBoard");
         markConcernAnnounced(spaceId);
         sceneRef.current?.announceTownMeeting();
       }
@@ -319,6 +326,12 @@ export function OverworldRoot() {
   const handleCaptureSubmit = useCallback(
     async (text: string): Promise<CreatureEntity | null> => {
       const result = await ingestText(text, { kind: "memory" });
+      // Town Growth Loop (docs/overworld/town-growth-loop.md, task #69) — the single most
+      // central real action in the app previously credited no building at all. Credits the
+      // Library: a fresh memory becomes exactly one more real node in the same `graph.nodes`
+      // collection LibraryOverlay.tsx's own "shelves" already read, never an invented mapping.
+      const spaceIdForWork = getSpaceId();
+      if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "library");
       const newNodeId = result.nodes[0]?.id;
       const next = await refresh();
       if (newNodeId == null) return null;
