@@ -6,7 +6,7 @@ import { UserPersonaRepo } from "../repositories/knowledge.repo.js";
  * The "About Me" persona is NOT user-editable — Soumaya derives it herself from
  * everything she knows about you (your memories) and keeps it current as the brain
  * grows. This is a free, offline heuristic synthesis (no LLM/key needed): dominant
- * themes, emotional baseline, what you think about, and the span of your galaxy.
+ * themes, emotional baseline, what you think about, and the span of what you've captured.
  */
 
 interface Row {
@@ -104,7 +104,7 @@ export function derivePersona(h: DbHandle, spaceId: string = DEFAULT_SPACE): str
   );
 
   const parts: string[] = [];
-  parts.push(`This person's galaxy holds ${count} memories, gathered ${spanText}.`);
+  parts.push(`This person holds ${count} memories, gathered ${spanText}.`);
   if (topTags.length) parts.push(`Recurring themes they tag: ${topTags.join(", ")}.`);
   if (topHubs.length) parts.push(`Their heaviest, most-connected memories center on: ${topHubs.join("; ")}.`);
   if (topTypes.length) parts.push(`They mostly capture ${topTypes.join(", ")}.`);

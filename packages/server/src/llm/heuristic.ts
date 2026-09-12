@@ -230,10 +230,10 @@ export class HeuristicProvider implements LlmProvider {
     const kb = opts?.knowledge ? `\n\nFrom your documents:\n${firstLines(opts.knowledge, 4)}` : "";
     if (context.length === 0) {
       const line = chitchat
-        ? "Cruising the quiet outer reaches of your galaxy — calm out here, just starlight and a little drift. Ask me about a memory and I'll plot a course to it."
+        ? "Just doing my rounds around town — quiet today. Ask me about a memory and I'll go find it."
         : heavy
-          ? "That sounds like it carries real weight, and I don't have memories charted on it yet — I don't want to guess at something that matters."
-          : "I'm not picking up any memories on that heading yet. Log a few related thoughts and I'll chart the connections.";
+          ? "That sounds like it carries real weight, and I don't have anything on that yet — I don't want to guess at something that matters."
+          : "Nothing's turned up on that yet. Log a few related thoughts and I'll start seeing the connections.";
       // Interview instinct (offline): only when weighty AND she hasn't just asked,
       // so the offline path can't interrogate in a loop either.
       const askBack =
@@ -243,9 +243,7 @@ export class HeuristicProvider implements LlmProvider {
       return { answer: line + kb, citations: [], mood, askBack };
     }
     const top = context.slice(0, 5);
-    const preface = heavy
-      ? "I hear the weight in that. Here's what your own galaxy holds on this heading:\n"
-      : "From up here I can see a cluster on that heading:\n";
+    const preface = heavy ? "I hear the weight in that. Here's what I've got on it:\n" : "Here's a cluster on that:\n";
     // Honesty over silence: offline she can't reason over custom roles — say so
     // instead of letting the user think their Companion config is being ignored.
     const rolesNote = opts?.systemExtra?.includes("ACTIVE CUSTOM INSTRUCTIONS")
@@ -255,11 +253,11 @@ export class HeuristicProvider implements LlmProvider {
       preface +
       top.map((c) => `• ${c.label}: ${c.content}`).join("\n") +
       kb +
-      `\n\n— I'd plot a course between them. (Connect an OpenAI or Gemini key and I can tell you the fuller story.${rolesNote})`;
+      `\n\n— that's what I've got connected. (Connect an OpenAI or Gemini key and I can tell you the fuller story.${rolesNote})`;
     // Thin coverage on a weighty topic → one genuine ask-back (never twice running).
     const askBack =
       heavy && context.length < 3 && !opts?.justAsked
-        ? "What would help most here — talking it through, or charting the facts around it?"
+        ? "What would help most here — talking it through, or working through the facts of it?"
         : undefined;
     return { answer, citations: top.map((c) => c.id), mood, askBack };
   }
@@ -277,11 +275,11 @@ export class HeuristicProvider implements LlmProvider {
   }
 
   async summarizeSector(nodes: LinkCandidate[]): Promise<string> {
-    return `This sector contains ${nodes.length} closely related memories, humming with un-synthesized potential.`;
+    return `This group holds ${nodes.length} closely related memories, humming with un-synthesized potential.`;
   }
 
   async generateDailyLog(newNodes: LinkCandidate[], actions: string[], _persona?: string, _soul?: string): Promise<string> {
-    return `Stardate: ${new Date().toLocaleDateString()}. Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
+    return `${new Date().toLocaleDateString()}: Added ${newNodes.length} new memories and performed ${actions.length} maintenance actions.`;
   }
 }
 

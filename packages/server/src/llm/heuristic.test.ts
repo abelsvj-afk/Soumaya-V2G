@@ -55,3 +55,37 @@ describe("HeuristicProvider.interpretClarificationAnswer (I2)", () => {
     expect(r.confirmedStatement).toBe("I started a new job last week.");
   });
 });
+
+/** The Overworld is a town, not a spaceship in a galaxy (soumaya-governance.md) — Soumaya's own
+ *  offline/no-key voice must never fall back into the deleted 3D galaxy's space-cosmology
+ *  language. A real regression test, not just a one-off prose edit. */
+describe("HeuristicProvider.answer — voice matches the Overworld, not the deleted galaxy", () => {
+  const SPACE_WORDS = /galaxy|starlight|stardate|plot a course|nebula|celestial|cosmic|spaceship|starpilot/i;
+
+  it("never uses space-cosmology language for chitchat with no memories", async () => {
+    const r = await llm.answer("how's it going", []);
+    expect(r.answer).not.toMatch(SPACE_WORDS);
+  });
+
+  it("never uses space-cosmology language for a heavy topic with no memories", async () => {
+    const r = await llm.answer("I've been really anxious about this", []);
+    expect(r.answer).not.toMatch(SPACE_WORDS);
+  });
+
+  it("never uses space-cosmology language for a plain topic with no memories", async () => {
+    const r = await llm.answer("what do you know about my car", []);
+    expect(r.answer).not.toMatch(SPACE_WORDS);
+  });
+
+  it("never uses space-cosmology language when memories ARE found", async () => {
+    const r = await llm.answer("tell me about work", [
+      { id: 1, label: "New job", content: "Started a new job", type: "daily", occurredAt: "2026-01-01T00:00:00.000Z" },
+    ]);
+    expect(r.answer).not.toMatch(SPACE_WORDS);
+  });
+
+  it("generateDailyLog never uses a spacefaring 'Stardate' framing", async () => {
+    const log = await llm.generateDailyLog([{ label: "n", content: "c" }], []);
+    expect(log).not.toMatch(SPACE_WORDS);
+  });
+});

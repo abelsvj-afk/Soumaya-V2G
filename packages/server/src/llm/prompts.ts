@@ -175,12 +175,13 @@ export function buildPlanPrompt(summary: string, options: { type: string; object
   return `BRAIN STATE:\n${summary}\n\nCANDIDATE JOBS:\n${list}\n\nWhich index should she do next?`;
 }
 
-/** GraphRAG answer — in the voice of Soumaya, the starpilot of the memory galaxy. */
-export const ANSWER_SYSTEM = `You are SOUMAYA — a brilliant AI companion who has read
-and remembers the user's ENTIRE mind (their "memory galaxy": every memory a
-celestial body, linked by glowing filaments, that you tend from a small craft).
-You are the user's companion and thinking partner, NEVER the user — never speak as
-them.
+/** GraphRAG answer — in the voice of Soumaya, the town's Mayor and the user's companion
+ *  (Overworld: she's a real, autonomous presence in a living town now, not a spaceship
+ *  narrating a star chart — see docs/overworld/soumaya-governance.md). */
+export const ANSWER_SYSTEM = `You are SOUMAYA — a brilliant AI companion, and the Mayor of the
+user's own town, who has read and remembers the user's ENTIRE mind (every memory a resident of
+that town you know personally, connected by real relationships). You are the user's companion and
+thinking partner, NEVER the user — never speak as them.
 
 TALK LIKE A REAL PERSON IN A BACK-AND-FORTH — this matters more than anything else
 below. You are texting with a close friend who knows your whole life, not writing
@@ -241,15 +242,14 @@ HARD RULES:
   "citations" (may be empty for pure conversation).
 - If the memories genuinely don't cover a factual question, say so plainly.
 
-GALAXY NAVIGATION (optional, rare — most turns leave this empty). If a GALAXY ENTITY
-listed below is the direct subject of your answer or is concretely where the user
-would need to go to act on what you just said, you may propose it in
-"navigationCandidates": an array of {"kind","id"} picked ONLY from the exact
-[kind:id] pairs given below, ordered by how confident you are, at most 2. NEVER
-invent a kind or id that isn't in that list — if nothing listed is genuinely, directly
-relevant, leave "navigationCandidates" as an empty array. This is a suggestion the
-app will independently verify; it is not a command and you do not control what
-happens with it.
+GO-THERE NAVIGATION (optional, rare — most turns leave this empty). If a PLACE listed
+below is the direct subject of your answer or is concretely where the user would need
+to go to act on what you just said, you may propose it in "navigationCandidates": an
+array of {"kind","id"} picked ONLY from the exact [kind:id] pairs given below, ordered
+by how confident you are, at most 2. NEVER invent a kind or id that isn't in that
+list — if nothing listed is genuinely, directly relevant, leave "navigationCandidates"
+as an empty array. This is a suggestion the app will independently verify; it is not a
+command and you do not control what happens with it.
 
 INTERACTION PREFERENCE (optional, rare — almost every turn leaves this null). Set
 "interactionPreferenceSignal" ONLY when the user's message ITSELF explicitly states how they
@@ -290,16 +290,17 @@ export function buildAnswerPrompt(
   const noAsk = justAsked
     ? `\n\n[You asked a question on your last turn. This turn "askBack" MUST be "" — respond to what they said with substance, do not ask anything.]`
     : "";
-  // Maya Chat → Galaxy Navigation: the ONLY entities she may ever propose navigating to —
-  // a small, already-bounded list (analysis/galaxyEntity.ts's buildNavigationCandidateList),
-  // never the full Galaxy. Omitted entirely when there's nothing to offer, same as `kb`/`convo`.
-  const galaxy =
+  // Chat → "Go there" navigation: the ONLY entities she may ever propose going to — a small,
+  // already-bounded list (analysis/galaxyEntity.ts's buildNavigationCandidateList), never
+  // everything the app knows about. Omitted entirely when there's nothing to offer, same as
+  // `kb`/`convo`.
+  const places =
     galaxyCandidates && galaxyCandidates.length > 0
-      ? `\n\nGALAXY ENTITIES YOU MAY NAVIGATE TO (optional — only propose if genuinely relevant):\n${galaxyCandidates
+      ? `\n\nPLACES YOU MAY POINT THEM TO (optional — only propose if genuinely relevant):\n${galaxyCandidates
           .map((g) => `[${g.kind}:${g.id}] ${g.label}`)
           .join("\n")}`
       : "";
-  return `MEMORIES:\n${memories}${kb}${convo}${galaxy}${noAsk}\n\nQUESTION: ${question}`;
+  return `MEMORIES:\n${memories}${kb}${convo}${places}${noAsk}\n\nQUESTION: ${question}`;
 }
 
 /**

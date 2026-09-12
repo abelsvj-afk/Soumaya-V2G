@@ -1,3 +1,36 @@
+### 2026-09-12 (Claude): Soumaya stops talking like a spaceship; a real old-galaxy parity audit
+- [ ] Verified by Claude
+- Direct complaint: "Samaya shouldn't be responding to me like she's still a spaceship flying
+  through a space galaxy." Confirmed real by reading the actual code, not assumed:
+  `llm/prompts.ts`'s `ANSWER_SYSTEM` (the real prompt behind every Gemini/OpenAI reply) called
+  her "the starpilot of the memory galaxy... tend[ing] from a small craft"; `llm/heuristic.ts`'s
+  offline fallback text (no API key needed) said "Cruising the quiet outer reaches of your
+  galaxy" and "Stardate: ...". Both reach the player directly.
+- Fixed: she's introduced as "the Mayor of the user's own town" now; every heuristic fallback
+  string rewritten to plain town language; `persona/derive.ts`'s "galaxy holds N memories" line
+  fixed too (it's fed to the LLM as context about the user, so the model could parrot it back);
+  the "GALAXY NAVIGATION"/"GALAXY ENTITIES" prompt section renamed to "GO-THERE
+  NAVIGATION"/"PLACES YOU MAY POINT THEM TO".
+- New regression test (`heuristic.test.ts`) asserts no space-cosmology word (galaxy, starlight,
+  stardate, nebula, celestial, cosmic, spaceship, starpilot, "plot a course") ever appears in her
+  offline replies — a real test, not just a prose edit.
+- A real parity audit, per "everything that came from that old galaxy needs to be transformed and
+  added to this": read the actual deleted pre-Overworld files (`git show <commit>:<path>`) rather
+  than trusting the roadmap's own dock-parity table, which only ever covered the 11 TAB-shaped
+  features. Found 5 real gaps, each now a tracked task instead of lost: MindSpace's ambient
+  floating-thought overlay (#70 — the user's own explicit ask, reusing the exact `getThoughts()`
+  API `SanctuaryOverlay` already calls, plus a new NPC-awareness idea); three dormant
+  memory-storytelling systems — per-memory evolving lore, the Chronicle timeline, Codex
+  discoveries (#71); Lenses, whose client API file was deleted outright while the server route
+  stayed live (#72); no persistent Fuel/Streak HUD or Settings/Help entry point anywhere (#73).
+- Also added a real asset-sourcing task (#74) for the SimCity-style expansion the user asked for
+  (schools, homes, businesses, character animations), explicitly scoped around real licensing
+  (CC0/permissive, matching the existing Kenney credits) and performance (file size/format/no
+  added lag) constraints — never "pull in whatever."
+- Verified by the full gate (1056 server + 301 web tests, typecheck, build). Not yet re-tested
+  against a real LLM key from this sandbox — only the offline heuristic path and the prompt text
+  itself were directly verifiable here.
+
 ### 2026-09-12 (Claude): The Hangar becomes a real town-builder
 - [ ] Verified by Claude
 - Direct answer to the request's own "go to the hangar, and that's where you can select items to
