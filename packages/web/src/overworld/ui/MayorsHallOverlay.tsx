@@ -1,4 +1,5 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
+import { housingSummary } from "../data/housing.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { zoneCounts, ZONE_TYPES } from "../data/zoning.js";
 import { allPlaces } from "../scenes/regionLayout.js";
@@ -18,15 +19,17 @@ function formatCents(cents: number): string {
 
 /**
  * The Mayor's Office (mayors-hall.md, task #63) — a real dashboard, not a new invented screen:
- * the same Town Treasury (townLedger.ts), per-building neglect (buildingNeglect.ts), and zoning
- * plan (zoning.ts) already real elsewhere, put next to each other at the town level for the
- * first time. Read-only this round — no interaction exists yet to credit as real work.
+ * the same Town Treasury (townLedger.ts), per-building neglect (buildingNeglect.ts), zoning
+ * plan (zoning.ts), and now real housing (housing.ts, task #66) already real elsewhere, put next
+ * to each other at the town level for the first time. Read-only this round — no interaction
+ * exists yet to credit as real work.
  */
 export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) {
   const balance = treasuryBalanceCents(spaceId);
   const counts = zoneCounts(spaceId);
   const doorPlaces = allPlaces().filter((p) => p.kind === "door" && p.id !== "mayorsHall");
   const neglectedCount = doorPlaces.filter((p) => isNeglected(buildingNeglect(spaceId, p.id))).length;
+  const housing = housingSummary(spaceId);
 
   return (
     <OverlayShell icon="🏛️" title="Mayor's Office" onClose={onClose}>
@@ -55,6 +58,13 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
           );
         })}
       </ul>
+
+      <h3>Housing</h3>
+      <p style={{ marginTop: 0 }}>
+        {housing.housed === 0
+          ? `None of the town's ${housing.total} residents have a home yet — build one in the Hangar on residential-zoned land.`
+          : `${housing.housed} of ${housing.total} residents have a real home — ${housing.livingAlone} living alone, ${housing.sharing} sharing a home with others.`}
+      </p>
 
       <h3>Zoning Plan</h3>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>

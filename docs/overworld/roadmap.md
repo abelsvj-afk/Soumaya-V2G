@@ -841,6 +841,50 @@ Verified by 8 new `civicConcern.test.ts` cases, the real-data measurement above,
 (1056 server + 328 web tests, typecheck, build). Not yet seen rendered in a real browser from this
 sandbox.
 
+## Stage 2.26 — Real housing/real-estate types (task #66)
+
+Direct answer to the SimCity framing's own "give the NPCs homes... our individual life is not
+identical to another" and "hot zoning is how many homes there are." Specced first
+(`docs/overworld/housing.md`) per Rule #1: gives zoning (task #75) and the Hangar town-builder
+(task #65) their first real mechanical consequence — until this round, a zoned tile did nothing
+and a home could not be built anywhere.
+
+New `data/housing.ts`: a small catalog of 4 home types (Cottage 2x2/1 resident, Duplex 3x2/2,
+House 3x3/3, Apartment Block 4x3/4), each buildable only on ground already tagged
+`"residential"` by zoning — a stricter, multi-tile version of the same arm-then-place mechanism
+town-builder's 1x1 decor items already use, reusing the real Town Treasury for price. NPC-to-home
+assignment (`assignResidents`) is deterministic and capacity-packed — never random, never an
+invented backstory: homes fill in real build order, each to its own real capacity, from the
+town's real, fixed 20 society NPCs (`npcDialogue.ts` gained `allSocietyNpcIds()` as the one
+stable source). This is what actually produces "not identical" NPC living situations: an NPC
+housed in a Cottage genuinely lives alone; one in an Apartment Block genuinely shares with 3
+others — a real, checkable number, never a personality trait.
+
+`ExteriorScene.ts` renders a placed home the same way a real door-building is drawn (COTTAGE's
+already-loaded illustration, scaled to the home's own footprint — no new art sourced this round,
+task #74 covers that), plus a small type-glyph badge (🏠/🏡/🏘️/🏢) at its door so the 4 types stay
+tellable apart despite sharing one base image. `HangarOverlay.tsx` gained a "Housing" section
+(buy + arm, same shape as "Town Building"); `MayorsHallOverlay.tsx` gained an honest "Housing"
+summary ("N of 20 residents have a real home — X living alone, Y sharing") — never an invented
+family story, matching its own "nothing here is a score" convention.
+
+Deliberately, explicitly deferred: routing the NPC schedule's "Home" state to actually pathfind
+to the NPC's own assigned home door. `ExteriorScene`'s Home state already rests attendants
+visibly at their own building's post — a real, deliberate reversal from earlier user feedback
+(npc-economy.md) — and its tween-driven state machine is the most fragile part of this codebase
+(a real cross-tween conflict was already caught and fixed here once, npc-autonomy.md). Shipping
+the real-estate layer itself (buildable, zoned, assigned, honestly reported) without risking that
+working, verified machinery is the safer sequencing this round; wiring actual home-going is a
+clearly-scoped follow-up, not a silently dropped one.
+
+Verified by 13 new `housing.test.ts` cases (including a direct, deterministic reproduction of
+capacity-packed assignment and the zoning gate), 2 new `MayorsHallOverlay.test.tsx` cases, 2 new
+`HangarOverlay.test.tsx` cases (plus 1 existing assertion updated for the new catalog), a real
+open-ground probe against the actual 46x31 map (confirming x=2..9,y=10..17 is genuinely clear of
+every building/object/attendant/grass/spawn tile before using it in tests), and the full gate
+(1056 server + 345 web tests, typecheck, build). Not yet seen rendered in a real browser from
+this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

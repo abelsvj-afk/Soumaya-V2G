@@ -38,7 +38,7 @@ import {
   TileFrame,
   workIconForPlace,
 } from "./tileAtlas.js";
-import { allBuildingSprites, buildingSpriteForPlace } from "./buildingSprites.js";
+import { allBuildingSprites, buildingSpriteForPlace, homeBuildingSprite } from "./buildingSprites.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
 import {
   armedItemId,
@@ -49,6 +49,14 @@ import {
   type PlacedItem,
 } from "../data/townBuilder.js";
 import { armedZoneType, isTileZonable, zonedTiles, zoneTileAt, type ZonedTile, type ZoneType } from "../data/zoning.js";
+import {
+  armedHomeTypeId,
+  homeTypeById,
+  isFootprintFreeForHome,
+  placeArmedHome,
+  placedHomes,
+  type PlacedHome,
+} from "../data/housing.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
@@ -165,6 +173,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  a stable id like placed items, since re-zoning overwrites the SAME tile and this needs to
    *  replace its old glyph rather than accumulate one per zoning decision ever made). */
   private zoneMarkerSprites = new Map<string, Phaser.GameObjects.Text>();
+  /** Housing (docs/overworld/housing.md, task #66) — one real placed home, keyed by its
+   *  persisted PlacedHome id (same convention as `placedItemSprites`, since a home never
+   *  moves once built). */
+  private placedHomeSprites = new Map<string, Phaser.GameObjects.Image>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -230,6 +242,7 @@ export class ExteriorScene extends Phaser.Scene {
     this.spawnSoumaya();
     this.renderZoneMarkers();
     this.renderPlacedItems();
+    this.renderPlacedHomes();
     this.renderCreatures(this.pendingCreatures);
 
     this.player = this.add.sprite(
@@ -520,6 +533,43 @@ export class ExteriorScene extends Phaser.Scene {
   refreshZoneMarkers(): void {
     if (!this.created) return;
     this.renderZoneMarkers();
+  }
+
+  /** Housing type-glyph, distinct per type so all 4 stay tellable apart even though every home
+   *  reuses the same COTTAGE illustration (never color-only — see housing.md decision under
+   *  "Data model"). */
+  private homeGlyphFor(typeId: string): string {
+    return homeTypeById(typeId)?.icon ?? "🏠";
+  }
+
+  private renderPlacedHomes(): void {
+    for (const home of placedHomes(this.spaceId)) this.paintPlacedHome(home);
+  }
+
+  /** Draws a real placed home the same way a real door-building is drawn (drawGround's own
+   *  building loop) — the COTTAGE illustration scaled to the home's own footprint — plus a
+   *  small type-glyph badge at its door tile so the 4 home types read apart from each other. */
+  private paintPlacedHome(home: PlacedHome): void {
+    if (this.placedHomeSprites.has(home.id)) return; // already painted — placements never move
+    const sprite = homeBuildingSprite();
+    const width = (home.x1 - home.x0 + 1) * TILE_SIZE;
+    const height = (home.y1 - home.y0 + 1) * TILE_SIZE;
+    const image = this.add.image(home.x0 * TILE_SIZE + width / 2, home.y0 * TILE_SIZE + height / 2, sprite.key);
+    image.setDisplaySize(width, height);
+    image.setDepth(1);
+    this.placedHomeSprites.set(home.id, image);
+    const badge = this.add.text(home.door.x * TILE_SIZE + TILE_SIZE / 2, home.door.y * TILE_SIZE + TILE_SIZE / 2, this.homeGlyphFor(home.typeId), {
+      fontSize: "14px",
+    });
+    badge.setOrigin(0.5);
+    badge.setDepth(2);
+  }
+
+  /** Re-reads real placed-home state and paints anything new — call after a successful home
+   *  build instead of reloading the whole scene, same pattern as `refreshPlacedItems`. */
+  refreshPlacedHomes(): void {
+    if (!this.created) return;
+    this.renderPlacedHomes();
   }
 
   /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
@@ -1198,6 +1248,28 @@ export class ExteriorScene extends Phaser.Scene {
         if (tile) {
           this.paintZoneMarker(tile);
           this.events.emit("tile-zoned", tile.type);
+        }
+      }
+      return;
+    }
+    // Housing (docs/overworld/housing.md) — a third, parallel "arm mode": the faced tile anchors
+    // the home's footprint as its top-left corner. Only actually builds once the WHOLE footprint
+    // is free (isFootprintFreeForHome, which itself requires every tile zoned "residential")
+    // AND has no creature/Soumaya currently standing anywhere in it — a blocked footprint is a
+    // silent no-op, same convention as town-builder/zoning, no fall-through this same press.
+    const armedHomeType = homeTypeById(armedHomeTypeId(this.spaceId) ?? "");
+    if (armedHomeType) {
+      const x1 = front.x + armedHomeType.width - 1;
+      const y1 = front.y + armedHomeType.height - 1;
+      const occupied =
+        [...this.creatureSprites.values()].some(
+          (sprite) => sprite.currentTile.x >= front.x && sprite.currentTile.x <= x1 && sprite.currentTile.y >= front.y && sprite.currentTile.y <= y1,
+        ) || (this.soumaya && this.soumaya.currentTile.x >= front.x && this.soumaya.currentTile.x <= x1 && this.soumaya.currentTile.y >= front.y && this.soumaya.currentTile.y <= y1);
+      if (!occupied && isFootprintFreeForHome(this.spaceId, front.x, front.y, armedHomeType)) {
+        const placed = placeArmedHome(this.spaceId, front.x, front.y);
+        if (placed) {
+          this.paintPlacedHome(placed);
+          this.events.emit("home-placed", placed.typeId);
         }
       }
       return;

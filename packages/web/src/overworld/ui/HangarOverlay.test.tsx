@@ -36,7 +36,8 @@ describe("HangarOverlay", () => {
   describe("Town Building (town-builder.md)", () => {
     it("can't afford anything with an empty treasury", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
-      expect(screen.getAllByText("Can't afford").length).toBe(4);
+      // 4 real town-builder decor items + 4 real home types (housing.md), all unaffordable.
+      expect(screen.getAllByText("Can't afford").length).toBe(8);
     });
 
     it("buying an affordable item arms it and spends the real treasury", () => {
@@ -75,6 +76,29 @@ describe("HangarOverlay", () => {
       fireEvent.click(screen.getAllByText("Zone")[0]!); // Commercial (Residential's button now says "Armed")
       expect(screen.getByText("Commercial")).toBeTruthy();
       expect(screen.getAllByText("Armed")).toHaveLength(1);
+    });
+  });
+
+  describe("Housing (housing.md)", () => {
+    it("buying an affordable home type arms it and spends the real treasury, independent of town-builder's own arm slot", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank"); // 40 * 25c = $10.00
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Buy")[0]!); // Town Building's own first item, Garden Bed
+      const cottageRow = screen.getByText(/Cottage — 1 resident/).closest("li")!;
+      fireEvent.click(cottageRow.querySelector("button")!);
+      expect(screen.getByText("Cottage")).toBeTruthy(); // the "ready to place" banner's <strong>
+      expect(screen.getAllByText("Armed")).toHaveLength(2); // Garden Bed AND Cottage, independent arm slots
+    });
+
+    it("buying a second home type re-arms rather than queuing", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const cottageRow = screen.getByText(/Cottage — 1 resident/).closest("li")!;
+      const duplexRow = screen.getByText(/Duplex — 2 residents/).closest("li")!;
+      fireEvent.click(cottageRow.querySelector("button")!);
+      fireEvent.click(duplexRow.querySelector("button")!);
+      expect(screen.getByText("Duplex")).toBeTruthy();
+      expect(cottageRow.querySelector("button")?.textContent).toBe("Can't afford"); // never re-armed
     });
   });
 });
