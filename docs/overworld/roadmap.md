@@ -812,6 +812,35 @@ is 4x any other building's area), 6 new `MayorsHallOverlay.test.tsx` cases, the 
 measurement above, and the full gate (1056 server + 320 web tests, typecheck, build). Not yet seen
 rendered in a real browser from this sandbox.
 
+## Stage 2.25 — The townwide civic-concern signal (task #64)
+
+The D3-compliant reframe of "add the criminals system and policing" — `decisions.md` D3 is
+explicit and permanent ("no battle mechanic, ever"), so a literal crime/police system was never
+on the table. Specced first (`docs/overworld/civic-concern.md`) per Rule #1: the real, compliant
+version is a SECOND, independent reason to hold the exact same real Town Meeting
+(`townMeeting.ts`'s `announceTownMeeting()`) already built — a real majority of the town's
+buildings neglected at once (`buildingNeglect.ts`), never one struggling building, which Park and
+the new Mayor's Office already surface individually. No new governance mechanism — the same
+Bulletin Board post + NPC gathering, a second trigger.
+
+New `data/civicConcern.ts`, mirroring `townMeeting.ts`'s own shape: edge-triggered (announces once
+on the transition into "widespread," re-arms only once neglect genuinely drops back below the
+threshold — never re-announces while it stays true), and its Bulletin Board message names real
+buildings ("N of M buildings haven't had real work in a while — Bank, Library, ...") rather than
+inventing any crime/decline narrative.
+
+Measured before shipping, not assumed: ran the real check against the actual 10 real door places
+(Mayor's Hall correctly excluded, since it has no work event to be neglected by yet) — a genuinely
+fresh save (nothing ever worked anywhere) correctly triggers the signal immediately. Deliberately
+NOT special-cased with a grace period: `buildingNeglect.ts`'s own convention already treats
+"never worked" as maximally neglected everywhere else in the app (Park, Mayor's Office, attendant
+dimming all show this identically for a fresh town) — adding a grace period just for this one
+signal would create a NEW inconsistency, not fix one.
+
+Verified by 8 new `civicConcern.test.ts` cases, the real-data measurement above, and the full gate
+(1056 server + 328 web tests, typecheck, build). Not yet seen rendered in a real browser from this
+sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
