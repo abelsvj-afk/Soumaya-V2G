@@ -3,12 +3,14 @@ import Phaser from "phaser";
 import { getDigest, ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
 import { checkTownMeeting, markAnnounced, meetingAnnouncementText } from "./data/townMeeting.js";
+import { checkCivicConcern, concernAnnouncementText, markConcernAnnounced } from "./data/civicConcern.js";
+import { buildingNeglect, isNeglected } from "./data/buildingNeglect.js";
 import { detectBankWork } from "./adapter/financeAdapter.js";
 import { recordBuildingWork } from "./data/npcJobs.js";
 import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
 import { ExteriorScene, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
-import { placeById, type PlaceId } from "./scenes/regionLayout.js";
+import { allPlaces, placeById, type PlaceId } from "./scenes/regionLayout.js";
 import { TouchControls } from "./ui/TouchControls.js";
 import { CreatureSummaryOverlay } from "./ui/CreatureSummaryOverlay.js";
 import { CaptureMenu } from "./ui/CaptureMenu.js";
@@ -91,6 +93,32 @@ export function OverworldRoot() {
     }
   }, []);
 
+  /** Civic concern (docs/overworld/civic-concern.md, task #64) — a SECOND, independent reason
+   *  to hold the exact same real Town Meeting: a real majority of buildings neglected at once,
+   *  never a single struggling building. The D3-compliant reframe of "crime/policing" — no new
+   *  mechanism, the same Bulletin Board post + NPC gathering the digest-triggered meeting
+   *  already uses. Reads real, already-computed neglect (buildingNeglect.ts), never a new fetch. */
+  const checkCivicConcernEffect = useCallback(async (): Promise<void> => {
+    const spaceId = getSpaceId() ?? "default";
+    try {
+      const doorPlaces = allPlaces().filter((p) => p.kind === "door" && p.id !== "mayorsHall");
+      const neglected = doorPlaces.filter((p) => isNeglected(buildingNeglect(spaceId, p.id)));
+      const check = checkCivicConcern(
+        spaceId,
+        neglected.length,
+        doorPlaces.length,
+        neglected.map((p) => p.label),
+      );
+      if (check.shouldMeet) {
+        await ingestText(concernAnnouncementText(check.neglectedLabels, doorPlaces.length), { kind: "action" });
+        markConcernAnnounced(spaceId);
+        sceneRef.current?.announceTownMeeting();
+      }
+    } catch {
+      /* best-effort — see comment above */
+    }
+  }, []);
+
   const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
     try {
       const previousBankRows = snapshotRef.current?.bank.rows ?? [];
@@ -108,6 +136,7 @@ export function OverworldRoot() {
       sceneRef.current?.refreshPlacedItems();
       sceneRef.current?.refreshZoneMarkers();
       void checkTownMeetingEffect();
+      void checkCivicConcernEffect();
       return next;
     } catch (err) {
       // Preserve whatever's already on screen rather than wiping it (App.tsx's own
@@ -115,7 +144,7 @@ export function OverworldRoot() {
       setLoadError(err instanceof Error ? err.message : "Couldn't reach your brain.");
       return null;
     }
-  }, [setSnapshot, checkTownMeetingEffect]);
+  }, [setSnapshot, checkTownMeetingEffect, checkCivicConcernEffect]);
 
   useEffect(() => {
     const parent = containerRef.current;

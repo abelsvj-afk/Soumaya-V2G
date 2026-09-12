@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **The townwide civic-concern signal (2026-09-12), not yet on-device confirmed** — the
+  D3-compliant reframe of "add the criminals system and policing" (`decisions.md` D3 is a hard,
+  permanent no-combat rule). Specced first (`docs/overworld/civic-concern.md`): a real majority
+  of buildings neglected at once (never one struggling building) triggers a SECOND, independent
+  reason to hold the exact same real Town Meeting `townMeeting.ts` already built — same
+  Bulletin Board post, same NPC gathering, no new mechanism. New `data/civicConcern.ts`,
+  edge-triggered (announces once on the transition into "widespread", re-arms only once neglect
+  genuinely improves), names real buildings in its message rather than inventing a crime
+  narrative. Measured against the real 10 door places (Mayor's Hall correctly excluded): a fresh
+  save with nothing ever worked correctly triggers immediately — deliberately not special-cased
+  with a grace period, since `buildingNeglect.ts` already treats "never worked" as maximally
+  neglected everywhere else (Park, Mayor's Office, attendant dimming), and a grace period just
+  for this signal would be a new inconsistency, not a fix. Verified by 8 new tests + the
+  real-data measurement + full gate (1056 server + 328 web tests, typecheck, build) — not yet
+  seen rendered in a real browser.
+
 - **Mayor's Hall — literally the biggest building on the map (2026-09-12), not yet on-device
   confirmed** — direct answer to "somebody needs the biggest building on the map, which is for
   the mayor." Specced first (`docs/overworld/mayors-hall.md`): 12x6 (72 tiles) vs. every other

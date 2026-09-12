@@ -1,3 +1,25 @@
+### 2026-09-12 (Claude): The townwide civic-concern signal (D3-compliant crime/policing reframe)
+- [ ] Verified by Claude
+- Direct reframe of "add the criminals system and policing" — `decisions.md` D3 is a hard,
+  permanent "no battle mechanic, ever" rule, so a literal crime/police system was never on the
+  table. Specced first (`docs/overworld/civic-concern.md`) per Rule #1.
+- The real, compliant version: a SECOND, independent reason to hold the exact same real Town
+  Meeting `townMeeting.ts` already built — a real majority of the town's buildings neglected at
+  once (`buildingNeglect.ts`), never one struggling building (which Park/Mayor's Office already
+  surface individually). No new governance mechanism, just a second trigger for the same
+  Bulletin Board post + NPC gathering.
+- New `data/civicConcern.ts`, mirroring `townMeeting.ts`'s own shape: edge-triggered (announces
+  once on the transition into "widespread", re-arms only once neglect genuinely drops back
+  below the threshold), and its message names real buildings rather than inventing any crime or
+  decline narrative.
+- Measured before shipping: ran the real check against the actual 10 door places (Mayor's Hall
+  correctly excluded — no work event to be neglected by yet). A genuinely fresh save (nothing
+  ever worked anywhere) correctly triggers the signal immediately — deliberately not given a
+  grace period, since `buildingNeglect.ts` already treats "never worked" as maximally neglected
+  everywhere else in the app; a special case just for this signal would be a NEW inconsistency.
+- Verified by 8 new `civicConcern.test.ts` cases, the real-data measurement above, and the full
+  gate (1056 server + 328 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Mayor's Hall — literally the biggest building on the map
 - [ ] Verified by Claude
 - Direct answer to "somebody needs the biggest building on the map, which is for the mayor."
