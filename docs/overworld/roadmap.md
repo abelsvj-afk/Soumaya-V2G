@@ -581,6 +581,22 @@ Verified by new/updated tests in `nodeToCreature.test.ts`, `loadWorldSnapshot.te
 server + 287 web tests, typecheck, build). Not yet seen rendered in a real browser from this
 sandbox.
 
+## Stage 2.16 — Real bug fix: Soumaya's chat overlay flashing open-then-closed
+
+Real user report: the A button opens Soumaya's chat, but it instantly closed again — holding the
+button was the only way to keep it open. Root cause found by reading `TouchControls.tsx`, not
+guessed: A's `onPointerDown` opens the overlay immediately, but a touch gesture still generates a
+browser-synthesized compatibility `click` afterward unless `preventDefault()` is called on the
+pointer event — and by the time that click fires, `OverlayShell`'s full-width Leave button (the
+overlay having just mounted) sits at the exact screen position A occupied a moment earlier. The
+ghost click landed on Leave, closing the overlay the same gesture had just opened. Fixed with
+`e.preventDefault()` in A's pointerdown handler — the standard, well-documented fix for a
+lingering synthetic click after a touch gesture, scoped to just the one button that actually has
+this problem (the D-pad's own ghost clicks land back on the D-pad itself, harmlessly). Verified by
+a new assertion in `TouchControls.test.tsx` (`fireEvent.pointerDown(...)` returns `false` — the
+signal a cancelable event's `preventDefault()` was actually called) + the full gate (1051 server +
+288 web tests, typecheck, build). Not yet re-tapped on a real device to confirm the flash is gone.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

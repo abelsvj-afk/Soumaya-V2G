@@ -1,3 +1,17 @@
+### 2026-09-12 (Claude): Real bug fix — Soumaya's chat overlay flashing open-then-closed
+- [ ] Verified by Claude
+- Real user report: touching A to talk to Soumaya opened her chat, then it instantly closed again
+  (holding the button was the only workaround). Root-caused by reading `TouchControls.tsx`: A's
+  `onPointerDown` opens the overlay immediately, but a touch gesture still fires a browser
+  compatibility `click` afterward unless `preventDefault()` is called — that ghost click landed on
+  `OverlayShell`'s full-width Leave button, which now sits at the exact screen spot A occupied a
+  moment earlier, closing the overlay the same gesture had just opened.
+- Fixed with one line — `e.preventDefault()` in A's pointerdown handler — the standard fix for a
+  lingering synthetic click after touch, scoped to only the one button that has this problem.
+- Verified by a new `TouchControls.test.tsx` assertion (`fireEvent.pointerDown` returns `false`,
+  the tell that `preventDefault()` fired) + full gate (1051 server + 288 web tests, typecheck,
+  build). Not yet re-tapped on a real device to confirm the flash is gone.
+
 ### 2026-09-12 (Claude): Soumaya Overworld — spaced repetition finally gets a place in the world
 - [ ] Verified by Claude
 - Tier 2, priority 1 of the roadmap discussion ("I really want all of it. Mostly tier 2."). Per
