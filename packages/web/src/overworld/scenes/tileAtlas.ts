@@ -6,8 +6,8 @@ import type { PlaceId } from "./regionLayout.js";
  * Kenney's "Tiny Town" and "Tiny Dungeon" packs (CC0/public domain — kenney.nl, mirrored at
  * github.com/shorepine/kenney; see packages/web/public/CREDITS.md) — never from the Pokémon
  * reference repos named in the brief, whose tile/sprite graphics are Nintendo's copyrighted
- * assets (architecture-only reference, not asset reuse). `tiles.png` is a hand-curated 5x5
- * atlas (25 frames, 16x16 source tiles) assembled from those packs — see
+ * assets (architecture-only reference, not asset reuse). `tiles.png` is a hand-curated 6x6
+ * atlas (36 frames, 16x16 source tiles) assembled from those packs — see
  * docs/overworld/roadmap.md's tileset entry for the exact source-tile index of every frame.
  */
 export const TILE_ATLAS_KEY = "overworld-tiles";
@@ -21,10 +21,21 @@ export const TileFrame = {
   grassFlowers: 2,
   path: 3,
   grassZone: 4,
-  // 5-12 and 33-34 (a modular wall/door/roof tile kit) were retired in favor of complete
-  // pre-made building illustrations — see buildingSprites.ts. Frame indices below are
-  // unaffected (still the same numbers Phaser's spritesheet slicer assigns); the retired
-  // frames simply sit unused in tiles.png rather than being renumbered.
+  // Real park decor (task #74) — 5 of the retired modular wall/door/roof kit's now-unused
+  // slots (see the comment below) were repainted with real Tiny Town CC0 source tiles (indices
+  // 4/5/81/45/29 in the source pack, github.com/shorepine/kenney — see CREDITS.md) instead of
+  // staying blank. The single most-repeated real complaint this session ("I have no clue where
+  // the hell the park is... a bunch of dirt patches... not a park") had no tree/bench art to
+  // fix it with until now.
+  treeA: 5,
+  treeB: 6,
+  bench: 7,
+  fence: 8,
+  mushroom: 9,
+  // 10-12 and 33-34 (the remaining unused modular wall/door/roof tile kit slots) were retired
+  // in favor of complete pre-made building illustrations — see buildingSprites.ts. Frame
+  // indices below are unaffected (still the same numbers Phaser's spritesheet slicer assigns);
+  // the retired frames simply sit unused in tiles.png rather than being renumbered.
   signpost: 13,
   player: 14,
   soumayaMarker: 15,

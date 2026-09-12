@@ -103,6 +103,21 @@ describe("tileAtlas", () => {
     });
   });
 
+  describe("real Park decor frames (park-decor.md, task #74)", () => {
+    it("treeA/treeB/bench/fence/mushroom are all distinct frame indices — no accidental collision", () => {
+      const frames = [TileFrame.treeA, TileFrame.treeB, TileFrame.bench, TileFrame.fence, TileFrame.mushroom];
+      expect(new Set(frames).size).toBe(frames.length);
+    });
+
+    it("none of the new decor frames collide with an already-used frame index", () => {
+      const decor = new Set<number>([TileFrame.treeA, TileFrame.treeB, TileFrame.bench, TileFrame.fence, TileFrame.mushroom]);
+      const everythingElse = Object.entries(TileFrame)
+        .filter(([name]) => !["treeA", "treeB", "bench", "fence", "mushroom"].includes(name))
+        .map(([, frame]) => frame);
+      for (const frame of everythingElse) expect(decor.has(frame)).toBe(false);
+    });
+  });
+
   describe("idleBobDelayMs", () => {
     it("is deterministic — same node id always yields the same delay", () => {
       expect(idleBobDelayMs(42)).toBe(idleBobDelayMs(42));

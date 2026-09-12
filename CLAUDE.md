@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real Park decor from CC0 assets already in use (2026-09-12), not yet on-device confirmed** —
+  most of task #74's asset-sourcing was already done (the tileset is real Kenney CC0 "Tiny
+  Town"/"Tiny Dungeon"); confirmed by reading the real credits/atlas first
+  (`docs/overworld/park-decor.md`) that tree/bench/fence art was simply never extracted from the
+  same source, leaving Park's repeated real complaint unfixable. A real new capability was
+  confirmed directly: the same CC0 mirror (`github.com/shorepine/kenney`) is reachable from this
+  sandbox via a shallow sparse `git clone`, unlike kenney.nl/itch.io direct downloads. A labeled
+  contact sheet of its real 132 Tiny Town tiles was generated and reviewed to hand-pick 5 real
+  ones (two trees, a bench, a fence post, a mushroom), repainted into `tiles.png`'s own already-
+  confirmed-unused frame slots (zero risk to the other 27 in-use indices), pixel-diff-verified
+  against their real source before any code was written. `ExteriorScene.ts`'s Park now places
+  them at fixed, door-collision-checked positions instead of a bare paved courtyard. Verified by
+  2 new `tileAtlas.test.ts` cases, the pixel-diff verification, and the full gate (1056 server +
+  391 web tests, typecheck, build) — confirmed the patched atlas is byte-identical in the actual
+  built `dist/` output. Not yet seen rendered in a real browser from this sandbox.
+
 - **Reviving the dormant memory-storytelling systems (2026-09-12), not yet on-device
   confirmed** — investigated first, not guessed (`docs/overworld/storytelling-revival.md`):
   genuinely 3 distinct systems (a real naming collision calls both "the Chronicle" in different
