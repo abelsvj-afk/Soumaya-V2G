@@ -24,10 +24,11 @@ interface Turn {
 }
 
 /**
- * Soumaya, the partner NPC — talk to her to open this dialogue chat (chat-with-your-brain,
- * GraphRAG with cited answers). A citation that matches a creature actually placed in this
- * region gets a "📍 Go there" button that pans the camera, mirroring the galaxy's existing
- * fly-to-citation behavior (CLAUDE.md).
+ * Soumaya, the partner NPC and the town's real Mayor (soumaya-governance.md decision #1 — she
+ * holds the top civic role, Mira administers Town Hall day-to-day in her stead) — talk to her
+ * to open this dialogue chat (chat-with-your-brain, GraphRAG with cited answers). A citation
+ * that matches a creature actually placed in this region gets a "📍 Go there" button that pans
+ * the camera, mirroring the galaxy's existing fly-to-citation behavior (CLAUDE.md).
  */
 export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode, dueReviews = [] }: SoumayaChatOverlayProps) {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -66,7 +67,8 @@ export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode, dueReviews
   return (
     <OverlayShell
       icon="🛰️"
-      title="Soumaya"
+      title="Mayor Soumaya"
+      ariaLabel="Chat with Soumaya"
       onClose={onClose}
       footer={
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
