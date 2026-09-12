@@ -253,6 +253,23 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **NPCs get their lives back; Soumaya finally moves (2026-09-12), not yet on-device confirmed**
+  — a large multi-part request (Soumaya autonomy/governance, crime/policing, NPC visibility, LLM
+  dialogue, and more) got a full reconciliation doc first (`docs/overworld/soumaya-governance.md`)
+  per Rule #1, resolving each ambiguity and deferring what needed its own spec. Shipped this
+  round: Soumaya converted from a static fixture into a real autonomous, pathfinding-driven
+  companion who tours every building deterministically (measured against the real 46x24 map —
+  `findPath` succeeded for all 10 buildings across 2 full laps, no failures); NPCs no longer fade
+  to invisible when off duty (Home now renders like Break, resting visibly at post — a direct
+  reversal of a v1 decision); Mira's title softened to Deputy Mayor (flavor-only — her v1 doc
+  already called "Mayor" a role with zero mechanical weight). Deferred with reasoning and a real
+  tracked-task home: Soumaya's own NPC interactions + leading Town Meetings (task #59), a Mayor's
+  Hall + "her security" (task #63), a D3-compliant townwide civic-concern signal as the
+  crime/policing reframe (task #64), political divisions (revisit only past 20 NPCs), and
+  LLM-generated/token-batched/town-state-aware dialogue (folded into task #61's spec). Verified by
+  the tour measurement + full gate (1051 server + 288 web tests, typecheck, build) — not yet seen
+  rendered in a real browser from this sandbox.
+
 - **Real bug fix: Soumaya's chat overlay flashing open-then-closed (2026-09-12), not yet
   on-device confirmed** — real user report: touching the A button to talk to Soumaya opened her
   chat, which instantly closed again (holding the button was the only workaround). Root cause,

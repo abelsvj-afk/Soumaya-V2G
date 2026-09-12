@@ -597,6 +597,49 @@ a new assertion in `TouchControls.test.tsx` (`fireEvent.pointerDown(...)` return
 signal a cancelable event's `preventDefault()` was actually called) + the full gate (1051 server +
 288 web tests, typecheck, build). Not yet re-tapped on a real device to confirm the flash is gone.
 
+## Stage 2.17 — NPCs get their lives back; Soumaya finally moves
+
+Direct follow-up to a large, multi-part user request that bundled Soumaya autonomy/governance,
+crime/policing, NPC visibility, LLM dialogue, and more into one message. Per Rule #1, the full
+reconciliation (what's resolved, what's deferred and why, D3 compliance for the crime/policing
+ask) is written up first in `docs/overworld/soumaya-governance.md` — this stage is the subset of
+it that actually shipped.
+
+**Soumaya moves.** She was a static ground-layer image at a fixed tile — the direct cause of "she
+doesn't move around." Converted to a real sprite (container + body, splitting position from idle
+bob the same way `CreatureSprite` already does) that deterministically tours every real building
+in the town, reusing the exact BFS pathfinder + tile-by-tile walk tweening already built for NPC
+outings (`npc-autonomy.md`) — never `Math.random()`, matching this scene's own desync convention.
+`handleInteract()` now checks her live current tile before falling back to the Bulletin Board's
+static lookup, the same "current position, not placement anchor" rule creatures already use.
+Measured before shipping: a script ran her real tour against the actual 46x24 map — `findPath`
+succeeded for all 10 buildings across 2 full laps, no failures, ~18 tiles/leg average, well inside
+her 7s wander period.
+
+**NPCs stop fading away off duty.** Real, direct reversal of a v1 decision: `applySocietyState`'s
+Home branch used to fade a sprite to alpha 0 then hide it. Home now renders like Break — visible,
+resting at the attendant's own post. What actually gives them "a life outside work" was already
+built (the outing system's periodic real Park/Market walks) — only the bug where they vanished
+*between* outings did. All three "resume Home's own hidden state" call sites were made consistent;
+`restingTileFor`'s return type dropped its now-impossible `null` case (Working/Break/Home is an
+exhaustive 3-value union).
+
+**Mira → Deputy Mayor.** `npc-society.md` §4 already framed her "Mayor" label as "a role, not a
+superior... just who calls the meeting" — zero mechanical weight. Soumaya becomes the town's real
+governing figure; Mira's one flavor comment softens accordingly. Nothing else about her changes.
+
+**Explicitly deferred**, each with a real home rather than getting lost: Soumaya's own visible
+NPC interactions + personally leading Town Meetings (folded into task #59); a Mayor's Hall
+building + attendants ("her security" — task #63, new); a townwide civic-concern signal as the
+D3-compliant crime/economy reframe (task #64, new); political "divisions" (revisit only once NPC
+count actually grows past today's 20); LLM-generated, token-batched, town-state-aware dialogue
+(folded into task #61's spec as hard requirements). See `soumaya-governance.md` for the full
+reasoning behind each.
+
+Verified by the tour measurement above + the full gate (1051 server + 288 web tests, typecheck,
+build) — Soumaya's movement and the Home-visibility change have not been seen rendered in a real
+browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -215,7 +215,13 @@ const PROFILE_LIST: NpcProfile[] = [
     (other) => `${other} and I split the till every night. Never once had it come up short.`,
   ),
 
-  // Town Hall — Mira (Mayor), Dez (Clerk). Unchanged names/role from npc-society.md v1.
+  // Town Hall — Mira (Deputy Mayor), Dez (Clerk). Names/dialogue unchanged from npc-society.md
+  // v1 — only the title changed (Stage 2.17): Soumaya is the town's real autonomous governing
+  // figure now (she calls and convenes Town Meetings), so Mira administers Town Hall day-to-day
+  // in her stead rather than holding the top civic role herself. v1's own framing of "Mayor" as
+  // "a role, not a superior" (npc-society.md) already meant this was always a flavor label with
+  // no mechanical weight — nothing else about Mira (schedule, dialogue, relationship with Dez)
+  // changes.
   profile(
     "townHall",
     0,
