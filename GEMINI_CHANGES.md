@@ -1,3 +1,29 @@
+### 2026-09-12 (Claude): NPCs read as walking, not gliding; Park stops looking like a building
+- [ ] Verified by Claude
+- "NPCs shouldn't fly across the map or move any quicker than I can": measured the real numbers
+  rather than guessing — the player's step tween is 140ms/tile (`handleInput`), `NPC_STEP_MS` is
+  160ms/tile. NPCs were already never faster per tile than the player. The real gap: every NPC
+  walk was a pure linear glide with zero footstep cue, while the player has had a squash/stretch
+  hop since Stage 1 — over a long unbroken path (Soumaya's tour, a Town Meeting gathering) that
+  reads as sliding/flying even at an equal-or-slower rate. Fixed with a new `hopStep()`, the same
+  shape as the player's own hop, firing on every step in both `walkPath` (attendants) and
+  `walkSoumayaPath`.
+- "[The Park] look[s] stupid... not a park": confirmed by reading `buildingSprites.ts` — Park had
+  no mapped art, so it fell through to the generic stone COTTAGE illustration, rendering an open
+  public space as a building. Fixed: Park excluded from the building-illustration pass, its
+  footprint painted with the plaza's own `path` tile instead — a real courtyard, not grass
+  indistinguishable from the rest of the ground. Genuine decor (benches/trees) needs real art not
+  currently loaded — tracked under task #74, not invented here. Passability unchanged (still a
+  walled footprint entered via the door).
+- Added Zoning as a new task (#75) — the real foundation the SimCity framing was pointing at:
+  it determines WHERE housing (#66) and business types (#67) can go, so both now formally block
+  on it. Clarified Fuel stays exactly what it already is (the LLM-job-cost meter, unrelated to
+  NPCs) rather than being reinterpreted; the town-facing "morale" concept the user was reaching
+  for is a distinct new aggregate, folded into task #64 under a working name.
+- Verified by the real step-duration measurement above + full gate (1056 server + 301 web tests,
+  typecheck, build). Not yet seen rendered in a real browser — this kind of visual fix especially
+  needs real eyes on it.
+
 ### 2026-09-12 (Claude): Soumaya stops talking like a spaceship; a real old-galaxy parity audit
 - [ ] Verified by Claude
 - Direct complaint: "Samaya shouldn't be responding to me like she's still a spaceship flying

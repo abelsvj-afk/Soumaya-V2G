@@ -117,6 +117,9 @@ interface AttendantSprite {
  *  and idle bob never fight over the same object's y property. */
 interface SoumayaSprite {
   container: Phaser.GameObjects.Container;
+  /** The inner image the idle bob AND the per-step hop both animate — kept separate from
+   *  `container` (which only ever moves position) so none of these tweens fight each other. */
+  body: Phaser.GameObjects.Image;
   currentTile: GridPosition;
   /** True for the duration of a walk leg — guards against the wander timer starting a second
    *  leg before a real, possibly-long, town-wide walk has finished. */
@@ -314,9 +317,14 @@ export class ExteriorScene extends Phaser.Scene {
 
     // Buildings: one complete pre-made illustration per door-place (buildingSprites.ts),
     // scaled to fill its footprint — real user feedback against the previous modular-tile
-    // assembly ("that's not appropriate... find already made building assets").
+    // assembly ("that's not appropriate... find already made building assets"). Park is
+    // EXCLUDED: real user feedback that it "look[ed] stupid... not a park" — it was being
+    // painted with the same stone-cottage illustration as every other unmapped place, so a
+    // real park rendered as a building nobody could see was open ground. A park has no walls
+    // to paint here; it gets a paved courtyard below instead (still a real fix, though genuine
+    // park decor — benches, trees — needs task #74's asset work; no tree/bench art is loaded).
     for (const place of allPlaces()) {
-      if (place.kind !== "door") continue;
+      if (place.kind !== "door" || place.id === "park") continue;
       const sprite = buildingSpriteForPlace(place.id);
       const { x0, y0, x1, y1 } = place.footprint;
       const width = (x1 - x0 + 1) * TILE_SIZE;
@@ -324,6 +332,17 @@ export class ExteriorScene extends Phaser.Scene {
       const image = this.add.image(x0 * TILE_SIZE + width / 2, y0 * TILE_SIZE + height / 2, sprite.key);
       image.setDisplaySize(width, height);
       image.setDepth(1);
+    }
+
+    // Park's own footprint: a paved courtyard (the same `path` tile the plaza already uses),
+    // not grass indistinguishable from the surrounding ground and not a building. Reads as a
+    // real, deliberately maintained public space rather than a floating door in empty grass.
+    const park = allPlaces().find((p) => p.id === "park" && p.kind === "door") as DoorPlace | undefined;
+    if (park) {
+      const { x0, y0, x1, y1 } = park.footprint;
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) this.tileAt(x, y, TileFrame.path, 1);
+      }
     }
 
     // Standalone objects — the Bulletin Board is a real signpost and stays fixed here. Soumaya
@@ -362,7 +381,7 @@ export class ExteriorScene extends Phaser.Scene {
     const body = this.add.image(0, 0, TILE_ATLAS_KEY, objectFrameForPlace("soumaya"));
     body.setScale(SPRITE_SCALE);
     container.add(body);
-    this.soumaya = { container, currentTile: home, walking: false };
+    this.soumaya = { container, body, currentTile: home, walking: false };
     if (prefersReducedMotion()) return;
     this.tweens.add({ targets: body, y: -TILE_SIZE * 0.08, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
     this.time.addEvent({ delay: 7000, loop: true, callback: () => this.tickSoumayaWander() });
@@ -411,6 +430,7 @@ export class ExteriorScene extends Phaser.Scene {
         return;
       }
       const tile = steps[index]!;
+      this.hopStep(soumaya.body, SPRITE_SCALE);
       this.tweens.add({
         targets: soumaya.container,
         x: tile.x * TILE_SIZE + TILE_SIZE / 2,
@@ -630,6 +650,24 @@ export class ExteriorScene extends Phaser.Scene {
     };
   }
 
+  /** A per-step squash/stretch, the exact same shape as the player's own step-hop
+   *  (startIdleBob's sibling in handleInput) — real user feedback: NPCs "shouldn't fly across
+   *  the map or move any quicker than I can." Measured, not assumed: NPC_STEP_MS (160ms) was
+   *  already >= the player's own 140ms step tween before this fix, so the per-tile RATE was
+   *  never actually faster — what read as "flying" was the missing footstep cue plus a long
+   *  path playing out with zero pauses between steps, which a linear glide makes look like
+   *  sliding rather than walking. This makes every NPC step visually read as a step. */
+  private hopStep(target: Phaser.GameObjects.Image, baseScale: number): void {
+    this.tweens.add({
+      targets: target,
+      scaleX: baseScale * 0.85,
+      scaleY: baseScale * 1.15,
+      duration: Math.round(NPC_STEP_MS * 0.4),
+      yoyo: true,
+      ease: "Quad.easeOut",
+    });
+  }
+
   /** Walks a sprite along a real path tile-by-tile (skipping the path's own first entry, which
    *  is just its current tile), then calls `onComplete`. A no-op straight jump under reduced
    *  motion — same convention as every other tween-driven movement in this scene. */
@@ -647,6 +685,7 @@ export class ExteriorScene extends Phaser.Scene {
         return;
       }
       const tile = steps[index]!;
+      this.hopStep(sprite.image, SPRITE_SCALE);
       this.tweens.add({
         targets: sprite.image,
         x: tile.x * TILE_SIZE + TILE_SIZE / 2,

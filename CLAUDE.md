@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **NPCs read as walking, not gliding; Park stops looking like a building (2026-09-12), not yet
+  on-device confirmed** — two complaints, each checked against the actual code, not guessed.
+  "NPCs shouldn't move quicker than I can": measured the real numbers — the player's step tween
+  is 140ms/tile, `NPC_STEP_MS` is 160ms/tile, so NPCs were never actually faster per tile. The
+  real gap was a missing footstep cue (pure linear glide vs. the player's own squash/stretch hop)
+  that reads as sliding over a long unbroken path even at an equal/slower rate — fixed with a new
+  `hopStep()` firing on every NPC/Soumaya step. "[The Park] looks stupid, not a park": confirmed
+  `buildingSprites.ts` had no art for Park, so it fell through to the generic stone COTTAGE
+  illustration — an open public space rendered as a building. Fixed by excluding Park from the
+  building pass and painting its footprint with the plaza's own path tile instead (a real
+  courtyard); genuine decor (benches, trees) still needs real art (task #74) that isn't loaded
+  yet. Also: added Zoning as a new task (#75) since it's the real foundation housing (#66) and
+  business types (#67) both need to exist first; clarified Fuel stays exactly what it already is
+  (the LLM-job-cost meter) rather than being reinterpreted for NPCs — the town-facing "morale"
+  concept is a distinct new aggregate, folded into task #64. Verified by the real step-duration
+  measurement + full gate (1056 server + 301 web tests, typecheck, build) — not yet seen rendered
+  in a real browser.
+
 - **Soumaya stops talking like a spaceship; a real old-galaxy parity audit (2026-09-12), not yet
   on-device confirmed** — direct complaint: "Samaya shouldn't be responding to me like she's
   still a spaceship flying through a space galaxy." Confirmed real by reading the actual code:
