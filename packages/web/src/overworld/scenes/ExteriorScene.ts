@@ -390,6 +390,17 @@ export class ExteriorScene extends Phaser.Scene {
       for (let y = y0; y <= y1; y++) {
         for (let x = x0; x <= x1; x++) this.tileAt(x, y, TileFrame.path, 1);
       }
+      // Real park decor (task #74) — genuine tree/bench/fence/mushroom tiles (Kenney's CC0
+      // Tiny Town pack, see tileAtlas.ts), never invented: this closes the real, repeated
+      // complaint that Park was just "dirt patches... not a park." Placed at fixed corners/edge
+      // tiles that never overlap the door (door.x = x0+3, door.y = y0 — see regionLayout.ts's
+      // layoutRow), depth 2 so they sit visibly above the path tiles beneath them.
+      this.tileAt(x0, y0, TileFrame.fence, 2);
+      this.tileAt(x1, y0, TileFrame.fence, 2);
+      this.tileAt(x0, y1, TileFrame.treeA, 2);
+      this.tileAt(x1, y1, TileFrame.treeB, 2);
+      this.tileAt(x0 + 2, y1, TileFrame.bench, 2);
+      this.tileAt(x0 + 4, y1, TileFrame.mushroom, 2);
     }
 
     // Standalone objects — the Bulletin Board is a real signpost and stays fixed here. Soumaya

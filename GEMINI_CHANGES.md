@@ -1,3 +1,26 @@
+### 2026-09-12 (Claude): Real Park decor from CC0 assets already in use (task #74)
+- [ ] Verified by Claude
+- Task #74 asked to "source real free/CC0 assets" — most of that was already done (the whole
+  tileset is real Kenney CC0 "Tiny Town"/"Tiny Dungeon"). Confirmed by reading the real credits/
+  atlas first (`docs/overworld/park-decor.md`) per Rule #1 that tree/bench/fence art was simply
+  never extracted from the same already-approved source, leaving Park's repeated real complaint
+  ("a bunch of dirt patches... not a park") genuinely unfixable until now.
+- A real, new capability was confirmed directly, not assumed: the same CC0 mirror this atlas
+  already cites (`github.com/shorepine/kenney`) is reachable from this sandbox via a shallow,
+  sparse `git clone` — kenney.nl/itch.io direct downloads remain blocked, but this mirror isn't.
+- A labeled contact sheet of the mirror's real 132 individual Tiny Town tiles was generated and
+  visually reviewed to hand-pick 5 genuinely usable ones (two trees, a bench, a fence post, a
+  mushroom) — never invented, never guessed from a filename.
+- `tiles.png`'s own frame indices 5-9 (already confirmed retired/unreferenced from the earlier
+  wall/door/roof-kit removal) were repainted with these 5 real tiles — zero risk to the other 27
+  frame indices every other file already references, confirmed by pixel-diffing every patched
+  slot against its real source tile before writing any code.
+- `ExteriorScene.ts`'s Park rendering now places them at fixed, door-collision-checked positions
+  within Park's real 6x3 footprint instead of a bare paved courtyard.
+- Verified by 2 new `tileAtlas.test.ts` cases, a direct pixel-diff verification, and the full
+  gate (1056 server + 391 web tests, typecheck, build) — confirmed the patched atlas is
+  byte-identical in the actual built `dist/` output. Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Reviving the dormant memory-storytelling systems (task #71)
 - [ ] Verified by Claude
 - Investigated first, not guessed (`docs/overworld/storytelling-revival.md`) per Rule #1:

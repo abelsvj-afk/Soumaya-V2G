@@ -1086,6 +1086,36 @@ Verified by 3 new `CreatureSummaryOverlay.test.tsx` cases, 3 new `TownHallOverla
 cases, 3 new `GymOverlay.test.tsx` cases, and the full gate (1056 server + 389 web tests,
 typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.34 — Real Park decor, sourced from CC0 assets already in use (task #74)
+
+Task #74 asked to "source real free/CC0 assets" — most of that work was already done in an
+earlier round (the whole Overworld tileset is Kenney's real CC0 "Tiny Town"/"Tiny Dungeon"
+packs). What was still genuinely missing, confirmed by reading the real credits/atlas first
+(`docs/overworld/park-decor.md`) per Rule #1: only a small hand-picked subset of Tiny Town's own
+tiles was ever pulled into `tiles.png` — real tree/bench/fence art was never extracted from the
+same already-approved source, leaving Park's own repeated real complaint ("a bunch of dirt
+patches... not a park") genuinely unfixable until now.
+
+A real, new capability was confirmed directly rather than assumed: the same CC0 mirror this
+atlas already cites (`github.com/shorepine/kenney`) is reachable from this sandbox via a shallow,
+sparse `git clone` — kenney.nl/itch.io direct downloads remain blocked, but this mirror isn't. A
+labeled contact sheet of the mirror's real 132 individual Tiny Town tiles was generated and
+visually reviewed to hand-pick 5 genuinely usable ones (two trees, a bench, a fence post, a
+mushroom) — never invented, never guessed from a filename.
+
+`tiles.png`'s own frame indices 5-9 (already confirmed retired/unreferenced from a prior round's
+own "modular wall/door/roof kit" removal) were repainted with these 5 real tiles — zero risk to
+the other 27 frame indices every other file already references by number, confirmed by pixel-
+diffing every patched slot against its real source tile (not eyeballed) before writing any code.
+`ExteriorScene.ts`'s Park rendering now places them at fixed, door-collision-checked positions
+within Park's real 6x3 footprint (verified against `regionLayout.ts`'s own door-tile formula)
+instead of a bare paved courtyard.
+
+Verified by 2 new `tileAtlas.test.ts` cases (frame-collision checks), a direct pixel-diff
+verification of the patched atlas against its real source, and the full gate (1056 server + 391
+web tests, typecheck, build) — confirmed the patched `tiles.png` is byte-identical between
+`public/` and the built `dist/`. Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

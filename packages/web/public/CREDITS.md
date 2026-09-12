@@ -5,15 +5,18 @@
 **`overworld/tiles.png`** — a hand-curated frame atlas (16x16 tiles) assembled from two Kenney
 (kenney.nl) asset packs, both released under **CC0 1.0 (public domain)** — no attribution
 legally required, credited here anyway as good practice:
-- "Tiny Town" — ground (grass/path/flowers).
+- "Tiny Town" — ground (grass/path/flowers), and (task #74) a tree, a second tree, a bench, a
+  fence post, and a mushroom — real Park decor, sourced the same way as the rest of this atlas
+  (`github.com/shorepine/kenney`, `2d/Tiny Town/Tiles/tile_0004.png`/`0005`/`0081`/`0045`/`0029`).
 - "Tiny Dungeon" — the player character, the per-NodeType creature sprites, and one attendant
   NPC sprite per building — no new sourcing needed, the pack already had enough distinct
   humanoid characters to give every building its own look.
 
 (An earlier pass also drew each building from small modular wall/door/roof tiles in this same
 atlas; real user feedback — "that's not appropriate... find already made building assets" —
-replaced that with the complete building illustrations below. The now-unused wall/door/roof
-frames were left in place in `tiles.png` rather than renumbering the whole atlas, but nothing
+replaced that with the complete building illustrations below. 5 of the now-unused wall/door/roof
+frames were repainted with the real Park decor above (task #74) rather than staying blank; the
+rest were left in place in `tiles.png` rather than renumbering the whole atlas, but nothing
 references them anymore.)
 
 Sourced via the community mirror https://github.com/shorepine/kenney (same CC0 assets,
