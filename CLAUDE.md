@@ -253,6 +253,19 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Deepening the player-action feedback loop (2026-09-12), not yet on-device confirmed** —
+  found two real gaps by reading `npc-economy.md`'s own "which real API call feeds which
+  building" table against every real `recordBuildingWork` call site (`docs/overworld/town-
+  growth-loop.md`), not guessed. (1) A fresh memory capture (`handleCaptureSubmit`'s
+  `ingestText(kind: "memory")`) credited zero building — now credits the Library, since a
+  captured memory becomes one more real node in the same `graph.nodes` collection Library
+  already reads. (2) The Town Meeting / civic-concern Bulletin Board posts used the exact same
+  real `ingestText(kind: "action")` mutation `BulletinBoardOverlay.tsx`'s own posts already
+  credit, but never called `recordBuildingWork` themselves — now both do. Both fixes are the
+  same one-line pattern every other real mutation already uses. Verified by the full gate (1056
+  server + 369 web tests, typecheck, build) and the existing `OverworldRoot.test.tsx` suite
+  passing unchanged — not yet seen rendered in a real browser from this sandbox.
+
 - **Does the town run without the player? (2026-09-12), not yet on-device confirmed** —
   answered the task's own question honestly first (`docs/overworld/town-persistence.md`), from
   reading the real code: `buildingNeglect.ts`'s neglect (and civic concern/Town Health/Business

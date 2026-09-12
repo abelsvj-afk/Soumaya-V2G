@@ -953,6 +953,31 @@ file's existing convention: Phaser-integration code is verified by measurement +
 modules' own tests, not a dedicated unit-test file), so this entry documents the verification
 directly. Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.29 — Deepening the player-action feedback loop (task #69)
+
+Found two real, concrete gaps by reading `npc-economy.md`'s own "which real API call feeds which
+building" table against every real `recordBuildingWork` call site in the codebase, per Rule #1
+(`docs/overworld/town-growth-loop.md`) — not guessed:
+
+1. **A fresh memory capture credited nothing.** The single most central real action in the app
+   (`OverworldRoot.tsx`'s `handleCaptureSubmit` → `ingestText(text, { kind: "memory" })`) earned
+   zero building any hours. Resolved: credits the Library — not an arbitrary pick, a freshly
+   captured memory becomes exactly one more real node in the same `graph.nodes` collection
+   `LibraryOverlay.tsx`'s own "shelves" already read.
+2. **The Town Meeting / civic-concern Bulletin Board posts credited nothing.** Both are the
+   exact same real `ingestText(..., { kind: "action" })` mutation `BulletinBoardOverlay.tsx`'s
+   own direct posts already credit correctly — they just never called `recordBuildingWork`
+   themselves, an inconsistency rather than a missing feature. Both now do.
+
+Both fixes are the same one-line pattern every other real mutation in this app already uses —
+"deepening the loop" here means closing two real gaps in it, not inventing a second one.
+Deliberately left alone: whether a capture should ALSO credit a second building (e.g.
+Sanctuary) has no single obviously-correct answer from existing data, so it's not guessed at.
+
+Verified by the full gate (1056 server + 369 web tests, typecheck, build) and the existing
+`OverworldRoot.test.tsx` suite passing unchanged. Not yet seen rendered in a real browser from
+this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
