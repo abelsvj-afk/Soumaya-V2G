@@ -978,6 +978,34 @@ Verified by the full gate (1056 server + 369 web tests, typecheck, build) and th
 `OverworldRoot.test.tsx` suite passing unchanged. Not yet seen rendered in a real browser from
 this sandbox.
 
+## Stage 2.30 — Cross-building NPC relationships (task #59)
+
+Direct answer to repeated real feedback asking for NPCs who "interact with other npcs" beyond
+just their own building's coworker. Specced first (`docs/overworld/social-depth.md`) per Rule
+#1 — found the real gap was purely in the SCENE: `npcRelationships.ts`'s `bumpRelationship` was
+always generic over any two npcIds; nothing ever gave two different buildings' NPCs a real
+chance to actually meet.
+
+The real trigger: two different NPCs both genuinely lingering at the SAME outing destination
+(Park or Market — npc-autonomy.md's own real off-duty system) at the same real moment. New
+`outingArrivedAt: Map<string, PlaceId>` tracks who's actually there right now (added the instant
+an outbound outing walk completes, removed the moment the return leg begins or any interrupting
+transition fires); `tryCrossBuildingEncounter` checks it at exactly that arrival moment — a real,
+checkable coincidence from data that already existed, not an invented dice roll.
+
+Two deliberate differences from a same-building encounter (`triggerCrossBuildingInteraction`,
+mirroring `triggerNpcInteraction`'s shape): the dialogue pool is capped at "acquaintances" —
+every hand-authored "friend line" in `npcDialogue.ts` assumes a same-building partner ("covers
+the far door..."), so reusing one verbatim for a cross-building pair would misdescribe the
+relationship; and relationship growth pauses if EITHER npc's own home building is neglected, not
+just one. The real relationship count/tier still grows normally underneath regardless of the
+dialogue cap, and persists honestly.
+
+Verified by the full gate (1056 server + 369 web tests, typecheck, build) — no dedicated
+`ExteriorScene.ts` test exists (this file's established convention: Phaser-integration code is
+verified by careful review + the full gate, not a unit test). Not yet seen rendered in a real
+browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

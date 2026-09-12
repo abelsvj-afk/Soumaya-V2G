@@ -1,3 +1,22 @@
+### 2026-09-12 (Claude): Cross-building NPC relationships (task #59)
+- [ ] Verified by Claude
+- Direct answer to real feedback asking for NPCs who "interact with other npcs" beyond their
+  own building's coworker. Specced first (`docs/overworld/social-depth.md`) per Rule #1 — the
+  real gap was purely in the scene: `npcRelationships.ts`'s `bumpRelationship` was always
+  generic over any two npcIds, nothing ever gave two different buildings' NPCs a real chance to
+  meet.
+- The real trigger: two different NPCs both genuinely lingering at the SAME real outing
+  destination (Park or Market — npc-autonomy.md's own off-duty system) at the same real moment.
+  New `outingArrivedAt: Map<string, PlaceId>` tracks who's actually there right now; a new
+  `tryCrossBuildingEncounter` checks it at the exact arrival moment.
+- Two deliberate differences from a same-building encounter: dialogue is capped at
+  "acquaintances" (every hand-authored friend line assumes a same-building partner, so reusing
+  one verbatim would misdescribe a cross-building relationship), and relationship growth pauses
+  if EITHER npc's own home building is neglected. The real count/tier still grows underneath.
+- Verified by the full gate (1056 server + 369 web tests, typecheck, build). No dedicated
+  `ExteriorScene.ts` test exists (this file's established convention). Not yet seen rendered in
+  a real browser.
+
 ### 2026-09-12 (Claude): Deepening the player-action feedback loop (task #69)
 - [ ] Verified by Claude
 - Found two real gaps by reading `npc-economy.md`'s own "which real API call feeds which

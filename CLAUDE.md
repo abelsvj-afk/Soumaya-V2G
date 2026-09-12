@@ -253,6 +253,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Cross-building NPC relationships (2026-09-12), not yet on-device confirmed** — direct
+  answer to real feedback asking for NPCs who "interact with other npcs" beyond their own
+  building's coworker. Specced first (`docs/overworld/social-depth.md`): the real gap was
+  purely in the scene — `npcRelationships.ts` was always generic over any two npcIds, nothing
+  ever gave two different buildings' NPCs a real chance to meet. The real trigger: two
+  different NPCs both genuinely lingering at the same real outing destination (Park/Market) at
+  the same real moment — a new `outingArrivedAt` map tracks who's actually there, checked at
+  the exact arrival moment. Dialogue is capped at "acquaintances" (every hand-authored friend
+  line assumes a same-building partner) and relationship growth pauses if EITHER npc's home
+  building is neglected — the real relationship count/tier still grows underneath either way.
+  Verified by the full gate (1056 server + 369 web tests, typecheck, build) — no dedicated
+  `ExteriorScene.ts` test exists (this file's established convention). Not yet seen rendered in
+  a real browser from this sandbox.
+
 - **Deepening the player-action feedback loop (2026-09-12), not yet on-device confirmed** —
   found two real gaps by reading `npc-economy.md`'s own "which real API call feeds which
   building" table against every real `recordBuildingWork` call site (`docs/overworld/town-
