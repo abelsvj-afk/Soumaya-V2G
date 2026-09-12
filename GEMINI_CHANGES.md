@@ -1,3 +1,31 @@
+### 2026-09-12 (Claude): NPCs get their lives back; Soumaya finally moves
+- [ ] Verified by Claude
+- A large multi-part request (Soumaya autonomy/governance, crime/policing, NPC visibility, LLM
+  dialogue, and more) — full reconciliation written first in `docs/overworld/soumaya-
+  governance.md` per Rule #1, since several asks conflicted with what's already shipped (Mira's
+  "Mayor" title) or a hard constraint (D3, no combat ever, for the crime/policing ask).
+- **Soumaya moves**: converted from a static ground-layer image at a fixed tile into a real
+  autonomous sprite (container + body, splitting position from idle bob like `CreatureSprite`
+  already does) that deterministically tours every real building, reusing the exact BFS
+  pathfinder + walk-tweening already built for NPC outings. `handleInteract()` now checks her
+  live current tile, not a fixed anchor. Measured against the real 46x24 map before shipping:
+  `findPath` succeeded for all 10 buildings across 2 full laps, no failures.
+- **NPCs stop fading away off duty**: `applySocietyState`'s Home branch used to fade to alpha 0
+  then hide — reversed. Home now renders like Break (visible, resting at post); the outing system
+  already gives them "a life outside work" via periodic real Park/Market walks, so only the
+  between-outings invisibility bug needed fixing. `restingTileFor` dropped its now-dead `null`
+  case (Working/Break/Home is exhaustive).
+- **Mira → Deputy Mayor**: her own v1 doc already called "Mayor" a role with zero mechanical
+  weight ("just who calls the meeting") — Soumaya takes the real governing role; only Mira's one
+  flavor comment changed, nothing mechanical.
+- Deferred, each with a real tracked home rather than lost: Soumaya's NPC interactions + leading
+  Town Meetings (task #59), a Mayor's Hall + "her security" (task #63, new), a D3-compliant
+  townwide civic-concern signal (task #64, new), political divisions (revisit past 20 NPCs), and
+  LLM-generated/token-batched/town-state-aware dialogue (folded into task #61's spec as hard
+  requirements).
+- Verified by the tour measurement + full gate (1051 server + 288 web tests, typecheck, build).
+  Not yet seen rendered in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): Real bug fix — Soumaya's chat overlay flashing open-then-closed
 - [ ] Verified by Claude
 - Real user report: touching A to talk to Soumaya opened her chat, then it instantly closed again

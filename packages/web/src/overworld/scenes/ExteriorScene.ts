@@ -19,6 +19,8 @@ import {
   REGION_WIDTH,
   townHallMeetingSlots,
   type AttendantPost,
+  type DoorPlace,
+  type ObjectPlace,
   type Place,
   type PlaceId,
 } from "./regionLayout.js";
@@ -101,6 +103,18 @@ interface AttendantSprite {
   atMeeting?: boolean;
 }
 
+/** Soumaya, the partner NPC — a real autonomous companion (Stage 2.17: restores the role she
+ *  had in the deleted 3D galaxy, "flew around to all the memories"). A container (position) +
+ *  inner body image (idle bob), the same split CreatureSprite already uses, so her wander tween
+ *  and idle bob never fight over the same object's y property. */
+interface SoumayaSprite {
+  container: Phaser.GameObjects.Container;
+  currentTile: GridPosition;
+  /** True for the duration of a walk leg — guards against the wander timer starting a second
+   *  leg before a real, possibly-long, town-wide walk has finished. */
+  walking: boolean;
+}
+
 /**
  * The town exterior: grid movement, every building/object door-or-signpost from
  * scenes/regionLayout.ts, plus real creatures placed via the adapter layer. This scene
@@ -129,6 +143,11 @@ export class ExteriorScene extends Phaser.Scene {
    *  transition or a Town Meeting call can cleanly interrupt one in flight (kill the in-progress
    *  walk tween) instead of fighting it. */
   private outingActive = new Set<string>();
+  private soumaya: SoumayaSprite | null = null;
+  /** Cycles through every door place in turn — deterministic, never Math.random, matching the
+   *  rest of this scene's desync convention. She tours the whole town over time instead of an
+   *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
+  private soumayaTourIndex = 0;
   private player!: Phaser.GameObjects.Sprite;
   /** Idle "breathing" loop, running whenever the player isn't mid-step — stopped/restarted
    *  around each move so it never fights the step-bounce tween (see startIdleBob/stopIdleBob). */
@@ -187,6 +206,7 @@ export class ExteriorScene extends Phaser.Scene {
     this.trailColor = this.readTrailColor();
     this.drawGround();
     this.spawnAttendants();
+    this.spawnSoumaya();
     this.renderCreatures(this.pendingCreatures);
 
     this.player = this.add.sprite(
@@ -293,38 +313,104 @@ export class ExteriorScene extends Phaser.Scene {
       image.setDepth(1);
     }
 
-    // Standalone objects (Bulletin Board, Soumaya) — a distinct sprite each, tolerate-gracefully
-    // fallback to a generic signpost for any future object id without dedicated art.
+    // Standalone objects — the Bulletin Board is a real signpost and stays fixed here. Soumaya
+    // is excluded: she's a real autonomous companion now (spawnSoumaya, Stage 2.17), drawn and
+    // moved as her own dynamic sprite instead of a static ground-layer image.
     for (const place of allPlaces()) {
-      if (place.kind !== "object") continue;
-      const img = this.tileAt(place.tile.x, place.tile.y, objectFrameForPlace(place.id), 1);
-      // Only Soumaya gets an idle bob — she's a companion, not a fixture; the Bulletin Board
-      // is a signpost and correctly stays still.
-      if (place.id === "soumaya" && !prefersReducedMotion()) {
-        this.tweens.add({
-          targets: img,
-          y: img.y - TILE_SIZE * 0.08,
-          duration: 900,
-          yoyo: true,
-          repeat: -1,
-          ease: "Sine.easeInOut",
-        });
-      }
+      if (place.kind !== "object" || place.id === "soumaya") continue;
+      this.tileAt(place.tile.x, place.tile.y, objectFrameForPlace(place.id), 1);
     }
 
     // Every place gets a readable name plate, not a bare emoji glyph at 14px — small emoji
     // at this scale reads as an ambiguous smudge (real user feedback: "buildings should have
     // names on them, not emojis"). Doors get theirs above the roofline; standalone objects
-    // get theirs just above their single tile.
+    // get theirs just above their single tile. Soumaya is excluded — a moving companion reads
+    // by her sprite, not a floating label anchored to a home tile she's no longer standing on;
+    // creatures don't get nameplates for the same reason.
     for (const place of allPlaces()) {
       if (place.kind === "door") {
         const { x0, x1, y0 } = place.footprint;
         const centerX = ((x0 + x1 + 1) / 2) * TILE_SIZE;
         this.addNameplate(centerX, y0 * TILE_SIZE - 2, place.label);
-      } else {
+      } else if (place.id !== "soumaya") {
         this.addNameplate(place.tile.x * TILE_SIZE + TILE_SIZE / 2, place.tile.y * TILE_SIZE - 2, place.label);
       }
     }
+  }
+
+  /** Soumaya's real, autonomous role in the town (Stage 2.17) — she's a companion, not a
+   *  fixture: spawned at her home tile as a moving container+body sprite instead of the old
+   *  static ground-layer image, with the same idle bob preserved on her inner body so wandering
+   *  never fights it (container moves position, body only bobs a relative y offset). */
+  private spawnSoumaya(): void {
+    const home = (placeById("soumaya") as ObjectPlace).tile;
+    const container = this.add.container(home.x * TILE_SIZE + TILE_SIZE / 2, home.y * TILE_SIZE + TILE_SIZE / 2);
+    container.setDepth(1);
+    const body = this.add.image(0, 0, TILE_ATLAS_KEY, objectFrameForPlace("soumaya"));
+    body.setScale(SPRITE_SCALE);
+    container.add(body);
+    this.soumaya = { container, currentTile: home, walking: false };
+    if (prefersReducedMotion()) return;
+    this.tweens.add({ targets: body, y: -TILE_SIZE * 0.08, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    this.time.addEvent({ delay: 7000, loop: true, callback: () => this.tickSoumayaWander() });
+  }
+
+  /** Deterministically tours the town's real buildings, one leg per tick — "doing her rounds"
+   *  rather than aimless wandering, and restores the autonomous role she had in the deleted 3D
+   *  galaxy (she used to fly to every memory on her own; here she walks to every building).
+   *  Skips silently (tolerate-gracefully, same as every other NPC pathing call in this scene)
+   *  while a React overlay owns input focus, mid-leg already, or no route currently exists. */
+  private tickSoumayaWander(): void {
+    const soumaya = this.soumaya;
+    if (!soumaya || this.paused || soumaya.walking) return;
+    const doors = allPlaces().filter((p): p is DoorPlace => p.kind === "door");
+    if (doors.length === 0) return;
+    this.soumayaTourIndex = (this.soumayaTourIndex + 1) % doors.length;
+    const destination = doors[this.soumayaTourIndex]!.door;
+    const path = findPath(soumaya.currentTile, destination, NPC_PATH_GRID);
+    if (!path) return;
+    soumaya.walking = true;
+    this.walkSoumayaPath(path, () => {
+      soumaya.walking = false;
+    });
+  }
+
+  /** Walks Soumaya's container along a real path tile-by-tile — a dedicated twin of walkPath
+   *  (below) rather than a forced shared abstraction, since she moves a Container (position)
+   *  while every other NPC sprite here moves a plain Image; keeping them separate means neither
+   *  has to accommodate the other's shape. */
+  private walkSoumayaPath(path: GridPosition[], onComplete?: () => void): void {
+    const soumaya = this.soumaya;
+    if (!soumaya) return;
+    const last = path[path.length - 1];
+    if (prefersReducedMotion() || path.length <= 1 || !last) {
+      if (last) {
+        soumaya.container.setPosition(last.x * TILE_SIZE + TILE_SIZE / 2, last.y * TILE_SIZE + TILE_SIZE / 2);
+        soumaya.currentTile = last;
+      }
+      onComplete?.();
+      return;
+    }
+    const steps = path.slice(1);
+    const animateStep = (index: number): void => {
+      if (index >= steps.length) {
+        onComplete?.();
+        return;
+      }
+      const tile = steps[index]!;
+      this.tweens.add({
+        targets: soumaya.container,
+        x: tile.x * TILE_SIZE + TILE_SIZE / 2,
+        y: tile.y * TILE_SIZE + TILE_SIZE / 2,
+        duration: NPC_STEP_MS,
+        ease: "Linear",
+        onComplete: () => {
+          soumaya.currentTile = tile;
+          animateStep(index + 1);
+        },
+      });
+    };
+    animateStep(0);
   }
 
   /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
@@ -423,12 +509,16 @@ export class ExteriorScene extends Phaser.Scene {
     return place.door;
   }
 
-  /** "Enter buildings when working, exit for break, and exit when off as well" (real user
-   *  feedback) — animates the transition exactly once per actual state CHANGE (sprite.
-   *  societyState tracks what was last painted), never re-running every tick while a state
-   *  holds. Working = walk to the door, then hidden (truly "gone inside" — the work icon still
-   *  flashes from that same door position). Break = appear at the door, step out to their own
-   *  post. Home = fade out where they stand (left for the day, unchanged from v1). */
+  /** "Enter buildings when working, exit for break, and stay visible off duty too" (real user
+   *  feedback reversed the original v1 behavior: NPCs shouldn't fade away just because they're
+   *  not working — they have lives outside a job the same way the outing system already sends
+   *  them out to Park/Market). Animates the transition exactly once per actual state CHANGE
+   *  (sprite.societyState tracks what was last painted), never re-running every tick while a
+   *  state holds. Working = walk to the door, then hidden (truly "gone inside" — the work icon
+   *  still flashes from that same door position). Break AND Home both step out to their own post
+   *  and stay visible — the two are visually the same at rest; what actually makes Home "a life
+   *  outside work" is the outing system periodically sending them off to Park/Market, not a
+   *  different resting pose. */
   private applySocietyState(sprite: AttendantSprite, state: ScheduleState): void {
     if (sprite.societyState === state) return;
     const firstPaint = sprite.societyState === undefined;
@@ -464,26 +554,8 @@ export class ExteriorScene extends Phaser.Scene {
       return;
     }
 
-    if (state === "home") {
-      if (reduced || firstPaint) {
-        sprite.image.setVisible(false);
-      } else {
-        sprite.image.setAlpha(1);
-        this.tweens.add({
-          targets: sprite.image,
-          alpha: 0,
-          duration: 400,
-          ease: "Sine.easeIn",
-          onComplete: () => {
-            sprite.image.setVisible(false);
-            sprite.image.setAlpha(1);
-          },
-        });
-      }
-      return;
-    }
-
-    // break
+    // break or home — both rest visibly at the attendant's own post (see the method comment for
+    // why Home no longer fades to hidden).
     sprite.image.setVisible(true);
     if (reduced || firstPaint) {
       sprite.image.setPosition(postX, postY);
@@ -497,7 +569,8 @@ export class ExteriorScene extends Phaser.Scene {
   /** A neglected building's attendants render exactly like a neglected memory does — a real
    *  alpha change PLUS a non-color "?" marker, never color-only (buildingNeglect.ts reuses the
    *  same entropy math a creature's own dim state already comes from). Only painted while
-   *  actually visible (Break) — no point marking a sprite that's currently hidden anyway. */
+   *  actually visible (Break or Home) — no point marking a sprite that's currently hidden
+   *  (Working) anyway. */
   private applyNeglectVisual(sprite: AttendantSprite): void {
     const neglected = isNeglected(buildingNeglect(this.spaceId, sprite.post.placeId));
     sprite.image.setAlpha(neglected ? 0.45 : 1);
@@ -586,13 +659,16 @@ export class ExteriorScene extends Phaser.Scene {
         if (!this.outingActive.has(sprite.post.npcId)) return;
         const inbound = findPath(destination, sprite.post.a, NPC_PATH_GRID);
         if (!inbound) {
+          // Couldn't route back — snap straight to post rather than leaving them stranded
+          // visibly at an unreachable tile; Home stays visible now, so this can't just hide.
           this.outingActive.delete(sprite.post.npcId);
-          sprite.image.setVisible(false); // couldn't route back — fail safely hidden, matches Home
+          sprite.image.setPosition(sprite.post.a.x * TILE_SIZE + TILE_SIZE / 2, sprite.post.a.y * TILE_SIZE + TILE_SIZE / 2);
+          this.applyNeglectVisual(sprite);
           return;
         }
         this.walkPath(sprite, inbound, () => {
           this.outingActive.delete(sprite.post.npcId);
-          if (sprite.societyState === "home") sprite.image.setVisible(false); // resume Home's own hidden state
+          this.applyNeglectVisual(sprite); // already visible at post.a — Home no longer hides on return
         });
       });
     });
@@ -663,14 +739,13 @@ export class ExteriorScene extends Phaser.Scene {
     return Math.min(MAX_MS, Math.max(MIN_MS, BASE_MS + text.length * MS_PER_CHAR));
   }
 
-  /** Where a sprite should actually end up once it's back from an errand, and whether it
-   *  should be visible there — read from the real schedule state, not assumed. `null` means
-   *  "just go hidden, no need to walk anywhere" (Home already means gone for the day, matching
-   *  every other Home transition in this scene). */
-  private restingTileFor(sprite: AttendantSprite): { tile: GridPosition; visible: boolean } | null {
+  /** Where a sprite should actually end up once it's back from an errand — read from the real
+   *  schedule state, not assumed. Exhaustive over ScheduleState's 3 real values: Working rests
+   *  hidden at the door, Break and Home both rest visibly at the attendant's own post (Home no
+   *  longer means hidden — see applySocietyState's own comment). */
+  private restingTileFor(sprite: AttendantSprite): { tile: GridPosition; visible: boolean } {
     if (sprite.societyState === "working") return { tile: this.doorTileFor(sprite.post.placeId), visible: false };
-    if (sprite.societyState === "break") return { tile: sprite.post.a, visible: true };
-    return null;
+    return { tile: sprite.post.a, visible: true };
   }
 
   /** The Town Meeting gathering (npc-autonomy.md) — real teeth, real distance. Every one of
@@ -714,11 +789,6 @@ export class ExteriorScene extends Phaser.Scene {
       this.time.delayedCall(holdMs, () => {
         icon.destroy();
         const resting = this.restingTileFor(sprite);
-        if (!resting) {
-          sprite.atMeeting = false;
-          sprite.image.setVisible(false);
-          return;
-        }
         const inbound = findPath(slot, resting.tile, NPC_PATH_GRID);
         if (!inbound) {
           sprite.atMeeting = false;
@@ -979,6 +1049,12 @@ export class ExteriorScene extends Phaser.Scene {
         this.events.emit("greet-creature", sprite.entity.nodeId);
         return;
       }
+    }
+    // Checked against her real current tile, not her fixed home anchor — she wanders now
+    // (Stage 2.17), the same "current position, not placement anchor" rule creatures use above.
+    if (this.soumaya && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y) {
+      this.events.emit("enter-place", "soumaya" satisfies PlaceId);
+      return;
     }
     const object = objectPlaceAt(front.x, front.y);
     if (object) this.events.emit("enter-place", object.id);
