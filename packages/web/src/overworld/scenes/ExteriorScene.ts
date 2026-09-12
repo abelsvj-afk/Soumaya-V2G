@@ -48,6 +48,7 @@ import {
   PLACEABLE_ITEMS,
   type PlacedItem,
 } from "../data/townBuilder.js";
+import { armedZoneType, isTileZonable, zonedTiles, zoneTileAt, type ZonedTile, type ZoneType } from "../data/zoning.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
@@ -57,8 +58,9 @@ export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
 const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
 /** Real cross-town paths measured 40-50 tiles for opposite corners (npc-autonomy.md's own
- *  reproduction) — at the player's own 140ms/tile that's 6-7 real seconds one-way, too slow for
- *  a background decorative walk. NPCs move faster per tile than the player deliberately does. */
+ *  reproduction) — a real multi-second walk even at a per-tile rate that's never faster than the
+ *  player's own 140ms/tile step (Stage 2.20 measured this directly: 160ms is already slower, by
+ *  design — "NPCs shouldn't fly across the map or move any quicker than I can"). */
 const NPC_STEP_MS = 160;
 /** The passability rule NPC travel uses — real walls/objects/bounds, but not other attendants'
  *  fixed posts (npc-autonomy.md decision #2). One frozen object reused everywhere it's needed. */
@@ -159,6 +161,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  by its persisted PlacedItem id so a single placement can be re-rendered without redrawing
    *  every other one. */
   private placedItemSprites = new Map<string, Phaser.GameObjects.Text>();
+  /** Zoning (docs/overworld/zoning.md, task #75) — one glyph per zoned tile, keyed by "x,y" (not
+   *  a stable id like placed items, since re-zoning overwrites the SAME tile and this needs to
+   *  replace its old glyph rather than accumulate one per zoning decision ever made). */
+  private zoneMarkerSprites = new Map<string, Phaser.GameObjects.Text>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -222,6 +228,7 @@ export class ExteriorScene extends Phaser.Scene {
     this.drawGround();
     this.spawnAttendants();
     this.spawnSoumaya();
+    this.renderZoneMarkers();
     this.renderPlacedItems();
     this.renderCreatures(this.pendingCreatures);
 
@@ -474,6 +481,45 @@ export class ExteriorScene extends Phaser.Scene {
   refreshPlacedItems(): void {
     if (!this.created) return;
     this.renderPlacedItems();
+  }
+
+  /** Zoning — a distinct low-alpha glyph per type (never color-only) marking a zoned-but-unbuilt
+   *  tile. A garden bed etc. still renders on top at full opacity if the same tile also has one
+   *  (zoning.md decision #4 — town-builder decor stays zone-agnostic), since zoning is meant to
+   *  read as a faint planning overlay, not compete with anything actually placed there. */
+  private zoneGlyphFor(type: ZoneType): string {
+    const glyphs: Record<ZoneType, string> = {
+      residential: "🏠",
+      commercial: "🏪",
+      sidewalk: "➰",
+      transit: "🚏",
+    };
+    return glyphs[type];
+  }
+
+  private renderZoneMarkers(): void {
+    for (const tile of zonedTiles(this.spaceId)) this.paintZoneMarker(tile);
+  }
+
+  /** Replaces any existing glyph at this tile (re-zoning overwrites the same tile — see the
+   *  `zoneMarkerSprites` field comment for why this is keyed differently from placed items). */
+  private paintZoneMarker(tile: ZonedTile): void {
+    const key = `${tile.x},${tile.y}`;
+    this.zoneMarkerSprites.get(key)?.destroy();
+    const glyph = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, this.zoneGlyphFor(tile.type), {
+      fontSize: "14px",
+    });
+    glyph.setOrigin(0.5);
+    glyph.setAlpha(0.5);
+    glyph.setDepth(1);
+    this.zoneMarkerSprites.set(key, glyph);
+  }
+
+  /** Re-reads real zoning state and (re)paints anything changed — call after a successful
+   *  zoning action instead of reloading the whole scene, same pattern as `refreshPlacedItems`. */
+  refreshZoneMarkers(): void {
+    if (!this.created) return;
+    this.renderZoneMarkers();
   }
 
   /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
@@ -1138,6 +1184,20 @@ export class ExteriorScene extends Phaser.Scene {
         if (placed) {
           this.paintPlacedItem(placed);
           this.events.emit("item-placed", placed.itemId);
+        }
+      }
+      return;
+    }
+    // Zoning (docs/overworld/zoning.md) — a second, parallel "arm mode" alongside town-builder's
+    // own, kept separate rather than merged since painting a zone tag and placing a decor item
+    // are conceptually different actions. Same shape: free tile paints it, blocked is a silent
+    // no-op, no fall-through to greet/chat this same press.
+    if (armedZoneType(this.spaceId)) {
+      if (isTileZonable(this.spaceId, front.x, front.y)) {
+        const tile = zoneTileAt(this.spaceId, front.x, front.y);
+        if (tile) {
+          this.paintZoneMarker(tile);
+          this.events.emit("tile-zoned", tile.type);
         }
       }
       return;

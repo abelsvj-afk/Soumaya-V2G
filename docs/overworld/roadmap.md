@@ -753,6 +753,35 @@ gate (1056 server + 301 web tests, typecheck, build). Not yet seen rendered in a
 the hop cue and the Park courtyard especially need real on-device eyes, since this is exactly the
 kind of visual fix that's easy to get subtly wrong from source alone.
 
+## Stage 2.22 — Zoning: the real foundation under housing and business (task #75)
+
+Direct answer to "I also need zoning to be a thing... where the homes can go, where sidewalks for
+the NPCs can go, where transportation services... can go, [where] commercial buildings can go to
+earn income." Specced first (`docs/overworld/zoning.md`) per Rule #1, resolving the real
+ambiguities: a zone is a per-tile tag (not a drawn region, matching the tile-at-a-time mechanic
+town-builder already established), four real types (`residential`/`commercial`/`sidewalk`/
+`transit`), zoning itself is FREE (a planning decision — only actually building a home/business on
+a zoned tile will later cost anything, once #66/#67 exist), and today's decor items (#65) stay
+zone-agnostic rather than retrofitting what already shipped.
+
+Reuses the exact arm-then-place interaction town-builder already built, as a second, parallel
+"arm mode" in `handleInteract()` (kept separate from item-placement rather than merged — tagging a
+tile and placing a decor item are conceptually different actions). New `data/zoning.ts` (pure,
+localStorage-backed, same shape as `townBuilder.ts`); zoned-but-unbuilt tiles render as a distinct
+low-alpha glyph per type (🏠🏪➰🚏, never color-only); a new "Zoning" section in the Hangar arms a
+type for free. The request's own "positive/negative effect on the economy" becomes mechanically
+real once #66/#67 actually gate placement by zone type — this slice's own honest contribution is
+a real per-type count read-out, never an invented score.
+
+Also fixed in passing: a stale comment on `NPC_STEP_MS` from before Stage 2.20's movement-speed
+fix still claimed "NPCs move faster per tile than the player deliberately does" — factually wrong
+against the real 160ms vs. 140ms numbers already measured and shipped; corrected to match.
+
+Verified by 10 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases, the same
+857-of-1104-tiles-zonable measurement town-builder's own placement already proved (both reuse
+`isPlacementBlocked`), and the full gate (1056 server + 313 web tests, typecheck, build). Not yet
+seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
