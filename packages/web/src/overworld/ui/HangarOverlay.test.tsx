@@ -36,8 +36,9 @@ describe("HangarOverlay", () => {
   describe("Town Building (town-builder.md)", () => {
     it("can't afford anything with an empty treasury", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
-      // 4 real town-builder decor items + 4 real home types (housing.md), all unaffordable.
-      expect(screen.getAllByText("Can't afford").length).toBe(8);
+      // 4 real town-builder decor items + 4 real home types (housing.md) + 3 real business
+      // types (business.md), all unaffordable.
+      expect(screen.getAllByText("Can't afford").length).toBe(11);
     });
 
     it("buying an affordable item arms it and spends the real treasury", () => {
@@ -99,6 +100,31 @@ describe("HangarOverlay", () => {
       fireEvent.click(duplexRow.querySelector("button")!);
       expect(screen.getByText("Duplex")).toBeTruthy();
       expect(cottageRow.querySelector("button")?.textContent).toBe("Can't afford"); // never re-armed
+    });
+  });
+
+  describe("Business (business.md)", () => {
+    it("buying an affordable business type arms it and spends the real treasury, independent of housing's own arm slot", () => {
+      for (let i = 0; i < 80; i++) creditHour("space-1", "bank"); // 80 * 25c = $20.00
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const cottageRow = screen.getByText(/Cottage — 1 resident/).closest("li")!;
+      fireEvent.click(cottageRow.querySelector("button")!);
+      const bakeryRow = screen.getByText(/Bakery — \$4\.00/).closest("li")!;
+      fireEvent.click(bakeryRow.querySelector("button")!);
+      expect(screen.getByText("Bakery")).toBeTruthy(); // the "ready to place" banner's <strong>
+      expect(screen.getAllByText("Armed")).toHaveLength(2); // Cottage AND Bakery, independent arm slots
+    });
+
+    it("buying a second business type re-arms rather than queuing", () => {
+      for (let i = 0; i < 80; i++) creditHour("space-1", "bank");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const bakeryRow = screen.getByText(/Bakery — \$4\.00/).closest("li")!;
+      const tailorRow = screen.getByText(/Tailor — \$6\.00/).closest("li")!;
+      fireEvent.click(bakeryRow.querySelector("button")!);
+      fireEvent.click(tailorRow.querySelector("button")!);
+      expect(screen.getByText("Tailor")).toBeTruthy();
+      expect(bakeryRow.querySelector("button")?.textContent).toBe("Buy"); // re-armable, never still "Armed"
+      expect(screen.getAllByText("Armed")).toHaveLength(1); // only Tailor
     });
   });
 });

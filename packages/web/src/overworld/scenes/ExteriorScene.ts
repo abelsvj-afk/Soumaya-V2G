@@ -38,7 +38,7 @@ import {
   TileFrame,
   workIconForPlace,
 } from "./tileAtlas.js";
-import { allBuildingSprites, buildingSpriteForPlace, homeBuildingSprite } from "./buildingSprites.js";
+import { allBuildingSprites, businessBuildingSprite, buildingSpriteForPlace, homeBuildingSprite } from "./buildingSprites.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
 import {
   armedItemId,
@@ -57,6 +57,16 @@ import {
   placedHomes,
   type PlacedHome,
 } from "../data/housing.js";
+import {
+  armedBusinessTypeId,
+  businessById,
+  businessDoorAt,
+  businessTypeById,
+  isFootprintFreeForBusiness,
+  placeArmedBusiness,
+  placedBusinesses,
+  type PlacedBusiness,
+} from "../data/business.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
@@ -177,6 +187,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  persisted PlacedHome id (same convention as `placedItemSprites`, since a home never
    *  moves once built). */
   private placedHomeSprites = new Map<string, Phaser.GameObjects.Image>();
+  /** A real multi-business economy (docs/overworld/business.md, task #67) — one real placed
+   *  business, keyed by its persisted PlacedBusiness id (same convention as
+   *  `placedHomeSprites`, since a business never moves once built). */
+  private placedBusinessSprites = new Map<string, Phaser.GameObjects.Image>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -243,6 +257,7 @@ export class ExteriorScene extends Phaser.Scene {
     this.renderZoneMarkers();
     this.renderPlacedItems();
     this.renderPlacedHomes();
+    this.renderPlacedBusinesses();
     this.renderCreatures(this.pendingCreatures);
 
     this.player = this.add.sprite(
@@ -570,6 +585,45 @@ export class ExteriorScene extends Phaser.Scene {
   refreshPlacedHomes(): void {
     if (!this.created) return;
     this.renderPlacedHomes();
+  }
+
+  /** Business type-glyph, distinct per type so all 3 stay tellable apart even though every
+   *  business reuses the same ARCHED_HALL illustration (never color-only). */
+  private businessGlyphFor(typeId: string): string {
+    return businessTypeById(typeId)?.icon ?? "🏪";
+  }
+
+  private renderPlacedBusinesses(): void {
+    for (const business of placedBusinesses(this.spaceId)) this.paintPlacedBusiness(business);
+  }
+
+  /** Draws a real placed business the same way a real placed home is drawn (paintPlacedHome's
+   *  own twin) — the ARCHED_HALL illustration scaled to the business's own footprint, plus a
+   *  type-glyph badge at its door tile. */
+  private paintPlacedBusiness(business: PlacedBusiness): void {
+    if (this.placedBusinessSprites.has(business.id)) return; // already painted — never moves
+    const sprite = businessBuildingSprite();
+    const width = (business.x1 - business.x0 + 1) * TILE_SIZE;
+    const height = (business.y1 - business.y0 + 1) * TILE_SIZE;
+    const image = this.add.image(business.x0 * TILE_SIZE + width / 2, business.y0 * TILE_SIZE + height / 2, sprite.key);
+    image.setDisplaySize(width, height);
+    image.setDepth(1);
+    this.placedBusinessSprites.set(business.id, image);
+    const badge = this.add.text(
+      business.door.x * TILE_SIZE + TILE_SIZE / 2,
+      business.door.y * TILE_SIZE + TILE_SIZE / 2,
+      this.businessGlyphFor(business.typeId),
+      { fontSize: "14px" },
+    );
+    badge.setOrigin(0.5);
+    badge.setDepth(2);
+  }
+
+  /** Re-reads real placed-business state and paints anything new — call after a successful
+   *  business build instead of reloading the whole scene, same pattern as `refreshPlacedHomes`. */
+  refreshPlacedBusinesses(): void {
+    if (!this.created) return;
+    this.renderPlacedBusinesses();
   }
 
   /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
@@ -1213,6 +1267,14 @@ export class ExteriorScene extends Phaser.Scene {
       this.events.emit("enter-place", door.id);
       return;
     }
+    // A real multi-business economy (business.md decision #2) — a second, dynamic door lookup
+    // alongside the static one above: stepping onto a player-built business's own door tile
+    // enters it, same as a real door-building, without reworking the static check.
+    const business = businessDoorAt(this.spaceId, x, y);
+    if (business) {
+      this.events.emit("enter-business", business.id);
+      return;
+    }
     const onGrass = isGrassTile(x, y);
     if (onGrass && !this.wasOnGrass) this.events.emit("enter-grass");
     this.wasOnGrass = onGrass;
@@ -1274,6 +1336,27 @@ export class ExteriorScene extends Phaser.Scene {
       }
       return;
     }
+    // A real multi-business economy (docs/overworld/business.md) — a fourth, parallel "arm
+    // mode", same shape as housing's own: the faced tile anchors the business's footprint as
+    // its top-left corner, only actually builds once the whole footprint is free (which itself
+    // requires every tile zoned "commercial") and unoccupied by a creature/Soumaya right now.
+    const armedBusinessType = businessTypeById(armedBusinessTypeId(this.spaceId) ?? "");
+    if (armedBusinessType) {
+      const x1 = front.x + armedBusinessType.width - 1;
+      const y1 = front.y + armedBusinessType.height - 1;
+      const occupied =
+        [...this.creatureSprites.values()].some(
+          (sprite) => sprite.currentTile.x >= front.x && sprite.currentTile.x <= x1 && sprite.currentTile.y >= front.y && sprite.currentTile.y <= y1,
+        ) || (this.soumaya && this.soumaya.currentTile.x >= front.x && this.soumaya.currentTile.x <= x1 && this.soumaya.currentTile.y >= front.y && this.soumaya.currentTile.y <= y1);
+      if (!occupied && isFootprintFreeForBusiness(this.spaceId, front.x, front.y, armedBusinessType)) {
+        const placed = placeArmedBusiness(this.spaceId, front.x, front.y);
+        if (placed) {
+          this.paintPlacedBusiness(placed);
+          this.events.emit("business-placed", placed.typeId);
+        }
+      }
+      return;
+    }
     // Checked against currentTile (where the creature actually is right now), not its fixed
     // placement anchor — otherwise a mid-roam creature couldn't be greeted where it's standing.
     for (const sprite of this.creatureSprites.values()) {
@@ -1298,6 +1381,17 @@ export class ExteriorScene extends Phaser.Scene {
     const place = placeById(placeId) as Place & { door?: { x: number; y: number } };
     const door = place.door;
     if (!door) return;
+    this.movement = createMovementState(door);
+    this.player.setPosition(door.x * TILE_SIZE + TILE_SIZE / 2, door.y * TILE_SIZE + TILE_SIZE / 2);
+  }
+
+  /** A real placed business's own twin of `returnToDoor` — its door tile is dynamic, not a
+   *  static `PlaceId`, so it can't go through `placeById`. Silently no-ops if the business
+   *  somehow no longer exists (tolerate-gracefully, same as every other lookup here). */
+  returnToBusinessDoor(businessId: string): void {
+    const business = businessById(this.spaceId, businessId);
+    if (!business) return;
+    const door = business.door;
     this.movement = createMovementState(door);
     this.player.setPosition(door.x * TILE_SIZE + TILE_SIZE / 2, door.y * TILE_SIZE + TILE_SIZE / 2);
   }

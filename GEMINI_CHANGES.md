@@ -1,3 +1,30 @@
+### 2026-09-12 (Claude): A real multi-business economy (task #67)
+- [ ] Verified by Claude
+- Direct answer to the task's own name: "more than one Market." Specced first
+  (`docs/overworld/business.md`) per Rule #1 — mirrors housing.md (task #66) almost exactly:
+  the same zoning-gated, player-built, treasury-priced pattern, now for the `"commercial"` zone
+  type that also did nothing until this round.
+- New `data/business.ts`: 3 business types (Bakery 2x2/$4.00, Tailor 3x2/$6.00, Bookshop
+  3x3/$8.00), each with its own small real goods catalog. Since a tile holds exactly one zone
+  type at a time, a business can never legally overlap a home — the zoning gate alone prevents
+  it, no cross-module check needed.
+- Unlike a home, a placed business is a real place you WALK INTO: stepping onto its own door
+  tile (a second, dynamic check alongside the static one in `afterStep`) opens a generic
+  `BusinessOverlay.tsx`, parameterized by the business's own real type/goods rather than one
+  hand-built screen per type. Buying a good there credits THAT business's own real hours and
+  resets its own real neglect clock — confirmed before writing any code that
+  `creditHour`/`markWorked` were already string-keyed, so zero changes were needed to
+  `townLedger.ts`/`buildingNeglect.ts`.
+- Rendered by reusing ARCHED_HALL (Market's own illustration), plus a type-glyph badge. Mayor's
+  Office gained a "Business Neglect" list, same shape as its existing "Town Health" list.
+  `ExteriorScene.ts` gained `returnToBusinessDoor` (a dynamic-id twin of `returnToDoor`).
+- Deliberately, explicitly deferred (both carried over unchanged from housing.md): no new
+  collision enforcement for any placed footprint; NPCs working at a placed business (player-run
+  shops this round); any distinct art per business type (task #74).
+- Verified by 14 new `business.test.ts` cases, 6 new `BusinessOverlay.test.tsx` cases, 2 new
+  `HangarOverlay.test.tsx` cases, 2 new `MayorsHallOverlay.test.tsx` cases, and the full gate
+  (1056 server + 369 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): Real housing/real-estate types (task #66)
 - [ ] Verified by Claude
 - Direct answer to the SimCity framing's "give the NPCs homes... our individual life is not

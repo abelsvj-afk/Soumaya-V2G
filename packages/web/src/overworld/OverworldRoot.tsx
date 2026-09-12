@@ -27,6 +27,7 @@ import { SoumayaChatOverlay } from "./ui/SoumayaChatOverlay.js";
 import { MarketOverlay } from "./ui/MarketOverlay.js";
 import { ParkOverlay } from "./ui/ParkOverlay.js";
 import { MayorsHallOverlay } from "./ui/MayorsHallOverlay.js";
+import { BusinessOverlay } from "./ui/BusinessOverlay.js";
 import { greetCreature, loadWorldSnapshot, type WorldSnapshot } from "./data/loadWorldSnapshot.js";
 import type { CreatureEntity } from "./types.js";
 
@@ -34,6 +35,7 @@ type Overlay =
   | { kind: "none" }
   | { kind: "capture" }
   | { kind: "details"; creature: CreatureEntity }
+  | { kind: "business"; businessId: string }
   | { kind: PlaceId };
 
 const DOOR_PLACE_IDS = new Set<PlaceId>([
@@ -136,6 +138,7 @@ export function OverworldRoot() {
       sceneRef.current?.refreshPlacedItems();
       sceneRef.current?.refreshZoneMarkers();
       sceneRef.current?.refreshPlacedHomes();
+      sceneRef.current?.refreshPlacedBusinesses();
       void checkTownMeetingEffect();
       void checkCivicConcernEffect();
       return next;
@@ -222,6 +225,14 @@ export function OverworldRoot() {
         const spaceIdForWork = getSpaceId();
         if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
       });
+      // business.md — building a real business is also the Hangar's own real work event.
+      scene.events.on("business-placed", () => {
+        const spaceIdForWork = getSpaceId();
+        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
+      });
+      // business.md — stepping onto a real placed business's own door tile opens its overlay,
+      // same as any real door-building's "enter-place".
+      scene.events.on("enter-business", (businessId: string) => setOverlay({ kind: "business", businessId }));
 
       void refresh();
     });
@@ -272,7 +283,9 @@ export function OverworldRoot() {
   const closeOverlay = useCallback(() => {
     // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
-    if (overlay.kind !== "none" && overlay.kind !== "capture" && overlay.kind !== "details" && DOOR_PLACE_IDS.has(overlay.kind)) {
+    if (overlay.kind === "business") {
+      sceneRef.current?.returnToBusinessDoor(overlay.businessId);
+    } else if (overlay.kind !== "none" && overlay.kind !== "capture" && overlay.kind !== "details" && DOOR_PLACE_IDS.has(overlay.kind)) {
       sceneRef.current?.returnToDoor(overlay.kind);
     }
     // Leaving the Hangar may have changed the saved trail color — pick it up immediately
@@ -405,6 +418,7 @@ export function OverworldRoot() {
       {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
       {overlay.kind === "mayorsHall" && <MayorsHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
+      {overlay.kind === "business" && <BusinessOverlay spaceId={spaceId} businessId={overlay.businessId} onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
         <SoumayaChatOverlay
           onClose={closeOverlay}

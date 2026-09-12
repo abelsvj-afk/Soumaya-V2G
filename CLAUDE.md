@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **A real multi-business economy (2026-09-12), not yet on-device confirmed** — direct answer to
+  the task's own name: "more than one Market." Specced first (`docs/overworld/business.md`):
+  mirrors housing's own zoning-gated, player-built, treasury-priced pattern for the OTHER zone
+  type ("commercial") that also did nothing until this round. New `data/business.ts`: 3 business
+  types (Bakery/Tailor/Bookshop), each with its own real goods catalog. Unlike a home, a placed
+  business is a real place you walk into — stepping onto its own door tile opens a generic
+  `BusinessOverlay.tsx` (parameterized by the business's own type, not one screen per type);
+  buying a good there credits THAT business's own real hours/neglect, confirmed to need zero
+  changes to `townLedger.ts`/`buildingNeglect.ts` (already string-keyed) before writing any code.
+  Rendered by reusing ARCHED_HALL (Market's own illustration) plus a type-glyph badge; Mayor's
+  Office gained a "Business Neglect" list. Deliberately, explicitly deferred (carried over
+  unchanged from housing's own round): no new collision enforcement for any placed footprint (a
+  pre-existing gap, not introduced here); NPCs working at a placed business (player-run shops
+  this round, not staffed ones). Verified by 14 new `business.test.ts` cases, 6 new
+  `BusinessOverlay.test.tsx` cases, 2+2 updated Hangar/Mayor's-Hall overlay tests, and the full
+  gate (1056 server + 369 web tests, typecheck, build) — not yet seen rendered in a real browser
+  from this sandbox.
+
 - **Real housing/real-estate types (2026-09-12), not yet on-device confirmed** — direct answer
   to the SimCity framing's "give the NPCs homes... our individual life is not identical to
   another" and "hot zoning is how many homes there are." Specced first
