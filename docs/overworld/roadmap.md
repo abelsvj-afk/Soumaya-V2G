@@ -513,6 +513,42 @@ tests green), the ASCII-map-style real-path measurement above (not just green te
 full gate (typecheck, build). The actual in-world outings and Town Meeting gathering have not
 been seen rendered in a real browser from this sandbox.
 
+## Stage 2.14 — Two real UX fixes: dialogue duration, and a real themed overlay panel
+
+Direct follow-up to a roadmap discussion: the user flagged two concrete complaints while asking
+"where should this go next" — NPC dialogue "doesn't stick around long enough to read," and every
+building-interior overlay "look[s] ugly when it pops up" compared to the old galaxy's own
+RightDock panels. Both cheap, no spec needed (Tier 1 of the roadmap discussion).
+
+**Dialogue duration**: `showSpeechBubble`'s hold time was a flat 2600ms regardless of how long
+the line actually was — the longer "personal"/"friend" lines (npcDialogue.ts) never got a fair
+reading window. Replaced with `dialogueHoldMs(text)`: a real reading-pace estimate (~45ms/char,
+base 700ms, floor 1800ms, ceiling 5000ms) — deliberately the SAME formula regardless of
+`prefersReducedMotion()` (reduced motion is about vestibular/motion sensitivity, not reading
+speed; a reduced-motion user needs just as long to read the words). Measured against the actual
+100 authored lines, not assumed: shortest line 44 chars → 2680ms (about the same as before),
+average line 77 chars → 4165ms (a real improvement over the flat 2600ms), only 4 of 100 lines
+hit the 5000ms ceiling.
+
+**A real themed overlay panel**: every "you walked into a place" overlay (Bank, Library,
+Sanctuary, Bulletin Board, Observatory, Post Office, Gym, Market, Town Hall, Park, Hangar,
+Soumaya — 12 total) used to be its own flat, single-color, full-bleed monospace div. New
+`OverlayShell.tsx` — a centered card with a real header bar (icon + title), depth (border +
+shadow), and a styled close action — replaces all 12 independently-styled wrappers with one
+shared component, plus `actionButtonStyle`/`fieldStyle`/`leaveButtonStyle` so every button and
+input across all 12 reads as one consistent system instead of bare default HTML controls.
+Deliberately still a system monospace font — no new font dependency (CLAUDE.md's "don't add
+dependencies casually"); the win here is layout/color/depth, not typography sourcing.
+`CreatureSummaryOverlay` (a bottom-anchored quick-glance strip) and `CaptureMenu` (a full-bleed
+capture-reveal moment) were deliberately left as-is — their layouts already serve a genuinely
+different interaction pattern than "walked into a building," not an oversight.
+
+Verified by the dialogue-duration measurement above, new `OverlayShell.test.tsx`, all existing
+overlay tests updated/passing (one test's assertion was legitimately outdated by the new header
+— `ParkOverlay.test.tsx`'s "Park never appears" check needed scoping to the building list, since
+the overlay's own header now correctly says "Park"), and the full gate (1051 server + 280 web
+tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -13,6 +13,7 @@ import {
   type Thought,
 } from "../../api/mind.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface SanctuaryOverlayProps {
   spaceId: string;
@@ -94,52 +95,41 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Sanctuary"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🧘 Sanctuary</h2>
-
-      <h3>Working memory</h3>
+    <OverlayShell icon="🧘" title="Sanctuary" onClose={onClose}>
+      <h3 style={{ marginTop: 0 }}>Working memory</h3>
       {thoughts === null ? (
         <p>Settling the fireflies...</p>
       ) : thoughts.length === 0 ? (
         <p>Nothing drifting right now.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {thoughts.map((t) => (
-            <li key={t.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+            <li
+              key={t.id}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+            >
               <span style={{ flex: 1 }}>{t.text}</span>
-              <button type="button" onClick={() => reinforce(t)} disabled={busyId === t.id}>
+              <button type="button" onClick={() => reinforce(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
                 Keep
               </button>
-              <button type="button" onClick={() => promote(t)} disabled={busyId === t.id}>
+              <button type="button" onClick={() => promote(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
                 ★ Save
               </button>
-              <button type="button" onClick={() => dismiss(t)} disabled={busyId === t.id}>
+              <button type="button" onClick={() => dismiss(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
                 Let go
               </button>
             </li>
           ))}
         </ul>
       )}
-      <div style={{ display: "flex", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8, margin: "8px 0" }}>
         <input
           aria-label="New thought"
           value={newThought}
           onChange={(e) => setNewThought(e.target.value)}
-          style={{ flex: 1 }}
+          style={{ ...fieldStyle, flex: 1 }}
         />
-        <button type="button" onClick={addMote} disabled={!newThought.trim()}>
+        <button type="button" onClick={addMote} disabled={!newThought.trim()} style={actionButtonStyle(!newThought.trim())}>
           Drop a thought
         </button>
       </div>
@@ -150,18 +140,21 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
       ) : items.length === 0 ? (
         <p>Nothing planted yet.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {items.map((item) => {
             const meta = COGNITIVE_META[item.kind as keyof typeof COGNITIVE_META];
             return (
-              <li key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+              <li
+                key={item.id}
+                style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              >
                 <span aria-hidden="true">{meta?.icon ?? "🌱"}</span>
                 <span style={{ flex: 1 }}>
                   {item.label} <span style={{ opacity: 0.6 }}>({meta?.label ?? item.kind})</span>
                   {meta?.hasProgress && item.progress != null && ` — ${Math.round(item.progress * 100)}%`}
                 </span>
                 {meta?.hasProgress && (
-                  <button type="button" onClick={() => bumpGoalProgress(item)}>
+                  <button type="button" onClick={() => bumpGoalProgress(item)} style={actionButtonStyle()}>
                     +10%
                   </button>
                 )}
@@ -170,23 +163,29 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
           })}
         </ul>
       )}
-      <div style={{ display: "flex", gap: 8 }}>
-        <select aria-label="New item kind" value={newGoalKind} onChange={(e) => setNewGoalKind(e.target.value)}>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <select
+          aria-label="New item kind"
+          value={newGoalKind}
+          onChange={(e) => setNewGoalKind(e.target.value)}
+          style={fieldStyle}
+        >
           {COGNITIVE_KINDS.map((k) => (
             <option key={k} value={k}>
               {COGNITIVE_META[k].label}
             </option>
           ))}
         </select>
-        <input aria-label="New item label" value={newGoal} onChange={(e) => setNewGoal(e.target.value)} style={{ flex: 1 }} />
-        <button type="button" onClick={addCognitive} disabled={!newGoal.trim()}>
+        <input
+          aria-label="New item label"
+          value={newGoal}
+          onChange={(e) => setNewGoal(e.target.value)}
+          style={{ ...fieldStyle, flex: 1 }}
+        />
+        <button type="button" onClick={addCognitive} disabled={!newGoal.trim()} style={actionButtonStyle(!newGoal.trim())}>
           Plant
         </button>
       </div>
-
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

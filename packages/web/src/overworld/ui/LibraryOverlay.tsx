@@ -3,6 +3,7 @@ import type { GraphData } from "@brain/shared";
 import { search, type SearchHit } from "../../api/client.js";
 import { groupIntoFolders } from "../data/libraryFolders.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface LibraryOverlayProps {
   graph: GraphData;
@@ -40,20 +41,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
   const folders = groupIntoFolders(graph.nodes);
 
   return (
-    <div
-      role="dialog"
-      aria-label="Library"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>📚 Library</h2>
+    <OverlayShell icon="📚" title="Library" onClose={onClose}>
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <input
           aria-label="Search the library"
@@ -61,9 +49,9 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && runSearch()}
           placeholder="Search your whole brain..."
-          style={{ flex: 1 }}
+          style={{ ...fieldStyle, flex: 1 }}
         />
-        <button type="button" onClick={runSearch} disabled={!query.trim() || searching}>
+        <button type="button" onClick={runSearch} disabled={!query.trim() || searching} style={actionButtonStyle(!query.trim() || searching)}>
           {searching ? "…" : "Search"}
         </button>
         {hits && (
@@ -73,6 +61,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
               setQuery("");
               setHits(null);
             }}
+            style={actionButtonStyle()}
           >
             Clear
           </button>
@@ -81,13 +70,13 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
 
       {hits ? (
         <>
-          <h3>Results</h3>
+          <h3 style={{ marginTop: 0 }}>Results</h3>
           {hits.length === 0 ? (
             <p>Nothing matched "{query}".</p>
           ) : (
-            <ul style={{ listStyle: "none", padding: 0 }}>
+            <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {hits.map((h) => (
-                <li key={h.id} style={{ padding: "4px 0" }}>
+                <li key={h.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
                   {h.label} <span style={{ opacity: 0.6 }}>({h.type})</span>
                 </li>
               ))}
@@ -102,12 +91,12 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
             <button
               type="button"
               onClick={() => setExpanded(expanded === folder.key ? null : folder.key)}
-              style={{ display: "block", width: "100%", textAlign: "left" }}
+              style={{ ...actionButtonStyle(), display: "block", width: "100%", textAlign: "left" }}
             >
               {expanded === folder.key ? "▾" : "▸"} {folder.label} ({folder.nodes.length})
             </button>
             {expanded === folder.key && (
-              <ul style={{ listStyle: "none", padding: "0 0 0 16px" }}>
+              <ul style={{ listStyle: "none", padding: "0 0 0 16px", margin: "4px 0 0" }}>
                 {folder.nodes.map((n) => (
                   <li key={n.id} style={{ padding: "2px 0" }}>
                     {n.label}
@@ -118,10 +107,6 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
           </div>
         ))
       )}
-
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

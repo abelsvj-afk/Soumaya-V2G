@@ -253,6 +253,16 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Dialogue duration + a real themed overlay panel (2026-09-12), not yet on-device confirmed**
+  — two concrete complaints from a roadmap discussion: dialogue "doesn't stick around long
+  enough to read," and every building overlay "look[s] ugly" next to the old galaxy panels.
+  Dialogue hold time is now a real reading-pace formula instead of a flat 2600ms (measured
+  against the actual 100 authored lines: 2680-5000ms depending on length). All 12
+  "walked-into-a-place" overlays now share one real themed panel component (`OverlayShell.tsx`)
+  instead of 12 independently-styled flat divs. See `docs/overworld/roadmap.md`'s "Stage 2.14".
+  Verified by the measurement above + new/updated tests + the full gate (1051 server + 280 web
+  tests, typecheck, build) — not yet seen rendered in a real browser from this sandbox.
+
 - **NPC Autonomy round — real cross-town movement (2026-09-12), not yet on-device confirmed** —
   direct follow-up to "are they autonomous?": the honest answer was that their schedule and
   break-time interaction run on their own, but they never actually went anywhere beyond their

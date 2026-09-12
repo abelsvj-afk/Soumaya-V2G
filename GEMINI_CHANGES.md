@@ -1,3 +1,27 @@
+### 2026-09-12 (Claude): Soumaya Overworld — real dialogue duration + a real themed overlay panel
+- [ ] Verified by Claude
+- Direct follow-up to a roadmap discussion: two concrete complaints — NPC dialogue "doesn't
+  stick around long enough to read," and every building overlay "look[s] ugly when it pops up"
+  compared to the old galaxy's own panels. Both Tier 1 (cheap, no spec needed).
+- **Dialogue duration**: replaced a flat 2600ms hold with `dialogueHoldMs(text)` — a real
+  reading-pace formula (~45ms/char, 700ms base, 1800-5000ms clamp), deliberately the SAME under
+  `prefersReducedMotion()` (that setting is about motion sensitivity, not reading speed — a
+  reduced-motion user still needs the same time to read the words). Measured against the actual
+  100 authored lines: shortest 44 chars → 2680ms, average 77 chars → 4165ms, only 4 lines hit
+  the 5000ms ceiling.
+- **`OverlayShell.tsx`**: one shared themed panel (centered card, real header bar, depth, a
+  styled close action) replacing 12 independently-styled flat-dark monospace divs (Bank,
+  Library, Sanctuary, Bulletin Board, Observatory, Post Office, Gym, Market, Town Hall, Park,
+  Hangar, Soumaya) — plus shared `actionButtonStyle`/`fieldStyle`/`leaveButtonStyle` so every
+  button/input reads as one system instead of bare default HTML controls. No new font
+  dependency — still system monospace; the fix is layout/depth, not typography sourcing.
+  `CreatureSummaryOverlay`/`CaptureMenu` deliberately kept their own different layouts (a
+  quick-glance strip; a full-bleed capture moment) — genuinely different interaction patterns,
+  not an oversight.
+- New `OverlayShell.test.tsx`; `ParkOverlay.test.tsx`'s "Park never appears" assertion was
+  legitimately outdated by the new header (which correctly now says "Park") and rescoped to the
+  building list specifically. Full gate green (1051 server + 280 web tests, typecheck, build).
+
 ### 2026-09-12 (Claude): Soumaya Overworld — NPC Autonomy round: real cross-town movement
 - [ ] Verified by Claude
 - Direct follow-up to the user asking "are they autonomous?" after the Town Economy round. The

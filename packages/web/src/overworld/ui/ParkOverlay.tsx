@@ -1,6 +1,7 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { getSpaceId } from "../../api/http.js";
 import { allPlaces } from "../scenes/regionLayout.js";
+import { OverlayShell } from "./OverlayShell.js";
 
 export interface ParkOverlayProps {
   onClose: () => void;
@@ -18,26 +19,16 @@ export function ParkOverlay({ onClose }: ParkOverlayProps) {
   const doorPlaces = allPlaces().filter((p) => p.kind === "door" && p.id !== "park");
 
   return (
-    <div
-      role="dialog"
-      aria-label="Park"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🌳 Park</h2>
-      <p>A quiet bench. Good for resting — or for checking in on how the town's actually doing.</p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
+    <OverlayShell icon="🌳" title="Park" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>A quiet bench. Good for resting — or for checking in on how the town's actually doing.</p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {doorPlaces.map((place) => {
           const neglected = isNeglected(buildingNeglect(spaceId, place.id));
           return (
-            <li key={place.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0" }}>
+            <li
+              key={place.id}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+            >
               <span aria-hidden="true">{neglected ? "❓" : "🌱"}</span>
               <span style={{ flex: 1 }}>{place.label}</span>
               <span style={{ fontSize: 12, opacity: 0.8 }}>{neglected ? "could use a visit" : "doing fine"}</span>
@@ -45,9 +36,6 @@ export function ParkOverlay({ onClose }: ParkOverlayProps) {
           );
         })}
       </ul>
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }

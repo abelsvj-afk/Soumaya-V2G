@@ -644,8 +644,23 @@ export class ExteriorScene extends Phaser.Scene {
     });
     bubble.setOrigin(0.5, 1);
     bubble.setDepth(6);
-    const holdMs = prefersReducedMotion() ? 1200 : 2600;
-    this.time.delayedCall(holdMs, () => bubble.destroy());
+    this.time.delayedCall(this.dialogueHoldMs(text), () => bubble.destroy());
+  }
+
+  /** Real user feedback: dialogue "doesn't stick around long enough to read." The previous
+   *  fixed 2600ms held every line for the same length regardless of how long it actually was —
+   *  the longer "personal"/"friend" lines (npcDialogue.ts) never got a fair reading window.
+   *  Scaled by a real reading-pace estimate (~45ms/char, a comfortable — not rushed — pace)
+   *  with a floor for the shortest job-flavor lines and a ceiling so nothing lingers forever.
+   *  Deliberately the SAME formula regardless of `prefersReducedMotion()` — reduced motion is
+   *  about vestibular/motion sensitivity, not reading speed; a reduced-motion user needs just as
+   *  long to read the words, never less. */
+  private dialogueHoldMs(text: string): number {
+    const BASE_MS = 700;
+    const MS_PER_CHAR = 45;
+    const MIN_MS = 1800;
+    const MAX_MS = 5000;
+    return Math.min(MAX_MS, Math.max(MIN_MS, BASE_MS + text.length * MS_PER_CHAR));
   }
 
   /** Where a sprite should actually end up once it's back from an errand, and whether it

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { canAffordGood, MARKET_GOODS, ownedGoodIds, purchaseGood } from "../data/marketGoods.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
+import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface MarketOverlayProps {
   spaceId: string;
@@ -37,43 +38,35 @@ export function MarketOverlay({ spaceId, onClose }: MarketOverlayProps) {
   };
 
   return (
-    <div
-      role="dialog"
-      aria-label="Market"
-      style={{
-        position: "absolute",
-        inset: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
-        padding: 16,
-        fontFamily: "monospace",
-        overflowY: "auto",
-      }}
-    >
-      <h2 style={{ marginTop: 0 }}>🛒 Market</h2>
-      <p>
+    <OverlayShell icon="🛒" title="Market" onClose={onClose}>
+      <p style={{ marginTop: 0 }}>
         Town Treasury: <strong>{formatCents(balance)}</strong> — every real hour the town's earned, waiting to be spent.
       </p>
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {MARKET_GOODS.map((good) => {
           const isOwned = owned.has(good.id);
           const affordable = canAffordGood(spaceId, good);
           return (
-            <li key={good.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0" }}>
+            <li
+              key={good.id}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+            >
               <span aria-hidden="true">{good.icon}</span>
               <span style={{ flex: 1 }}>
                 {good.name} — {formatCents(good.priceCents)}
               </span>
-              <button type="button" onClick={() => buy(good.id)} disabled={isOwned || !affordable || busyId === good.id}>
+              <button
+                type="button"
+                onClick={() => buy(good.id)}
+                disabled={isOwned || !affordable || busyId === good.id}
+                style={actionButtonStyle(isOwned || !affordable || busyId === good.id)}
+              >
                 {isOwned ? "Owned" : busyId === good.id ? "…" : affordable ? "Buy" : "Can't afford"}
               </button>
             </li>
           );
         })}
       </ul>
-      <button type="button" onClick={onClose}>
-        Leave
-      </button>
-    </div>
+    </OverlayShell>
   );
 }
