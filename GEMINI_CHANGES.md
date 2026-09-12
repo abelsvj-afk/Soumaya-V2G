@@ -1,3 +1,25 @@
+### 2026-09-12 (Claude): The Hangar becomes a real town-builder
+- [ ] Verified by Claude
+- Direct answer to the request's own "go to the hangar, and that's where you can select items to
+  be placed in the map... think of Sims." Specced first (`docs/overworld/town-builder.md`) per
+  Rule #1: a small, fixed catalog of 1x1 decorative items (garden bed, bench, lamp post, banner
+  post), reusing the real Town Treasury (`townLedger.ts`) for price and `isPlacementBlocked`
+  (`regionLayout.ts`) for "is this tile free" — nothing new invented for either.
+- Two-step interaction: buying in the Hangar spends the treasury and "arms" the item (one pending
+  item per space, never a queue); pressing interact facing a free tile in the world places it and
+  clears the armed state. While armed, interact is exclusively about placement.
+- New `data/townBuilder.ts` (pure, localStorage-backed, same shape as `marketGoods.ts`);
+  `ExteriorScene.ts` renders placements as text glyphs + owns the interact-to-place flow;
+  `loadWorldSnapshot.ts`'s creature placement now also avoids tiles a player has already built on.
+- Measured before shipping: the real 46x24 map has 857 open tiles out of 1104 after every real
+  building/object/attendant/grass-zone/spawn exclusion.
+- Deliberately deferred: multi-tile footprints, real housing/business types (#66/#67), and
+  "NPCs react to placed items" (needs real substance to react to, not inert v1 decor). Known v1
+  rough edge, stated plainly: no cancel/refund once armed.
+- Verified by 10 new `townBuilder.test.ts` + 3 new `HangarOverlay.test.tsx` cases + the open-tile
+  measurement + full gate (1051 server + 301 web tests, typecheck, build). Not yet seen rendered
+  in a real browser from this sandbox.
+
 ### 2026-09-12 (Claude): NPCs get their lives back; Soumaya finally moves
 - [ ] Verified by Claude
 - A large multi-part request (Soumaya autonomy/governance, crime/policing, NPC visibility, LLM

@@ -9,6 +9,7 @@ import { placeCreaturesOnGrid } from "../adapter/placement.js";
 import { isPlacementBlocked, REGION_HEIGHT, REGION_WIDTH } from "../scenes/regionLayout.js";
 import { syncAchievements } from "./achievements.js";
 import { recordBuildingWork } from "./npcJobs.js";
+import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -43,6 +44,7 @@ export function buildWorldSnapshot(
   fuel: Fuel | null = null,
   streak: Streak | null = null,
   dueReviews: DueReview[] = [],
+  spaceId: string | null = null,
 ): WorldSnapshot {
   const dueIds = new Set(dueReviews.map((d) => d.id));
   const unplaced = graph.nodes
@@ -51,7 +53,9 @@ export function buildWorldSnapshot(
   const creatures = placeCreaturesOnGrid(unplaced, {
     width: REGION_WIDTH,
     height: REGION_HEIGHT,
-    isBlocked: isPlacementBlocked,
+    // town-builder.md — a creature can never spawn on top of something the player already
+    // built, the one integration point the new placement system needs outside its own module.
+    isBlocked: (x, y) => isPlacementBlocked(x, y) || (spaceId != null && isTileOccupiedByPlacedItem(spaceId, x, y)),
   });
   return {
     creatures,
@@ -92,7 +96,7 @@ export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
   const freshAchievements = syncAchievements(graph, fuel, streak);
   const spaceId = getSpaceId();
   if (spaceId && freshAchievements.length > 0) recordBuildingWork(spaceId, "gym");
-  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews);
+  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId);
 }
 
 /** FR11 — the greet action. Fire-and-forget by design (matches tendNode itself); callers

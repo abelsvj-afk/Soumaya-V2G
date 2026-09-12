@@ -103,6 +103,7 @@ export function OverworldRoot() {
       setSnapshot(next);
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
+      sceneRef.current?.refreshPlacedItems();
       void checkTownMeetingEffect();
       return next;
     } catch (err) {
@@ -169,6 +170,12 @@ export function OverworldRoot() {
       scene.events.on("greet-creature", (nodeId: number) => {
         const creature = snapshotRef.current?.creatures.find((c) => c.nodeId === nodeId);
         if (creature) setOverlay({ kind: "details", creature });
+      });
+      // town-builder.md — a real placement is the Hangar's own real work event, same as any
+      // cosmetic change there; the actual persistence + rendering already happened in the scene.
+      scene.events.on("item-placed", () => {
+        const spaceIdForWork = getSpaceId();
+        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
       });
 
       void refresh();

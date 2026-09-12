@@ -2,7 +2,9 @@ import { useState } from "react";
 import { loadUnlocked } from "../../components/achievements.js";
 import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOption } from "../data/hangarOptions.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
-import { fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { treasuryBalanceCents } from "../data/townLedger.js";
+import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
+import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface HangarOverlayProps {
   spaceId: string;
@@ -37,6 +39,10 @@ function OptionSelect({
   );
 }
 
+function formatCents(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
 /**
  * The Hangar — kept ~1:1 with the existing HangarPanel.tsx (per the build brief), reusing
  * the exact same localStorage keys and unlock gates (data/hangarOptions.ts) so a pilot's
@@ -46,6 +52,13 @@ function OptionSelect({
  * have no 2D equivalent to apply to (no per-hull sprite art exists) — this building keeps
  * their *selection state* correct, which is what matters for parity, until/unless a later
  * pass gives them a real in-world effect.
+ *
+ * Town Builder (docs/overworld/town-builder.md, task #65) — the Hangar is also where a real
+ * placeable item is bought, per the request's own "go to the hangar, and that's where you can
+ * select items to be placed in the map." Buying spends the real Town Treasury and "arms" the
+ * item; closing this overlay and pressing interact facing an open tile in the world places it
+ * (ExteriorScene.ts). Only ever one item armed at a time — buying a second re-arms rather than
+ * queuing, and the real work credit for a placement happens at that moment, not here at purchase.
  */
 export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlayProps) {
   const keys = hangarKeys(spaceId);
@@ -54,12 +67,21 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [trail, setTrail] = useState(() => localStorage.getItem(keys.trail) || "blue");
   const [fig1, setFig1] = useState(() => localStorage.getItem(keys.fig1) || "none");
   const [fig2, setFig2] = useState(() => localStorage.getItem(keys.fig2) || "none");
+  const [armed, setArmed] = useState(() => armedItemId(spaceId));
+  const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
 
   const persist = (key: string, value: string, setter: (v: string) => void) => {
     localStorage.setItem(key, value);
     setter(value);
     // A cosmetic actually changed is the Hangar's own real work event (npc-economy.md).
     recordBuildingWork(spaceId, "hangar");
+  };
+
+  const buyAndArm = (itemId: string) => {
+    if (armItem(spaceId, itemId)) {
+      setArmed(itemId);
+      setBalance(treasuryBalanceCents(spaceId));
+    }
   };
 
   return (
@@ -78,6 +100,40 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
         value={fig2}
         onChange={(v) => persist(keys.fig2, v, setFig2)}
       />
+
+      <h3>Town Building</h3>
+      <p style={{ marginTop: 0 }}>
+        Town Treasury: <strong>{formatCents(balance)}</strong>
+        {armed && (
+          <>
+            {" "}
+            — <strong>{PLACEABLE_ITEMS.find((i) => i.id === armed)?.name ?? armed}</strong> is ready to place: leave here, walk up
+            to an open spot, and press A.
+          </>
+        )}
+      </p>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {PLACEABLE_ITEMS.map((item) => {
+          const affordable = canAffordItem(spaceId, item);
+          const isArmed = armed === item.id;
+          return (
+            <li key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <span aria-hidden="true">{item.icon}</span>
+              <span style={{ flex: 1 }}>
+                {item.name} — {formatCents(item.priceCents)}
+              </span>
+              <button
+                type="button"
+                onClick={() => buyAndArm(item.id)}
+                disabled={isArmed || !affordable}
+                style={actionButtonStyle(isArmed || !affordable)}
+              >
+                {isArmed ? "Armed" : affordable ? "Buy" : "Can't afford"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </OverlayShell>
   );
 }

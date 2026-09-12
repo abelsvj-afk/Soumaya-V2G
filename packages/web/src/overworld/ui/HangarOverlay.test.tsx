@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HangarOverlay } from "./HangarOverlay.js";
+import { creditHour } from "../data/townLedger.js";
 
 describe("HangarOverlay", () => {
   beforeEach(() => localStorage.clear());
@@ -30,5 +31,32 @@ describe("HangarOverlay", () => {
     render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={onClose} />);
     fireEvent.click(screen.getByText("Leave"));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("Town Building (town-builder.md)", () => {
+    it("can't afford anything with an empty treasury", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getAllByText("Can't afford").length).toBe(4);
+    });
+
+    it("buying an affordable item arms it and spends the real treasury", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank"); // 40 * 25c = $10.00
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Buy")[0]!); // Garden Bed, $0.80
+      expect(screen.getByText("Armed")).toBeTruthy();
+      // Exact match: only the "ready to place" banner's <strong> has textContent exactly this.
+      expect(screen.getByText("Garden Bed")).toBeTruthy();
+    });
+
+    it("buying a second item re-arms rather than queuing", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Buy")[0]!); // Garden Bed
+      fireEvent.click(screen.getAllByText("Buy")[0]!); // Bench (Garden Bed's button now says "Armed")
+      // Exact match: only the "ready to place" banner's <strong> has textContent exactly "Bench"
+      // (the catalog row's own text is "Bench — $1.20", so it can't collide with this match).
+      expect(screen.getByText("Bench")).toBeTruthy();
+      expect(screen.getAllByText("Armed")).toHaveLength(1); // only Bench, not Garden Bed too
+    });
   });
 });

@@ -40,6 +40,14 @@ import {
 } from "./tileAtlas.js";
 import { allBuildingSprites, buildingSpriteForPlace } from "./buildingSprites.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
+import {
+  armedItemId,
+  isTileFreeForPlacement,
+  placeArmedItem,
+  placedItems,
+  PLACEABLE_ITEMS,
+  type PlacedItem,
+} from "../data/townBuilder.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
@@ -144,6 +152,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  walk tween) instead of fighting it. */
   private outingActive = new Set<string>();
   private soumaya: SoumayaSprite | null = null;
+  /** Town Builder (docs/overworld/town-builder.md, task #65) — real player-placed decor, keyed
+   *  by its persisted PlacedItem id so a single placement can be re-rendered without redrawing
+   *  every other one. */
+  private placedItemSprites = new Map<string, Phaser.GameObjects.Text>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -207,6 +219,7 @@ export class ExteriorScene extends Phaser.Scene {
     this.drawGround();
     this.spawnAttendants();
     this.spawnSoumaya();
+    this.renderPlacedItems();
     this.renderCreatures(this.pendingCreatures);
 
     this.player = this.add.sprite(
@@ -411,6 +424,36 @@ export class ExteriorScene extends Phaser.Scene {
       });
     };
     animateStep(0);
+  }
+
+  /** Town Builder — draws every real placed item as a text glyph (this session's established
+   *  convention for a marker with no dedicated atlas art, same as the "?" dim marker and the
+   *  📢 meeting cue) at its persisted tile. Called once from create(); OverworldRoot.tsx calls
+   *  `refreshPlacedItems()` after a real placement instead of a full scene reload. */
+  private renderPlacedItems(): void {
+    for (const placed of placedItems(this.spaceId)) this.paintPlacedItem(placed);
+  }
+
+  private paintPlacedItem(placed: PlacedItem): void {
+    if (this.placedItemSprites.has(placed.id)) return; // already painted — placements never move
+    const item = PLACEABLE_ITEMS.find((i) => i.id === placed.itemId);
+    const glyph = this.add.text(
+      placed.x * TILE_SIZE + TILE_SIZE / 2,
+      placed.y * TILE_SIZE + TILE_SIZE / 2,
+      item?.icon ?? "❔", // tolerate-gracefully: an unrecognized itemId still renders, never crashes
+      { fontSize: "16px" },
+    );
+    glyph.setOrigin(0.5);
+    glyph.setDepth(1);
+    this.placedItemSprites.set(placed.id, glyph);
+  }
+
+  /** Re-reads real placed-item state and paints anything new — call after a successful
+   *  placement (OverworldRoot.tsx) instead of reloading the whole scene. Idempotent: an
+   *  already-painted placement is skipped by `paintPlacedItem`'s own guard. */
+  refreshPlacedItems(): void {
+    if (!this.created) return;
+    this.renderPlacedItems();
   }
 
   /** One small NPC per attendant post (regionLayout.ts's attendantPosts — a few per building,
@@ -1042,6 +1085,24 @@ export class ExteriorScene extends Phaser.Scene {
 
   private handleInteract(): void {
     const front = tileInFront(this.movement.position, this.movement.facing);
+    // Town Builder — while an item is armed (bought from the Hangar, not yet placed), interact
+    // is exclusively about placement: a free tile places it, a blocked one is a silent no-op,
+    // matching a real "arm mode" rather than falling through to greet/chat for this same press.
+    const armedId = armedItemId(this.spaceId);
+    if (armedId) {
+      const creatureHere = [...this.creatureSprites.values()].some(
+        (sprite) => sprite.currentTile.x === front.x && sprite.currentTile.y === front.y,
+      );
+      const soumayaHere = this.soumaya && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y;
+      if (!creatureHere && !soumayaHere && isTileFreeForPlacement(this.spaceId, front.x, front.y)) {
+        const placed = placeArmedItem(this.spaceId, front.x, front.y);
+        if (placed) {
+          this.paintPlacedItem(placed);
+          this.events.emit("item-placed", placed.itemId);
+        }
+      }
+      return;
+    }
     // Checked against currentTile (where the creature actually is right now), not its fixed
     // placement anchor — otherwise a mid-roam creature couldn't be greeted where it's standing.
     for (const sprite of this.creatureSprites.values()) {

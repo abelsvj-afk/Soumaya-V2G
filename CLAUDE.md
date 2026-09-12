@@ -253,6 +253,20 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **The Hangar becomes a real town-builder (2026-09-12), not yet on-device confirmed** — direct
+  answer to "go to the hangar, and that's where you can select items to be placed in the map...
+  think of Sims." Specced first (`docs/overworld/town-builder.md`) per Rule #1: a small catalog of
+  1x1 decorative items, bought with the real Town Treasury and "armed" (one pending item per
+  space, never a queue), then placed by pressing interact facing a free tile in the world. New
+  `data/townBuilder.ts` (pure, localStorage-backed, same shape as `marketGoods.ts`);
+  `ExteriorScene.ts` renders placements + owns the interact-to-place flow;
+  `loadWorldSnapshot.ts`'s creature placement now also avoids tiles the player has already built
+  on. Measured before shipping: the real 46x24 map has 857 open tiles out of 1104 after every
+  real exclusion. Multi-tile buildings, real housing/business types, and "NPCs react to placed
+  items" are deliberately deferred (tasks #66/#67) — this slice proves the mechanism only.
+  Verified by 10 new + 3 updated tests + the full gate (1051 server + 301 web tests, typecheck,
+  build) — not yet seen rendered in a real browser.
+
 - **NPCs get their lives back; Soumaya finally moves (2026-09-12), not yet on-device confirmed**
   — a large multi-part request (Soumaya autonomy/governance, crime/policing, NPC visibility, LLM
   dialogue, and more) got a full reconciliation doc first (`docs/overworld/soumaya-governance.md`)

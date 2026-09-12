@@ -640,6 +640,43 @@ Verified by the tour measurement above + the full gate (1051 server + 288 web te
 build) — Soumaya's movement and the Home-visibility change have not been seen rendered in a real
 browser from this sandbox.
 
+## Stage 2.18 — The Hangar becomes a real town-builder (task #65)
+
+Direct answer to the request's own "go to the hangar, and that's where you can select items to be
+placed in the map... think of Sims." Per Rule #1, `docs/overworld/town-builder.md` specs the FIRST
+real slice before any code: a small, fixed catalog of 1x1 decorative items (garden bed, bench,
+lamp post, banner post), reusing the real Town Treasury (townLedger.ts — never Fuel/finance,
+same convention `marketGoods.ts` already established) for price and `isPlacementBlocked`
+(regionLayout.ts) for "is this tile free" — nothing new invented for either.
+
+**Two-step interaction**, matching the request's own "select in the Hangar, then place it in the
+world": buying a catalog item in the Hangar spends the treasury immediately and "arms" it (one
+pending item per space, never a queue — a second purchase re-arms rather than stacking); pressing
+interact facing a free tile in the world places it there and clears the armed state. While
+something's armed, interact is exclusively about placement (a blocked tile is a silent no-op,
+matching every other interact-miss in this scene) rather than falling through to greet/chat for
+that same press.
+
+**New**: `data/townBuilder.ts` (pure, localStorage-backed, the same shape as `marketGoods.ts`);
+`ExteriorScene.ts` renders placed items as text glyphs (this session's established convention for
+a marker with no dedicated atlas art) and handles the interact-to-place flow; `loadWorldSnapshot.ts`'s
+creature placement now also avoids any tile a player has already built on, the one integration
+point outside the new module. Measured before shipping: the real 46x24 map has 857 open tiles out
+of 1104 after every real building/object/attendant/grass-zone/spawn exclusion — plenty of room for
+this to actually matter.
+
+**Deliberately deferred** (tracked, not lost): multi-tile footprints, real housing types with
+mechanical meaning (#66), new business building types with their own attendants/wages (#67), and
+any "NPCs react organically to placed items" behavior — the last needs a placed item to be a real
+place NPCs can path to, which only makes sense once housing/business substance exists, not for
+inert v1 decor. Also a known v1 rough edge, stated plainly rather than hidden: there's no
+cancel/refund once an item is armed — placing it anywhere is the only way to resolve it (buying a
+different item still works, at the cost of forfeiting the first purchase).
+
+Verified by 10 new `townBuilder.test.ts` cases, 3 new `HangarOverlay.test.tsx` cases, the open-tile
+measurement above, and the full gate (1051 server + 301 web tests, typecheck, build) — not yet
+seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
