@@ -1,3 +1,29 @@
+### 2026-09-12 (Claude): Does the town run without the player present? (task #68)
+- [ ] Verified by Claude
+- Answered the task's own question honestly first (`docs/overworld/town-persistence.md`) per
+  Rule #1, from reading the real code rather than assuming.
+- Already runs independent of the player, zero changes needed: `buildingNeglect.ts`'s neglect
+  (and civic concern/Town Health/Business Neglect built on it) is computed from a real stored
+  timestamp compared against `Date.now()` at read time, never a tick.
+- Did NOT run independent of the player: `ExteriorScene.tickSociety()`'s NPC Working/Break/Home
+  schedule was driven by a session-local `societyTickCount += 1` that reset to 0 on every
+  reload — confirmed by reading `init()`.
+- Cannot run independent of the player, a genuine architecture boundary, not a cop-out: any
+  visual consequence of that schedule (walk tweens, outings, the meeting gathering) — this app
+  has no server-side job/worker or background sync, so animating anything with no browser tab
+  open needs real new infrastructure (a server-side town simulation), explicitly not attempted.
+- The one real, safe fix shipped: the schedule's tick is now `Math.floor(Date.now() /
+  SOCIETY_TICK_MS)` instead of a counted-up session field. `npcSchedule.ts`'s `scheduleStateAt`
+  needed zero changes — already a pure function of its tick input.
+- Measured before shipping, not assumed: a real reproduction script confirmed the OLD behavior
+  always resumed frozen at "just started Working" regardless of real elapsed time; the NEW
+  behavior correctly reflects a simulated 3-hour gap; and the new tick is mathematically
+  identical to continuous incrementing the whole time (`tickAtOpen + elapsedRealTicks ===
+  tickAfterGap`, confirmed true).
+- Verified by that measurement + the full gate (1056 server + 369 web tests, typecheck, build).
+  No dedicated `ExteriorScene.ts` test exists (consistent with this file's own convention). Not
+  yet seen rendered in a real browser.
+
 ### 2026-09-12 (Claude): A real multi-business economy (task #67)
 - [ ] Verified by Claude
 - Direct answer to the task's own name: "more than one Market." Specced first

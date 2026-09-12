@@ -922,6 +922,37 @@ Verified by 14 new `business.test.ts` cases, 6 new `BusinessOverlay.test.tsx` ca
 `MayorsHallOverlay.test.tsx` cases, and the full gate (1056 server + 369 web tests, typecheck,
 build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.28 — Does the town run whether or not the player is present? (task #68)
+
+Answered the task's own question honestly first (`docs/overworld/town-persistence.md`) per
+Rule #1, from reading the real code rather than assuming: `buildingNeglect.ts`'s neglect (and
+everything built on it — civic concern, Town Health, Business Neglect) already runs
+independent of the player, because it's computed from a real stored timestamp compared against
+`Date.now()` at read time, never a tick. What does NOT: `ExteriorScene.tickSociety()`'s NPC
+Working/Break/Home schedule, driven by a session-local `societyTickCount += 1` that resets to 0
+on every reload — confirmed by reading `init()`, nothing persists or restores it. What CANNOT,
+as a genuine architecture boundary rather than a cop-out: any of that schedule's VISUAL
+consequences (walk tweens, outings, the meeting gathering) — this app has no server-side
+job/worker or background sync, so animating anything with no browser tab open would need a real
+new piece of infrastructure (a server-side town simulation), not a client tweak.
+
+The one real, safe fix shipped: `tickSociety()`'s tick is now derived from
+`Math.floor(Date.now() / SOCIETY_TICK_MS)` instead of counted up from a session-local field —
+`npcSchedule.ts`'s `scheduleStateAt` needed ZERO changes, since it was already a pure function of
+whatever tick number it's given. Measured before shipping, not assumed: a real reproduction
+script confirmed the OLD behavior always resumed a fresh scene at "just started Working"
+regardless of real elapsed time, the NEW behavior correctly reflects a real simulated 3-hour gap,
+and the new tick is mathematically identical to what continuously incrementing the whole time
+would have produced (`tickAtOpen + elapsedRealTicks === tickAfterGap`, confirmed true). The
+60-real-second Working/Break/Home cycle LENGTH itself is unchanged — still arcade-paced, not a
+real day/night length (a separate, bigger design decision this round does not attempt).
+
+Verified by the reproduction-script measurement above and the full gate (1056 server + 369 web
+tests, typecheck, build) — no test file targets `ExteriorScene.ts` directly (consistent with this
+file's existing convention: Phaser-integration code is verified by measurement + the pure logic
+modules' own tests, not a dedicated unit-test file), so this entry documents the verification
+directly. Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
