@@ -358,7 +358,14 @@ export function OverworldRoot() {
     // `min-height: 100vh` with nothing else in flow, so 100% here means the real viewport.
     <div style={{ position: "relative", width: "100%", height: "100dvh" }}>
       <div ref={containerRef} data-testid="overworld-canvas-root" style={{ width: "100%", height: "100%" }} />
-      {snapshot && <TownHud spaceId={spaceId} fuel={snapshot.fuel} streak={snapshot.streak} />}
+      {snapshot && (
+        <TownHud
+          spaceId={spaceId}
+          fuel={snapshot.fuel}
+          streak={snapshot.streak}
+          onZoningStopped={() => sceneRef.current?.clearZoneAnchorMarker()}
+        />
+      )}
       {/* Real bug fix (2026-09-13): AuthGate.tsx's own "Log out" button is `position: fixed,
           top: 8, right: 8, z-index: 10` — the exact same corner this row used to claim at
           z-index 1, so the higher-z-index logout button rendered on top of and hid 2 of these

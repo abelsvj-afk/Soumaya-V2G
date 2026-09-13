@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Zoning at true SimCity scale (2026-09-13), not yet on-device confirmed** — direct response
+  to the single most emphatic, repeated complaint from a live feedback pass: one-tile-at-a-time
+  zoning that required a fresh Hangar trip after every tile. Confirmed by reading the shipped
+  `data/zoning.ts` first (`docs/overworld/zoning-rework.md`) per Rule #1: `zoneTileAt()` really
+  did clear the armed state after every single paint, and there was no way to designate more
+  than one 1x1 tile per interact press. Two fixes: (1) arming now persists across paints — no
+  more auto-clear, so a player arms once and paints indefinitely; (2) a new Area mode (Hangar
+  toggle) lets two interact presses (an anchor, then a commit) zone a whole rectangle in one
+  action, skipping blocked tiles, no size cap, arm staying active for the next rectangle. Since
+  an armed type no longer auto-clears, the persistent `TownHud` now shows a live "🧭 Zoning:
+  &lt;type&gt; (&lt;mode&gt;)" chip with an inline Stop button, so ending a session needs no
+  Hangar trip either. Deliberately deferred: a live rectangle preview while walking to the
+  second corner (real engine risk for a cosmetic touch). Verified by 8 new `zoning.test.ts`
+  cases, 2 new `HangarOverlay.test.tsx` cases, 3 new `TownHud.test.tsx` cases, and the full gate
+  (1056 server + 405 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **Real on-device bug fixes from live feedback (2026-09-13), not yet on-device confirmed** —
   direct response to a real, detailed voice-transcribed feedback pass. Four concrete, provable
   bugs fixed (see `docs/overworld/roadmap.md`'s "Stage 2.35" for the full account): (1) two

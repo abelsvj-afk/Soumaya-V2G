@@ -48,7 +48,19 @@ import {
   PLACEABLE_ITEMS,
   type PlacedItem,
 } from "../data/townBuilder.js";
-import { armedZoneType, isTileZonable, zonedTiles, zoneTileAt, type ZonedTile, type ZoneType } from "../data/zoning.js";
+import {
+  armedZoneMode,
+  armedZoneType,
+  clearZoneAnchor,
+  isTileZonable,
+  setZoneAnchor,
+  zoneAnchor,
+  zonedTiles,
+  zoneRectangle,
+  zoneTileAt,
+  type ZonedTile,
+  type ZoneType,
+} from "../data/zoning.js";
 import {
   armedHomeTypeId,
   homeTypeById,
@@ -195,6 +207,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  a stable id like placed items, since re-zoning overwrites the SAME tile and this needs to
    *  replace its old glyph rather than accumulate one per zoning decision ever made). */
   private zoneMarkerSprites = new Map<string, Phaser.GameObjects.Text>();
+  /** Zoning rework (docs/overworld/zoning-rework.md, task #77) — the single pending "area" mode
+   *  anchor marker, if any. Unlike `zoneMarkerSprites` there is at most one of these at a time
+   *  (destroyed on commit or on re-arming), so a plain nullable field is enough. */
+  private zoneAnchorSprite: Phaser.GameObjects.Text | null = null;
   /** Housing (docs/overworld/housing.md, task #66) — one real placed home, keyed by its
    *  persisted PlacedHome id (same convention as `placedItemSprites`, since a home never
    *  moves once built). */
@@ -619,6 +635,26 @@ export class ExteriorScene extends Phaser.Scene {
   refreshZoneMarkers(): void {
     if (!this.created) return;
     this.renderZoneMarkers();
+  }
+
+  /** The pending first corner of an in-progress area-mode rectangle (zoning-rework.md decision
+   *  #2) — a distinct marker (a bold, differently-shaped glyph, never color-only) from the faint
+   *  zoned-tile glyphs above, since this one means "not zoned yet, waiting for the second press"
+   *  rather than "already tagged." */
+  private paintZoneAnchorMarker(x: number, y: number): void {
+    this.zoneAnchorSprite?.destroy();
+    const marker = this.add.text(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, "◤", { fontSize: "18px", color: "#ffdd55" });
+    marker.setOrigin(0.5);
+    marker.setDepth(1.5);
+    this.zoneAnchorSprite = marker;
+  }
+
+  /** Public so the React-side TownHud's "Stop" button (zoning-rework.md decision #3) can clear
+   *  a lingering anchor sprite too — `disarmZoning()` only touches localStorage, which this
+   *  transient Phaser sprite doesn't read from on its own. */
+  clearZoneAnchorMarker(): void {
+    this.zoneAnchorSprite?.destroy();
+    this.zoneAnchorSprite = null;
   }
 
   /** Housing type-glyph, distinct per type so all 4 stay tellable apart even though every home
@@ -1442,8 +1478,28 @@ export class ExteriorScene extends Phaser.Scene {
     // Zoning (docs/overworld/zoning.md) — a second, parallel "arm mode" alongside town-builder's
     // own, kept separate rather than merged since painting a zone tag and placing a decor item
     // are conceptually different actions. Same shape: free tile paints it, blocked is a silent
-    // no-op, no fall-through to greet/chat this same press.
+    // no-op, no fall-through to greet/chat this same press. Zoning rework (docs/overworld/
+    // zoning-rework.md, task #77) — the arm stays active after every action (real, repeated
+    // feedback that a fresh Hangar trip per tile was "too slow"), and "area" mode turns two
+    // presses (anchor, then commit) into a whole-rectangle zoning action instead of one tile.
     if (armedZoneType(this.spaceId)) {
+      if (armedZoneMode(this.spaceId) === "area") {
+        const anchor = zoneAnchor(this.spaceId);
+        if (!anchor) {
+          if (isTileZonable(this.spaceId, front.x, front.y)) {
+            setZoneAnchor(this.spaceId, front.x, front.y);
+            this.paintZoneAnchorMarker(front.x, front.y);
+          }
+        } else {
+          const tiles = zoneRectangle(this.spaceId, anchor.x, anchor.y, front.x, front.y);
+          for (const tile of tiles) this.paintZoneMarker(tile);
+          clearZoneAnchor(this.spaceId);
+          this.clearZoneAnchorMarker();
+          const first = tiles[0];
+          if (first) this.events.emit("tile-zoned", first.type);
+        }
+        return;
+      }
       if (isTileZonable(this.spaceId, front.x, front.y)) {
         const tile = zoneTileAt(this.spaceId, front.x, front.y);
         if (tile) {

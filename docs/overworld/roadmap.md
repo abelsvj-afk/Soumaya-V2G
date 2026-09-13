@@ -1167,6 +1167,41 @@ the twice-patched `tiles.png` (Park decor + this round's Soumaya sprite) is byte
 between `public/` and the built `dist/`. None of these four fixes has been seen rendered in a
 real browser from this sandbox yet.
 
+## Stage 2.36 — Zoning at true SimCity scale (task #77)
+
+Direct response to the single most emphatic, repeated complaint from a live feedback pass: *"you
+gotta really take a step back and look at the SimCity's zoning... there can't be one small
+square tile in the game... the fact that you have to go back to the hangar to do it again, to
+zone one block at a time is... too slow and doesn't make sense."* Confirmed by reading the
+shipped `data/zoning.ts` first, per Rule #1 (`docs/overworld/zoning-rework.md`): the complaint
+was real and precise — `zoneTileAt()`'s last line called `clearArmedZone()`, forcing a fresh
+Hangar trip after every single tile, and there was no way to paint more than one 1x1 tile per
+interact press.
+
+Two fixes, both scoped to the *painting ergonomics* only (the underlying zone-type model from
+`zoning.md` was never the complaint):
+
+1. **Arming now persists across paints.** `zoneTileAt()` no longer clears the armed state — arm
+   once in the Hangar, then paint as many tiles as you like without a single additional trip.
+2. **A real Area mode.** The Hangar's Zoning section gains a Tile/Area toggle. In Area mode, the
+   first interact press sets a visible anchor marker on a zonable tile; the second press,
+   anywhere else, commits the full rectangle between the two corners in one action — every
+   zonable tile inside gets tagged, blocked tiles silently skipped, no size cap. The arm stays
+   active afterward so a new rectangle can start immediately.
+
+Since an armed zone type no longer auto-clears, `TownHud` (task #73) gains a small chip whenever
+one is active — `🧭 Zoning: Residential (Area)` — with an inline **Stop** button that disarms
+from anywhere in the world, so the Hangar is only ever needed to *start* a zoning session, never
+mid-session or to end one either.
+
+Deliberately deferred: a live rectangle preview while walking to the second corner (real engine
+risk for a cosmetic touch — the anchor marker + commit mechanism already fully resolves both
+complaints); any minimum/maximum rectangle size; grid-aligned block shape rules.
+
+Verified by 8 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases, 3 new
+`TownHud.test.tsx` cases, and the full gate (1056 server + 405 web tests, typecheck, build). Not
+yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

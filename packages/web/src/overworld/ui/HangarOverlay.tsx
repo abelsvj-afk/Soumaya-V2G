@@ -4,7 +4,7 @@ import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOpti
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
-import { armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneType } from "../data/zoning.js";
+import { armedZoneMode, armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneMode, type ZoneType } from "../data/zoning.js";
 import { armedHomeTypeId, armHomeType, canAffordHome, HOME_TYPES } from "../data/housing.js";
 import { armBusinessType, armedBusinessTypeId, BUSINESS_TYPES, canAffordBusiness } from "../data/business.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
@@ -75,6 +75,11 @@ function formatCents(cents: number): string {
  * walk-up-and-press-A action tags a tile instead of placing an item. Its own real, honest
  * "positive/negative effect" is the plain per-type count below — never an invented score.
  *
+ * Zoning rework (docs/overworld/zoning-rework.md, task #77) — real feedback that one-tile zoning
+ * requiring a fresh Hangar trip per tile was "too slow." Arming now persists across paints (no
+ * more auto-clear), and a Tile/Area mode toggle lets the player choose whole-rectangle painting
+ * (two presses: an anchor, then a commit) instead of one tile at a time.
+ *
  * Housing (docs/overworld/housing.md, task #66) — a home can only be BUILT on ground already
  * zoned residential above; buying one spends the real Town Treasury and arms it the same way a
  * decor item does, then a multi-tile footprint gets placed at the walked-up-to tile. NPCs are
@@ -96,6 +101,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [armed, setArmed] = useState(() => armedItemId(spaceId));
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
   const [armedZone, setArmedZone] = useState(() => armedZoneType(spaceId));
+  const [zoneMode, setZoneMode] = useState<ZoneMode>(() => armedZoneMode(spaceId));
   const [armedHome, setArmedHome] = useState(() => armedHomeTypeId(spaceId));
   const [armedBusiness, setArmedBusiness] = useState(() => armedBusinessTypeId(spaceId));
   const counts = zoneCounts(spaceId);
@@ -115,7 +121,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   };
 
   const armZone = (type: ZoneType) => {
-    armZoneType(spaceId, type);
+    armZoneType(spaceId, type, zoneMode);
     setArmedZone(type);
   };
 
@@ -187,13 +193,38 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
       <h3>Zoning</h3>
       <p style={{ marginTop: 0 }}>
         Free to plan — only building on a zoned tile later costs anything.
-        {armedZone && (
+        {armedZone && armedZoneMode(spaceId) === "tile" && (
           <>
             {" "}
-            — <strong>{ZONE_META[armedZone].label}</strong> is ready to paint: leave here, walk up to an open tile, and press A.
+            — <strong>{ZONE_META[armedZone].label}</strong> (Tile) is ready to paint: leave here, walk up to an open tile, and
+            press A. Stays armed — press A again on the next tile without coming back here; the Town HUD's "Stop" button ends
+            the session.
+          </>
+        )}
+        {armedZone && armedZoneMode(spaceId) === "area" && (
+          <>
+            {" "}
+            — <strong>{ZONE_META[armedZone].label}</strong> (Area) is ready: press A on a corner tile to anchor it, then walk to
+            the opposite corner and press A again to zone the whole rectangle. Stays armed for the next rectangle; the Town
+            HUD's "Stop" button ends the session.
           </>
         )}
       </p>
+      <div role="radiogroup" aria-label="Zoning brush size for the next arm" style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        {(["tile", "area"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="radio"
+            aria-checked={zoneMode === mode}
+            disabled={zoneMode === mode}
+            onClick={() => setZoneMode(mode)}
+            style={actionButtonStyle(zoneMode === mode)}
+          >
+            {mode === "tile" ? "Tile — one at a time" : "Area — a whole rectangle"}
+          </button>
+        ))}
+      </div>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {ZONE_TYPES.map((type) => {
           const isArmed = armedZone === type;

@@ -4,11 +4,18 @@
  * exact arm-then-place interaction town-builder (townBuilder.ts) already built. Zoning itself is
  * free (no treasury spend) — only actually building a home/business on a zoned tile will cost
  * anything, once #66/#67 exist. Pure, localStorage-backed, same convention as townBuilder.ts.
+ *
+ * Zoning rework (docs/overworld/zoning-rework.md, task #77) — real, repeated feedback that
+ * one-tile-at-a-time zoning requiring a fresh Hangar trip per tile is "too slow and doesn't make
+ * sense" for a SimCity-scale game. Two fixes here: arming now PERSISTS across paints (no more
+ * auto-clear per tile), and a new "area" mode lets two interact presses (anchor, then commit)
+ * zone a whole rectangle in one action instead of one tile at a time.
  */
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
 
 export type ZoneType = "residential" | "commercial" | "sidewalk" | "transit";
+export type ZoneMode = "tile" | "area";
 
 export const ZONE_TYPES: readonly ZoneType[] = ["residential", "commercial", "sidewalk", "transit"];
 
@@ -24,6 +31,14 @@ function zonesKey(spaceId: string): string {
 
 function armedKey(spaceId: string): string {
   return `brain.zoning.armed.${spaceId}`;
+}
+
+function armedModeKey(spaceId: string): string {
+  return `brain.zoning.armedMode.${spaceId}`;
+}
+
+function anchorKey(spaceId: string): string {
+  return `brain.zoning.anchor.${spaceId}`;
 }
 
 export function zonedTiles(spaceId: string): ZonedTile[] {
@@ -63,12 +78,28 @@ export function armedZoneType(spaceId: string): ZoneType | null {
   }
 }
 
+/** The armed mode paired with the armed type above — "tile" (one press, one tile) or "area" (an
+ *  anchor press, then a commit press zones a whole rectangle). Defaults to "tile" if unset, so
+ *  any pre-existing armed state from before this mode existed still behaves exactly as before. */
+export function armedZoneMode(spaceId: string): ZoneMode {
+  try {
+    const raw = localStorage.getItem(armedModeKey(spaceId));
+    return raw === "area" ? "area" : "tile";
+  } catch {
+    return "tile";
+  }
+}
+
 /** Arms a zone type for painting — free, unlike town-builder's armItem, since zoning is a
  *  planning decision, not a purchase (docs/overworld/zoning.md decision #3). Arming a second
- *  type re-arms rather than queuing, same convention as town-builder. */
-export function armZoneType(spaceId: string, type: ZoneType): void {
+ *  type (or re-arming the same one in a different mode) re-arms rather than queuing, same
+ *  convention as town-builder, and always discards any pending area anchor from a prior arm
+ *  (zoning-rework.md) since a stale anchor from a different type/mode would be confusing. */
+export function armZoneType(spaceId: string, type: ZoneType, mode: ZoneMode = "tile"): void {
   try {
     localStorage.setItem(armedKey(spaceId), type);
+    localStorage.setItem(armedModeKey(spaceId), mode);
+    localStorage.removeItem(anchorKey(spaceId));
   } catch {
     /* nothing to do — worst case the arm state isn't remembered */
   }
@@ -77,22 +108,85 @@ export function armZoneType(spaceId: string, type: ZoneType): void {
 export function clearArmedZone(spaceId: string): void {
   try {
     localStorage.removeItem(armedKey(spaceId));
+    localStorage.removeItem(armedModeKey(spaceId));
+  } catch {
+    /* nothing to do */
+  }
+}
+
+/** Real disarm entry point for the TownHud's "Stop" button (zoning-rework.md decision #3) — the
+ *  player can stop a zoning session from anywhere in the world, not just the Hangar. Clears the
+ *  arm and any pending anchor together, since a lone leftover anchor with nothing armed is
+ *  meaningless. */
+export function disarmZoning(spaceId: string): void {
+  clearArmedZone(spaceId);
+  clearZoneAnchor(spaceId);
+}
+
+/** The pending first corner of an in-progress area-mode rectangle, or null if none is set. */
+export function zoneAnchor(spaceId: string): { x: number; y: number } | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(anchorKey(spaceId)) || "null");
+    return raw && typeof raw.x === "number" && typeof raw.y === "number" ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setZoneAnchor(spaceId: string, x: number, y: number): void {
+  try {
+    localStorage.setItem(anchorKey(spaceId), JSON.stringify({ x, y }));
+  } catch {
+    /* nothing to do */
+  }
+}
+
+export function clearZoneAnchor(spaceId: string): void {
+  try {
+    localStorage.removeItem(anchorKey(spaceId));
   } catch {
     /* nothing to do */
   }
 }
 
 /** Paints the currently-armed zone type onto a tile the caller has already confirmed is zonable,
- *  overwriting any existing tag there, then clears the armed state (matches town-builder's
- *  one-arm-one-action shape). Returns null and changes nothing if nothing is armed. */
+ *  overwriting any existing tag there. Unlike town-builder's one-arm-one-action shape, the armed
+ *  state is deliberately left in place afterward (zoning-rework.md decision #1) — a real,
+ *  repeated complaint that every tile forced a fresh Hangar trip to re-arm. Returns null and
+ *  changes nothing if nothing is armed. */
 export function zoneTileAt(spaceId: string, x: number, y: number): ZonedTile | null {
   const type = armedZoneType(spaceId);
   if (!type) return null;
   const others = zonedTiles(spaceId).filter((t) => !(t.x === x && t.y === y));
   const tile: ZonedTile = { x, y, type };
   saveZonedTiles(spaceId, [...others, tile]);
-  clearArmedZone(spaceId);
   return tile;
+}
+
+/** Zones every zonable tile in the rectangle spanning two corners (inclusive), in one action —
+ *  the real "a lot of space at one time" fix (zoning-rework.md decision #2). Corners are
+ *  normalized so either can be passed in either order. Blocked tiles are silently skipped, same
+ *  convention `isTileZonable` already uses for a single tile. Does not clear the armed
+ *  type/mode — only the caller's own anchor, once committed, since a player should be able to
+ *  start a new rectangle immediately without returning to the Hangar. Returns an empty array
+ *  (not null) when nothing is armed or the rectangle contains no zonable tile. */
+export function zoneRectangle(spaceId: string, x0: number, y0: number, x1: number, y1: number): ZonedTile[] {
+  const type = armedZoneType(spaceId);
+  if (!type) return [];
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const zoned: ZonedTile[] = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (isTileZonable(spaceId, x, y)) zoned.push({ x, y, type });
+    }
+  }
+  if (zoned.length === 0) return [];
+  const untouched = zonedTiles(spaceId).filter((t) => !zoned.some((z) => z.x === t.x && z.y === t.y));
+  saveZonedTiles(spaceId, [...untouched, ...zoned]);
+  return zoned;
 }
 
 /** An honest per-type count of the player's own zoning plan — never a score, just what's real. */
