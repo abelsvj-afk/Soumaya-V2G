@@ -1275,6 +1275,44 @@ Verified by 8 new `moteLayout.test.ts` cases, 2 new `loadWorldSnapshot.test.ts` 
 full gate (1056 server + 422 web tests, typecheck, build). Not yet seen rendered in a real
 browser from this sandbox.
 
+## Stage 2.39 — Real hybrid LLM + hand-authored NPC dialogue (task #61)
+
+Direct user correction: *"The LLM dialogue was supposed to have already been tied into the
+regular dialogue because it was supposed to be hybrid... prewritten dialogue points mixed in
+with the LLM as well."* Checked against the real decision that shipped it: `npc-society.md`'s
+"Hybrid" choice explicitly deferred the LLM half to "a later stage" — never built until now.
+`soumaya-governance.md` (Stage 2.17) had already folded three concrete requirements into this
+same task: batching many NPCs' generation into fewer LLM calls, staggering display per NPC
+rather than firing on every API response, and not every interaction needing full text.
+`docs/overworld/npc-llm-dialogue.md` (per Rule #1) resolved the design — **split the Mall out
+into its own follow-up task** (the user's actual message never described it; it's a distinct
+building/shop feature) and scoped this round to dialogue only.
+
+**Server**: a new optional `LlmProvider.generateNpcLines(npcs, townState): Promise<string[] |
+null>` (same "absent → caller's own deterministic fallback" convention as `chronicle`/`planJob`/
+`webLookup` — zero existing test fakes needed updating), implemented in `openai.ts`/`gemini.ts`
+with a flat `{ lines: string[] }` schema, wrapped in `resilient.ts`. A new deterministic
+`heuristicNpcLines()` (`analysis/npcLines.ts`) is the REAL always-present base — grounds each
+line in the NPC's own job flavor plus one real town-state fact (treasury, a neglected building,
+node count), never invented, never `Math.random`. New route `POST /api/npc-dialogue` (batched:
+one call for every NPC, never one per NPC) tries the LLM upgrade and falls back to the heuristic
+base on any failure — same "heuristic base + optional cloud upgrade" shape `lore.ts`'s
+evolveLore/chronicle already use.
+
+**Client**: `data/npcLlmDialogue.ts` — a real cooldown (10 minutes) gates how often the batched
+call actually fires; every other refresh cycle is a no-op reusing the cached lines. Three real
+interaction outcomes, picked deterministically by `pickDialogueOutcome(npcId, seed)` (never a
+coin flip): an LLM-flavored line (if cached and fresh), the existing hand-authored pool (the
+default, unchanged), or a gesture-only beat with no dialogue bubble at all — the cheapest
+possible interaction, explicitly named as valid in the reconciliation round that first flagged
+this gap. `ExteriorScene`'s existing per-building Break-time interaction timing is completely
+unchanged — it just looks up the right outcome instead of always calling `dialogueFor()`.
+
+Verified by 6 new `npcLines.test.ts` cases, 4 new `npcDialogueRoute.test.ts` cases, 9 new
+`npcLlmDialogue.test.ts` cases, and the full gate (1066 server + 432 web tests, typecheck,
+build). Not yet tested against a real LLM key from this sandbox, and not yet seen rendered in a
+real browser.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

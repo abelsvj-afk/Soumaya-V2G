@@ -82,6 +82,27 @@ export interface AnswerResult {
   interactionPreferenceSignal?: InteractionPreferenceSignal | null;
 }
 
+/** One Overworld NPC to generate a flavor line for (docs/overworld/npc-llm-dialogue.md,
+ *  task #61). `jobFlavor` is a short plain-language description of what they do (not a full
+ *  line to repeat verbatim), and `relationshipHint` is set only once the two attendants at a
+ *  building have actually become friends (npcRelationships.ts) — never invented. */
+export interface NpcLineRequest {
+  npcId: string;
+  name: string;
+  jobFlavor: string;
+  relationshipHint?: string;
+}
+
+/** Real, already-computed town state (never invented) to ground NPC flavor lines in —
+ *  economy (treasury), health (neglect), growth (counts). No "food"/event/business concept
+ *  gets added here unless it's backed by a real domain signal (npc-llm-dialogue.md decision #5). */
+export interface NpcTownState {
+  treasuryCents: number;
+  neglectedBuildings: string[];
+  nodeCount: number;
+  npcCount: number;
+}
+
 /**
  * LlmProvider is the structured-reasoning seam. Gemini is the default; OpenAI
  * is a drop-in alternate; the heuristic provider keeps everything working with
@@ -153,6 +174,14 @@ export interface LlmProvider {
    *  concise answer with source URLs. Absent/returns null when unavailable (no key,
    *  offline, or blocked) — the web-lookup tool then simply does nothing. */
   webLookup?(query: string): Promise<WebLookupResult | null>;
+  /** Optional: one short flavor line per requested Overworld NPC, in the SAME order as
+   *  `npcs` (docs/overworld/npc-llm-dialogue.md, task #61) — a single batched call for
+   *  every NPC that needs a line this round, never one call per NPC. Grounded in
+   *  `townState`; the model is instructed to reference at most one real fact and never
+   *  invent a concept the data doesn't contain. Absent/returns null when unavailable (no
+   *  key, offline, blocked, or a transient error) — the caller's own deterministic
+   *  template fallback runs, same convention as every other optional method here. */
+  generateNpcLines?(npcs: NpcLineRequest[], townState: NpcTownState): Promise<string[] | null>;
   /** Optional: the agentic tool-router's brain. Given a state briefing and the
    *  DETERMINISTIC candidate tool-invocations this tick, choose which indices to
    *  actually execute (curate for value + avoid noise). Returns the chosen indices.

@@ -7,6 +7,7 @@ import { checkCivicConcern, concernAnnouncementText, markConcernAnnounced } from
 import { buildingNeglect, isNeglected } from "./data/buildingNeglect.js";
 import { detectBankWork } from "./adapter/financeAdapter.js";
 import { recordBuildingWork } from "./data/npcJobs.js";
+import { refreshNpcLinesIfStale } from "./data/npcLlmDialogue.js";
 import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
 import { ExteriorScene, type ExteriorSceneConfig } from "./scenes/ExteriorScene.js";
@@ -152,6 +153,10 @@ export function OverworldRoot() {
       sceneRef.current?.refreshPlacedBusinesses();
       void checkTownMeetingEffect();
       void checkCivicConcernEffect();
+      // npc-llm-dialogue.md, task #61 — a real cooldown-gated batch refresh; a no-op most of
+      // the time (the cache is still fresh), so this is safe to call on every refresh cycle.
+      const spaceIdForNpcLines = getSpaceId();
+      if (spaceIdForNpcLines) void refreshNpcLinesIfStale(spaceIdForNpcLines, next.graph.nodes.length);
       return next;
     } catch (err) {
       // Preserve whatever's already on screen rather than wiping it (App.tsx's own

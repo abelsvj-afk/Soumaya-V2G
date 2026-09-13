@@ -1,6 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type ClarificationInterpretation, type GalaxyNavigationKind } from "@brain/shared";
-import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider, NpcLineRequest, NpcTownState } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
@@ -15,6 +15,7 @@ import {
   PLAN_SYSTEM,
   DISTILL_SYSTEM,
   CONSOLIDATE_SYSTEM,
+  NPC_LINES_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -28,6 +29,7 @@ import {
   buildPlanPrompt,
   buildDistillPrompt,
   buildConsolidatePrompt,
+  buildNpcLinesPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.LLM_MODEL ?? "gemini-2.5-flash";
@@ -200,6 +202,14 @@ const distillSchema = {
     summaries: { type: Type.ARRAY, items: { type: Type.STRING } },
   },
   required: ["summaries"],
+};
+
+const npcLinesSchema = {
+  type: Type.OBJECT,
+  properties: {
+    lines: { type: Type.ARRAY, items: { type: Type.STRING } },
+  },
+  required: ["lines"],
 };
 
 const consolidateSchema = {
@@ -472,5 +482,15 @@ export class GeminiProvider implements LlmProvider {
       distillSchema,
     );
     return Array.isArray(raw.summaries) ? raw.summaries : [];
+  }
+
+  async generateNpcLines(npcs: NpcLineRequest[], townState: NpcTownState): Promise<string[] | null> {
+    if (npcs.length === 0) return [];
+    const raw = await this.json<{ lines: string[] }>(
+      NPC_LINES_SYSTEM,
+      buildNpcLinesPrompt(npcs, townState),
+      npcLinesSchema,
+    );
+    return Array.isArray(raw.lines) && raw.lines.length === npcs.length ? raw.lines : null;
   }
 }

@@ -253,6 +253,25 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real hybrid LLM + hand-authored NPC dialogue (2026-09-13), not yet on-device confirmed** —
+  direct user correction that "Hybrid" dialogue was supposed to already route through the LLM;
+  confirmed the real decision (`npc-society.md`) had explicitly deferred that half to "a later
+  stage." `docs/overworld/npc-llm-dialogue.md` resolved the design and split the Mall into its
+  own follow-up task (the user's actual message never described it — a distinct feature). New
+  optional `LlmProvider.generateNpcLines()` (same "absent → caller's own fallback" convention as
+  `chronicle`/`webLookup`, so no existing test fakes needed updating), implemented in
+  `openai.ts`/`gemini.ts`, wrapped in `resilient.ts`. A new deterministic `heuristicNpcLines()`
+  (`analysis/npcLines.ts`) is the real always-present base, grounding each line in the NPC's own
+  job flavor plus one real town-state fact — never invented. New batched route `POST /api/npc-
+  dialogue` (one call for every NPC, never one per NPC). Client-side: `data/npcLlmDialogue.ts`
+  gates the actual call frequency behind a real 10-minute cooldown; `ExteriorScene`'s existing
+  Break-time interaction now picks deterministically among an LLM-flavored line, the existing
+  hand-authored pool (the default), or a gesture-only beat with no bubble — never a coin flip,
+  and the interaction's own existing timing is unchanged. Verified by 6 new `npcLines.test.ts`
+  cases, 4 new `npcDialogueRoute.test.ts` cases, 9 new `npcLlmDialogue.test.ts` cases, and the
+  full gate (1066 server + 432 web tests, typecheck, build). Not yet tested against a real LLM
+  key from this sandbox, and not yet seen rendered in a real browser.
+
 - **MindSpace's ambient floating-thought overlay (2026-09-13), not yet on-device confirmed** —
   direct user request, reversing an earlier deprioritization. The data (`getThoughts()`, real
   live working-memory list `SanctuaryOverlay.tsx` already manages) was already real; the gap was
