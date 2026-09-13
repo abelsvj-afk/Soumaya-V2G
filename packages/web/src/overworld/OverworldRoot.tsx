@@ -145,6 +145,7 @@ export function OverworldRoot() {
       setSnapshot(next);
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
+      sceneRef.current?.setThoughts(next.thoughts);
       sceneRef.current?.refreshPlacedItems();
       sceneRef.current?.refreshZoneMarkers();
       sceneRef.current?.refreshPlacedHomes();

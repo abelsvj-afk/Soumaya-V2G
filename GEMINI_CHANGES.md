@@ -1,3 +1,26 @@
+### 2026-09-13 (Claude): MindSpace's ambient floating-thought overlay (task #70)
+- [ ] Verified by Claude
+- Direct user request, reversing an earlier deprioritization. See
+  `docs/overworld/mindspace.md` for the full account.
+- The data (`getThoughts()`, real live working-memory list `SanctuaryOverlay.tsx` already
+  manages) was already real; the gap was purely presentational — never visible outside that one
+  building.
+- Resolved design: motes are read-only ambient decoration only (no second interaction surface —
+  managing a thought stays exclusively in the Sanctuary), and orbit the PLAYER rather than any
+  fixed world tile, since a thought has no real location.
+- New pure module `adapter/moteLayout.ts` (`moteOffset`, `strongestThoughts`) — deterministic
+  circular drift per thought hashed from its id, frozen under `prefersReducedMotion()`.
+- Capped at the top 6 by strength; alpha carries strength, scale carries reinforceCount — two
+  independent non-color cues.
+- `WorldSnapshot` gained a `thoughts` field (fetched in `loadWorldSnapshot()`);
+  `ExteriorScene.setThoughts()` mirrors `setCreatures()`'s existing pending/render pattern;
+  `update()` repositions every mote each frame from the player's current position.
+- Deferred: NPC awareness/commentary on the motes (a distinct enhancement idea, not the actual
+  ask).
+- Verified by 8 new `moteLayout.test.ts` cases, 2 new `loadWorldSnapshot.test.ts` cases, and the
+  full gate (1056 server + 422 web tests, typecheck, build). Not yet seen rendered in a real
+  browser.
+
 ### 2026-09-13 (Claude): Mission Control as the Overworld's front door (task #60)
 - [ ] Verified by Claude
 - Direct user request, reversing an earlier deprioritization. See

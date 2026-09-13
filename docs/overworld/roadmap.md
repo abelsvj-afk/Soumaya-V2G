@@ -1239,6 +1239,42 @@ not reuse, same reasoning the pre-Overworld spec gave for deferring it there too
 Verified by 7 new `ObservatoryOverlay.test.tsx` cases and the full gate (1056 server + 412 web
 tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.38 — MindSpace's ambient floating-thought overlay (task #70)
+
+Direct user request, reversing an earlier deprioritization: *"I want you to bring back the mind
+space, mission control."* Tracked since the 2026-09-11 parity audit as *"an always-present
+overlay floating your live working-memory thoughts as glowing 'motes', reading the exact
+`getThoughts()` API `SanctuaryOverlay` already uses, just never as an ambient layer."*
+
+The data was already fully real — `getThoughts()` (`api/mind.ts`) returns the server's live
+working-memory list (text, decayed `strength`, `reinforceCount`); `SanctuaryOverlay.tsx` already
+lists/reinforces/promotes/dismisses these. The gap was purely presentational: nowhere outside
+that one building were thoughts visible. `docs/overworld/mindspace.md` (per Rule #1) resolved the
+design: motes stay **read-only ambient decoration** (managing a thought stays exclusively in the
+Sanctuary — no second, competing interaction surface for the same data), and since a thought has
+no real location (unlike a memory-turned-node's stable seeded-grid tile), motes **orbit the
+player** instead of any fixed world position — a small drifting ring of "💭" that follows you,
+reading as "your live working memory," capped at the top 6 by strength so it never becomes visual
+noise.
+
+New pure module `adapter/moteLayout.ts` (`moteOffset(thoughtId, timeMs)`) computes a deterministic
+circular drift per thought (radius/phase/speed all hashed from the thought id, same no-
+`Math.random` convention as `grassFrameFor`/`idleBobDelayMs`) — a no-op (frozen, non-drifting) under
+`prefersReducedMotion()`, same as every other decorative loop in this scene. A mote's alpha
+carries `strength` and its scale carries `reinforceCount` — two independent non-color cues for two
+independent real numbers, never color alone. `WorldSnapshot` gained a `thoughts` field (fetched
+alongside everything else in `loadWorldSnapshot()`); `ExteriorScene.setThoughts()` mirrors
+`setCreatures()`'s existing pending/render pattern, and `update()` repositions every mote each
+frame from the player's current on-screen position.
+
+NPC awareness/commentary on the motes — a real enhancement idea, but distinct from the user's
+actual ask (the ambient overlay itself) per the parity audit's own wording — stays explicitly
+deferred to its own follow-up.
+
+Verified by 8 new `moteLayout.test.ts` cases, 2 new `loadWorldSnapshot.test.ts` cases, and the
+full gate (1056 server + 422 web tests, typecheck, build). Not yet seen rendered in a real
+browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
