@@ -83,6 +83,8 @@ import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { loadUnlocked } from "../../components/achievements.js";
+import type { Thought } from "../../api/mind.js";
+import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
 
 export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
@@ -180,6 +182,12 @@ export class ExteriorScene extends Phaser.Scene {
   private movement!: MovementState;
   private pendingCreatures: CreatureEntity[] = [];
   private creatureSprites = new Map<number, CreatureSprite>();
+  /** MindSpace (docs/overworld/mindspace.md, task #70) — the ambient floating-thought motes,
+   *  keyed by thought id (mirrors `creatureSprites`'s own keying), capped to the strongest few
+   *  (strongestThoughts) rather than one per thought ever logged. Purely decorative — read-only,
+   *  no interact handling; managing a thought stays exclusively in SanctuaryOverlay.tsx. */
+  private moteSprites = new Map<number, Phaser.GameObjects.Text>();
+  private pendingThoughts: Thought[] = [];
   private attendantSprites: AttendantSprite[] = [];
   /** NPC Society (docs/overworld/npc-society.md, rolled out to all 10 buildings by
    *  npc-economy.md) — one shared clock so every building's two attendants can be checked
@@ -311,6 +319,8 @@ export class ExteriorScene extends Phaser.Scene {
     this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,ENTER") ?? {};
     this.unsubscribe = this.inputBus.subscribe((event) => this.handleInput(event));
     this.startIdleBob();
+    // MindSpace (mindspace.md) — after this.player exists, since motes anchor to its position.
+    this.renderMotes(this.pendingThoughts);
     this.created = true;
   }
 
@@ -1274,6 +1284,40 @@ export class ExteriorScene extends Phaser.Scene {
     if (this.created) this.renderCreatures(creatures);
   }
 
+  /** MindSpace (mindspace.md) — called by OverworldRoot.tsx on every reconciliation, same
+   *  convention as setCreatures above. Replaces the whole mote set each time rather than
+   *  diffing, since the list is small (capped at 6) and thoughts can reorder by strength on
+   *  every refresh anyway. */
+  setThoughts(thoughts: Thought[]): void {
+    this.pendingThoughts = thoughts;
+    if (this.created) this.renderMotes(thoughts);
+  }
+
+  private renderMotes(thoughts: Thought[]): void {
+    for (const sprite of this.moteSprites.values()) sprite.destroy();
+    this.moteSprites.clear();
+    for (const thought of strongestThoughts(thoughts)) {
+      const mote = this.add.text(this.player.x, this.player.y, "💭", { fontSize: "12px" });
+      mote.setOrigin(0.5);
+      mote.setAlpha(0.3 + thought.strength * 0.7); // never fully invisible, never opaque-flat
+      mote.setScale(0.8 + Math.min(thought.reinforceCount, 5) * 0.08); // reinforced = visibly bigger
+      mote.setDepth(2); // above zone/post markers, below dialogue/UI
+      this.moteSprites.set(thought.id, mote);
+    }
+  }
+
+  /** Repositions every mote around the player's current on-screen position — called every frame
+   *  from update(). A no-op loop (frozen at time 0) under prefersReducedMotion() so motes still
+   *  render but never drift, matching every other decorative loop in this scene. */
+  private updateMotes(): void {
+    if (this.moteSprites.size === 0) return;
+    const timeMs = prefersReducedMotion() ? 0 : this.time.now;
+    for (const [thoughtId, mote] of this.moteSprites) {
+      const { dx, dy } = moteOffset(thoughtId, timeMs);
+      mote.setPosition(this.player.x + dx, this.player.y + dy);
+    }
+  }
+
   private renderCreatures(creatures: CreatureEntity[]): void {
     const seen = new Set<number>();
     for (const entity of creatures) {
@@ -1640,6 +1684,7 @@ export class ExteriorScene extends Phaser.Scene {
     const justPressed =
       (space && Phaser.Input.Keyboard.JustDown(space)) || (enter && Phaser.Input.Keyboard.JustDown(enter));
     if (justPressed) this.inputBus.emit({ type: "interact" });
+    this.updateMotes();
   }
 
   shutdown(): void {
@@ -1651,5 +1696,7 @@ export class ExteriorScene extends Phaser.Scene {
     for (const sprite of this.creatureSprites.values()) sprite.roamTimer?.remove();
     this.creatureSprites.clear();
     this.attendantSprites = [];
+    for (const mote of this.moteSprites.values()) mote.destroy();
+    this.moteSprites.clear();
   }
 }

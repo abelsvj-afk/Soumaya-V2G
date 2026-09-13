@@ -75,4 +75,16 @@ describe("buildWorldSnapshot", () => {
     expect(byId.get(2)?.dueForRecall).toBe(false);
     expect(snapshot.dueReviews).toEqual(dueReviews);
   });
+
+  it("carries the live working-memory list through for the ambient mote overlay (mindspace.md)", () => {
+    const graph: GraphData = { nodes: [], links: [] };
+    const thoughts = [{ id: 1, text: "call mom", source: "manual", strength: 0.8, reinforceCount: 2, createdAt: "" }];
+    const snapshot = buildWorldSnapshot(graph, [], null, null, null, [], null, thoughts);
+    expect(snapshot.thoughts).toEqual(thoughts);
+  });
+
+  it("defaults thoughts to an empty array when not provided", () => {
+    const snapshot = buildWorldSnapshot({ nodes: [], links: [] }, [], null);
+    expect(snapshot.thoughts).toEqual([]);
+  });
 });

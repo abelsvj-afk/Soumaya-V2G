@@ -2,6 +2,7 @@ import type { Fuel, GraphData, MoneyStar, Streak } from "@brain/shared";
 import { getFuel, getGraph, getStreak, tendNode } from "../../api/client.js";
 import { getFinanceSummary, getMoneySky, type FinanceSummary } from "../../api/finance.js";
 import { getDueReviews, type DueReview } from "../../api/features.js";
+import { getThoughts, type Thought } from "../../api/mind.js";
 import { getSpaceId } from "../../api/http.js";
 import { nodeToCreature } from "../adapter/nodeToCreature.js";
 import { moneyStarsToBankRows } from "../adapter/financeAdapter.js";
@@ -23,6 +24,10 @@ export interface WorldSnapshot {
   /** spaced-repetition.md — the server's current SM-2 due list, kept around so Soumaya's chat
    *  can nudge by name without a second fetch. Never re-derived client-side. */
   dueReviews: DueReview[];
+  /** mindspace.md — the server's live working-memory list, kept around so the ambient
+   *  floating-thought overlay doesn't need its own separate fetch (same convention as
+   *  dueReviews above). Never re-derived client-side. */
+  thoughts: Thought[];
 }
 
 /**
@@ -45,6 +50,7 @@ export function buildWorldSnapshot(
   streak: Streak | null = null,
   dueReviews: DueReview[] = [],
   spaceId: string | null = null,
+  thoughts: Thought[] = [],
 ): WorldSnapshot {
   const dueIds = new Set(dueReviews.map((d) => d.id));
   const unplaced = graph.nodes
@@ -67,6 +73,7 @@ export function buildWorldSnapshot(
     fuel,
     streak,
     dueReviews,
+    thoughts,
   };
 }
 
@@ -85,18 +92,19 @@ export function buildWorldSnapshot(
  * anything itself).
  */
 export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
-  const [graph, moneySky, financeSummary, fuel, streak, dueReviews] = await Promise.all([
+  const [graph, moneySky, financeSummary, fuel, streak, dueReviews, thoughts] = await Promise.all([
     getGraph(GRAPH_FETCH_LIMIT),
     getMoneySky(),
     getFinanceSummary(),
     getFuel(),
     getStreak(),
     getDueReviews(),
+    getThoughts(),
   ]);
   const freshAchievements = syncAchievements(graph, fuel, streak);
   const spaceId = getSpaceId();
   if (spaceId && freshAchievements.length > 0) recordBuildingWork(spaceId, "gym");
-  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId);
+  return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId, thoughts);
 }
 
 /** FR11 — the greet action. Fire-and-forget by design (matches tendNode itself); callers
