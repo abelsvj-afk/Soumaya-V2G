@@ -352,6 +352,20 @@ export class ExteriorScene extends Phaser.Scene {
     return img;
   }
 
+  /** A permanent ground marker at an attendant post tile — always visible regardless of that
+   *  attendant's own current Working/Break/Home visibility (see drawGround's own comment for
+   *  why). Depth 0.5: above bare ground, below the attendant sprite itself and every creature/
+   *  building layer, so it never competes with anything else for the same pixels. */
+  private addPostMarker(tile: { x: number; y: number }): void {
+    const marker = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, "▪", {
+      fontSize: "10px",
+      color: "#8888aa",
+    });
+    marker.setOrigin(0.5);
+    marker.setAlpha(0.35);
+    marker.setDepth(0.5);
+  }
+
   private drawGround(): void {
     // Base ground layer: grass everywhere, with the FR8 grass-zone and the cosmetic town-square
     // path patch swapped in. Building interiors get painted over below (they're never walked on).
@@ -403,6 +417,22 @@ export class ExteriorScene extends Phaser.Scene {
       this.tileAt(x0 + 4, y1, TileFrame.mushroom, 2);
     }
 
+    // Real bug fix (2026-09-13) — a real user report: "there should be no NPCs that go
+    // invisible and block you... it's hard to walk around in that vicinity around doors."
+    // Measured first, not assumed: a real ASCII-map probe of a typical building's door showed
+    // the door approach itself is genuinely wide open (4 clear tiles). The real, provable
+    // mismatch is elsewhere — each attendant's own two post tiles (regionLayout.ts's
+    // `isAttendantTile`) stay impassable at ALL times, including while that attendant is
+    // genuinely invisible (Working, gone inside — applySocietyState). Nothing was ever drawn
+    // there while hidden, so a permanently-blocked tile with nothing visible on it read as a
+    // mysterious invisible obstacle. A permanent low-alpha marker — NOT tied to the attendant
+    // sprite's own visibility — now always explains why that ground is reserved, whether or not
+    // the attendant is currently standing there.
+    for (const post of attendantPosts()) {
+      this.addPostMarker(post.a);
+      this.addPostMarker(post.b);
+    }
+
     // Standalone objects — the Bulletin Board is a real signpost and stays fixed here. Soumaya
     // is excluded: she's a real autonomous companion now (spawnSoumaya, Stage 2.17), drawn and
     // moved as her own dynamic sprite instead of a static ground-layer image.
@@ -449,7 +479,14 @@ export class ExteriorScene extends Phaser.Scene {
    *  rather than aimless wandering, and restores the autonomous role she had in the deleted 3D
    *  galaxy (she used to fly to every memory on her own; here she walks to every building).
    *  Skips silently (tolerate-gracefully, same as every other NPC pathing call in this scene)
-   *  while a React overlay owns input focus, mid-leg already, or no route currently exists. */
+   *  while a React overlay owns input focus, mid-leg already, or no route currently exists.
+   *
+   *  Real user feedback (2026-09-13): she was "always running around... in circles," never
+   *  actually stopping anywhere, with no way to enter a building the way the player can (she'd
+   *  just stand stuck at the door). `soumaya.walking` now stays true through a real dwell
+   *  period after each leg completes — not just the walk itself — so the 7s wander timer can't
+   *  immediately start the next leg; `walkSoumayaPath`'s own `onComplete` (below) is what
+   *  finally clears it once the dwell ends. */
   private tickSoumayaWander(): void {
     const soumaya = this.soumaya;
     if (!soumaya || this.paused || soumaya.walking) return;
@@ -460,8 +497,19 @@ export class ExteriorScene extends Phaser.Scene {
     const path = findPath(soumaya.currentTile, destination, NPC_PATH_GRID);
     if (!path) return;
     soumaya.walking = true;
+    // Alternates real, visible variety, deterministic per stop (never Math.random, matching
+    // this scene's own desync convention) — half her stops she genuinely enters the building
+    // (disappears at its door, same as a Working attendant does at theirs), half she's found
+    // dwelling right there, visibly doing her rounds. Either way: a real pause, not an instant
+    // pivot to the next leg.
+    const entersBuilding = this.soumayaTourIndex % 2 === 0;
     this.walkSoumayaPath(path, () => {
-      soumaya.walking = false;
+      if (entersBuilding) soumaya.body.setVisible(false);
+      const dwellMs = prefersReducedMotion() ? 300 : 12000;
+      this.time.delayedCall(dwellMs, () => {
+        soumaya.body.setVisible(true);
+        soumaya.walking = false;
+      });
     });
   }
 
@@ -1458,7 +1506,9 @@ export class ExteriorScene extends Phaser.Scene {
     }
     // Checked against her real current tile, not her fixed home anchor — she wanders now
     // (Stage 2.17), the same "current position, not placement anchor" rule creatures use above.
-    if (this.soumaya && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y) {
+    // `body.visible` also gates this now (2026-09-13) — while she's genuinely inside a building
+    // (tickSoumayaWander's real dwell), she isn't there to greet, same as a Working attendant.
+    if (this.soumaya?.body.visible && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y) {
       this.events.emit("enter-place", "soumaya" satisfies PlaceId);
       return;
     }

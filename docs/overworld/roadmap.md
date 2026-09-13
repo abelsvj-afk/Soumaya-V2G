@@ -1116,6 +1116,57 @@ verification of the patched atlas against its real source, and the full gate (10
 web tests, typecheck, build) — confirmed the patched `tiles.png` is byte-identical between
 `public/` and the built `dist/`. Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.35 — Real on-device bug fixes from live feedback (button overlap, invisible NPCs, Soumaya)
+
+Direct response to a real, detailed voice-transcribed feedback pass — four concrete, provable
+bugs fixed this round (the larger asks from that same message — MindSpace, Mission Control,
+hybrid LLM dialogue/Mall, SimCity-scale zoning, building-art diversity, an overlay quality audit,
+building interiors, and an NPC entertainment/theater system — are tracked separately as active,
+not deprioritized, work).
+
+**1. Two in-game buttons hidden behind the logout button.** Confirmed by reading `AuthGate.tsx`:
+its "Log out" button is `position: fixed, top: 8, right: 8, z-index: 10` — the exact same corner
+`OverworldRoot.tsx`'s Settings/Next-track/Mute row claimed at `z-index: 1`, so 2 of the 3 buttons
+rendered fully hidden underneath it. Fixed by moving that row down (`top: 44`) below the logout
+button's real height instead of contesting the same pixels.
+
+**2. "Invisible NPCs blocking the area around doors."** Measured first, not assumed: a real
+ASCII passability-map probe (`probe.ts`, written then deleted) around the Bank building, using
+the actual `isMovementPassable`/`allPlaces` functions, showed the door approach itself is
+genuinely 4 tiles wide and clear — disproving a "tight door" theory. The real, provable mismatch:
+each attendant's own two post tiles (`regionLayout.ts`'s `isAttendantTile`) stay impassable at
+ALL times, including while that attendant is genuinely invisible (Working, gone inside). Nothing
+was ever drawn there while hidden, so a permanently-blocked tile with nothing visible on it read
+as a mysterious invisible obstacle. Fixed with a permanent, low-alpha "▪" ground marker at every
+post tile (`addPostMarker`), independent of the attendant's own visibility — it now always
+explains why that ground is reserved. Deliberately did NOT make passability itself time-
+dependent (the lower-risk fix): `isAttendantTile`/`isMovementPassable` stay pure and static,
+protecting the player's core movement engine and `regionLayout.test.ts`'s static-passability
+assumptions from a change this round didn't need to make.
+
+**3. "We have her as a male wizard in a purple outfit... she's female."** Confirmed accurate by
+building a labeled contact sheet of the same already-approved Tiny Dungeon CC0 pack — frame 15
+(`soumayaMarker`) was genuinely a male-presenting wizard sprite. Repainted with a real
+female-presenting Tiny Dungeon tile (source index 99: long reddish-brown hair, purple/pink
+dress), pixel-diff-verified against the real source before/after, confirmed no other frame was
+disturbed via a full 36-frame contact sheet re-check.
+
+**4. "She's always running around... doing your job isn't literally just running in circles...
+she also needs the ability to enter buildings just like me."** `tickSoumayaWander()` rewritten to
+add real dwell time (12000ms, or 300ms under `prefersReducedMotion()`) after every leg, and to
+deterministically alternate (by a running tour index, never `Math.random`) between two outcomes
+per stop: "enters the building" (her body sprite hides, mirroring the existing attendant
+Working-state convention) and "found dwelling outside" (stays visible). The player's own greet-
+Soumaya interaction now checks `this.soumaya?.body.visible` first — she can't be greeted while
+genuinely "inside" a building, closing the loop the user's own bug report named ("no NPCs that go
+invisible" applies here too — she's now only ever hidden with a load-bearing reason, same as
+every attendant).
+
+Verified by the full gate (1056 server + 391 web tests, typecheck, build) and a `cmp` confirming
+the twice-patched `tiles.png` (Park decor + this round's Soumaya sprite) is byte-identical
+between `public/` and the built `dist/`. None of these four fixes has been seen rendered in a
+real browser from this sandbox yet.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

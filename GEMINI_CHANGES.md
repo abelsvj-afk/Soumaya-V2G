@@ -1,3 +1,30 @@
+### 2026-09-13 (Claude): Real on-device bug fixes from live feedback — button overlap, invisible NPCs, Soumaya sprite/behavior
+- [ ] Verified by Claude
+- Direct response to a real, detailed voice-transcribed feedback pass. See
+  `docs/overworld/roadmap.md`'s "Stage 2.35" for the full account. Four concrete, provable bugs
+  fixed this round; the pass's larger asks (MindSpace, Mission Control, hybrid LLM dialogue/Mall,
+  SimCity-scale zoning, building-art diversity, an overlay quality audit, building interiors, an
+  NPC entertainment system) are tracked as active work, not deprioritized.
+- **Button overlap**: `AuthGate.tsx`'s "Log out" button (`position: fixed, top: 8, right: 8,
+  z-index: 10`) was hiding 2 of `OverworldRoot.tsx`'s 3 in-game buttons at the same corner
+  (`z-index: 1`). Fixed by moving that row to `top: 44`.
+- **Invisible NPCs blocking doors**: measured first via a real ASCII passability-map probe
+  (written then deleted) — disproved a "tight door" theory (the real approach is 4 clear tiles).
+  Found the real cause: attendant post tiles (`regionLayout.ts`'s `isAttendantTile`) stay
+  impassable even while that attendant is invisible (Working). Fixed with a permanent low-alpha
+  "▪" ground marker at every post tile, independent of the attendant's own visibility — left
+  passability logic itself untouched (lower risk to the player's core movement engine).
+- **Soumaya's sprite**: confirmed genuinely male-presenting (a wizard) via a labeled contact
+  sheet of the same already-approved Tiny Dungeon CC0 pack; repainted frame 15 with a real
+  female-presenting tile (source index 99), pixel-diff-verified before/after.
+- **Soumaya's behavior**: `tickSoumayaWander()` now adds real dwell time (12000ms / 300ms under
+  reduced motion) and deterministically alternates entering a building (hidden, same convention
+  as attendant Working state) vs. dwelling visibly outside, instead of perpetual motion. The
+  player's greet-her check now gates on her body's own visibility.
+- Verified by the full gate (1056 server + 391 web tests, typecheck, build) + a `cmp` confirming
+  the twice-patched `tiles.png` is byte-identical in the built `dist/`. Not yet seen rendered in
+  a real browser.
+
 ### 2026-09-12 (Claude): Real Park decor from CC0 assets already in use (task #74)
 - [ ] Verified by Claude
 - Task #74 asked to "source real free/CC0 assets" — most of that was already done (the whole

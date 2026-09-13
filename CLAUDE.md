@@ -253,6 +253,31 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real on-device bug fixes from live feedback (2026-09-13), not yet on-device confirmed** —
+  direct response to a real, detailed voice-transcribed feedback pass. Four concrete, provable
+  bugs fixed (see `docs/overworld/roadmap.md`'s "Stage 2.35" for the full account): (1) two
+  in-game buttons (Settings/Next-track/Mute) were fully hidden behind `AuthGate.tsx`'s
+  higher-z-index "Log out" button, both claiming the same top-right corner — moved the row down
+  below it; (2) "invisible NPCs blocking around doors" — measured first via a real ASCII
+  passability-map probe (disproved a "tight door" theory: the real approach is 4 tiles wide and
+  clear), then found the real cause — each attendant's own post tiles stay impassable even while
+  that attendant is genuinely invisible (Working) — and fixed it with a permanent low-alpha
+  ground marker at every post tile, independent of the attendant's own visibility, rather than
+  touching passability logic itself; (3) Soumaya's sprite was a genuinely male-presenting wizard
+  (confirmed via a labeled contact sheet of the same already-approved Tiny Dungeon CC0 pack) —
+  repainted with a real female-presenting tile, pixel-diff-verified; (4) Soumaya now has real
+  dwell time and alternates between entering a building (hidden, mirroring the attendant
+  Working-state convention) and dwelling visibly outside, instead of perpetual motion — the
+  player's greet-her interaction now checks her visibility first. Still open from the same
+  feedback pass, tracked as active work, not deprioritized: MindSpace, Mission Control, real
+  hybrid LLM+static NPC dialogue and the Mall, a SimCity-scale zoning rework (persistent arm
+  state + multi-tile area painting), distinct art for residential/future-commercial buildings, a
+  full overlay/menu quality-parity audit against the old galaxy-era panels, literal walk-in
+  building interiors, and an NPC economy/entertainment (theater/news) system fed by the Lore
+  engine. Verified by the full gate (1056 server + 391 web tests, typecheck, build) + a `cmp`
+  confirming the patched `tiles.png` is byte-identical in the built `dist/`. Not yet seen
+  rendered in a real browser from this sandbox.
+
 - **Real Park decor from CC0 assets already in use (2026-09-12), not yet on-device confirmed** —
   most of task #74's asset-sourcing was already done (the tileset is real Kenney CC0 "Tiny
   Town"/"Tiny Dungeon"); confirmed by reading the real credits/atlas first
