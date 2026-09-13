@@ -1,6 +1,7 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { businessNeglect, businessTypeById, placedBusinesses } from "../data/business.js";
-import { housingSummary } from "../data/housing.js";
+import { homeTypeById, housingSummary, placedHomes, residentsOfHome } from "../data/housing.js";
+import { npcProfile } from "../data/npcDialogue.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { zoneCounts, ZONE_TYPES } from "../data/zoning.js";
 import { allPlaces } from "../scenes/regionLayout.js";
@@ -24,6 +25,12 @@ function formatCents(cents: number): string {
  * plan (zoning.ts), and now real housing (housing.ts, task #66) already real elsewhere, put next
  * to each other at the town level for the first time. Read-only this round — no interaction
  * exists yet to credit as real work.
+ *
+ * Overlay quality-parity audit (2026-09-13, task #79) — `homeForNpc`/`residentsOfHome`
+ * (housing.ts) had zero callers anywhere in the codebase, even though `HangarOverlay.tsx`'s own
+ * doc comment already promised "the honest who-lives-where summary lives in Mayor's Hall" —
+ * only the aggregate counts actually did. The per-home resident breakdown below makes that
+ * promise real.
  */
 export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) {
   const balance = treasuryBalanceCents(spaceId);
@@ -31,6 +38,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
   const doorPlaces = allPlaces().filter((p) => p.kind === "door" && p.id !== "mayorsHall");
   const neglectedCount = doorPlaces.filter((p) => isNeglected(buildingNeglect(spaceId, p.id))).length;
   const housing = housingSummary(spaceId);
+  const homes = placedHomes(spaceId);
   const businesses = placedBusinesses(spaceId);
 
   return (
@@ -67,6 +75,20 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
           ? `None of the town's ${housing.total} residents have a home yet — build one in the Hangar on residential-zoned land.`
           : `${housing.housed} of ${housing.total} residents have a real home — ${housing.livingAlone} living alone, ${housing.sharing} sharing a home with others.`}
       </p>
+      {homes.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          {homes.map((home) => {
+            const type = homeTypeById(home.typeId);
+            const residents = residentsOfHome(spaceId, home.id).map((id) => npcProfile(id).name);
+            return (
+              <li key={home.id} style={{ padding: "4px 0", borderBottom: "1px solid #2a2c55" }}>
+                <span aria-hidden="true">{type?.icon ?? "🏠"}</span> {type?.name ?? "Home"} —{" "}
+                {residents.length === 0 ? "no one assigned yet" : residents.join(", ")}
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       <h3>Business Neglect</h3>
       <p style={{ marginTop: 0 }}>

@@ -1313,6 +1313,47 @@ Verified by 6 new `npcLines.test.ts` cases, 4 new `npcDialogueRoute.test.ts` cas
 build). Not yet tested against a real LLM key from this sandbox, and not yet seen rendered in a
 real browser.
 
+## Stage 2.40 — Overlay/menu quality-parity audit: real gaps closed (task #79)
+
+Direct response to detailed real feedback that the overlays are "broken" compared to the old
+galaxy-era menus — "missing things, missing sections... missing interactions, missing places to
+put content in." Rather than a redesign, ran a concrete, evidence-based audit: read every
+overlay in `packages/web/src/overworld/ui/*.tsx` and diffed its real usage against every export
+of the API/data module(s) it imports, looking for real capabilities with zero UI hook. Found and
+closed three concrete gaps (a fourth, Lenses' other 7 query fields, was already a deliberate,
+documented deferral from task #72 — not a real oversight, left as-is):
+
+1. **Town Hall's Journey links were read-only.** `linkToJourney`/`unlinkFromJourney` had zero
+   call sites despite being fully real, working, server-backed actions. An expanded Journey now
+   has a real "Link a memory" picker (scoped to `kind: "node"` — the other real link kinds
+   belong to their own buildings, not invented here) and an Unlink button per linked item.
+
+2. **Mayor's Hall's housing section only ever showed aggregate counts.** `homeForNpc`/
+   `residentsOfHome` (housing.ts) had zero callers, even though `HangarOverlay.tsx`'s own doc
+   comment already promised "the honest who-lives-where summary lives in Mayor's Hall." A new
+   per-home list now names which real Society NPCs actually live in each built home.
+
+3. **Sanctuary was missing three whole real sub-features** (`docs/overworld/sanctuary-
+   inquiries-candidates.md`) — Inquiries, Suggested Connections (Candidates), and Person
+   suggestions, all fully real and server-backed in `api/mind.ts`, all with zero UI anywhere.
+   The single largest unused-surface finding in the audit. Inquiries and Candidates get full
+   parity (answer/dismiss/reject; accept/dismiss) — the same list-with-actions shape
+   `ObservatoryOverlay.tsx` already uses for Insights. Person suggestions get a real list +
+   "Not a person" dismiss only; `getPersonProfile` (a full detail view) is deliberately deferred
+   since it implies a navigation pattern that doesn't exist anywhere in the Overworld yet.
+
+Also fixed, found while working on the LLM-dialogue round (task #61): `llm/prompts.ts`'s
+`SECTOR_SYSTEM`/`LOG_SYSTEM` still instructed the model to write in space/galaxy language
+("charting a region of a galaxy," "Captain's Log... evolution of the galaxy") even though these
+prompts feed real, currently-live features (idea clustering, node summaries, the daily log).
+Rewrote both prompts' own prose to be plain and grounded, explicitly told never to mention outer
+space/a galaxy/a spaceship — scoped to the prompt text only, not the underlying feature/job
+naming (a separate, larger, riskier rename with its own blast radius across ops/maintenance).
+
+Verified by 4 new `TownHallOverlay.test.tsx` cases, 1 new `MayorsHallOverlay.test.tsx` case, 5
+new `SanctuaryOverlay.test.tsx` cases, and the full gate (1066 server + 442 web tests, typecheck,
+build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

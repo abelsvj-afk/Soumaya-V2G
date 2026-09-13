@@ -66,6 +66,22 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     expect(screen.getByText(/1 of \d+ residents have a real home — 1 living alone, 0 sharing/)).toBeTruthy();
   });
 
+  it("overlay quality-parity audit (task #79) — shows the real per-home resident breakdown, not just aggregate counts", () => {
+    for (let y = 10; y <= 17; y++) {
+      for (let x = 2; x <= 9; x++) {
+        armZoneType("space-1", "residential");
+        zoneTileAt("space-1", x, y);
+      }
+    }
+    for (let i = 0; i < 12; i++) creditHour("space-1", "bank");
+    armHomeType("space-1", "cottage");
+    placeArmedHome("space-1", 2, 10);
+    render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+    // Cottage (capacity 1) is deterministically assigned the first real Society NPC
+    // (npcDialogue.ts's own PROFILE_LIST order — Priya, Bank's teller).
+    expect(screen.getByText(/Cottage — Priya/)).toBeTruthy();
+  });
+
   it("reports no real businesses built on a fresh town, never a fake one", () => {
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/No real businesses built yet/)).toBeTruthy();

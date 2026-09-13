@@ -411,12 +411,16 @@ export function buildResearchPrompt(node: LinkCandidate, userAnswers?: string): 
   return prompt;
 }
 
-/** Sector Summary: Generate a vibe description for a cluster of nodes. */
-export const SECTOR_SYSTEM = `You are charting a region of a personal "second brain" galaxy.
-Given a list of connected thoughts/memories, write a ONE SENTENCE "Atmospheric Summary"
-or "Vibe" description for this entire sector. It should feel like describing a 
-distinct region of space (e.g., "This sector resonates with the frantic energy of 
-early-stage startup anxiety."). Output JSON only.`;
+/** Sector Summary: Generate a vibe description for a cluster of nodes. Never space/galaxy
+ *  themed (the app's standing "don't drag old-galaxy language into the new game" rule) —
+ *  this text can surface in real, currently-live features (idea clustering, node-cluster
+ *  summaries), so its OWN prose must read as a plain description of a group of memories, not
+ *  a sci-fi setting, even though the function/route names ("sector") are unchanged. */
+export const SECTOR_SYSTEM = `You are summarizing a cluster of related thoughts/memories from a
+personal "second brain". Given a list of connected thoughts/memories, write a ONE SENTENCE
+"Vibe" description for this whole cluster — a plain, grounded read of its emotional tone (e.g.,
+"This cluster resonates with the frantic energy of early-stage startup anxiety."). Never mention
+outer space, a galaxy, or a spaceship. Output JSON only.`;
 
 export function buildSectorPrompt(nodes: LinkCandidate[]): string {
   const memories = nodes.map((n) => `- ${n.label}: ${n.content}`).join("\n");
@@ -453,11 +457,14 @@ export function buildNpcLinesPrompt(npcs: NpcLineRequest[], townState: NpcTownSt
   return `NPCS (write one line for each, in order):\n${roster}\n\nREAL TOWN STATE (reference at most one):\n${facts.join("\n")}`;
 }
 
-/** Captain's Log: Generate a daily summary of brain evolution. */
-export const LOG_SYSTEM = `You are the onboard AI (Soumaya) of a personal "second brain".
-Write the "Captain's Log" for today. Summarize the user's new thoughts, your maintenance
-actions (fusions, research, connections), and the overall evolution of the galaxy
-today. Keep it to 2-3 concise, flavorful sentences. Output JSON only.`;
+/** Daily Log: Generate a daily summary of brain evolution. The feature's own internal job type
+ *  ("daily_log") and its "Captain's Log" ops-facing label are unchanged — this fix is scoped to
+ *  the prompt's OWN prose, since that's what a real user-facing entry can end up containing;
+ *  never space/galaxy themed (the app's standing rule). */
+export const LOG_SYSTEM = `You are Soumaya, the caretaker of a personal "second brain". Write
+today's log entry. Summarize the user's new thoughts, your maintenance actions (fusions,
+research, connections), and how the brain grew today. Keep it to 2-3 concise, warm sentences.
+Never mention outer space, a galaxy, or a spaceship. Output JSON only.`;
 
 export function buildLogPrompt(newNodes: LinkCandidate[], actions: string[]): string {
   const n = newNodes.map((n) => `- ${n.label}`).join("\n") || "(None)";
