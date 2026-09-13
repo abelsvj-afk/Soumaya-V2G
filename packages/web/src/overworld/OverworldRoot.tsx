@@ -359,7 +359,12 @@ export function OverworldRoot() {
     <div style={{ position: "relative", width: "100%", height: "100dvh" }}>
       <div ref={containerRef} data-testid="overworld-canvas-root" style={{ width: "100%", height: "100%" }} />
       {snapshot && <TownHud spaceId={spaceId} fuel={snapshot.fuel} streak={snapshot.streak} />}
-      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 1, display: "flex", gap: 4 }}>
+      {/* Real bug fix (2026-09-13): AuthGate.tsx's own "Log out" button is `position: fixed,
+          top: 8, right: 8, z-index: 10` — the exact same corner this row used to claim at
+          z-index 1, so the higher-z-index logout button rendered on top of and hid 2 of these
+          3 buttons. Pushed down below the logout button's real height instead of fighting it
+          for the same pixels. */}
+      <div style={{ position: "absolute", top: 44, right: 8, zIndex: 1, display: "flex", gap: 4 }}>
         <button
           type="button"
           aria-label="Settings & Help"
