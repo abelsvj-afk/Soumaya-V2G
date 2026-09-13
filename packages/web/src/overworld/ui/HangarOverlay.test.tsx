@@ -78,6 +78,22 @@ describe("HangarOverlay", () => {
       expect(screen.getByText("Commercial")).toBeTruthy();
       expect(screen.getAllByText("Armed")).toHaveLength(1);
     });
+
+    it("zoning-rework.md — arming a type stays armed after painting, no auto-clear", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Zone")[0]!); // Residential
+      // Re-rendering the same overlay still shows the arm as active (reads real localStorage
+      // state directly, same convention as the Treasury balance) — never auto-cleared.
+      expect(screen.getByText("Residential")).toBeTruthy();
+      expect(screen.getByText(/Tile\) is ready to paint/)).toBeTruthy();
+    });
+
+    it("zoning-rework.md — switching to Area mode before arming shows the two-press instructions", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getByText("Area — a whole rectangle"));
+      fireEvent.click(screen.getAllByText("Zone")[0]!); // Residential, now armed in Area mode
+      expect(screen.getByText(/Area\) is ready: press A on a corner tile/)).toBeTruthy();
+    });
   });
 
   describe("Housing (housing.md)", () => {

@@ -1,3 +1,27 @@
+### 2026-09-13 (Claude): Zoning at true SimCity scale (task #77)
+- [ ] Verified by Claude
+- Direct response to the single most emphatic, repeated real complaint: one-tile-at-a-time
+  zoning that forced a fresh Hangar trip after every tile. See
+  `docs/overworld/zoning-rework.md` for the full account.
+- Confirmed by reading the shipped `data/zoning.ts` first: `zoneTileAt()`'s last line really was
+  `clearArmedZone()`, and there was no way to zone more than one 1x1 tile per interact press.
+- **Fix 1 — persistent arm**: `zoneTileAt()` no longer clears the armed state. Arm once in the
+  Hangar, paint indefinitely.
+- **Fix 2 — Area mode**: a new Tile/Area toggle in the Hangar's Zoning section. In Area mode, the
+  first interact press sets an anchor; the second, anywhere else, commits the whole rectangle
+  between the two corners, skipping blocked tiles, no size cap. The arm stays active for the
+  next rectangle.
+- Since arming no longer auto-clears, `TownHud` now shows a live "Zoning: &lt;type&gt;
+  (&lt;mode&gt;)" chip with an inline Stop button, so ending a session needs no Hangar trip
+  either.
+- New `data/zoning.ts` exports: `ZoneMode`, `armedZoneMode`, `zoneAnchor`/`setZoneAnchor`/
+  `clearZoneAnchor`, `zoneRectangle`, `disarmZoning`; `armZoneType` gained a `mode` parameter.
+- Deliberately deferred: a live rectangle preview while walking to the second corner (real engine
+  risk for a cosmetic touch — the anchor + commit mechanism already resolves both complaints).
+- Verified by 8 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases, 3 new
+  `TownHud.test.tsx` cases, and the full gate (1056 server + 405 web tests, typecheck, build).
+  Not yet seen rendered in a real browser.
+
 ### 2026-09-13 (Claude): Real on-device bug fixes from live feedback — button overlap, invisible NPCs, Soumaya sprite/behavior
 - [ ] Verified by Claude
 - Direct response to a real, detailed voice-transcribed feedback pass. See
