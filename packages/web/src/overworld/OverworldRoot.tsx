@@ -478,7 +478,7 @@ export function OverworldRoot() {
         <GymOverlay graph={snapshot.graph} fuel={snapshot.fuel} streak={snapshot.streak} onClose={closeOverlay} />
       )}
       {overlay.kind === "market" && <MarketOverlay spaceId={spaceId} onClose={closeOverlay} />}
-      {overlay.kind === "townHall" && <TownHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "townHall" && snapshot && <TownHallOverlay spaceId={spaceId} graph={snapshot.graph} onClose={closeOverlay} />}
       {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
       {overlay.kind === "mayorsHall" && <MayorsHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}

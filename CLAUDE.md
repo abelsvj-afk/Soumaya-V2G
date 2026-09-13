@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Overlay/menu quality-parity audit: real gaps closed (2026-09-13), not yet on-device
+  confirmed** — direct response to detailed feedback that the overlays are "broken" vs. the old
+  galaxy-era menus. Ran a concrete audit (diffed every overlay's real usage against its
+  imported API/data modules for exports with zero call sites) instead of a redesign. Closed
+  three real gaps: (1) Town Hall's Journey links were read-only (`linkToJourney`/
+  `unlinkFromJourney` had zero callers) — added a real "Link a memory" picker + Unlink button;
+  (2) Mayor's Hall's housing section showed aggregate counts only (`homeForNpc`/
+  `residentsOfHome` unused, despite Hangar's own doc comment promising the breakdown lived
+  there) — added a real per-home resident list; (3) Sanctuary was missing three whole real
+  sub-features with zero UI (Inquiries, Suggested Connections, Person suggestions,
+  `docs/overworld/sanctuary-inquiries-candidates.md`) — the single largest finding. Also fixed
+  `llm/prompts.ts`'s `SECTOR_SYSTEM`/`LOG_SYSTEM`, found while working on task #61: both still
+  instructed the model to write in space/galaxy language even though they feed real, currently-
+  live features — rewrote the prompt text only (not the underlying feature/job naming, a
+  separate riskier rename). Verified by 4 new `TownHallOverlay.test.tsx` cases, 1 new
+  `MayorsHallOverlay.test.tsx` case, 5 new `SanctuaryOverlay.test.tsx` cases, and the full gate
+  (1066 server + 442 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **Real hybrid LLM + hand-authored NPC dialogue (2026-09-13), not yet on-device confirmed** —
   direct user correction that "Hybrid" dialogue was supposed to already route through the LLM;
   confirmed the real decision (`npc-society.md`) had explicitly deferred that half to "a later

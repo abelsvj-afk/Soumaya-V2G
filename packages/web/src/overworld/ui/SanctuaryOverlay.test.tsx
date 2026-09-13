@@ -11,6 +11,15 @@ vi.mock("../../api/mind.js", () => ({
   dismissThought: vi.fn().mockResolvedValue(true),
   createCognitive: vi.fn().mockResolvedValue({ id: 5 }),
   setCognitiveProgress: vi.fn().mockResolvedValue(true),
+  getInquiries: vi.fn().mockResolvedValue([]),
+  answerInquiry: vi.fn().mockResolvedValue({ nodeIds: [], fuelEarned: 0 }),
+  dismissInquiry: vi.fn().mockResolvedValue(true),
+  rejectInquiry: vi.fn().mockResolvedValue(true),
+  getCandidates: vi.fn().mockResolvedValue({ candidates: [], count: 0 }),
+  acceptCandidate: vi.fn().mockResolvedValue(true),
+  dismissCandidate: vi.fn().mockResolvedValue(true),
+  getPersonSuggestions: vi.fn().mockResolvedValue([]),
+  dismissPersonSuggestion: vi.fn().mockResolvedValue(true),
 }));
 
 describe("SanctuaryOverlay", () => {
@@ -45,5 +54,70 @@ describe("SanctuaryOverlay", () => {
     await waitFor(() => screen.getByText("x"));
     fireEvent.click(screen.getByText("★ Save"));
     await waitFor(() => expect(promoteThought).toHaveBeenCalledWith(1));
+  });
+
+  describe("Inquiries + Suggested connections + People (overlay quality-parity audit, task #79)", () => {
+    it("shows a real inquiry and answering it calls answerInquiry with the typed text", async () => {
+      const { getThoughts, getCognitive, getInquiries, answerInquiry } = await import("../../api/mind.js");
+      (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getInquiries as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, question: "What happened with the Denver plan?", kind: "gap", nodes: [{ id: 5, label: "Denver plan" }], createdAt: "" },
+      ]);
+      render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("What happened with the Denver plan?")).toBeTruthy());
+      fireEvent.change(screen.getByLabelText("Answer: What happened with the Denver plan?"), { target: { value: "It fell through" } });
+      fireEvent.click(screen.getByText("Answer"));
+      await waitFor(() => expect(answerInquiry).toHaveBeenCalledWith(1, "It fell through"));
+    });
+
+    it("dismissing and rejecting an inquiry call the real API, never invented state", async () => {
+      const { getThoughts, getCognitive, getInquiries, dismissInquiry } = await import("../../api/mind.js");
+      (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getInquiries as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 2, question: "Still relevant?", kind: "gap", nodes: [], createdAt: "" }]);
+      render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => screen.getByText("Still relevant?"));
+      fireEvent.click(screen.getByText("Not now"));
+      await waitFor(() => expect(dismissInquiry).toHaveBeenCalledWith(2));
+    });
+
+    it("shows a real suggested connection and accepting it calls acceptCandidate", async () => {
+      const { getThoughts, getCognitive, getCandidates, acceptCandidate } = await import("../../api/mind.js");
+      (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({
+        candidates: [{ id: 3, a: 1, b: 2, aLabel: "Rent", bLabel: "Job stress", reason: "both mention money", score: 0.8, origin: "suggested", createdAt: "" }],
+        count: 1,
+      });
+      render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/Rent ↔ Job stress/)).toBeTruthy());
+      fireEvent.click(screen.getByText("Accept"));
+      await waitFor(() => expect(acceptCandidate).toHaveBeenCalledWith(3));
+    });
+
+    it("shows a real person suggestion and dismissing it calls dismissPersonSuggestion", async () => {
+      const { getThoughts, getCognitive, getPersonSuggestions, dismissPersonSuggestion } = await import("../../api/mind.js");
+      (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getPersonSuggestions as ReturnType<typeof vi.fn>).mockResolvedValue([{ name: "Alex", count: 3 }]);
+      render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/Alex — mentioned 3 times/)).toBeTruthy());
+      fireEvent.click(screen.getByText("Not a person"));
+      await waitFor(() => expect(dismissPersonSuggestion).toHaveBeenCalledWith("Alex"));
+    });
+
+    it("shows real empty states rather than blank sections", async () => {
+      const { getThoughts, getCognitive, getInquiries, getCandidates, getPersonSuggestions } = await import("../../api/mind.js");
+      (getThoughts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCognitive as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getInquiries as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (getCandidates as ReturnType<typeof vi.fn>).mockResolvedValue({ candidates: [], count: 0 });
+      (getPersonSuggestions as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      render(<SanctuaryOverlay spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/Nothing she's wondering about right now/)).toBeTruthy());
+      expect(screen.getByText(/No suggested connections waiting for review/)).toBeTruthy();
+      expect(screen.getByText(/No new names noticed across your memories/)).toBeTruthy();
+    });
   });
 });

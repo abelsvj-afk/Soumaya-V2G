@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import type { Journey, JourneyLinkSummary, TimelineChapter } from "@brain/shared";
-import { createJourney, deleteJourney, getJourneys, journeyLinks, patchJourney } from "../../api/journeys.js";
+import type { GraphData, Journey, JourneyLinkSummary, TimelineChapter } from "@brain/shared";
+import { createJourney, deleteJourney, getJourneys, journeyLinks, linkToJourney, patchJourney, unlinkFromJourney } from "../../api/journeys.js";
 import { addTimelineChapter, deleteTimelineChapter, getTimeline } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
@@ -14,6 +14,7 @@ const TREND_BADGE: Record<TimelineChapter["trend"], string> = {
 
 export interface TownHallOverlayProps {
   spaceId: string;
+  graph: GraphData;
   onClose: () => void;
 }
 
@@ -30,8 +31,15 @@ export interface TownHallOverlayProps {
  * `getTimeline`/`addTimelineChapter`/`deleteTimelineChapter` were simply never called from the
  * Overworld. Deleting is only ever offered for chapters YOU wrote (`origin === "user"`) —
  * Soumaya's own auto-generated ones are her real computed narrative, not a stray click's to erase.
+ *
+ * Overlay quality-parity audit (2026-09-13, task #79) — a real gap: an expanded Journey's
+ * "linked items" list was read-only even though `linkToJourney`/`unlinkFromJourney` are fully
+ * real, working server-backed actions with zero call sites anywhere. Direct match for the
+ * user's own "missing places to put content in" complaint. Linking is scoped to memories
+ * (`kind: "node"`) only — the other real link kinds (bills/goals/docs/chats) belong to their
+ * own buildings (Bank, Hangar) and aren't invented here.
  */
-export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
+export function TownHallOverlay({ spaceId, graph, onClose }: TownHallOverlayProps) {
   const [journeys, setJourneys] = useState<Journey[] | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [links, setLinks] = useState<JourneyLinkSummary[] | null>(null);
@@ -40,6 +48,8 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
   const [creating, setCreating] = useState(false);
   const [chapters, setChapters] = useState<TimelineChapter[] | null>(null);
   const [markingChapter, setMarkingChapter] = useState(false);
+  const [linkNodeId, setLinkNodeId] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
 
   const load = async () => setJourneys(await getJourneys());
   const loadTimeline = async () => setChapters(await getTimeline());
@@ -100,7 +110,28 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
       return;
     }
     setExpandedId(j.id);
+    setLinkNodeId("");
     setLinks(await journeyLinks(j.id));
+  };
+
+  const addLink = async (journeyId: number) => {
+    const nodeId = Number(linkNodeId);
+    if (!Number.isFinite(nodeId)) return;
+    setLinkBusy(true);
+    try {
+      await linkToJourney(journeyId, "node", nodeId);
+      recordBuildingWork(spaceId, "townHall");
+      setLinkNodeId("");
+      setLinks(await journeyLinks(journeyId));
+    } finally {
+      setLinkBusy(false);
+    }
+  };
+
+  const removeLink = async (journeyId: number, link: JourneyLinkSummary) => {
+    await unlinkFromJourney(journeyId, link.kind, link.refId);
+    recordBuildingWork(spaceId, "townHall");
+    setLinks(await journeyLinks(journeyId));
   };
 
   return (
@@ -138,12 +169,42 @@ export function TownHallOverlay({ spaceId, onClose }: TownHallOverlayProps) {
                   ) : (
                     <ul style={{ listStyle: "none", padding: 0 }}>
                       {links.map((l) => (
-                        <li key={`${l.kind}-${l.refId}`}>
-                          {l.kind}: {l.label}
+                        <li key={`${l.kind}-${l.refId}`} style={{ display: "flex", gap: 8, alignItems: "center", padding: "2px 0" }}>
+                          <span style={{ flex: 1 }}>
+                            {l.kind}: {l.label}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void removeLink(j.id, l)}
+                            aria-label={`Unlink ${l.label}`}
+                            style={actionButtonStyle()}
+                          >
+                            Unlink
+                          </button>
                         </li>
                       ))}
                     </ul>
                   )}
+                  <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                    <select
+                      aria-label="Memory to link"
+                      value={linkNodeId}
+                      onChange={(e) => setLinkNodeId(e.target.value)}
+                      style={{ ...fieldStyle, flex: 1 }}
+                    >
+                      <option value="">Link a memory...</option>
+                      {graph.nodes
+                        .filter((n) => n.kind !== "action" && !links?.some((l) => l.kind === "node" && l.refId === n.id))
+                        .map((n) => (
+                          <option key={n.id} value={n.id}>
+                            {n.label}
+                          </option>
+                        ))}
+                    </select>
+                    <button type="button" onClick={() => void addLink(j.id)} disabled={!linkNodeId || linkBusy} style={actionButtonStyle(!linkNodeId || linkBusy)}>
+                      {linkBusy ? "…" : "Link"}
+                    </button>
+                  </div>
                 </div>
               )}
             </li>

@@ -1,3 +1,23 @@
+### 2026-09-13 (Claude): Overlay/menu quality-parity audit: real gaps closed (task #79)
+- [ ] Verified by Claude
+- Direct response to detailed feedback that overlays are "broken" vs. the old galaxy-era menus.
+  Ran a concrete audit (every overlay's real usage diffed against its imported API/data
+  modules) instead of a redesign.
+- **Town Hall**: Journey links were read-only — `linkToJourney`/`unlinkFromJourney` had zero
+  callers. Added a real "Link a memory" picker + Unlink button per linked item.
+- **Mayor's Hall**: housing section showed aggregate counts only — `homeForNpc`/
+  `residentsOfHome` unused. Added a real per-home resident breakdown.
+- **Sanctuary**: three whole real sub-features (Inquiries, Suggested Connections, Person
+  suggestions) had zero UI anywhere — the single largest finding. See
+  `docs/overworld/sanctuary-inquiries-candidates.md`. Full parity for Inquiries/Candidates;
+  Person suggestions get list + dismiss only (a full profile view is deliberately deferred).
+- Also fixed `llm/prompts.ts`'s `SECTOR_SYSTEM`/`LOG_SYSTEM` — still space/galaxy-themed even
+  though they feed real, currently-live features (idea clustering, node summaries, daily log).
+  Scoped to the prompt text only, not the underlying feature/job naming.
+- Verified by 4 new `TownHallOverlay.test.tsx` cases, 1 new `MayorsHallOverlay.test.tsx` case,
+  5 new `SanctuaryOverlay.test.tsx` cases, and the full gate (1066 server + 442 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-13 (Claude): Real hybrid LLM + hand-authored NPC dialogue (task #61)
 - [ ] Verified by Claude
 - Direct user correction that "Hybrid" dialogue was supposed to already route through the LLM.
