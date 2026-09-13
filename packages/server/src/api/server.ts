@@ -31,6 +31,7 @@ import { journeysRoutes } from "./routes/journeys.js";
 import { investigateRoutes } from "./routes/investigate.js";
 import { spaceRoutes } from "./routes/space.js";
 import { telegramRoutes } from "./routes/telegram.js";
+import { npcDialogueRoutes } from "./routes/npcDialogue.js";
 import { securityHeaders, rateLimit, requireSpace } from "./middleware.js";
 
 /** Assemble the Express app over an AppContext. */
@@ -119,6 +120,7 @@ export function createApp(ctx: AppContext): Express {
   app.use("/api/finance", guard, financeRoutes(ctx));
   app.use("/api/journeys", guard, journeysRoutes(ctx));
   app.use("/api/investigate", guard, investigateRoutes(ctx));
+  app.use("/api/npc-dialogue", guard, llmLimiter, npcDialogueRoutes(ctx));
 
   // In production, serve the built web app (set WEB_DIR to packages/web/dist)
   // and fall back to index.html for client-side routes (non-API GETs).

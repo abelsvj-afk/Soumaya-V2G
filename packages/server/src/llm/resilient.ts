@@ -1,5 +1,16 @@
 import type { ExtractionResult, ClarificationInterpretation } from "@brain/shared";
-import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, DegradeReason, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type {
+  AnswerOptions,
+  AnswerResult,
+  ContextNode,
+  ContradictionResult,
+  DegradeReason,
+  LinkCandidate,
+  LinkValidation,
+  LlmProvider,
+  NpcLineRequest,
+  NpcTownState,
+} from "./adapter.js";
 import { HeuristicProvider } from "./heuristic.js";
 
 /**
@@ -253,6 +264,19 @@ export class ResilientLlmProvider implements LlmProvider {
       return await withTimeout(this.primary.webLookup(query), this.timeoutMs, "webLookup");
     } catch (err) {
       this.note(err, "webLookup");
+      return null;
+    }
+  }
+
+  /** Batched NPC dialogue lines (npc-llm-dialogue.md) — returns null (never throws) when
+   *  unavailable, so the caller's own deterministic template fallback runs, same convention
+   *  as webLookup above. */
+  async generateNpcLines(npcs: NpcLineRequest[], townState: NpcTownState): Promise<string[] | null> {
+    if (this.blocked || !this.primary.generateNpcLines) return null;
+    try {
+      return await withTimeout(this.primary.generateNpcLines(npcs, townState), this.timeoutMs, "generateNpcLines");
+    } catch (err) {
+      this.note(err, "generateNpcLines");
       return null;
     }
   }

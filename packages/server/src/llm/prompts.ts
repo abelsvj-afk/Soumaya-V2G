@@ -1,5 +1,5 @@
 import { EXTRACTABLE_NODE_TYPES, NODE_TYPE_GUIDE, RELATIONSHIP_TYPES } from "@brain/shared";
-import type { ContextNode, LinkCandidate } from "./adapter.js";
+import type { ContextNode, LinkCandidate, NpcLineRequest, NpcTownState } from "./adapter.js";
 
 /** Bulleted "kind — definition" guide, so the model classifies into the taxonomy. */
 const NODE_TYPE_LIST = EXTRACTABLE_NODE_TYPES.map((t) => `  • ${t} — ${NODE_TYPE_GUIDE[t]}`).join("\n");
@@ -421,6 +421,36 @@ early-stage startup anxiety."). Output JSON only.`;
 export function buildSectorPrompt(nodes: LinkCandidate[]): string {
   const memories = nodes.map((n) => `- ${n.label}: ${n.content}`).join("\n");
   return `CLUSTER MEMORIES:\n${memories}\n\nDescribe the vibe of this sector.`;
+}
+
+/**
+ * NPC Society dialogue (docs/overworld/npc-llm-dialogue.md, task #61) — the Overworld's own
+ * town, never the old space/galaxy framing (the app's standing "don't drag old-galaxy
+ * language into the new game" rule). One short flavor line per requested NPC, batched into a
+ * single call rather than one per NPC. Grounded, never invented: the model is explicitly told
+ * to reference AT MOST one real fact from the supplied town state and never invent a concept
+ * (an event, a business, "food") the data doesn't contain.
+ */
+export const NPC_LINES_SYSTEM = `You write brief, warm, in-character lines for NPCs living in a small
+top-down town. Each NPC already has a real job and, sometimes, a real friendship with a coworker.
+Write ONE short, natural-sounding sentence per NPC, in their own voice, about their actual day.
+You may reference AT MOST ONE fact from the town state provided — and ONLY if it's actually
+supplied. Never invent an event, business, food, or fact that isn't given to you. Never mention
+outer space, spaceships, or a galaxy — this is a grounded, cozy town, not a sci-fi setting.
+Output JSON only: {"lines": ["...", "...", ...]}, exactly one line per NPC, in the SAME ORDER
+they were given.`;
+
+export function buildNpcLinesPrompt(npcs: NpcLineRequest[], townState: NpcTownState): string {
+  const roster = npcs
+    .map((n, i) => `${i + 1}. ${n.name} — ${n.jobFlavor}${n.relationshipHint ? ` (${n.relationshipHint})` : ""}`)
+    .join("\n");
+  const facts: string[] = [];
+  facts.push(`Town treasury: $${(townState.treasuryCents / 100).toFixed(2)}`);
+  if (townState.neglectedBuildings.length > 0) {
+    facts.push(`Buildings that haven't seen real work in a while: ${townState.neglectedBuildings.join(", ")}`);
+  }
+  facts.push(`The town holds ${townState.nodeCount} memories and ${townState.npcCount} residents.`);
+  return `NPCS (write one line for each, in order):\n${roster}\n\nREAL TOWN STATE (reference at most one):\n${facts.join("\n")}`;
 }
 
 /** Captain's Log: Generate a daily summary of brain evolution. */

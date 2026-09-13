@@ -1,3 +1,29 @@
+### 2026-09-13 (Claude): Real hybrid LLM + hand-authored NPC dialogue (task #61)
+- [ ] Verified by Claude
+- Direct user correction that "Hybrid" dialogue was supposed to already route through the LLM.
+  See `docs/overworld/npc-llm-dialogue.md` for the full account. Split the Mall into its own
+  follow-up task — the user's actual message never described it, and it's a distinct
+  building/shop feature.
+- New optional `LlmProvider.generateNpcLines(npcs, townState): Promise<string[] | null>`
+  (adapter.ts), implemented in `openai.ts`/`gemini.ts` (flat `{ lines: string[] }` schema),
+  wrapped in `resilient.ts` — same "absent → caller's own fallback" convention as
+  `chronicle`/`webLookup`, so zero existing test fakes needed updating.
+- New `analysis/npcLines.ts::heuristicNpcLines()` — the real, always-present, deterministic
+  base: grounds each line in the NPC's own job flavor plus one real town-state fact (treasury,
+  a neglected building, node count), never invented, never `Math.random`.
+- New route `POST /api/npc-dialogue` — one batched call for every NPC, never one per NPC; tries
+  the LLM upgrade, falls back to the heuristic base on any failure.
+- New client module `data/npcLlmDialogue.ts` — a real 10-minute cooldown gates how often the
+  batched call actually fires. `pickDialogueOutcome(npcId, seed)` deterministically chooses
+  among an LLM-flavored line, the existing hand-authored pool (default, unchanged), or a
+  gesture-only beat with no dialogue bubble — matches the earlier reconciliation round's own
+  requirement that not every interaction needs full text.
+- `ExteriorScene`'s existing Break-time interaction timing is completely unchanged — it just
+  looks up the resolved outcome instead of always calling `dialogueFor()`.
+- Verified by 6 new `npcLines.test.ts` cases, 4 new `npcDialogueRoute.test.ts` cases, 9 new
+  `npcLlmDialogue.test.ts` cases, and the full gate (1066 server + 432 web tests, typecheck,
+  build). Not yet tested against a real LLM key, not yet seen rendered in a real browser.
+
 ### 2026-09-13 (Claude): MindSpace's ambient floating-thought overlay (task #70)
 - [ ] Verified by Claude
 - Direct user request, reversing an earlier deprioritization. See

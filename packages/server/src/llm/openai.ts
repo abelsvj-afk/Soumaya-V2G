@@ -1,5 +1,5 @@
 import { EXTRACTABLE_NODE_TYPES, RELATIONSHIP_TYPES, ExtractionResultSchema, type ExtractionResult, type FinExtractionResult, type PaystubExtractionResult, type ClarificationInterpretation, type GalaxyNavigationKind } from "@brain/shared";
-import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider } from "./adapter.js";
+import type { AnswerOptions, AnswerResult, ContextNode, ContradictionResult, LinkCandidate, LinkValidation, LlmProvider, NpcLineRequest, NpcTownState } from "./adapter.js";
 import {
   EXTRACTION_SYSTEM,
   LINK_SYSTEM,
@@ -14,6 +14,7 @@ import {
   PLAN_SYSTEM,
   DISTILL_SYSTEM,
   CONSOLIDATE_SYSTEM,
+  NPC_LINES_SYSTEM,
   buildExtractionPrompt,
   buildLinkPrompt,
   buildSynthesisPrompt,
@@ -27,6 +28,7 @@ import {
   buildPlanPrompt,
   buildDistillPrompt,
   buildConsolidatePrompt,
+  buildNpcLinesPrompt,
 } from "./prompts.js";
 
 const MODEL = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
@@ -595,6 +597,22 @@ export class OpenAiProvider implements LlmProvider {
       "chronicle",
     );
     return raw.lore;
+  }
+
+  async generateNpcLines(npcs: NpcLineRequest[], townState: NpcTownState): Promise<string[] | null> {
+    if (npcs.length === 0) return [];
+    const raw = await this.json<{ lines: string[] }>(
+      NPC_LINES_SYSTEM,
+      buildNpcLinesPrompt(npcs, townState),
+      {
+        type: "object",
+        properties: { lines: { type: "array", items: { type: "string" } } },
+        required: ["lines"],
+        additionalProperties: false,
+      },
+      "npc-lines",
+    );
+    return raw.lines.length === npcs.length ? raw.lines : null;
   }
 
   async consolidate(nodes: LinkCandidate[]): Promise<{ belief: string; confidence: number }> {

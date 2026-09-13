@@ -80,11 +80,12 @@ import {
   type PlacedBusiness,
 } from "../data/business.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
-import { bumpRelationship, relationshipCount, relationshipTier } from "../data/npcRelationships.js";
+import { bumpRelationship, relationshipCount, relationshipTier, type RelationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { loadUnlocked } from "../../components/achievements.js";
 import type { Thought } from "../../api/mind.js";
 import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
+import { getCachedNpcLine, pickDialogueOutcome } from "../data/npcLlmDialogue.js";
 
 export const TILE_SIZE = 32;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
@@ -1041,6 +1042,21 @@ export class ExteriorScene extends Phaser.Scene {
     });
   }
 
+  /** Real hybrid LLM + hand-authored dialogue (docs/overworld/npc-llm-dialogue.md, task #61) —
+   *  picks one of three real outcomes deterministically (never Math.random): an LLM-flavored
+   *  line if one's cached and fresh (falls through to the pool if not), the existing
+   *  hand-authored pool (the default), or a gesture-only beat with no bubble at all (an empty
+   *  string — `showSpeechBubble` already no-ops on that, so nothing new is needed there). */
+  private resolveDialogueLine(id: SocietyNpcId, unlocked: ReadonlySet<string>, tier: RelationshipTier, otherName: string, seed: number): string {
+    const outcome = pickDialogueOutcome(id, seed);
+    if (outcome === "gesture") return "";
+    if (outcome === "llm") {
+      const cached = getCachedNpcLine(this.spaceId, id);
+      if (cached) return cached;
+    }
+    return dialogueFor(id, unlocked, tier, otherName, seed);
+  }
+
   /** One real interaction between a building's own two attendants: they step toward each
    *  other, each shows a real dialogue line (job-flavor always available; personal lines gated
    *  on real achievements; the friend line gated on relationship tier), and the relationship
@@ -1065,8 +1081,8 @@ export class ExteriorScene extends Phaser.Scene {
     const nameA = npcProfile(a.id).name;
     const nameB = npcProfile(b.id).name;
     const seed = this.societyTickCount;
-    this.showSpeechBubble(a.sprite, dialogueFor(a.id, unlocked, tier, nameB, seed));
-    this.showSpeechBubble(b.sprite, dialogueFor(b.id, unlocked, tier, nameA, seed + 1));
+    this.showSpeechBubble(a.sprite, this.resolveDialogueLine(a.id, unlocked, tier, nameB, seed));
+    this.showSpeechBubble(b.sprite, this.resolveDialogueLine(b.id, unlocked, tier, nameA, seed + 1));
     // A neglected building's relationship growth pauses — the user's own "if I never do
     // anything... that strains relationships" cascade — never decays into a negative, matches
     // the no-dark-patterns rule (a paused number, not a punished one).
@@ -1116,8 +1132,8 @@ export class ExteriorScene extends Phaser.Scene {
     const nameA = npcProfile(a.id).name;
     const nameB = npcProfile(b.id).name;
     const seed = this.societyTickCount;
-    this.showSpeechBubble(a.sprite, dialogueFor(a.id, unlocked, "acquaintances", nameB, seed));
-    this.showSpeechBubble(b.sprite, dialogueFor(b.id, unlocked, "acquaintances", nameA, seed + 1));
+    this.showSpeechBubble(a.sprite, this.resolveDialogueLine(a.id, unlocked, "acquaintances", nameB, seed));
+    this.showSpeechBubble(b.sprite, this.resolveDialogueLine(b.id, unlocked, "acquaintances", nameA, seed + 1));
     const aNeglected = isNeglected(buildingNeglect(this.spaceId, npcProfile(a.id).placeId));
     const bNeglected = isNeglected(buildingNeglect(this.spaceId, npcProfile(b.id).placeId));
     if (!aNeglected && !bNeglected) {
