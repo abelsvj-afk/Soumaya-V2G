@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Mission Control as the Overworld's front door (2026-09-13), not yet on-device confirmed** —
+  direct user request, reversing an earlier deprioritization: bring back Mission Control (and
+  reuse a pre-Overworld spec's own resolved decision — `docs/overworld/mission-control.md` —
+  that it should evolve the Observatory building in place, not become a new screen or a
+  landing-page popup). `ObservatoryOverlay.tsx` now shows, in `VISION_2_JOURNEYS.md`'s own
+  priority order: today's agenda (open quest/due reminder counts from `graph.nodes`, same
+  predicates `BulletinBoardOverlay.tsx` already uses), Safe-to-spend (already-fetched
+  `WorldSnapshot.bank`), a real Daily Contact question + answer form (`getDailyContact`/
+  `answerDailyContact` — genuinely orphaned until now, same pattern task #71/#72 already fixed
+  elsewhere), "worth a moment" (the spaced-repetition due list, task #58), active Journey
+  progress (`getJourneys()`, capped at 3), the existing AI-observations digest unchanged, and
+  recent activity. Answering Daily Contact credits the Observatory's own real work event. The
+  relationship check-in suggestion stays deferred (needs genuinely new computation). Verified by
+  7 new `ObservatoryOverlay.test.tsx` cases and the full gate (1056 server + 412 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
 - **Zoning at true SimCity scale (2026-09-13), not yet on-device confirmed** — direct response
   to the single most emphatic, repeated complaint from a live feedback pass: one-tile-at-a-time
   zoning that required a fresh Hangar trip after every tile. Confirmed by reading the shipped

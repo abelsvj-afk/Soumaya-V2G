@@ -458,7 +458,15 @@ export function OverworldRoot() {
       {overlay.kind === "bulletinBoard" && snapshot && (
         <BulletinBoardOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} refresh={refresh} />
       )}
-      {overlay.kind === "observatory" && <ObservatoryOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "observatory" && snapshot && (
+        <ObservatoryOverlay
+          spaceId={spaceId}
+          graph={snapshot.graph}
+          safeToSpendCents={snapshot.bank.safeToSpendCents}
+          dueReviews={snapshot.dueReviews}
+          onClose={closeOverlay}
+        />
+      )}
       {overlay.kind === "postOffice" && <PostOfficeOverlay spaceId={spaceId} onClose={closeOverlay} onOpenPlace={openPlace} />}
       {overlay.kind === "gym" && snapshot && (
         <GymOverlay graph={snapshot.graph} fuel={snapshot.fuel} streak={snapshot.streak} onClose={closeOverlay} />

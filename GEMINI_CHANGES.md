@@ -1,3 +1,23 @@
+### 2026-09-13 (Claude): Mission Control as the Overworld's front door (task #60)
+- [ ] Verified by Claude
+- Direct user request, reversing an earlier deprioritization. See
+  `docs/overworld/mission-control.md` for the full account.
+- Reused a pre-Overworld spec's own resolved decision (`docs/specs/mission-control.md`):
+  Mission Control evolves the existing Observatory building in place — no new screen, no
+  landing-page popup.
+- `ObservatoryOverlay.tsx` now shows, in vision-doc priority order: today's agenda (open quest/
+  due reminder counts), Safe-to-spend, a real Daily Contact question + answer form (previously
+  fully orphaned — `getDailyContact`/`answerDailyContact` existed but nothing called them),
+  "worth a moment" (spaced-repetition due list), active Journey progress (capped at 3), the
+  existing AI-observations digest, and recent activity.
+- New props on `ObservatoryOverlayProps`: `graph`, `safeToSpendCents`, `dueReviews` — reused from
+  the already-fetched `WorldSnapshot`, same pattern `GymOverlay` already uses.
+- Answering Daily Contact credits the Observatory's own real work event, same convention
+  resolving an insight already uses.
+- Deferred: the relationship check-in suggestion (needs genuinely new computation).
+- Verified by 7 new `ObservatoryOverlay.test.tsx` cases and the full gate (1056 server + 412 web
+  tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-13 (Claude): Zoning at true SimCity scale (task #77)
 - [ ] Verified by Claude
 - Direct response to the single most emphatic, repeated real complaint: one-tile-at-a-time

@@ -1202,6 +1202,43 @@ Verified by 8 new `zoning.test.ts` cases, 2 new `HangarOverlay.test.tsx` cases, 
 `TownHud.test.tsx` cases, and the full gate (1056 server + 405 web tests, typecheck, build). Not
 yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.37 — Mission Control as the Overworld's front door (task #60)
+
+Direct user request, reversing an earlier deprioritization: *"I want you to bring back the mind
+space, mission control."* `VISION_2_JOURNEYS.md` names Mission Control as where "the daily loop
+lands" — today's highest-priority missions, Safe-to-spend, the Daily Contact question, one
+memory worth revisiting, progress toward active Journeys, important reminders, AI observations,
+recent activity.
+
+A pre-Overworld spec for this exact feature (`docs/specs/mission-control.md`) already resolved
+the key design question once, against the old 3D galaxy: *"Mission Control = evolving Observatory
+in place, not a new component."* `docs/overworld/mission-control.md` reuses that decision
+verbatim for the Overworld's own `ObservatoryOverlay.tsx` (the "Insights" building) — no new
+building, no landing modal, no auto-popup on load (the pre-Overworld spec explicitly rejected
+force-interrupting a player's own navigation as worse UX than the problem it fixes; same
+reasoning applies unchanged here).
+
+Re-auditing against the CURRENT Overworld (not the deleted galaxy) found most of the bundle was
+already fetched somewhere, just never shown together: `WorldSnapshot` already carries
+`bank.safeToSpendCents` and `dueReviews` (spaced-repetition.md, task #58), and `graph.nodes`
+already has everything `BulletinBoardOverlay.tsx` needs for its own agenda/reminder counts. Only
+two pieces were genuinely missing: **Daily Contact** (`getDailyContact`/`answerDailyContact` —
+fully real, working, typed, and used by nothing in the Overworld, the same orphaned-wrapper
+pattern task #71/#72 already found and fixed elsewhere) and **Journey progress as a digest**
+(`getJourneys()` — Town Hall's region list already reads it, but no summary view existed).
+
+`ObservatoryOverlay.tsx` now shows, in the vision doc's own priority order: today's agenda (open
+quest + due reminder counts) → Safe-to-spend → Daily Contact (question + answer form, or the
+day's discovery/foresight once answered) → "worth a moment" (the first spaced-repetition due
+item) → active Journeys with real progress (capped at 3) → AI observations (unchanged, already
+there) → recent activity (graph nodes by creation date). Answering the Daily Contact question
+counts as the Observatory's own real work event, same convention resolving an insight already
+uses. The relationship check-in suggestion stays deferred — it needs genuinely new computation,
+not reuse, same reasoning the pre-Overworld spec gave for deferring it there too.
+
+Verified by 7 new `ObservatoryOverlay.test.tsx` cases and the full gate (1056 server + 412 web
+tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
