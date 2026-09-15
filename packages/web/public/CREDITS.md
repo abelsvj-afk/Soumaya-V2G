@@ -33,6 +33,20 @@ on [OpenGameArt](https://opengameart.org/content/old-stone-buildings), sourced v
 aggregator https://github.com/Tiddybub/2d-assets (its own `LICENSE` + each pack's `SOURCE.md`
 confirm CC0). No attribution legally required; credited here as good practice.
 
+**`overworld/buildings/inn.png`, `tavern.png`, `warehouse.png`** — 3 more complete, pre-made
+building illustrations (backlog #78, giving the 3 real business types — Bakery/Tailor/Bookshop —
+their own distinct silhouette instead of all three sharing `human-city2.png`). Same aggregator
+and license as above — OpenGameArt "Inn" ([source](https://opengameart.org/content/inn)),
+"Tavern" ([source](https://opengameart.org/content/tavern)), and "Warehouse"
+([source](https://opengameart.org/content/warehouse)), all **CC0 (public domain)**, via
+https://github.com/Tiddybub/2d-assets. Hand-picked from several candidate packs in the same
+aggregator for visual consistency with the existing painterly stone/wood illustration style —
+other candidates (a fisherman's stilt house, a hunter's tent) were checked and rejected for
+being a different art style or too specifically themed to read as a generic building. Housing's
+4 types still share one illustration (`human-city.png`) — no equally good additional CC0
+home-style match was found in this pass; the type-glyph badge remains the distinguishing cue
+there, same as before.
+
 ## Overworld music
 
 **`ambient-loop.mp3`, `interstellar.mp3`, `slow-tide.mp3`** — the same 3 tracks the old 3D

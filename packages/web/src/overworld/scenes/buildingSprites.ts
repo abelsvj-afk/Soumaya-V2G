@@ -18,6 +18,16 @@ const ARCHED_HALL: BuildingSprite = { key: "building-arched-hall", url: "/overwo
 const COTTAGE: BuildingSprite = { key: "building-cottage", url: "/overworld/buildings/human-city.png" };
 const FLAG_TOWER: BuildingSprite = { key: "building-flag-tower", url: "/overworld/buildings/human-city4.png" };
 const LIGHTHOUSE: BuildingSprite = { key: "building-lighthouse", url: "/overworld/buildings/lighthouse.png" };
+/** Backlog #78 (wave4-full-vision.md §C.1) — 3 more real CC0 illustrations, same aggregator/
+ *  license as the 5 above (OpenGameArt "Inn"/"Tavern"/"Warehouse", via github.com/Tiddybub/
+ *  2d-assets — see public/CREDITS.md), hand-picked for visual consistency with the existing
+ *  painterly stone/wood style (checked directly, not guessed — several other candidate packs
+ *  in the same aggregator were rejected for being a different art style or too specifically
+ *  themed to read as a generic building). Give the 3 business types their own distinct
+ *  silhouette instead of all three sharing ARCHED_HALL. */
+const INN: BuildingSprite = { key: "building-inn", url: "/overworld/buildings/inn.png" };
+const TAVERN: BuildingSprite = { key: "building-tavern", url: "/overworld/buildings/tavern.png" };
+const WAREHOUSE: BuildingSprite = { key: "building-warehouse", url: "/overworld/buildings/warehouse.png" };
 
 /** One of 5 distinct building illustrations per door-place — some intentionally reused
  *  (only 5 buildings exist in the sourced pack for 8 places), chosen for a loose thematic
@@ -56,13 +66,23 @@ export function homeBuildingSprite(): BuildingSprite {
   return COTTAGE;
 }
 
-/** A real multi-business economy (docs/overworld/business.md, task #67) — every player-built
- *  business reuses the same "marketplace" illustration Market itself already uses (ARCHED_HALL),
- *  scaled to its own footprint; the 3 types stay tellable apart by footprint size plus a
- *  type-glyph badge (ExteriorScene.ts), same convention as `homeBuildingSprite`. No new art was
- *  sourced for this round (task #74 covers real asset sourcing). */
-export function businessBuildingSprite(): BuildingSprite {
-  return ARCHED_HALL;
+/** A real multi-business economy (docs/overworld/business.md, task #67) — backlog #78 gives
+ *  each of the 3 business types its own real, distinct illustration instead of all three (plus
+ *  Market) sharing ARCHED_HALL: Bakery→Inn (a cozy food-service silhouette), Tailor→Tavern,
+ *  Bookshop→Warehouse (a storage-shelf silhouette). Falls back to ARCHED_HALL for an unknown
+ *  type id so a future business type never renders nothing. Types still carry their own
+ *  type-glyph badge too (ExteriorScene.ts) — a shared silhouette is never the only cue. */
+export function businessBuildingSprite(typeId?: string): BuildingSprite {
+  switch (typeId) {
+    case "bakery":
+      return INN;
+    case "tailor":
+      return TAVERN;
+    case "bookshop":
+      return WAREHOUSE;
+    default:
+      return ARCHED_HALL;
+  }
 }
 
 /** Every distinct sprite that actually needs preloading (deduplicated by key) — always
@@ -73,5 +93,8 @@ export function allBuildingSprites(): BuildingSprite[] {
     if (sprite) byKey.set(sprite.key, sprite);
   }
   byKey.set(COTTAGE.key, COTTAGE);
+  byKey.set(INN.key, INN);
+  byKey.set(TAVERN.key, TAVERN);
+  byKey.set(WAREHOUSE.key, WAREHOUSE);
   return [...byKey.values()];
 }

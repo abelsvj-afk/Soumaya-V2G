@@ -166,7 +166,16 @@ describe("HangarOverlay", () => {
     it("simcity-economy-construction.md — every business row shows a real image preview of what actually renders in-world", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
       const bakeryImg = screen.getByText(/Bakery — \$4\.00/).closest("li")!.querySelector("img")!;
-      expect(bakeryImg.getAttribute("src")).toBe("/overworld/buildings/human-city2.png"); // the real ARCHED_HALL sprite
+      expect(bakeryImg.getAttribute("src")).toBe("/overworld/buildings/inn.png"); // backlog #78 — Bakery's real distinct sprite
+    });
+
+    it("backlog #78 — each business type previews its own distinct illustration, not one shared image", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const bakeryImg = screen.getByText(/Bakery — \$4\.00/).closest("li")!.querySelector("img")!;
+      const tailorImg = screen.getByText(/Tailor — \$6\.00/).closest("li")!.querySelector("img")!;
+      const bookshopImg = screen.getByText(/Bookshop/).closest("li")!.querySelector("img")!;
+      const srcs = new Set([bakeryImg.getAttribute("src"), tailorImg.getAttribute("src"), bookshopImg.getAttribute("src")]);
+      expect(srcs.size).toBe(3); // all 3 distinct, never sharing one image
     });
   });
 
