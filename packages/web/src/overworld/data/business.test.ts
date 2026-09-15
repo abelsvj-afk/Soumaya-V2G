@@ -10,6 +10,7 @@ import {
   canAffordBusiness,
   canAffordGood,
   clearArmedBusiness,
+  demolishBusiness,
   isFootprintFreeForBusiness,
   ownedGoodIds,
   placeArmedBusiness,
@@ -200,5 +201,55 @@ describe("business — a real multi-business economy gated on zoning (business.m
     armBusinessType(SPACE, "bakery");
     const placed = placeArmedBusiness(SPACE, 2, 10)!;
     expect(businessNeglect(SPACE, placed)).toBe(1);
+  });
+
+  describe("demolishBusiness (wave3-economy-depth.md decision #3)", () => {
+    it("refunds only 50% once construction is finished — never fully free relocation", () => {
+      const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!;
+      zoneCommercialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armBusinessType(SPACE, "bakery");
+      const business = placeArmedBusiness(SPACE, 2, 10, 0)!; // built "long ago" — finished construction
+      const balanceBeforeDemolish = treasuryBalanceCents(SPACE);
+      expect(demolishBusiness(SPACE, business.id)).toBe(true);
+      expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeDemolish + Math.floor(bakery.priceCents * 0.5));
+      expect(placedBusinesses(SPACE)).toHaveLength(0);
+    });
+
+    it("refunds the full real price when still under construction", () => {
+      const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!;
+      zoneCommercialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armBusinessType(SPACE, "bakery");
+      const builtAt = Date.now();
+      const business = placeArmedBusiness(SPACE, 2, 10, builtAt)!; // just placed — still under construction
+      const balanceBeforeDemolish = treasuryBalanceCents(SPACE);
+      expect(demolishBusiness(SPACE, business.id, builtAt + 1000)).toBe(true);
+      expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeDemolish + bakery.priceCents);
+    });
+
+    it("is a no-op, returning false, for an id that doesn't exist", () => {
+      expect(demolishBusiness(SPACE, "nonexistent")).toBe(false);
+    });
+  });
+
+  it("wave3-economy-depth.md decision #2 — a business genuinely adjacent to real transit ages at 75% of the normal rate", async () => {
+    const { markWorked, neglectFor } = await import("./buildingNeglect.js");
+    zoneCommercialRect(2, 10, 9, 17);
+    fundTreasury(2000);
+    armBusinessType(SPACE, "bakery"); // 2x2 at (2,10)-(3,11)
+    const placed = placeArmedBusiness(SPACE, 2, 10)!;
+    const fiveDaysAgo = Date.now() - 5 * 86_400_000;
+    markWorked(SPACE, placed.id, fiveDaysAgo);
+
+    const baseline = businessNeglect(SPACE, placed); // not yet transit-adjacent
+
+    armZoneType(SPACE, "transit");
+    zoneTileAt(SPACE, 2, 9); // directly above the footprint — a real adjacent transit stop
+    const withTransit = businessNeglect(SPACE, placed);
+
+    expect(withTransit).toBeLessThan(baseline); // ages more slowly with real transit access
+    // real days elapsed (~5) times the 0.75 multiplier, run through the same real neglectFor math
+    expect(withTransit).toBeCloseTo(neglectFor(5 * 0.75), 1);
   });
 });

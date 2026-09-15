@@ -9,10 +9,10 @@
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
 import { refundToTreasury, spendFromTreasury, treasuryBalanceCents, creditHour, revenueForPriceCents } from "./townLedger.js";
 import { CONSTRUCTION_MS, isUnderConstruction } from "./housing.js";
-import { markWorked, buildingNeglect } from "./buildingNeglect.js";
+import { markWorked, daysSinceWorked, neglectFor } from "./buildingNeglect.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { footprintOverlapsAny, placedHomeFootprints } from "./placedStructures.js";
-import { zoneTypeAt } from "./zoning.js";
+import { isFootprintAdjacentToZone, zoneTypeAt } from "./zoning.js";
 
 export interface BusinessGood {
   id: string;
@@ -229,6 +229,28 @@ export function placeArmedBusiness(spaceId: string, x0: number, y0: number, nowM
   return placed;
 }
 
+/** Demolishes a real placed business. Refunds the full real purchase price if it's still
+ *  `isUnderConstruction` (nothing real has happened yet), or 50% once it's finished
+ *  construction — a real cost to undo a serious mistake once it has real earned/neglect
+ *  history, never fully free relocation (wave3-economy-depth.md decision #3, mirrors
+ *  `housing.ts`'s own `demolishHome`). Returns false, changing nothing, if no such business
+ *  exists. */
+export function demolishBusiness(spaceId: string, id: string, nowMs: number = Date.now()): boolean {
+  const businesses = placedBusinesses(spaceId);
+  const business = businesses.find((b) => b.id === id);
+  if (!business) return false;
+  const type = businessTypeById(business.typeId);
+  if (type) {
+    const refundRate = isUnderConstruction(business, nowMs) ? 1 : 0.5;
+    refundToTreasury(spaceId, Math.floor(type.priceCents * refundRate));
+  }
+  savePlacedBusinesses(
+    spaceId,
+    businesses.filter((b) => b.id !== id),
+  );
+  return true;
+}
+
 export function businessById(spaceId: string, id: string): PlacedBusiness | null {
   return placedBusinesses(spaceId).find((b) => b.id === id) ?? null;
 }
@@ -288,7 +310,12 @@ export function purchaseGoodFromBusiness(spaceId: string, businessId: string, go
 }
 
 /** This business's own real neglect, same math every other building uses — wraps
- *  `buildingNeglect.ts` with the business's own dynamic id as the key. */
+ *  `buildingNeglect.ts` with the business's own dynamic id as the key. wave3-economy-depth.md
+ *  decision #2 — a business genuinely adjacent to a real transit-zoned tile ages at 75% of the
+ *  normal rate ("better civic access"); `Infinity * 0.75` is still `Infinity`, so a never-worked
+ *  business is unaffected and still reads as maximally neglected either way. */
 export function businessNeglect(spaceId: string, business: PlacedBusiness): number {
-  return buildingNeglect(spaceId, business.id);
+  const days = daysSinceWorked(spaceId, business.id);
+  const transitAdjacent = isFootprintAdjacentToZone(spaceId, business.x0, business.y0, business.x1, business.y1, "transit");
+  return neglectFor(transitAdjacent ? days * 0.75 : days);
 }

@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HangarOverlay } from "./HangarOverlay.js";
-import { creditHour } from "../data/townLedger.js";
-import { CONSTRUCTION_MS } from "../data/housing.js";
+import { creditHour, treasuryBalanceCents } from "../data/townLedger.js";
+import { armHomeType, CONSTRUCTION_MS, placeArmedHome } from "../data/housing.js";
+import { armBusinessType, placeArmedBusiness } from "../data/business.js";
+import { armItem, placeArmedItem } from "../data/townBuilder.js";
+import { armZoneType, zoneTileAt } from "../data/zoning.js";
 
 describe("HangarOverlay", () => {
   beforeEach(() => localStorage.clear());
@@ -164,6 +167,80 @@ describe("HangarOverlay", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
       const bakeryImg = screen.getByText(/Bakery — \$4\.00/).closest("li")!.querySelector("img")!;
       expect(bakeryImg.getAttribute("src")).toBe("/overworld/buildings/human-city2.png"); // the real ARCHED_HALL sprite
+    });
+  });
+
+  describe("Demolish (wave3-economy-depth.md decision #3)", () => {
+    it("shows no placed lists on a fresh, empty town", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.queryByText("Your placed items")).toBeNull();
+      expect(screen.queryByText("Your placed homes")).toBeNull();
+      expect(screen.queryByText("Your placed businesses")).toBeNull();
+    });
+
+    it("demolishing a placed decor item refunds its full price and removes the row (two-tap confirm)", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank"); // $10.00
+      armItem("space-1", "bench"); // $1.20
+      placeArmedItem("space-1", 20, 20);
+      const balanceBeforeDemolish = treasuryBalanceCents("space-1");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText("Your placed items")).toBeTruthy();
+      const row = screen.getByText("Bench", { selector: "span" }).closest("li")!;
+      fireEvent.click(row.querySelector("button")!); // arm the confirm
+      fireEvent.click(row.querySelector('[aria-label^="Confirm:"]')!); // confirm
+      expect(screen.queryByText("Your placed items")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeDemolish + 120);
+    });
+
+    it("cancelling the demolish confirm leaves the item untouched", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank");
+      armItem("space-1", "bench");
+      placeArmedItem("space-1", 20, 20);
+      const balanceBeforeDemolish = treasuryBalanceCents("space-1");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const row = screen.getByText("Bench", { selector: "span" }).closest("li")!;
+      fireEvent.click(row.querySelector("button")!); // arm the confirm
+      fireEvent.click(screen.getByText("Cancel"));
+      expect(screen.getByText("Your placed items")).toBeTruthy();
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeDemolish);
+    });
+
+    it("demolishing a finished home refunds half its price", () => {
+      for (let i = 0; i < 80; i++) creditHour("space-1", "bank"); // $20.00
+      armZoneType("space-1", "residential");
+      zoneTileAt("space-1", 2, 10);
+      zoneTileAt("space-1", 3, 10);
+      zoneTileAt("space-1", 2, 11);
+      zoneTileAt("space-1", 3, 11);
+      armHomeType("space-1", "cottage"); // $3.00, 2x2
+      placeArmedHome("space-1", 2, 10, 0); // built "long ago" — finished construction
+      const balanceBeforeDemolish = treasuryBalanceCents("space-1");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText("Your placed homes")).toBeTruthy();
+      const row = screen.getByText("Cottage", { selector: "span" }).closest("li")!;
+      fireEvent.click(row.querySelector("button")!);
+      fireEvent.click(row.querySelector('[aria-label^="Confirm:"]')!);
+      expect(screen.queryByText("Your placed homes")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeDemolish + 150); // 50% of $3.00
+    });
+
+    it("demolishing a business under construction refunds its full price", () => {
+      for (let i = 0; i < 160; i++) creditHour("space-1", "bank"); // $40.00
+      armZoneType("space-1", "commercial");
+      zoneTileAt("space-1", 2, 10);
+      zoneTileAt("space-1", 3, 10);
+      zoneTileAt("space-1", 2, 11);
+      zoneTileAt("space-1", 3, 11);
+      armBusinessType("space-1", "bakery"); // $4.00, 2x2
+      placeArmedBusiness("space-1", 2, 10); // real clock — just built, still under construction
+      const balanceBeforeDemolish = treasuryBalanceCents("space-1");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText("Your placed businesses")).toBeTruthy();
+      const row = screen.getByText("Bakery", { selector: "span" }).closest("li")!;
+      fireEvent.click(row.querySelector("button")!);
+      fireEvent.click(row.querySelector('[aria-label^="Confirm:"]')!);
+      expect(screen.queryByText("Your placed businesses")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeDemolish + 400); // 100% while under construction
     });
   });
 });

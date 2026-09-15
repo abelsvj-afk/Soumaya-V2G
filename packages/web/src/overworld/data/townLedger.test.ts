@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
   creditHour,
+  creditPassiveIncome,
   hoursWorked,
   refundToTreasury,
   revenueForPriceCents,
@@ -65,6 +66,32 @@ describe("townLedger (cosmetic only — never real finance/Fuel)", () => {
     it("a civic building with no override still earns the flat baseline, byte-identical to before", () => {
       creditHour("space-1", "bank");
       expect(wagesEarnedCents("space-1", "bank")).toBe(25);
+    });
+  });
+
+  describe("wave3-economy-depth.md — creditPassiveIncome credits real cents WITHOUT counting as an interaction", () => {
+    it("adds real cents to the treasury balance", () => {
+      creditPassiveIncome("space-1", "home-1", 30);
+      expect(treasuryBalanceCents("space-1")).toBe(30);
+      expect(wagesEarnedCents("space-1", "home-1")).toBe(30);
+    });
+
+    it("never increments hoursWorked — passive accrual is real elapsed time, not a real interaction", () => {
+      creditPassiveIncome("space-1", "home-1", 30);
+      expect(hoursWorked("space-1", "home-1")).toBe(0);
+      expect(workedPlaceIds("space-1")).toEqual([]); // never counts as "worked" for neglect purposes
+    });
+
+    it("accumulates across separate real credits", () => {
+      creditPassiveIncome("space-1", "home-1", 10);
+      creditPassiveIncome("space-1", "home-1", 15);
+      expect(wagesEarnedCents("space-1", "home-1")).toBe(25);
+    });
+
+    it("is a no-op for a zero or negative amount", () => {
+      creditPassiveIncome("space-1", "home-1", 0);
+      creditPassiveIncome("space-1", "home-1", -10);
+      expect(wagesEarnedCents("space-1", "home-1")).toBe(0);
     });
   });
 

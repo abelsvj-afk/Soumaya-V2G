@@ -127,6 +127,22 @@ export function spendFromTreasury(spaceId: string, amountCents: number): boolean
   return true;
 }
 
+/** Credits real passive income (rent) directly to a building's earned total — deliberately NOT
+ *  `creditHour`: passive accrual is real elapsed time, not a real interaction, so it must never
+ *  increment "hours worked" or (via `npcJobs.ts`'s `recordBuildingWork`) reset a building's
+ *  neglect clock — a business that's never actually visited should still read as neglected even
+ *  while it quietly earns rent (wave3-economy-depth.md decision #1). */
+export function creditPassiveIncome(spaceId: string, placeId: string, cents: number): void {
+  if (cents <= 0) return;
+  const earned = loadEarned(spaceId);
+  earned[placeId] = (earned[placeId] ?? 0) + cents;
+  try {
+    localStorage.setItem(earnedKey(spaceId), JSON.stringify(earned));
+  } catch {
+    /* the accrual still happened this call; worst case it's not remembered */
+  }
+}
+
 /** The exact inverse of `spendFromTreasury` — real cents given back because a purchase was
  *  voided before it was ever placed (re-arming a Hangar/Housing/Business slot that had already
  *  spent on a different selection forfeited that money with no way to get it back — a real bug,

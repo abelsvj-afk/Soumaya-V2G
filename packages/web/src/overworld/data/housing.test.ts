@@ -7,6 +7,7 @@ import {
   cancelArmedHome,
   canAffordHome,
   clearArmedHome,
+  demolishHome,
   homeForNpc,
   housingSummary,
   isFootprintFreeForHome,
@@ -195,6 +196,47 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
     armHomeType(SPACE, "cottage");
     placeArmedHome(SPACE, 2, 10); // real clock — just built, not move-in ready yet
     expect(housingSummary(SPACE).housed).toBe(0);
+  });
+
+  describe("demolishHome (wave3-economy-depth.md decision #3)", () => {
+    it("refunds only 50% once construction is finished — never fully free relocation", () => {
+      const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
+      zoneResidentialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armHomeType(SPACE, "cottage");
+      const home = placeArmedHome(SPACE, 2, 10, 0)!; // built "long ago" — finished construction
+      const balanceBeforeDemolish = treasuryBalanceCents(SPACE);
+      expect(demolishHome(SPACE, home.id)).toBe(true);
+      expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeDemolish + Math.floor(cottage.priceCents * 0.5));
+      expect(placedHomes(SPACE)).toHaveLength(0);
+    });
+
+    it("refunds the full real price when still under construction — identical to canceling before placement", () => {
+      const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
+      zoneResidentialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armHomeType(SPACE, "cottage");
+      const builtAt = Date.now();
+      const home = placeArmedHome(SPACE, 2, 10, builtAt)!; // just placed — still under construction
+      const balanceBeforeDemolish = treasuryBalanceCents(SPACE);
+      expect(demolishHome(SPACE, home.id, builtAt + 1000)).toBe(true);
+      expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeDemolish + cottage.priceCents);
+    });
+
+    it("is a no-op, returning false, for an id that doesn't exist", () => {
+      expect(demolishHome(SPACE, "nonexistent")).toBe(false);
+    });
+
+    it("a demolished home's residents are freed up — assignResidents recomputes fresh", () => {
+      zoneResidentialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armHomeType(SPACE, "cottage");
+      const home = placeArmedHome(SPACE, 2, 10, 0)!;
+      const npcIds = allSocietyNpcIds();
+      expect(homeForNpc(SPACE, npcIds[0]!)).toBe(home.id);
+      demolishHome(SPACE, home.id);
+      expect(homeForNpc(SPACE, npcIds[0]!)).toBeNull();
+    });
   });
 
   it("a fresh town has zero housed NPCs, not a crash", () => {

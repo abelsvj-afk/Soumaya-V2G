@@ -197,6 +197,29 @@ export function zoneRectangle(spaceId: string, x0: number, y0: number, x1: numbe
   return zoned;
 }
 
+/** Whether any tile orthogonally adjacent to a footprint (never a tile INSIDE it) is zoned as
+ *  the given type — wave3-economy-depth.md's real sidewalk/transit bonuses (decision #2) both
+ *  need this same adjacency check, just for a different zone type each: one consistent rule,
+ *  not two different radii to explain to the player. */
+export function isFootprintAdjacentToZone(
+  spaceId: string,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  type: ZoneType,
+): boolean {
+  for (let x = x0; x <= x1; x++) {
+    if (zoneTypeAt(spaceId, x, y0 - 1) === type) return true;
+    if (zoneTypeAt(spaceId, x, y1 + 1) === type) return true;
+  }
+  for (let y = y0; y <= y1; y++) {
+    if (zoneTypeAt(spaceId, x0 - 1, y) === type) return true;
+    if (zoneTypeAt(spaceId, x1 + 1, y) === type) return true;
+  }
+  return false;
+}
+
 /** An honest per-type count of the player's own zoning plan — never a score, just what's real. */
 export function zoneCounts(spaceId: string): Record<ZoneType, number> {
   const counts: Record<ZoneType, number> = { residential: 0, commercial: 0, sidewalk: 0, transit: 0 };
