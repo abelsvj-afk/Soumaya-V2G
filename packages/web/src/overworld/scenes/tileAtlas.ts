@@ -106,6 +106,9 @@ const WORK_ICON_BY_PLACE: Partial<Record<PlaceId, string>> = {
   // Mayor's Hall (mayors-hall.md, task #63) — "her security" flashes a shield, same
   // no-dedicated-attendant-sprite tolerate-gracefully convention as Market/Park's own.
   mayorsHall: "🛡️",
+  // Theater (backlog #81) — an usher/programmer duo, same tolerate-gracefully convention as
+  // Market/Park/Mayor's Hall's own no-dedicated-attendant-sprite fallback.
+  theater: "🎭",
 };
 
 export function workIconForPlace(id: PlaceId): string {

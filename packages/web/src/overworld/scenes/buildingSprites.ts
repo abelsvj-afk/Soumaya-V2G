@@ -51,6 +51,9 @@ const BUILDING_SPRITE_BY_PLACE: Partial<Record<PlaceId, BuildingSprite>> = {
   // Hall/Gym already use; no new art was invented for it either. The building actually reads
   // as "the biggest" via its footprint (4x any other), not a distinct silhouette.
   mayorsHall: FLAG_TOWER,
+  // Theater (backlog #81, docs/overworld/theater-and-gazette.md) — reuses the arched hall a
+  // fourth time (a real performance-hall silhouette in the sourced pack); no new art invented.
+  theater: ARCHED_HALL,
 };
 
 export function buildingSpriteForPlace(id: PlaceId): BuildingSprite {

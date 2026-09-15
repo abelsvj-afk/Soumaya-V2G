@@ -1,3 +1,34 @@
+### 2026-09-15 (Claude): Backlog #81 — the Theater + Town Gazette (task #114, complete)
+- [ ] Verified by Claude
+- Direct continuation of "keep going through the list" — a real 12th door-building, added to
+  `regionLayout.ts`'s generated layout as one spec-list entry (the row-generation algorithm
+  derives its own footprint/door/`REGION_WIDTH` growth, no coordinate math touched by hand).
+- Two new hand-authored attendants (Marlowe usher, Odalys programmer, `npcDialogue.ts`) join the
+  roster (22 -> 24 NPCs), personal lines gated on real achievement ids (`light_bringer`,
+  `enduring_light`), reusing the arched-hall illustration (a 4th reuse, no new art) and a 🎭
+  work icon.
+- New `data/theater.ts` (pure, unit-tested) picks the player's own top-4 most significant real
+  memories by celestial tier — the same rarity math `adapter/rarity.ts` already derives from
+  mass. New `TheaterOverlay.tsx` lazily fetches each one's real evolving lore (`getLore`/
+  `evolveLore`, task #71's revival) — nothing invented, every "showing" is either the player's
+  own captured content or Soumaya's own real lore-evolution output. Evolving a showing credits
+  real building work, matching every other overlay's own convention.
+- `BulletinBoardOverlay.tsx` gains a "📰 Town Gazette" section folded into the existing board
+  (not a new building/mechanic) — the single highest-scored real Insight from `getDigest()`, the
+  same synthesis endpoint Observatory already calls. An empty digest shows a plain "No fresh
+  headlines yet," never a fabricated headline.
+- Caught and fixed a real regression at the root, not routed around: adding the Theater grew
+  `REGION_WIDTH`, which shifted Mayor's Hall's own centered x-position enough that its northmost
+  attendant row started landing on the south row's own wall tiles — a latent bug that only
+  avoided detection before by X-coordinate luck at the old `REGION_WIDTH`. `SOUTH_ROW_BOTTOM`'s
+  clearance now derives from `ATTENDANTS_PER_BUILDING` (moved earlier in the file) instead of a
+  flat margin, confirmed via a real reproduction script (zero collisions across all 24 real
+  attendant posts at the new `REGION_WIDTH=55`, `REGION_HEIGHT=32`).
+- Verified by 5 new `theater.test.ts` cases, 6 new `TheaterOverlay.test.tsx` cases, 3 new
+  `BulletinBoardOverlay.test.tsx` Gazette cases, 2 updated count assertions
+  (`regionLayout.test.ts`/`npcDialogue.test.ts`), the collision-fix reproduction, and the full
+  gate (1066 server + 552 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-15 (Claude): Backlog #80 — literal walk-in building interiors (task #113, complete)
 - [ ] Verified by Claude
 - Direct continuation of "keep going through the list" — every door-building interaction was

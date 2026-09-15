@@ -1785,6 +1785,46 @@ this file's own established convention (see the NPC Autonomy/outings entries abo
 `ExteriorScene.ts`'s Phaser-integration code itself has no dedicated test — not yet seen rendered
 in a real browser from this sandbox.
 
+## Stage 2.52 — Backlog #81: the Theater + Town Gazette
+
+Direct answer to backlog #81 (`docs/overworld/theater-and-gazette.md`, task #114). A 12th
+door-building, added to `regionLayout.ts`'s generated `NORTH_ROW_SPECS` (one spec-list entry —
+the row-generation algorithm derives its own footprint/door/`REGION_WIDTH` growth, no coordinate
+math touched by hand) — a genuine SimCity-style entertainment building, not a feature folded into
+an existing one. Two new hand-authored attendants (Marlowe, Odalys, `npcDialogue.ts`) join the
+now-22 → 24 NPC roster, gated on real achievement ids (`light_bringer`/`enduring_light`), reusing
+the arched-hall illustration (a 4th reuse, no new art) and a 🎭 work icon.
+
+"Showings" are real, never invented: `data/theater.ts`'s `selectShowings()` (pure, unit-tested)
+picks the player's own top-4 most significant memories by celestial tier — the same rarity math
+`adapter/rarity.ts` already derives from mass — and `TheaterOverlay.tsx` lazily fetches each one's
+real evolving lore (`getLore`/`evolveLore`, task #71's revival), the same per-node fetch
+`CreatureSummaryOverlay.tsx` already does for one node, just bounded to 4. Evolving a showing is
+the Theater's own real building-work event, matching every other overlay's own convention (only
+on a real interaction, never merely opening the overlay).
+
+The Town Gazette folds into the existing Bulletin Board rather than becoming a new building or
+mechanic: a "📰 Town Gazette" section shows the single highest-scored real `Insight` from
+`getDigest()` — the exact same synthesis endpoint `ObservatoryOverlay.tsx` already calls — framed
+as "today's story." An empty digest shows a plain "No fresh headlines yet," never a fabricated
+one; the original decision text's "new achievements/buildings" framing was aspirational and this
+app has no real event log to honestly back it, so the real synthesis output stood in instead.
+
+A real regression surfaced and was fixed, not routed around: adding a 6th north-row building grew
+`REGION_WIDTH`, which shifted Mayor's Hall's own centered x-position enough that its northmost
+attendant row (2 rows above its door, same as every building) started landing on the south row's
+own wall tiles — a latent bug that only avoided detection before by X-coordinate luck at the old
+`REGION_WIDTH`. Fixed at the root: `SOUTH_ROW_BOTTOM`'s clearance now derives from
+`ATTENDANTS_PER_BUILDING` (moved earlier in the file) instead of a flat `+1`, guaranteeing Mayor's
+Hall's attendant band can never collide with the south row regardless of how REGION_WIDTH happens
+to land — confirmed via the same real reproduction script that caught it (zero collisions across
+all 24 attendant posts at the new `REGION_WIDTH=55`, `REGION_HEIGHT=32`).
+
+Verified by 5 new `theater.test.ts` cases, 6 new `TheaterOverlay.test.tsx` cases, 3 new
+`BulletinBoardOverlay.test.tsx` Gazette cases, 2 updated `regionLayout.test.ts`/`npcDialogue.test.ts`
+counts, the Mayor's Hall collision reproduction above, and the full gate (1066 server + 552 web
+tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

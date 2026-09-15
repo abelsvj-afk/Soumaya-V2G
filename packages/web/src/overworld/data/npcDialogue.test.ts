@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { asSocietyNpcId, dialogueFor, npcProfile, partnerNpcId } from "./npcDialogue.js";
 
-const DOOR_BUILDING_IDS = ["bank", "library", "sanctuary", "postOffice", "observatory", "gym", "market", "townHall", "park", "hangar"];
+const DOOR_BUILDING_IDS = ["bank", "library", "sanctuary", "postOffice", "observatory", "theater", "gym", "market", "townHall", "park", "hangar"];
 
 describe("npcDialogue", () => {
   describe("asSocietyNpcId", () => {
@@ -20,7 +20,7 @@ describe("npcDialogue", () => {
   });
 
   describe("npcProfile", () => {
-    it("gives every one of the 20 attendants its own name and at least one job line", () => {
+    it("gives every one of the 22 attendants its own name and at least one job line", () => {
       const names = new Set<string>();
       for (const placeId of DOOR_BUILDING_IDS) {
         for (const index of [0, 1] as const) {
@@ -30,7 +30,7 @@ describe("npcDialogue", () => {
           names.add(p.name);
         }
       }
-      expect(names.size).toBe(20); // every one of the 20 attendants has a distinct name
+      expect(names.size).toBe(22); // every one of the 22 attendants has a distinct name
     });
 
     it("throws on an unknown npc id rather than silently returning garbage", () => {
