@@ -5,6 +5,7 @@ import { getJourneys } from "../../api/journeys.js";
 import type { DueReview } from "../../api/features.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface ObservatoryOverlayProps {
   spaceId: string;
@@ -146,7 +147,7 @@ export function ObservatoryOverlay({ spaceId, graph, safeToSpendCents, dueReview
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {insights.map((insight) => (
-            <li key={insight.id} style={{ padding: "8px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={insight.id} style={{ padding: "8px 0", borderBottom: `1px solid ${color.divider}` }}>
               <div>
                 {insight.kind === "contradiction" ? "⚡" : "✨"} {insight.text}
               </div>

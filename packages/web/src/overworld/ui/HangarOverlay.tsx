@@ -26,6 +26,7 @@ import {
 } from "../data/business.js";
 import { homeBuildingSprite, businessBuildingSprite } from "../scenes/buildingSprites.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 const HOME_SPRITE_URL = homeBuildingSprite().url;
 const BUSINESS_SPRITE_URL = businessBuildingSprite().url;
@@ -48,7 +49,7 @@ function BuildingPreview({ url, width, height }: { url: string; width: number; h
         objectFit: "cover",
         borderRadius: 4,
         flexShrink: 0,
-        border: "1px solid #2a2c55",
+        border: `1px solid ${color.divider}`,
       }}
     />
   );
@@ -249,7 +250,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const affordable = canAffordItem(spaceId, item);
           const isArmed = armed === item.id;
           return (
-            <li key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{item.icon}</span>
               <span style={{ flex: 1 }}>
                 {item.name} — {formatCents(item.priceCents)}
@@ -273,7 +274,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
             {myItems.map((placed) => {
               const item = PLACEABLE_ITEMS.find((i) => i.id === placed.itemId);
               return (
-                <li key={placed.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <li key={placed.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                   <span aria-hidden="true">{item?.icon ?? "❓"}</span>
                   <span style={{ flex: 1 }}>{item?.name ?? placed.itemId}</span>
                   <ConfirmButton
@@ -328,7 +329,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
         {ZONE_TYPES.map((type) => {
           const isArmed = armedZone === type;
           return (
-            <li key={type} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={type} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{ZONE_META[type].icon}</span>
               <span style={{ flex: 1 }}>
                 {ZONE_META[type].label} — {counts[type]} zoned
@@ -358,7 +359,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const affordable = canAffordHome(spaceId, type);
           const isArmed = armedHome === type.id;
           return (
-            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <BuildingPreview url={HOME_SPRITE_URL} width={type.width} height={type.height} />
               <span aria-hidden="true">{type.icon}</span>
               <span style={{ flex: 1 }}>
@@ -384,7 +385,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
               const type = homeTypeById(home.typeId);
               const underConstruction = Date.now() - home.builtAt < CONSTRUCTION_MS;
               return (
-                <li key={home.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <li key={home.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                   <span aria-hidden="true">{type?.icon ?? "❓"}</span>
                   <span style={{ flex: 1 }}>{type?.name ?? home.typeId}</span>
                   <ConfirmButton
@@ -417,7 +418,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const affordable = canAffordBusiness(spaceId, type);
           const isArmed = armedBusiness === type.id;
           return (
-            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <BuildingPreview url={BUSINESS_SPRITE_URL} width={type.width} height={type.height} />
               <span aria-hidden="true">{type.icon}</span>
               <span style={{ flex: 1 }}>
@@ -443,7 +444,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
               const type = businessTypeById(business.typeId);
               const underConstruction = Date.now() - business.builtAt < CONSTRUCTION_MS;
               return (
-                <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                   <span aria-hidden="true">{type?.icon ?? "❓"}</span>
                   <span style={{ flex: 1 }}>{type?.name ?? business.typeId}</span>
                   <ConfirmButton

@@ -1684,6 +1684,36 @@ Verified by the existing `OverlayShell.test.tsx` suite (9 cases, all passing unm
 was a visual/token change, not a behavior change) and the full gate (1066 server + 530 web
 tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.49 — Wave 4d: theme rollout finished — every overlay, task #111 closed
+
+Direct continuation of Stage 2.48, closing the "handful of overlays with bespoke layout" gap
+that stage deliberately deferred. Grepped every file in `overworld/ui/` for hardcoded hex colors
+before touching anything: found the exact same `"1px solid #2a2c55"` list-row divider,
+independently hand-typed 24+ times across 14 different overlay files (Library, BulletinBoard,
+Business, Hangar, CreatureSummary, Bank, TownHall, Park, Market, Observatory, MayorsHall, Gym,
+Sanctuary, PostOffice) — a real, single, systemic pattern, not incidental duplication. Added one
+new `color.divider` token to `theme.ts` documenting exactly that finding, then replaced every
+occurrence with the shared token across all 14 files (plus each file's now-needed `theme.ts`
+import). Also fixed the handful of one-off hardcoded values that weren't the divider pattern:
+`CaptureMenu.tsx`'s "submitting" text color, `CreatureSummaryOverlay.tsx`'s footer background/
+text/border, and `SoumayaChatOverlay.tsx`'s citation-chip border — each matched to its correct
+existing semantic token (confirmed by comparing hex values directly, not guessed). `TownHud.tsx`
+and `TouchControls.tsx` were deliberately left untouched — they're HUD chrome layered over the
+game world, not "walked into a place" panels, so they're out of scope for this design system by
+definition, not an oversight.
+
+A mechanical batch-edit script (insert-import + sed replace across 16 files) initially broke 3
+files (`HangarOverlay.tsx`, `BusinessOverlay.tsx`, `SanctuaryOverlay.tsx`) by inserting the new
+import line in the middle of a pre-existing multi-line `import { ... } from "...";` statement —
+caught immediately by the next `npm run typecheck` (not shipped, not silently wrong), then fixed
+by hand per file. This closes task #111 in full — every overlay in the Overworld now renders
+through the same real design-token system, none left on ad hoc inline colors.
+
+Verified by the full gate (1066 server + 530 web tests, typecheck, build) — a fresh `grep` for
+hardcoded hex colors in `overworld/ui/` after the fix confirms only `theme.ts` itself (the
+source of truth) and the two deliberately-out-of-scope HUD files remain. Not yet seen rendered
+in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

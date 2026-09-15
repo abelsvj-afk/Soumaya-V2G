@@ -5,6 +5,7 @@ import type { DueReview } from "../../api/features.js";
 import type { CreatureEntity } from "../types.js";
 import { bumpStat, statsSpaceId } from "../../components/achievements.js";
 import { actionButtonStyle, fieldStyle, leaveButtonStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface SoumayaChatOverlayProps {
   onClose: () => void;
@@ -118,7 +119,7 @@ export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode, dueReviews
           {t.citations && t.citations.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4, justifyContent: t.role === "you" ? "flex-end" : "flex-start" }}>
               {t.citations.map((c) => (
-                <span key={c.id} style={{ fontSize: 12, border: "1px solid #4a4d7a", borderRadius: 4, padding: "2px 6px" }}>
+                <span key={c.id} style={{ fontSize: 12, border: `1px solid ${color.panelBorder}`, borderRadius: 4, padding: "2px 6px" }}>
                   {c.label}
                   {creatureByNodeId.has(c.id) && (
                     <button type="button" onClick={() => goTo(c.id)} style={{ ...actionButtonStyle(), marginLeft: 4, padding: "2px 6px", fontSize: 11 }}>

@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Wave 4d — theme rollout finished, every overlay, task #111 closed (2026-09-15), not yet
+  on-device confirmed** — direct continuation of Wave 4c, closing the "bespoke overlays still
+  hardcoded" gap that round deliberately deferred. Grepped every file in `overworld/ui/` for
+  hardcoded hex colors first: found the exact same `"1px solid #2a2c55"` list-row divider,
+  independently hand-typed 24+ times across 14 overlay files — a real systemic pattern. Added
+  one `color.divider` token to `theme.ts` and replaced every occurrence across all 14 files
+  (plus the needed `theme.ts` import in each); also fixed the handful of true one-offs
+  (`CaptureMenu.tsx`, `CreatureSummaryOverlay.tsx`, `SoumayaChatOverlay.tsx`) by matching each
+  hardcoded hex to its correct existing semantic token. `TownHud.tsx`/`TouchControls.tsx`
+  deliberately left untouched — HUD chrome over the game world, not "walked into a place"
+  panels, out of scope by definition. A mechanical batch-edit script initially broke 3 files by
+  inserting the new import mid-multi-line-import-statement — caught immediately by
+  `npm run typecheck` (never shipped), fixed by hand. Every overlay in the Overworld now renders
+  through the same real design-token system — task #111 fully closed. Verified by the full gate
+  (1066 server + 530 web tests, typecheck, build) and a fresh post-fix grep confirming only
+  `theme.ts` itself and the 2 deliberately-out-of-scope HUD files still have hardcoded hex.
+  Not yet seen rendered in a real browser from this sandbox.
+
 - **Wave 4c — pro-design rollout to code, starting with the shared shell (2026-09-15), not yet
   on-device confirmed** — direct continuation of Wave 4b, translating the Figma design system
   into actual code. New `overworld/ui/theme.ts` is the code side of that Figma file — every

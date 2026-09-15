@@ -3,6 +3,7 @@ import type { GraphData, GraphNode } from "@brain/shared";
 import { ackReminder, deleteNode, ingestText } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface BulletinBoardOverlayProps {
   graph: GraphData;
@@ -72,7 +73,7 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
           {quests.map((q) => (
             <li
               key={q.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span style={{ flex: 1 }}>{q.label}</span>
               {busyId === q.id ? (
@@ -95,7 +96,7 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
           {reminders.map((r) => (
             <li
               key={r.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span style={{ flex: 1 }}>{r.label}</span>
               <button type="button" onClick={() => ack(r)} disabled={busyId === r.id} style={actionButtonStyle(busyId === r.id)}>

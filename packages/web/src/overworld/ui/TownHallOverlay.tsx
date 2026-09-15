@@ -4,6 +4,7 @@ import { createJourney, deleteJourney, getJourneys, journeyLinks, linkToJourney,
 import { addTimelineChapter, deleteTimelineChapter, getTimeline } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 const TREND_BADGE: Record<TimelineChapter["trend"], string> = {
   growth: "📈 growth",
@@ -143,7 +144,7 @@ export function TownHallOverlay({ spaceId, graph, onClose }: TownHallOverlayProp
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {journeys.map((j) => (
-            <li key={j.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={j.id} style={{ padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                 <span aria-hidden="true">{j.icon ?? "🧭"}</span>
                 <button
@@ -227,7 +228,7 @@ export function TownHallOverlay({ spaceId, graph, onClose }: TownHallOverlayProp
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {chapters.map((c) => (
-            <li key={c.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={c.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span style={{ flex: 1 }}>
                 <div>
                   {c.title} — {TREND_BADGE[c.trend]}

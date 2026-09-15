@@ -2,6 +2,7 @@ import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { getSpaceId } from "../../api/http.js";
 import { allPlaces } from "../scenes/regionLayout.js";
 import { OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface ParkOverlayProps {
   onClose: () => void;
@@ -27,7 +28,7 @@ export function ParkOverlay({ onClose }: ParkOverlayProps) {
           return (
             <li
               key={place.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span aria-hidden="true">{neglected ? "❓" : "🌱"}</span>
               <span style={{ flex: 1 }}>{place.label}</span>

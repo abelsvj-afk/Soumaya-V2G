@@ -3,6 +3,7 @@ import type { Journey, LoreEntry } from "@brain/shared";
 import { journeysFor } from "../../api/journeys.js";
 import { evolveLore, getLore, gradeReview } from "../../api/client.js";
 import type { CreatureEntity } from "../types.js";
+import { color } from "./theme.js";
 
 export interface CreatureSummaryOverlayProps {
   creature: CreatureEntity;
@@ -70,11 +71,11 @@ export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy, onGra
         left: 0,
         right: 0,
         bottom: 0,
-        background: "#12142a",
-        color: "#f4f1ff",
+        background: color.fieldBg,
+        color: color.textTitle,
         padding: "12px 16px",
         fontFamily: "monospace",
-        borderTop: "2px solid #4b4b8f",
+        borderTop: `2px solid ${color.buttonBorder}`,
         // 2026-09-15 audit fix — same z-index-layering bug as OverlayShell.tsx: this panel must
         // out-rank the persistent TownHud/button-row (zIndex:1) rather than sit behind them.
         zIndex: 10,
@@ -105,7 +106,7 @@ export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy, onGra
           Close
         </button>
       </div>
-      <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2c55" }}>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${color.divider}` }}>
         {lore === null ? (
           <div style={{ fontSize: 12, opacity: 0.8 }}>Reading its story so far...</div>
         ) : lore.length === 0 ? (
@@ -121,7 +122,7 @@ export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy, onGra
         </button>
       </div>
       {creature.dueForRecall && (
-        <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px solid #2a2c55" }}>
+        <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${color.divider}` }}>
           <div style={{ fontSize: 12, opacity: 0.9 }}>💭 This one's ready for a recall check.</div>
           {!revealed ? (
             <button type="button" style={{ marginTop: 6 }} onClick={() => setRevealed(true)}>
