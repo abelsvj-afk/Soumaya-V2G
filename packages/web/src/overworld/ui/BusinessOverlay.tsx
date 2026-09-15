@@ -8,6 +8,7 @@ import {
 } from "../data/business.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface BusinessOverlayProps {
   spaceId: string;
@@ -63,7 +64,7 @@ export function BusinessOverlay({ spaceId, businessId, onClose }: BusinessOverla
           const isOwned = owned.has(good.id);
           const affordable = canAffordGood(spaceId, good);
           return (
-            <li key={good.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={good.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{good.icon}</span>
               <span style={{ flex: 1 }}>
                 {good.name} — {formatCents(good.priceCents)}

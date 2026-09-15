@@ -1,5 +1,6 @@
 import type { BankLedgerRow } from "../types.js";
 import { OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface BankOverlayProps {
   rows: BankLedgerRow[];
@@ -29,7 +30,7 @@ export function BankOverlay({ rows, safeToSpendCents, onClose }: BankOverlayProp
           {rows.map((row) => (
             <li
               key={`${row.kind}-${row.id}`}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span aria-hidden="true">{row.icon}</span>
               <span style={{ flex: 1 }}>{row.label}</span>

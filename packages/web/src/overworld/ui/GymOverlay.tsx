@@ -3,6 +3,7 @@ import type { Fuel, GraphData, Streak } from "@brain/shared";
 import { claimCodexReward, getCodexDiscoveries, type AgentDiscovery } from "../../api/client.js";
 import { listAchievements } from "../data/achievements.js";
 import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface GymOverlayProps {
   graph: GraphData;
@@ -62,7 +63,7 @@ export function GymOverlay({ graph, fuel, streak, onClose }: GymOverlayProps) {
               gap: 8,
               alignItems: "flex-start",
               padding: "8px 0",
-              borderBottom: "1px solid #2a2c55",
+              borderBottom: `1px solid ${color.divider}`,
               opacity: unlocked ? 1 : 0.6,
             }}
           >
@@ -90,7 +91,7 @@ export function GymOverlay({ graph, fuel, streak, onClose }: GymOverlayProps) {
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {discoveries.map((d) => (
-            <li key={d.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={d.key} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{d.icon}</span>
               <span style={{ flex: 1 }}>
                 <div>{d.title}</div>

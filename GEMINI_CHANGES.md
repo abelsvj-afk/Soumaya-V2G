@@ -1,3 +1,20 @@
+### 2026-09-15 (Claude): Wave 4d — theme rollout finished, every overlay, task #111 closed (task #111, complete)
+- [ ] Verified by Claude
+- Direct continuation of Wave 4c, closing the "bespoke overlays still hardcoded" gap.
+- Grepped every file in `overworld/ui/` first: found the exact same `"1px solid #2a2c55"`
+  list-row divider, independently hand-typed 24+ times across 14 overlay files (Library,
+  BulletinBoard, Business, Hangar, CreatureSummary, Bank, TownHall, Park, Market, Observatory,
+  MayorsHall, Gym, Sanctuary, PostOffice).
+- Added one `color.divider` token to `theme.ts`, replaced every occurrence across all 14 files
+  plus the needed import each; fixed the handful of one-off hardcoded colors in `CaptureMenu.tsx`
+  / `CreatureSummaryOverlay.tsx` / `SoumayaChatOverlay.tsx` by matching to existing tokens.
+- `TownHud.tsx`/`TouchControls.tsx` deliberately untouched — HUD chrome, not panels, out of
+  scope by definition.
+- A batch-edit script initially broke 3 files (mid-import-statement insertion) — caught by
+  `npm run typecheck` before anything shipped, fixed by hand.
+- Every overlay now renders through the same real design-token system. Verified by the full
+  gate (1066 server + 530 web tests, typecheck, build) and a fresh post-fix grep.
+
 ### 2026-09-15 (Claude): Wave 4c — pro-design rollout to code, starting with the shared shell (task #111, partial)
 - [ ] Verified by Claude
 - Direct continuation of Wave 4b, translating the Figma design system into actual code.

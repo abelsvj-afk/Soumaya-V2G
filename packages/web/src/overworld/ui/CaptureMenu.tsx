@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { CreatureEntity } from "../types.js";
+import { color } from "./theme.js";
 
 export interface CaptureMenuProps {
   onSubmit: (text: string) => Promise<CreatureEntity | null>;
@@ -55,7 +56,7 @@ export function CaptureMenu({ onSubmit, onClose }: CaptureMenuProps) {
         position: "absolute",
         inset: 0,
         background: "rgba(10,10,20,0.9)",
-        color: "#f4f1ff",
+        color: color.textTitle,
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",

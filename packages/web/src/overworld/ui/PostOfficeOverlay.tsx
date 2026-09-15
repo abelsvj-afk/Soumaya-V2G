@@ -3,6 +3,7 @@ import { readNotifications, writeNotifications, type InboxNotification } from ".
 import { recordBuildingWork } from "../data/npcJobs.js";
 import type { PlaceId } from "../scenes/regionLayout.js";
 import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface PostOfficeOverlayProps {
   spaceId: string;
@@ -84,7 +85,7 @@ export function PostOfficeOverlay({ spaceId, onClose, onOpenPlace }: PostOfficeO
                 gap: 8,
                 alignItems: "center",
                 padding: "6px 0",
-                borderBottom: "1px solid #2a2c55",
+                borderBottom: `1px solid ${color.divider}`,
                 opacity: n.seen ? 0.6 : 1,
               }}
             >

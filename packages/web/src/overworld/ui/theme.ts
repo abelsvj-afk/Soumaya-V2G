@@ -26,6 +26,11 @@ export const color = {
   buttonText: "#f4f1ff",
   dangerBg: "#7a2d3d",
   dangerBorder: "#c0596e",
+  /** The list-row divider used identically across every overlay's catalog/list — confirmed by
+   *  grep across the whole `overworld/ui` directory before adding this token: the exact same
+   *  `"1px solid #2a2c55"` value, independently hand-typed 24+ times across 14 files. One
+   *  shared token so it can't drift between overlays again. */
+  divider: "#2a2c55",
 } as const;
 
 export const spacing = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;

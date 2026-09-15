@@ -5,6 +5,7 @@ import { groupIntoFolders } from "../data/libraryFolders.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 import { bumpStat, statsSpaceId } from "../../components/achievements.js";
+import { color } from "./theme.js";
 
 export interface LibraryOverlayProps {
   graph: GraphData;
@@ -136,7 +137,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: "0 0 12px" }}>
           {lenses.map((lens) => (
-            <li key={lens.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={lens.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{lens.pinned ? "📌" : "🔎"}</span>
               <span style={{ flex: 1 }}>
                 {lens.name} {lens.count != null && <span style={{ opacity: 0.6 }}>({lens.count})</span>}
@@ -173,7 +174,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
           ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {lensResultNodes.map((n) => (
-                <li key={n.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <li key={n.id} style={{ padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                   {n.label} <span style={{ opacity: 0.6 }}>({n.type})</span>
                 </li>
               ))}
@@ -188,7 +189,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
           ) : (
             <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
               {hits.map((h) => (
-                <li key={h.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                <li key={h.id} style={{ padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                   {h.label} <span style={{ opacity: 0.6 }}>({h.type})</span>
                 </li>
               ))}

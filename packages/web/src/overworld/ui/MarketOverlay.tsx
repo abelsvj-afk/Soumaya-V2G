@@ -3,6 +3,7 @@ import { canAffordGood, MARKET_GOODS, ownedGoodIds, purchaseGood, type MarketGoo
 import { revenueForPriceCents, treasuryBalanceCents } from "../data/townLedger.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface MarketOverlayProps {
   spaceId: string;
@@ -51,7 +52,7 @@ export function MarketOverlay({ spaceId, onClose }: MarketOverlayProps) {
           return (
             <li
               key={good.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span aria-hidden="true">{good.icon}</span>
               <span style={{ flex: 1 }}>

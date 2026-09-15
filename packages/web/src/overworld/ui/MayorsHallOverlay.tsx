@@ -6,6 +6,7 @@ import { treasuryBalanceCents } from "../data/townLedger.js";
 import { zoneCounts, ZONE_TYPES } from "../data/zoning.js";
 import { allPlaces } from "../scenes/regionLayout.js";
 import { OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface MayorsHallOverlayProps {
   spaceId: string;
@@ -60,7 +61,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
         {doorPlaces.map((place) => {
           const neglected = isNeglected(buildingNeglect(spaceId, place.id));
           return (
-            <li key={place.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={place.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span aria-hidden="true">{neglected ? "❓" : "🌱"}</span>
               <span style={{ flex: 1 }}>{place.label}</span>
               <span style={{ fontSize: 12, opacity: 0.8 }}>{neglected ? "could use a visit" : "doing fine"}</span>
@@ -81,7 +82,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
             const type = homeTypeById(home.typeId);
             const residents = residentsOfHome(spaceId, home.id).map((id) => npcProfile(id).name);
             return (
-              <li key={home.id} style={{ padding: "4px 0", borderBottom: "1px solid #2a2c55" }}>
+              <li key={home.id} style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>
                 <span aria-hidden="true">{type?.icon ?? "🏠"}</span> {type?.name ?? "Home"} —{" "}
                 {residents.length === 0 ? "no one assigned yet" : residents.join(", ")}
               </li>
@@ -102,7 +103,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
             const neglected = isNeglected(businessNeglect(spaceId, business));
             const type = businessTypeById(business.typeId);
             return (
-              <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
                 <span aria-hidden="true">{neglected ? "❓" : "🌱"}</span>
                 <span style={{ flex: 1 }}>{type?.name ?? business.typeId}</span>
                 <span style={{ fontSize: 12, opacity: 0.8 }}>{neglected ? "could use a visit" : "doing fine"}</span>
@@ -115,7 +116,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
       <h3>Zoning Plan</h3>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
         {ZONE_TYPES.map((type) => (
-          <li key={type} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+          <li key={type} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
             <span aria-hidden="true">{ZONE_ICON[type]}</span>
             <span style={{ flex: 1 }}>{ZONE_LABEL[type]}</span>
             <span style={{ fontSize: 12, opacity: 0.8 }}>{counts[type]} zoned</span>

@@ -25,6 +25,7 @@ import {
 } from "../../api/mind.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { color } from "./theme.js";
 
 export interface SanctuaryOverlayProps {
   spaceId: string;
@@ -197,7 +198,7 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
           {thoughts.map((t) => (
             <li
               key={t.id}
-              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+              style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
             >
               <span style={{ flex: 1 }}>{t.text}</span>
               <button type="button" onClick={() => reinforce(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
@@ -237,7 +238,7 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
             return (
               <li
                 key={item.id}
-                style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
+                style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}
               >
                 <span aria-hidden="true">{meta?.icon ?? "🌱"}</span>
                 <span style={{ flex: 1 }}>
@@ -286,7 +287,7 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {inquiries.map((inquiry) => (
-            <li key={inquiry.id} style={{ padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={inquiry.id} style={{ padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <div>{inquiry.question}</div>
               <div style={{ fontSize: 12, opacity: 0.7 }}>{inquiry.nodes.map((n) => n.label).join(" · ")}</div>
               <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -324,7 +325,7 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {candidates.map((c) => (
-            <li key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span style={{ flex: 1 }}>
                 {c.aLabel} ↔ {c.bLabel}
                 {c.reason && <span style={{ opacity: 0.7 }}> — {c.reason}</span>}
@@ -358,7 +359,7 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
       ) : (
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {personSuggestions.map((p) => (
-            <li key={p.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+            <li key={p.name} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
               <span style={{ flex: 1 }}>
                 {p.name} — mentioned {p.count} time{p.count === 1 ? "" : "s"}
               </span>
