@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { COGNITIVE_KINDS, COGNITIVE_META } from "@brain/shared";
+import { COGNITIVE_KINDS, COGNITIVE_META, type GraphData } from "@brain/shared";
 import {
   acceptCandidate,
   addThought,
@@ -12,6 +12,7 @@ import {
   getCandidates,
   getCognitive,
   getInquiries,
+  getPersonProfile,
   getPersonSuggestions,
   getThoughts,
   promoteThought,
@@ -21,14 +22,16 @@ import {
   type Candidate,
   type CognitiveItem,
   type Inquiry,
+  type PersonProfile,
   type Thought,
 } from "../../api/mind.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
-import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 import { color } from "./theme.js";
 
 export interface SanctuaryOverlayProps {
   spaceId: string;
+  graph: GraphData;
   onClose: () => void;
 }
 
@@ -45,12 +48,19 @@ export interface SanctuaryOverlayProps {
  * server-backed sub-features had zero UI anywhere: Inquiries, Suggested Connections
  * (Candidates), and Person suggestions (`docs/overworld/sanctuary-inquiries-candidates.md`).
  * Answering an Inquiry or accepting a Candidate is the Sanctuary's own real work event, same
- * convention as everything else above; merely dismissing/rejecting is not. Person suggestions
- * only get a real "Not a person" dismiss this round — `getPersonProfile` (a full profile
- * detail view) needs its own navigation pattern this app doesn't have yet, deliberately
- * deferred rather than invented.
+ * convention as everything else above; merely dismissing/rejecting is not.
+ *
+ * Backlog #85 (task #117, follow-up to the audit above) — the deferred `getPersonProfile` view
+ * is now real: tapping a confirmed person node (a real `graph.nodes` entry, `type === "person"`,
+ * distinct from the still-unconfirmed name suggestions below) expands its real profile
+ * (interaction count/tone/history) inline, no new navigation pattern invented. Letting go of a
+ * thought is a genuine server-side delete (`DELETE /working/:id`) that was a single unconfirmed
+ * click — now wrapped in the same real `ConfirmButton` two-tap pattern every other destructive
+ * action in this app already uses. Editing a thought's own text stays deliberately unwired:
+ * thoughts are meant to be captured and evolve via reinforcement, not hand-edited, matching the
+ * "no raw text editing anywhere in the Overworld" convention confirmed across every overlay.
  */
-export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
+export function SanctuaryOverlay({ spaceId, graph, onClose }: SanctuaryOverlayProps) {
   const [thoughts, setThoughts] = useState<Thought[] | null>(null);
   const [items, setItems] = useState<CognitiveItem[] | null>(null);
   const [newThought, setNewThought] = useState("");
@@ -63,6 +73,9 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
   const [candidates, setCandidates] = useState<Candidate[] | null>(null);
   const [busyCandidateId, setBusyCandidateId] = useState<number | null>(null);
   const [personSuggestions, setPersonSuggestions] = useState<{ name: string; count: number }[] | null>(null);
+  const [expandedPersonId, setExpandedPersonId] = useState<number | null>(null);
+  const [personProfile, setPersonProfile] = useState<PersonProfile | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(false);
 
   const loadThoughts = async () => setThoughts(await getThoughts());
   const loadItems = async () => setItems(await getCognitive());
@@ -137,6 +150,22 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
     await loadPersonSuggestions();
   };
 
+  const togglePersonProfile = async (nodeId: number) => {
+    if (expandedPersonId === nodeId) {
+      setExpandedPersonId(null);
+      setPersonProfile(null);
+      return;
+    }
+    setExpandedPersonId(nodeId);
+    setPersonProfile(null);
+    setLoadingProfile(true);
+    try {
+      setPersonProfile(await getPersonProfile(nodeId));
+    } finally {
+      setLoadingProfile(false);
+    }
+  };
+
   const reinforce = async (t: Thought) => {
     setBusyId(t.id);
     try {
@@ -207,9 +236,13 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
               <button type="button" onClick={() => promote(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
                 ★ Save
               </button>
-              <button type="button" onClick={() => dismiss(t)} disabled={busyId === t.id} style={actionButtonStyle(busyId === t.id)}>
-                Let go
-              </button>
+              <ConfirmButton
+                label="Let go"
+                confirmLabel="Really let go?"
+                ariaLabel={`Let go of ${t.text}`}
+                onConfirm={() => dismiss(t)}
+                disabled={busyId === t.id}
+              />
             </li>
           ))}
         </ul>
@@ -351,7 +384,53 @@ export function SanctuaryOverlay({ spaceId, onClose }: SanctuaryOverlayProps) {
         </ul>
       )}
 
-      <h3>People</h3>
+      <h3>Known people</h3>
+      {(() => {
+        const people = graph.nodes.filter((n) => n.type === "person");
+        return people.length === 0 ? (
+          <p>No confirmed people in your collection yet.</p>
+        ) : (
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {people.map((p) => (
+              <li key={p.id} style={{ padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ flex: 1 }}>{p.label}</span>
+                  <button type="button" onClick={() => togglePersonProfile(p.id)} style={actionButtonStyle()}>
+                    {expandedPersonId === p.id ? "Hide profile" : "View profile"}
+                  </button>
+                </div>
+                {expandedPersonId === p.id && (
+                  <div style={{ marginTop: 6, paddingLeft: 8, fontSize: 12, opacity: 0.9 }}>
+                    {loadingProfile ? (
+                      <p style={{ margin: 0 }}>Reading your history together...</p>
+                    ) : !personProfile ? (
+                      <p style={{ margin: 0 }}>No profile data yet.</p>
+                    ) : (
+                      <>
+                        <div>
+                          {personProfile.count} interaction{personProfile.count === 1 ? "" : "s"} — tone: {personProfile.tone}
+                          {personProfile.lastAt && ` — last ${new Date(personProfile.lastAt).toLocaleDateString()}`}
+                        </div>
+                        {personProfile.interactions.length > 0 && (
+                          <ul style={{ listStyle: "none", padding: 0, margin: "4px 0 0" }}>
+                            {personProfile.interactions.map((i) => (
+                              <li key={i.id} style={{ padding: "2px 0" }}>
+                                {i.label} <span style={{ opacity: 0.6 }}>({new Date(i.createdAt).toLocaleDateString()})</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        );
+      })()}
+
+      <h3>Suggested people</h3>
       {personSuggestions === null ? (
         <p>Loading...</p>
       ) : personSuggestions.length === 0 ? (
