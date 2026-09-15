@@ -132,6 +132,30 @@ into every new token/badge).
 Sequenced as its own round (C below) since it needs the Figma file to exist before code changes
 — can't run in the same round as the language purge (independent, unblocked, runs first).
 
+**Status (2026-09-15): v1 foundation shipped.** File:
+[Soumaya Town · Design System](https://www.figma.com/design/Max8E6fAzoFZhV0sWCISMg) (file key
+`Max8E6fAzoFZhV0sWCISMg`). Built with `use_figma` per the `figma-generate-library` skill's
+Phase 0/1/3 workflow (discovery → foundations → one real component), scoped to what's realistic
+in a single round rather than the skill's full 20-100-call production process:
+- **Color/Primitives** (15 vars) and **Color/Semantic** (16 vars, aliased + scoped + WEB code
+  syntax) — every value pulled 1:1 from the actual live palette in `OverlayShell.tsx`, not
+  invented. **Spacing** (5) and **Radius** (3) collections.
+- **Text styles**: Panel/Title, Panel/Body, Panel/Caption, all in Atkinson Hyperlegible Mono — a
+  real open-source accessibility-focused monospace font (keeps the existing monospace identity,
+  genuinely more legible than a system default, no new proprietary dependency).
+- **Effect style**: Panel/Depth (a real two-layer drop shadow, replacing the current flat
+  hard-offset shadow).
+- **One fully-built reference component**: "Overlay Panel" on the Components page — a real
+  visual upgrade over today's flat `OverlayShell.tsx` (icon badge instead of bare emoji, an
+  accent line under the header, layered depth, a documented primary/danger button pair) built
+  entirely from the bound tokens above, not hardcoded values.
+- Cover page documents the file's scope and next steps for continuation.
+
+**Deliberately not attempted this round** (tracked as task #111, its own future round): a Button
+component set with real variants (primary/danger/disabled), a List Row component (the icon+label
++action pattern every catalog uses), and — the largest remaining piece — translating this system
+into the actual 15+ overlay React components in code.
+
 ## C. Backlog completion — build order + scope for each
 
 Six items the user flagged, each already has a task id. None had a resolved spec before now;

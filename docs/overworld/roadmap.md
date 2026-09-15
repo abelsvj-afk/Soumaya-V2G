@@ -1634,6 +1634,31 @@ The rest of Wave 4 (backlog completion #78/#80-83/#85, population growth, a Figm
 design" pass on every overlay, deeper SimCity mechanics) is tracked separately per
 `wave4-full-vision.md`'s own execution order — this entry closes only §A.
 
+## Stage 2.47 — Wave 4b: Figma design system v1 foundation
+
+Direct response to "all overlays need to be pro designed... use Figma MCP where necessary."
+Built via `use_figma` following the `figma-generate-library` skill's Phase 0/1/3 workflow
+(discovery → foundations → one real component), scoped to what's realistic in a single round.
+File: [Soumaya Town · Design System](https://www.figma.com/design/Max8E6fAzoFZhV0sWCISMg)
+(`Max8E6fAzoFZhV0sWCISMg`).
+
+- **Color/Primitives** (15 vars) + **Color/Semantic** (16 vars, aliased/scoped/WEB code syntax)
+  pulled 1:1 from `OverlayShell.tsx`'s actual live palette — nothing invented. **Spacing** (5) and
+  **Radius** (3) collections.
+- Text styles (Panel/Title, Panel/Body, Panel/Caption) in Atkinson Hyperlegible Mono — a real
+  open-source accessibility-focused monospace font, keeping the existing monospace identity while
+  being genuinely more legible, no new proprietary dependency.
+- Effect style Panel/Depth — a real two-layer drop shadow replacing the current flat hard offset.
+- One fully-built reference component, "Overlay Panel," demonstrating a genuine visual upgrade
+  over today's flat shell: an icon badge instead of bare emoji, an accent line under the header,
+  layered depth, and a documented primary/danger button pair — built entirely from the bound
+  tokens above.
+
+Deliberately not attempted this round (task #111, its own future round): a Button variant set, a
+List Row component, and — the largest remaining piece — translating this system into the actual
+15+ overlay React components in code. No repo code changed this round (Figma-only); the existing
+gate (1066 server + 530 web tests, typecheck, build) is unaffected.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

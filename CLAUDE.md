@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Wave 4b — Figma design system v1 foundation (2026-09-15), not a code change, not yet applied
+  to any overlay** — direct response to "all overlays need to be pro designed... use Figma MCP
+  where necessary." Built via `use_figma` (Figma MCP) following the `figma-generate-library`
+  skill's Phase 0/1/3 workflow. File: Soumaya Town · Design System
+  (`https://www.figma.com/design/Max8E6fAzoFZhV0sWCISMg`). Shipped: Color/Primitives (15 vars) +
+  Color/Semantic (16 vars, aliased/scoped/WEB code syntax) pulled 1:1 from `OverlayShell.tsx`'s
+  real live palette; Spacing (5) + Radius (3) collections; Panel/Title-Body-Caption text styles
+  in Atkinson Hyperlegible Mono (a real open-source accessibility-focused monospace, keeping the
+  existing monospace identity while being genuinely more legible); a Panel/Depth effect style (a
+  real two-layer shadow replacing the current flat one); and one fully-built reference component
+  ("Overlay Panel") showing a genuine visual upgrade — icon badge, header accent line, layered
+  depth, a documented primary/danger button pair — built entirely from the bound tokens, nothing
+  hardcoded. Deliberately not attempted this round: a Button variant set, a List Row component,
+  and translating this system into the actual 15+ overlay React components in code (task #111,
+  its own future round). No repo source changed this round — the existing gate is unaffected.
+
 - **Wave 4a — total galaxy/space language purge (2026-09-15), not yet on-device confirmed** —
   direct response to "anything being used from the galaxy version can't be referring to space in
   any type of way at all," the first slice of a much larger request (full backlog completion,
