@@ -1825,6 +1825,30 @@ Verified by 5 new `theater.test.ts` cases, 6 new `TheaterOverlay.test.tsx` cases
 counts, the Mayor's Hall collision reproduction above, and the full gate (1066 server + 552 web
 tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.53 — Backlog #82: NPC mote awareness
+
+Direct answer to backlog #82 (`wave4-full-vision.md` §C.4, task #115) — the smallest of this
+round's items, closing out the trio (#80 interiors, #81 Theater/Gazette, #82 mote awareness)
+started by "keep going through the list." Extends the existing Break-time dialogue system with a
+real, low-frequency line noticing the player has several active MindSpace thoughts
+(`getThoughts()`'s own count, already carried on `ExteriorScene.pendingThoughts` since MindSpace's
+own reveal) — never inventing anything about a specific thought's substance, since thoughts are
+private: an NPC may notice THAT you're thinking, never WHAT.
+
+New `data/moteAwareness.ts` (pure, unit-tested): `moteAwarenessLine(npcId, seed, thoughtCount)`
+returns null below the real 2-thought trigger, and even once eligible fires only ~1-in-8 times
+(deterministic hash of npcId+seed, never `Math.random` — this repo's standing convention),
+picking from 3 hand-authored, content-free lines. Wired into `ExteriorScene.ts`'s
+`resolveDialogueLine()` — checked FIRST, ahead of the existing LLM/pool/gesture 3-way split
+(`npc-llm-dialogue.md`'s `pickDialogueOutcome`), which is left completely untouched: a real mote
+line, when it fires, takes priority over that split rather than competing inside it.
+
+Verified by 5 new `moteAwareness.test.ts` cases (never fires below the real trigger across 50
+seeds; fires at least once and stays genuinely rare — under half — across 80 eligible rolls;
+deterministic; never an empty string) + the full gate (1066 server + 557 web tests, typecheck,
+build). `ExteriorScene.ts`'s own dialogue-bubble rendering is unconfirmed on-device, same as
+every other Phaser-integration change this session.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

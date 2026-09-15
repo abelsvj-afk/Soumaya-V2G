@@ -1,3 +1,16 @@
+### 2026-09-15 (Claude): Backlog #82 — NPC mote awareness (task #115, complete)
+- [ ] Verified by Claude
+- Direct continuation of "keep going through the list" — extends the existing Break-time
+  dialogue system with a real, low-frequency line noticing the player has 2+ active MindSpace
+  thoughts (`getThoughts()`'s own count) — never inventing anything about a thought's substance.
+- New `data/moteAwareness.ts` (pure, deterministic, no `Math.random`): null below the real
+  2-thought trigger, and even once eligible fires only ~1-in-8 times, picking from 3
+  hand-authored, content-free lines.
+- Wired into `ExteriorScene.ts`'s `resolveDialogueLine()`, checked first, ahead of the existing
+  LLM/pool/gesture 3-way split (`npc-llm-dialogue.md`), which is left completely untouched.
+- Verified by 5 new `moteAwareness.test.ts` cases and the full gate (1066 server + 557 web
+  tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-15 (Claude): Backlog #81 — the Theater + Town Gazette (task #114, complete)
 - [ ] Verified by Claude
 - Direct continuation of "keep going through the list" — a real 12th door-building, added to
