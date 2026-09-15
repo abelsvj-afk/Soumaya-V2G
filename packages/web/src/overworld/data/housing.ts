@@ -198,6 +198,28 @@ export function placeArmedHome(spaceId: string, x0: number, y0: number, nowMs: n
   return placed;
 }
 
+/** Demolishes a real placed home. Refunds the full real purchase price if it's still
+ *  `isUnderConstruction` (functionally identical to canceling the arm before it was ever
+ *  placed — nobody's lived there yet, nothing real has happened), or 50% once it's finished
+ *  construction — a real cost to undo a serious mistake once it has real assigned residents,
+ *  never fully free relocation (wave3-economy-depth.md decision #3). Returns false, changing
+ *  nothing, if no such home exists. */
+export function demolishHome(spaceId: string, id: string, nowMs: number = Date.now()): boolean {
+  const homes = placedHomes(spaceId);
+  const home = homes.find((h) => h.id === id);
+  if (!home) return false;
+  const type = homeTypeById(home.typeId);
+  if (type) {
+    const refundRate = isUnderConstruction(home, nowMs) ? 1 : 0.5;
+    refundToTreasury(spaceId, Math.floor(type.priceCents * refundRate));
+  }
+  savePlacedHomes(
+    spaceId,
+    homes.filter((h) => h.id !== id),
+  );
+  return true;
+}
+
 export interface HomeResident {
   npcId: SocietyNpcId;
   homeId: string;

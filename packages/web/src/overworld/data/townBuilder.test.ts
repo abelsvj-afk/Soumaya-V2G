@@ -10,6 +10,7 @@ import {
   isTileOccupiedByPlacedItem,
   placeArmedItem,
   placedItems,
+  removePlacedItem,
 } from "./townBuilder.js";
 import { creditHour, treasuryBalanceCents } from "./townLedger.js";
 
@@ -117,5 +118,23 @@ describe("townBuilder — the Hangar's real select-then-place mechanism", () => 
     clearArmedItem(SPACE);
     expect(armedItemId(SPACE)).toBeNull();
     expect(placeArmedItem(SPACE, 20, 20)).toBeNull();
+  });
+
+  describe("removePlacedItem (wave3-economy-depth.md decision #3)", () => {
+    it("refunds the item's full real price and removes it from the world", () => {
+      const bench = PLACEABLE_ITEMS.find((i) => i.id === "bench")!;
+      fundTreasury(1000);
+      armItem(SPACE, "bench");
+      const placed = placeArmedItem(SPACE, 10, 10)!;
+      const balanceBeforeRemove = treasuryBalanceCents(SPACE);
+      expect(removePlacedItem(SPACE, placed.id)).toBe(true);
+      expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeRemove + bench.priceCents); // full refund
+      expect(isTileOccupiedByPlacedItem(SPACE, 10, 10)).toBe(false);
+      expect(placedItems(SPACE)).toHaveLength(0);
+    });
+
+    it("is a no-op, returning false, for an id that doesn't exist", () => {
+      expect(removePlacedItem(SPACE, "nonexistent")).toBe(false);
+    });
   });
 });

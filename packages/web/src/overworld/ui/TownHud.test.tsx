@@ -93,4 +93,33 @@ describe("TownHud (town-hud.md)", () => {
       expect(screen.queryByText(/Building:/)).toBeNull();
     });
   });
+
+  describe("onboarding nudge (wave3-economy-depth.md decision #4)", () => {
+    it("shows the tip on a genuinely fresh town", () => {
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText(/New here\? Walk into any building to explore/)).toBeTruthy();
+    });
+
+    it("hides the tip once anything has actually happened in the town", () => {
+      creditHour("space-1", "bank");
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText(/New here\?/)).toBeNull();
+    });
+
+    it("dismissing the tip hides it and persists so it never shows again on this space", () => {
+      const { unmount } = render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      fireEvent.click(screen.getByLabelText("Dismiss onboarding tip"));
+      expect(screen.queryByText(/New here\?/)).toBeNull();
+      unmount();
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText(/New here\?/)).toBeNull();
+    });
+
+    it("a dismissal on one space never hides the tip on a different, still-fresh space", () => {
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      fireEvent.click(screen.getByLabelText("Dismiss onboarding tip"));
+      render(<TownHud spaceId="space-2" fuel={null} streak={null} />);
+      expect(screen.getAllByText(/New here\?/)).toHaveLength(1); // only space-2's copy
+    });
+  });
 });

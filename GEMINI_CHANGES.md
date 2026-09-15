@@ -1,3 +1,38 @@
+### 2026-09-15 (Claude): Wave 3 — economy depth: passive income, sidewalk/transit function, demolish, onboarding (tasks #99, #101, #103-#107)
+- [ ] Verified by Claude
+- Direct response to "Do wave 3 and continue to go deeper." Full spec + reasoning in
+  `docs/overworld/wave3-economy-depth.md` (Rule #1) resolves the 5 structural gaps tracked at the
+  end of Wave 2.
+- **Passive income**: every placed home/business (never decor) accrues real Town Treasury income
+  — 10% of its own real purchase price per real day elapsed, capped at 3 days. New
+  `data/passiveIncome.ts`, read-time-computed from a real `lastCollectedAt` timestamp (same
+  wall-clock convention as `buildingNeglect.ts`), collected automatically on every
+  `loadWorldSnapshot()`. New `creditPassiveIncome()` in `townLedger.ts` deliberately never touches
+  `hoursWorked`/never triggers a neglect reset — passive accrual must never masquerade as a real
+  interaction.
+- **Sidewalk/transit real function**: new `isFootprintAdjacentToZone()` in `zoning.ts` (shared
+  orthogonal-adjacency test). Sidewalk → 1.5x passive-income multiplier. Transit → 25% reduction
+  in a business's neglect accrual rate (`businessNeglect()` in `business.ts`); homes have no
+  neglect concept, so this only ever applies to businesses. Both pure upside, no existing town
+  invalidated.
+- **Demolish/remove**: `removePlacedItem()` (townBuilder.ts, 100% refund), `demolishHome()`/
+  `demolishBusiness()` (housing.ts/business.ts, 50% refund normally, 100% while still
+  `isUnderConstruction`). Surfaced in `HangarOverlay.tsx` as a "Your placed [items/homes/
+  businesses]" list per catalog with a `ConfirmButton` "Demolish" per row — reuses the exact
+  two-tap confirm pattern from the 2026-09-15 Wave 1 audit fix.
+- **Onboarding nudge**: a single dismissible tip in `TownHud.tsx`, shown only when
+  `workedPlaceIds(spaceId).length === 0` (real "has anything happened here" signal, no new
+  tracked flag). Real × dismiss persists per-space to localStorage.
+- **Population growth**: specced (`wave3-economy-depth.md` decision #5), deliberately NOT built —
+  real ripple footprint (22 hand-authored NPC profiles, no "unaffiliated resident" concept,
+  meeting-slot re-sizing) means hand-authoring-vs-LLM-generating new NPCs is a real decision not
+  yet made; tracked as its own future round.
+- Verified by 4 new `townLedger.test.ts` cases, 4 new `zoning.test.ts` cases, 1 new
+  `business.test.ts` neglect-bonus case, 9 new `passiveIncome.test.ts` cases, 2 new
+  `townBuilder.test.ts` cases, 4 new `housing.test.ts` cases, 3 new `business.test.ts` demolish
+  cases, 5 new `HangarOverlay.test.tsx` cases, 4 new `TownHud.test.tsx` cases, and the full gate
+  (1066 server + 530 web tests, typecheck, build).
+
 ### 2026-09-15 (Claude): Deep audit Wave 2 finished — creature render-churn perf fix, depth-ordering resolved (task #97, #98)
 - [ ] Verified by Claude
 - Closes the last two findings from the same 4-agent audit.

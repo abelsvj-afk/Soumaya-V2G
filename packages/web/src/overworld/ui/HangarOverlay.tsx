@@ -3,12 +3,29 @@ import { loadUnlocked } from "../../components/achievements.js";
 import { figurineOptions, hangarKeys, shipOptions, trailOptions, type HangarOption } from "../data/hangarOptions.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
-import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
+import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS, placedItems, removePlacedItem } from "../data/townBuilder.js";
 import { armedZoneMode, armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneMode, type ZoneType } from "../data/zoning.js";
-import { armedHomeTypeId, armHomeType, canAffordHome, CONSTRUCTION_MS, HOME_TYPES } from "../data/housing.js";
-import { armBusinessType, armedBusinessTypeId, BUSINESS_TYPES, canAffordBusiness } from "../data/business.js";
+import {
+  armedHomeTypeId,
+  armHomeType,
+  canAffordHome,
+  CONSTRUCTION_MS,
+  demolishHome,
+  homeTypeById,
+  HOME_TYPES,
+  placedHomes,
+} from "../data/housing.js";
+import {
+  armBusinessType,
+  armedBusinessTypeId,
+  businessTypeById,
+  BUSINESS_TYPES,
+  canAffordBusiness,
+  demolishBusiness,
+  placedBusinesses,
+} from "../data/business.js";
 import { homeBuildingSprite, businessBuildingSprite } from "../scenes/buildingSprites.js";
-import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 const HOME_SPRITE_URL = homeBuildingSprite().url;
 const BUSINESS_SPRITE_URL = businessBuildingSprite().url;
@@ -132,6 +149,10 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [zoneMode, setZoneMode] = useState<ZoneMode>(() => armedZoneMode(spaceId));
   const [armedHome, setArmedHome] = useState(() => armedHomeTypeId(spaceId));
   const [armedBusiness, setArmedBusiness] = useState(() => armedBusinessTypeId(spaceId));
+  // Bumped on every demolish — placedItems/placedHomes/placedBusinesses read straight from
+  // localStorage rather than being mirrored into state, so this forces those lists to re-derive
+  // (wave3-economy-depth.md decision #3).
+  const [placedVersion, setPlacedVersion] = useState(0);
   const counts = zoneCounts(spaceId);
 
   const persist = (key: string, value: string, setter: (v: string) => void) => {
@@ -166,6 +187,34 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
       setBalance(treasuryBalanceCents(spaceId));
     }
   };
+
+  const demolishItem = (id: string) => {
+    if (removePlacedItem(spaceId, id)) {
+      setBalance(treasuryBalanceCents(spaceId));
+      setPlacedVersion((v) => v + 1);
+    }
+  };
+
+  const demolishHomeRow = (id: string) => {
+    if (demolishHome(spaceId, id)) {
+      setBalance(treasuryBalanceCents(spaceId));
+      setPlacedVersion((v) => v + 1);
+    }
+  };
+
+  const demolishBusinessRow = (id: string) => {
+    if (demolishBusiness(spaceId, id)) {
+      setBalance(treasuryBalanceCents(spaceId));
+      setPlacedVersion((v) => v + 1);
+    }
+  };
+
+  // Recomputed whenever placedVersion bumps (or on first render) — intentionally not memoized,
+  // these are small per-space lists read straight from localStorage.
+  void placedVersion;
+  const myItems = placedItems(spaceId);
+  const myHomes = placedHomes(spaceId);
+  const myBusinesses = placedBusinesses(spaceId);
 
   return (
     <OverlayShell icon="🛠️" title="Hangar" onClose={onClose}>
@@ -217,6 +266,28 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           );
         })}
       </ul>
+      {myItems.length > 0 && (
+        <>
+          <h4>Your placed items</h4>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {myItems.map((placed) => {
+              const item = PLACEABLE_ITEMS.find((i) => i.id === placed.itemId);
+              return (
+                <li key={placed.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                  <span aria-hidden="true">{item?.icon ?? "❓"}</span>
+                  <span style={{ flex: 1 }}>{item?.name ?? placed.itemId}</span>
+                  <ConfirmButton
+                    label="Demolish"
+                    confirmLabel="Really demolish? Refunds full price."
+                    ariaLabel={`Demolish ${item?.name ?? placed.itemId}`}
+                    onConfirm={() => demolishItem(placed.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
 
       <h3>Zoning</h3>
       <p style={{ marginTop: 0 }}>
@@ -305,6 +376,29 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           );
         })}
       </ul>
+      {myHomes.length > 0 && (
+        <>
+          <h4>Your placed homes</h4>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {myHomes.map((home) => {
+              const type = homeTypeById(home.typeId);
+              const underConstruction = Date.now() - home.builtAt < CONSTRUCTION_MS;
+              return (
+                <li key={home.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                  <span aria-hidden="true">{type?.icon ?? "❓"}</span>
+                  <span style={{ flex: 1 }}>{type?.name ?? home.typeId}</span>
+                  <ConfirmButton
+                    label="Demolish"
+                    confirmLabel={underConstruction ? "Really demolish? Refunds full price." : "Really demolish? Refunds half price."}
+                    ariaLabel={`Demolish ${type?.name ?? home.typeId}`}
+                    onConfirm={() => demolishHomeRow(home.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
 
       <h3>Business</h3>
       <p style={{ marginTop: 0 }}>
@@ -341,6 +435,29 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           );
         })}
       </ul>
+      {myBusinesses.length > 0 && (
+        <>
+          <h4>Your placed businesses</h4>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {myBusinesses.map((business) => {
+              const type = businessTypeById(business.typeId);
+              const underConstruction = Date.now() - business.builtAt < CONSTRUCTION_MS;
+              return (
+                <li key={business.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+                  <span aria-hidden="true">{type?.icon ?? "❓"}</span>
+                  <span style={{ flex: 1 }}>{type?.name ?? business.typeId}</span>
+                  <ConfirmButton
+                    label="Demolish"
+                    confirmLabel={underConstruction ? "Really demolish? Refunds full price." : "Really demolish? Refunds half price."}
+                    ariaLabel={`Demolish ${type?.name ?? business.typeId}`}
+                    onConfirm={() => demolishBusinessRow(business.id)}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </OverlayShell>
   );
 }

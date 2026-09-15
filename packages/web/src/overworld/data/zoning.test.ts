@@ -6,6 +6,7 @@ import {
   clearArmedZone,
   clearZoneAnchor,
   disarmZoning,
+  isFootprintAdjacentToZone,
   isTileZonable,
   setZoneAnchor,
   zoneAnchor,
@@ -179,5 +180,29 @@ describe("zoning — the SimCity foundation under housing/business (zoning.md)",
     zoneTileAt(SPACE, 30, 5);
     expect(zonedTiles(SPACE)).toHaveLength(1);
     expect(zonedTiles(SPACE)[0]).toEqual({ x: 30, y: 5, type: "transit" });
+  });
+
+  describe("isFootprintAdjacentToZone (wave3-economy-depth.md decision #2)", () => {
+    it("is true for a tile directly orthogonally adjacent to the footprint, on any of the 4 sides", () => {
+      armZoneType(SPACE, "sidewalk");
+      zoneTileAt(SPACE, 10, 9); // directly above a 3x3 footprint at (10,10)-(12,12)
+      expect(isFootprintAdjacentToZone(SPACE, 10, 10, 12, 12, "sidewalk")).toBe(true);
+    });
+
+    it("is false for a tile INSIDE the footprint — adjacency means bordering, not overlapping", () => {
+      armZoneType(SPACE, "sidewalk");
+      zoneTileAt(SPACE, 11, 11); // inside (10,10)-(12,12)
+      expect(isFootprintAdjacentToZone(SPACE, 10, 10, 12, 12, "sidewalk")).toBe(false);
+    });
+
+    it("is false when the adjacent tile is zoned a DIFFERENT type", () => {
+      armZoneType(SPACE, "transit");
+      zoneTileAt(SPACE, 10, 9);
+      expect(isFootprintAdjacentToZone(SPACE, 10, 10, 12, 12, "sidewalk")).toBe(false);
+    });
+
+    it("is false when nothing nearby is zoned at all", () => {
+      expect(isFootprintAdjacentToZone(SPACE, 10, 10, 12, 12, "transit")).toBe(false);
+    });
   });
 });

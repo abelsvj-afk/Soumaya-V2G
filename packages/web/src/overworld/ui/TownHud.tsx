@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Fuel, Streak } from "@brain/shared";
-import { treasuryBalanceCents } from "../data/townLedger.js";
+import { treasuryBalanceCents, workedPlaceIds } from "../data/townLedger.js";
 import { armedZoneMode, armedZoneType, disarmZoning } from "../data/zoning.js";
 import { armedItemId, cancelArmedItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
 import { armedHomeTypeId, cancelArmedHome, homeTypeById } from "../data/housing.js";
@@ -38,6 +38,10 @@ const ZONE_LABEL: Record<string, string> = {
   transit: "Transit stop",
 };
 
+function onboardingDismissedKey(spaceId: string): string {
+  return `brain.townHud.onboardingDismissed.${spaceId}`;
+}
+
 /**
  * A persistent ambient town HUD (docs/overworld/town-hud.md, task #73) — a real gap the
  * 2026-09-11 parity audit flagged: Streak/Fuel only ever showed inside the Gym, Treasury only
@@ -58,9 +62,16 @@ const ZONE_LABEL: Record<string, string> = {
  * chip + Stop treatment as zoning; Stop now genuinely refunds (cancelArmedItem/Home/Business,
  * the same money-loss fix `armItem`/`armHomeType`/`armBusinessType` already got for re-arming),
  * since walking away from an armed purchase should never just forfeit it.
+ *
+ * Onboarding nudge (docs/overworld/wave3-economy-depth.md decision #4, task #106) — a single,
+ * real, dismissible tip for a genuinely fresh town (`workedPlaceIds` empty — nothing has
+ * happened here yet), not a tutorial system. Dismissing persists to localStorage so it never
+ * shows again once dismissed OR once the town stops being fresh, whichever comes first.
  */
 export function TownHud({ spaceId, fuel, streak, onZoningStopped }: TownHudProps) {
   const [, bump] = useState(0);
+  const [dismissed, setDismissed] = useState(() => localStorage.getItem(onboardingDismissedKey(spaceId)) === "1");
+  const showOnboarding = !dismissed && workedPlaceIds(spaceId).length === 0;
   const armedZone = armedZoneType(spaceId);
   const armedMode = armedZoneType(spaceId) ? armedZoneMode(spaceId) : null;
   const armedItem = armedItemId(spaceId);
@@ -70,10 +81,34 @@ export function TownHud({ spaceId, fuel, streak, onZoningStopped }: TownHudProps
   const armedBusiness = armedBusinessTypeId(spaceId);
   const armedBusinessName = armedBusiness ? (businessTypeById(armedBusiness)?.name ?? armedBusiness) : null;
   return (
-    <div
-      style={{ position: "absolute", top: 8, left: 8, zIndex: 1, display: "flex", gap: 4, flexWrap: "wrap", maxWidth: "70vw" }}
-      aria-label="Town status"
-    >
+    <>
+      {showOnboarding && (
+        <div
+          style={{ position: "absolute", top: 40, left: 8, zIndex: 1, ...chipStyle, display: "flex", alignItems: "center", gap: 8, maxWidth: "70vw" }}
+          aria-label="Onboarding tip"
+        >
+          <span>👋 New here? Walk into any building to explore, or step into the tall grass to capture a thought.</span>
+          <button
+            type="button"
+            aria-label="Dismiss onboarding tip"
+            onClick={() => {
+              try {
+                localStorage.setItem(onboardingDismissedKey(spaceId), "1");
+              } catch {
+                /* best-effort — worst case the tip reappears next load */
+              }
+              setDismissed(true);
+            }}
+            style={{ ...chipStyle, padding: "2px 6px", cursor: "pointer" }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+      <div
+        style={{ position: "absolute", top: 8, left: 8, zIndex: 1, display: "flex", gap: 4, flexWrap: "wrap", maxWidth: "70vw" }}
+        aria-label="Town status"
+      >
       <span style={chipStyle}>🔥 {streak?.current ?? 0}</span>
       <span style={chipStyle}>
         ⚡ {fuel?.fuel ?? 0}/{fuel?.capacity ?? 0}
@@ -140,6 +175,7 @@ export function TownHud({ spaceId, fuel, streak, onZoningStopped }: TownHudProps
           </button>
         </span>
       )}
-    </div>
+      </div>
+    </>
   );
 }

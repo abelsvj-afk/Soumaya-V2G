@@ -135,3 +135,17 @@ export function placeArmedItem(spaceId: string, x: number, y: number): PlacedIte
   clearArmedItem(spaceId);
   return placed;
 }
+
+/** Demolishes a real placed decor item, refunding its full real price — a pure decorative item
+ *  with no dependent state (unlike a home/business), so there's no reason to charge for changing
+ *  your mind (wave3-economy-depth.md decision #3). Returns false, changing nothing, if no such
+ *  item exists. */
+export function removePlacedItem(spaceId: string, id: string): boolean {
+  const items = placedItems(spaceId);
+  const item = items.find((i) => i.id === id);
+  if (!item) return false;
+  const type = PLACEABLE_ITEMS.find((t) => t.id === item.itemId);
+  if (type) refundToTreasury(spaceId, type.priceCents);
+  savePlacedItems(spaceId, items.filter((i) => i.id !== id));
+  return true;
+}

@@ -1538,6 +1538,61 @@ giving sidewalk/transit zones real function, population growth) remains tracked,
 its own spec per Rule #1 before code — see the audit doc's own "Structural gaps vs. the genre"
 section.
 
+## Stage 2.45 — Wave 3: economy depth (passive income, zone function, demolish, onboarding)
+
+Direct answer to "Do wave 3 and continue to go deeper" — closes 4 of the 5 structural gaps
+tracked at the end of Stage 2.44, per a new spec (`docs/overworld/wave3-economy-depth.md`, Rule
+#1) that resolves each decision directly with its own reasoning:
+
+1. **Passive income from built structures (task #99/#103).** Every placed home/business (never
+   decor — a garden bed doesn't earn) now accrues real Town Treasury income continuously: 10% of
+   its own real purchase price per real day elapsed, capped at 3 days' worth per collection so
+   AFK-farming can't dominate the economy. Read-time-computed from a real `lastCollectedAt`
+   timestamp (`data/passiveIncome.ts`) — the exact same wall-clock convention
+   `buildingNeglect.ts`/`isUnderConstruction` already use, collected automatically on every
+   `loadWorldSnapshot()`, no new button. Credited through a new `creditPassiveIncome()` in
+   `townLedger.ts` that deliberately never touches `hoursWorked`/never calls `markWorked` — a
+   passive rent tick must never look like a real player interaction to the neglect system, or
+   neglect stops meaning anything. A structure still under construction earns nothing.
+2. **Sidewalk/transit real function (task #101/#104).** Both were paintable zone labels with zero
+   mechanical effect. New `isFootprintAdjacentToZone()` in `zoning.ts` (orthogonal-adjacency test,
+   reused for both) makes Sidewalk a real 1.5x passive-income multiplier and Transit a real 25%
+   reduction in a business's neglect accrual rate (`businessNeglect()` in `business.ts` — homes
+   have no neglect concept at all, a standing asymmetry, so this bonus only ever applies to
+   businesses). Both are pure upside — no existing town can be invalidated by this shipping.
+3. **Demolish/remove mechanic (task #101/#105).** No way existed to undo a placement mistake.
+   New `removePlacedItem()` (`townBuilder.ts`, 100% refund — decor has no dependent state),
+   `demolishHome()`/`demolishBusiness()` (`housing.ts`/`business.ts`, 50% refund normally, 100%
+   while still `isUnderConstruction` — functionally identical to canceling an arm before it was
+   ever placed). Surfaced in the Hangar: each of the 3 catalogs (Town Building/Housing/Business)
+   gained a real "Your placed [items/homes/businesses]" list with a `ConfirmButton` "Demolish"
+   per row, reusing the exact two-tap confirm-then-refund pattern from the 2026-09-15 audit fix
+   — not a new in-world interaction, no risk to `ExteriorScene.ts`'s interact-press chain.
+   Removing a home needs no extra bookkeeping — `assignResidents()` already recomputes fresh on
+   every call, so freed-up capacity is picked up automatically.
+4. **Onboarding nudge for a fresh town (task #101/#106).** A single, real, dismissible tip in
+   `TownHud.tsx` (already the persistent always-visible surface) — shown only when
+   `workedPlaceIds(spaceId).length === 0` (the town's own real "has anything happened here yet"
+   signal, not a new tracked flag): "👋 New here? Walk into any building to explore, or step into
+   the tall grass to capture a thought." A real × dismiss persists per-space to localStorage so
+   it never shows again once dismissed OR once the town stops being fresh, whichever comes
+   first. Deliberately the smallest real fix, not an invented tutorial system.
+5. **Population growth (task #101/#107) — specced, deliberately deferred.** Unlike the other 4,
+   this has a real ripple footprint: `npcDialogue.ts`'s 22 hand-authored NPC profiles, every NPC
+   needing a real home + job/building association with no "unaffiliated resident" concept
+   anywhere in the current model, and `townHallMeetingSlots()` needing re-sizing again. The
+   design shape (gated on real built housing capacity exceeding the current 22, never a timer)
+   is written down, but hand-authoring vs. LLM-generating new NPCs and new buildings vs.
+   denser existing ones are real decisions this session hasn't made yet — tracked as its own
+   future round, spec-first per Rule #1, not forced into this one.
+
+Verified by 4 new `townLedger.test.ts` cases, 4 new `zoning.test.ts` cases, 1 new
+`business.test.ts` neglect-bonus case, 9 new `passiveIncome.test.ts` cases (including a measured
+"doesn't lose sub-cent progress to frequent refreshes" case), 2 new `townBuilder.test.ts` cases,
+4 new `housing.test.ts` cases, 3 new `business.test.ts` demolish cases, 5 new
+`HangarOverlay.test.tsx` cases, 4 new `TownHud.test.tsx` cases, and the full gate (1066 server +
+530 web tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

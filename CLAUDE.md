@@ -253,6 +253,34 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Wave 3 — economy depth: passive income, sidewalk/transit function, demolish, onboarding
+  (2026-09-15), not yet on-device confirmed** — direct response to "Do wave 3 and continue to go
+  deeper," closing 4 of the 5 structural gaps tracked at the end of Wave 2 (full account +
+  reasoning in `docs/overworld/wave3-economy-depth.md`, per Rule #1). (1) Every placed home/
+  business now accrues real passive Town Treasury income — 10% of its own real purchase price per
+  real day elapsed, capped at 3 days, read-time-computed from a real `lastCollectedAt` timestamp
+  (`data/passiveIncome.ts`) on every `loadWorldSnapshot()`, credited through a new
+  `creditPassiveIncome()` that deliberately never touches `hoursWorked`/never triggers a neglect
+  reset — a passive rent tick must never masquerade as a real interaction. (2) Sidewalk and
+  Transit zoning, previously paintable labels with zero effect, now do something real: a new
+  `isFootprintAdjacentToZone()` in `zoning.ts` makes Sidewalk a 1.5x passive-income multiplier and
+  Transit a 25% reduction in a business's neglect accrual (homes have no neglect concept, so this
+  only ever applies to businesses). (3) A real demolish mechanic — `removePlacedItem()` (100%
+  refund), `demolishHome()`/`demolishBusiness()` (50% refund, 100% while still
+  `isUnderConstruction`) — surfaced in the Hangar as a "Your placed [items/homes/businesses]" list
+  per catalog with a `ConfirmButton` "Demolish" per row, reusing the exact two-tap confirm pattern
+  from the 2026-09-15 audit fix. (4) A single dismissible onboarding tip in `TownHud.tsx`, shown
+  only on a genuinely fresh town (`workedPlaceIds(spaceId).length === 0`), persisting its
+  dismissal per-space to localStorage. (5) Population growth was specced but deliberately
+  deferred — a real ripple footprint (22 hand-authored NPC profiles, no "unaffiliated resident"
+  concept, meeting-slot re-sizing) means hand-authoring-vs-LLM-generating new NPCs is a real
+  decision this session hasn't made yet; tracked as its own future round. Verified by 4 new
+  `townLedger.test.ts` cases, 4 new `zoning.test.ts` cases, 1 new `business.test.ts` neglect-bonus
+  case, 9 new `passiveIncome.test.ts` cases, 2 new `townBuilder.test.ts` cases, 4 new
+  `housing.test.ts` cases, 3 new `business.test.ts` demolish cases, 5 new `HangarOverlay.test.tsx`
+  cases, 4 new `TownHud.test.tsx` cases, and the full gate (1066 server + 530 web tests,
+  typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 - **Deep audit Wave 2 finished — creature render-churn perf fix, depth-ordering resolved
   (2026-09-15), not yet on-device confirmed** — closes the last two findings from the same audit.
   (1) `renderCreatures` used to destroy+recreate every visible creature's Phaser objects on

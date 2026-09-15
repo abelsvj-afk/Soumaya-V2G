@@ -12,6 +12,7 @@ import { syncAchievements } from "./achievements.js";
 import { recordBuildingWork } from "./npcJobs.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "./placedStructures.js";
+import { collectPassiveIncome } from "./passiveIncome.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -115,6 +116,10 @@ export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
   const freshAchievements = syncAchievements(graph, fuel, streak);
   const spaceId = getSpaceId();
   if (spaceId && freshAchievements.length > 0) recordBuildingWork(spaceId, "gym");
+  // wave3-economy-depth.md decision #1 — real passive income from built homes/businesses,
+  // accrued fresh on every real refresh (never a running timer, same convention as the
+  // achievement sync above).
+  if (spaceId) collectPassiveIncome(spaceId);
   return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId, thoughts);
 }
 
