@@ -253,6 +253,27 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #80 — literal walk-in building interiors (2026-09-15), not yet on-device
+  confirmed** — every door-building interaction used to be instantaneous (touch the door tile,
+  the real feature overlay pops up the same frame, no visual sense of having gone anywhere).
+  Investigated first (`docs/overworld/walk-in-interiors.md`): there's no existing multi-
+  `Phaser.Scene` convention to mirror (only one scene is ever registered), so rather than build a
+  second Scene's worth of lifecycle/input/camera wiring this sandbox can't visually verify, the
+  new mechanic builds on the real convention that already exists — `returnToDoor()`'s door-tile
+  teleport. A single reusable interior room (`data/interiorRoom.ts`, two plain rectangles + one
+  glyph reusing each building's own existing icon, deliberately no new art this round) sits once
+  in reserved off-map tile space, permanently in the camera's world bounds but unreachable by
+  normal movement. Touching a door tile now tweens the player in, dwells briefly (260ms, 0 under
+  `prefers-reduced-motion`), then opens the overlay automatically — same trigger as before, just
+  delayed; leaving mirrors it with a 200ms dwell before the real exterior teleport. A new
+  `interiorTransitionLock` (separate from the existing React-owned pause flag, to avoid a real
+  race with React's own unpause outrunning the exit dwell) gates input for both windows. Measured
+  against the real generated region layout: the reserved room sits fully past the real town's
+  east edge with zero overlap, at every real `REGION_WIDTH`. Verified by 5 new
+  `interiorRoom.test.ts` cases + the real-layout measurement + the full gate (1066 server + 539
+  web tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration code has no dedicated
+  test (this file's established convention) — not yet seen rendered in a real browser.
+
 - **Backlog #78 — distinct art for business types (2026-09-15), not yet on-device confirmed** —
   every business type (Bakery/Tailor/Bookshop) previously shared the exact same illustration
   Market/Library/Sanctuary already use — the most confusing art overlap the original audit

@@ -1,3 +1,34 @@
+### 2026-09-15 (Claude): Backlog #80 — literal walk-in building interiors (task #113, complete)
+- [ ] Verified by Claude
+- Direct continuation of "keep going through the list" — every door-building interaction was
+  instantaneous (touch the door tile, the real overlay pops up the same frame), no visual sense
+  of having gone anywhere despite the user's explicit "Pokémon-style" ask.
+- Investigated first (`docs/overworld/walk-in-interiors.md`, Red Zone — `overworld/engine/*` and
+  `ExteriorScene.ts` scene-transition logic, kept for Claude per CLAUDE.md): confirmed there's no
+  existing multi-`Phaser.Scene` convention in this codebase (exactly one scene is ever
+  registered), so building a second Scene's worth of lifecycle/input/camera wiring — impossible
+  to visually verify from this sandbox — wasn't justified for a cosmetic feature. Built on the
+  real convention that already exists instead: `returnToDoor()`'s door-tile teleport.
+- New `data/interiorRoom.ts` (pure, unit-tested) — a single reusable interior room in reserved
+  off-map tile space, permanently in the camera's world bounds but unreachable by normal
+  movement (`tryMove`'s bounds check untouched).
+- `ExteriorScene.ts`: touching a door tile (real door-buildings AND player-built businesses,
+  the only two real "building" entry points) now tweens the player into that room, sets its
+  glyph to the entered building's own existing icon (`workIconForPlace`/`businessGlyphFor` — no
+  new icon table), dwells ~260ms (0 under `prefers-reduced-motion`), then opens the overlay
+  automatically. Leaving mirrors it with a ~200ms dwell before the real exterior teleport. A new
+  `interiorTransitionLock` gates input for both windows, kept deliberately separate from the
+  existing React-owned `paused` flag to avoid a real race (React unpausing the instant its
+  overlay-closed state commits would otherwise outrun the exit dwell).
+- Deliberately no new art this round (`wave4-full-vision.md` §C.1's own "glyph over invented art"
+  escape hatch) — two plain rectangles colored from the shared UI `theme.ts`, plus the glyph.
+- Measured, not assumed: a real reproduction script against the actual generated region layout
+  confirmed the reserved room sits fully past the real town's east edge with zero overlap.
+- Verified by 5 new `interiorRoom.test.ts` cases + the real-layout measurement + the full gate
+  (1066 server + 539 web tests, typecheck, build). `ExteriorScene.ts` itself has no dedicated
+  test (this file's established convention for Phaser-integration code) — not yet seen rendered
+  in a real browser from this sandbox.
+
 ### 2026-09-15 (Claude): Backlog #78 — distinct art for business types (task #112, partial)
 - [ ] Verified by Claude
 - Direct continuation of "keep going through the list" — every business type (Bakery/Tailor/
