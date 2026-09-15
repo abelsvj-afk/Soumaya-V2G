@@ -25,7 +25,10 @@ function makeCreature(nodeId: number): CreatureEntity {
 }
 
 describe("SoumayaChatOverlay", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
 
   it("asks a real question and shows the real cited answer", async () => {
     const { askChat } = await import("../../api/client.js");
@@ -39,6 +42,16 @@ describe("SoumayaChatOverlay", () => {
     fireEvent.click(screen.getByText("Ask"));
     await waitFor(() => expect(screen.getByText("Your rent is due Friday.")).toBeTruthy());
     expect(askChat).toHaveBeenCalledWith("when is rent due", []);
+  });
+
+  it("2026-09-15 audit fix — a successful ask credits the real full_tank (Patron) achievement stat", async () => {
+    localStorage.setItem("brain.spaceId", "space-1");
+    const { askChat } = await import("../../api/client.js");
+    (askChat as ReturnType<typeof vi.fn>).mockResolvedValue({ answer: "Sure.", citations: [], contextIds: [] });
+    render(<SoumayaChatOverlay onClose={vi.fn()} creatures={[]} onFlyToNode={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Ask Soumaya"), { target: { value: "help me out" } });
+    fireEvent.click(screen.getByText("Ask"));
+    await waitFor(() => expect(localStorage.getItem("stat.commissions.space-1")).toBe("1"));
   });
 
   it("offers 'Go there' only for a citation that's actually placed as a creature in this region", async () => {

@@ -1462,6 +1462,42 @@ churn, depth ordering, asset cleanup) and Wave 3 (passive income, onboarding, de
 zone-type function, population growth — each its own follow-up spec per Rule #1) are tracked
 separately in the audit doc.
 
+## Stage 2.43 — Deep audit Wave 2: 5 dead achievements revived, asset/doc cleanup
+
+Continuation of the same 2026-09-15 audit (`docs/overworld/gameplay-uiux-audit-2026-09-15.md`),
+Wave 2 — content/cleanup fixes:
+
+1. **5 achievements permanently unwinnable, now real again.** `sentinel_command`/
+   `grand_restorer` (tending a genuinely cooling creature — checked via `isDue` before the greet
+   call resets it), `cosmic_voyager` (Soumaya's own real tour, one real leg started = one hop),
+   `full_tank` (a real successful `askChat` IS the real on-demand commission), and `lenscrafter`
+   (saving a real search as a Lens) all gained real Overworld stat writers via a new
+   `bumpStat(spaceId, name)` in `components/achievements.ts` — always keyed by `statsSpaceId()`
+   so writes land in the exact bucket the achievement `test`s already read. A 6th candidate,
+   `galaxy_reader`/`stat.types_seen`, turned out to already have a real writer
+   (`overworld/data/achievements.ts`'s `syncAchievements`) — simplified anyway to compute
+   directly from the real graph (matching `sector_pioneer`'s own pattern), removing a whole
+   separate tracking mechanism for the same real signal; the now-dead writer was deleted.
+2. **A real, if minor, meeting-slot undercount found while fixing the doc-accuracy pass below**:
+   `regionLayout.ts`'s `MEETING_ROWS_OUT` (2 rows = 12 slots) was sized against a stale "20"-NPC
+   count when the real roster is 22 — several NPCs would have genuinely shared a tile at a full
+   Town Meeting. Bumped to 4 rows (24 slots), verified by a new test asserting the slot count
+   actually covers all 22.
+3. **~40MB of orphaned 3D-galaxy assets removed** from `public/` (9 `.glb` models,
+   `milkyway-eso.jpg`, `ship-engine-start.mp3`/`ship-engine-loop.wav`, the `draco/`/`basis/`
+   glTF-loader libraries they needed) — confirmed zero code references before deleting;
+   `public/` dropped from ~56MB to ~18MB, `dist/` from ~38MB to ~20MB. `CREDITS.md` updated to
+   match (their real licensing, where documented, preserved in git history).
+4. **Doc-accuracy fixes**: the "20 NPCs" miscount (real count: 22, 11 buildings x 2) corrected in
+   `npcDialogue.ts`/`housing.ts`/`ExteriorScene.ts`'s own comments; `checkCivicConcern`'s
+   inaccurate "Pure:" doc comment fixed (it does a real, intentional, idempotent
+   `clearConcern()` write — behavior unaffected, just a misleading label).
+
+Verified by 2 new test files (`components/achievements.test.ts`), new cases in
+`LibraryOverlay.test.tsx`/`SoumayaChatOverlay.test.tsx`/`regionLayout.test.ts`, and the full gate
+(1066 server + 494 web tests, typecheck, build) — build output confirmed to no longer include
+any of the removed assets. Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

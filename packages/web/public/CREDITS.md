@@ -48,22 +48,15 @@ from, pointed at these pre-existing files as the fallback. **Verify/retain their
 and license before relying on this for public/commercial distribution** — same caution as
 `ship-engine-start.mp3` below.
 
-## 3D models
+## Removed (2026-09-15 audit cleanup)
 
-**The Singularity (black hole figurine)** — `blackhole.glb`
-This work is based on "Black Hole"
-(https://sketchfab.com/3d-models/black-hole-e410da98b1e5445eae2acafaaa53587d)
-by NestaEric (https://sketchfab.com/Nestaeric) licensed under CC-BY-4.0
-(http://creativecommons.org/licenses/by/4.0/).
-Converted from glTF (specular-glossiness) to metallic-roughness + Draco for web use.
-
-## Audio
-
-**Ship engine start** — `ship-engine-start.mp3`
-"Propulsion jet engine" (id 67151) from the Freesound community (https://freesound.org).
-Please verify/retain the specific sound's Creative Commons license and author attribution from its
-Freesound page before public distribution.
-
-**Ship engine loop** — `ship-engine-loop.wav`
-Sustained engine loop supplied by the project owner; retain its original source license.
+The 3D galaxy this Overworld replaced (2026-09-11) left ~40MB of its own assets on disk with
+zero code references anywhere — `*.glb` models (blackhole, dyson-sphere, star-center, sun,
+aura-satellite, organic-spaceship, E45-fleet, soumaya-ship, space_station_3), `milkyway-eso.jpg`,
+`ship-engine-start.mp3`/`ship-engine-loop.wav`, and the `draco/`/`basis/` glTF-loader libraries
+those models needed. Confirmed via a repo-wide grep before deleting (dead weight, not a
+functional gap — see `docs/overworld/gameplay-uiux-audit-2026-09-15.md`). Their own licensing
+(several, including `blackhole.glb`'s real CC-BY-4.0 Sketchfab attribution, were the only
+credited entries this section used to carry) is preserved in git history
+(`git log -p -- packages/web/public/CREDITS.md`) if any of them are ever restored.
 

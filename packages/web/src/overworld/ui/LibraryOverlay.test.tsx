@@ -74,6 +74,21 @@ describe("LibraryOverlay", () => {
       await waitFor(() => expect(createLens).toHaveBeenCalledWith("distant", { text: "distant" }));
     });
 
+    it("2026-09-15 audit fix — saving a lens credits the real lenscrafter achievement stat", async () => {
+      localStorage.setItem("brain.spaceId", "space-1");
+      const { search, getLenses, createLens } = await import("../../api/client.js");
+      (getLenses as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      (search as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 5, label: "Match", type: "concept", content: "", createdAt: "" }]);
+      (createLens as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 2, name: "distant", query: { text: "distant" }, pinned: false });
+      render(<LibraryOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} />);
+      await waitFor(() => expect(getLenses).toHaveBeenCalled());
+      fireEvent.change(screen.getByLabelText("Search the library"), { target: { value: "distant" } });
+      fireEvent.click(screen.getByText("Search"));
+      await waitFor(() => expect(screen.getByText(/Save this search as a Lens/)).toBeTruthy());
+      fireEvent.click(screen.getByText(/Save this search as a Lens/));
+      await waitFor(() => expect(localStorage.getItem("stat.lenses_made.space-1")).toBe("1"));
+    });
+
     it("viewing a lens filters the shelf to its real matching node ids", async () => {
       const { getLenses, lensNodes } = await import("../../api/client.js");
       (getLenses as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 1, name: "rockets", query: { text: "rocket" }, pinned: false }]);

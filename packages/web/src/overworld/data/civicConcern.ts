@@ -46,10 +46,14 @@ export interface CivicConcernCheck {
   neglectedLabels: string[];
 }
 
-/** Pure: a concern is due exactly when a real majority of buildings are neglected AND this
- *  hasn't already been announced for the current widespread period (cleared once it improves).
+/** A concern is due exactly when a real majority of buildings are neglected AND this hasn't
+ *  already been announced for the current widespread period (cleared once it improves).
  *  `neglectedCount`/`totalCount`/`neglectedLabels` are read by the caller from the same real
- *  `buildingNeglect.ts` data every other overlay already uses — never recomputed here. */
+ *  `buildingNeglect.ts` data every other overlay already uses — never recomputed here.
+ *  2026-09-15 audit fix: NOT actually pure despite this comment's earlier claim — it calls
+ *  `clearConcern()` (a real localStorage write) as a side effect whenever things have genuinely
+ *  improved. That write is intentional and idempotent, so behavior is unaffected; the label was
+ *  just misleading to anyone tempted to memoize or double-invoke this expecting no side effect. */
 export function checkCivicConcern(
   spaceId: string,
   neglectedCount: number,

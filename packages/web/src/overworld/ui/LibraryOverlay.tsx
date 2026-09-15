@@ -4,6 +4,7 @@ import { createLens, deleteLens, getLenses, lensNodes, search, type SearchHit } 
 import { groupIntoFolders } from "../data/libraryFolders.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { bumpStat, statsSpaceId } from "../../components/achievements.js";
 
 export interface LibraryOverlayProps {
   graph: GraphData;
@@ -59,7 +60,11 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
     setSavingLens(true);
     try {
       const created = await createLens(q, { text: q });
-      if (created) setLenses((prev) => [...prev, created]);
+      if (created) {
+        setLenses((prev) => [...prev, created]);
+        // 2026-09-15 audit fix — lenscrafter's own stat had zero writers post-galaxy-deletion.
+        bumpStat(statsSpaceId(), "lenses_made");
+      }
     } finally {
       setSavingLens(false);
     }
