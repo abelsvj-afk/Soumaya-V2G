@@ -1,3 +1,28 @@
+### 2026-09-15 (Claude): Full "RTS Pack: Medieval" added; a real parking-lot apron wired in
+- [ ] Verified by Claude
+- Direct response to "add all those other assets you showed me. All of them" — a follow-up to
+  the vehicle-art research pass (previous entry below), which had only shipped 3 of the many
+  real pieces found.
+- Added the full Kenney "RTS Pack: Medieval" (CC0, kenney.nl/assets/medieval-rts, the same
+  author as the Tiny Town/Tiny Dungeon tiles already in this game) — 102 individual 64x64
+  pieces (58 ground/path tiles, 23 structures, 24 environment pieces), copied to
+  `public/overworld/village-pack/{tile,structure,environment}/`.
+- Also added 3 more real pieces from the same pass: `caravan-wreck.png` (a broken-down wagon,
+  a natural pairing with the wagon already shipped), `village-illustration.png`, `town-tiles.png`
+  — copied to `public/overworld/decor/`. All fully credited in `CREDITS.md`.
+- Only one piece wired into gameplay this round: new `scenes/villagePack.ts` exports
+  `GRAVEL_APRON`, painted as a real parking-lot/loading apron one tile south of every
+  player-built business's own door (`paintParkingApron()`, `ExteriorScene.ts`) — closing
+  `city-builder-depth.md`'s §C. Every business's door sits on its footprint's own bottom row by
+  construction, so "outward" is always due south; no per-business orientation logic needed.
+- The rest of the pack (windmill, market stall, bench, well, tents, trees, berries, crates,
+  road-through-grass tiles) is staged for future decor rounds, not yet placed. One deliberate
+  non-use, investigated and documented: the road-through-grass tiles are hand-painted organic
+  vignettes (like Park's own tree/bench decor), not a modular autotile set, so they are NOT used
+  for the zoned `transit`/road surface — the existing flat `path` tile remains correct there.
+- Verified by the full gate (1066 server + 557 web tests, typecheck, build) and a build-output
+  check confirming all 105 new files land in `dist/`. Not yet seen rendered in a real browser.
+
 ### 2026-09-15 (Claude): City-builder depth — zoom, door highlighting, vehicle art sourced (partial)
 - [ ] Verified by Claude
 - Direct response to a detailed request for city-builder-style depth: camera zoom, highlighted

@@ -253,6 +253,21 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **The full "RTS Pack: Medieval" added; a real parking-lot apron wired in (2026-09-15), not yet
+  on-device confirmed** — direct response to "add all those other assets you showed me. All of
+  them," a follow-up to the vehicle-art research pass below. Added the full Kenney "RTS Pack:
+  Medieval" (CC0, same author as the Tiny Town/Tiny Dungeon tiles already in this game) — 102
+  individual pieces (ground/path tiles, structures, environment) — plus 3 more real pieces from
+  the same pass (`caravan-wreck.png`, `village-illustration.png`, `town-tiles.png`), all copied
+  in and credited. Only one piece wired into gameplay this round: a real gravel parking-lot
+  apron painted just outside every player-built business's own door (`villagePack.ts`,
+  `paintParkingApron()`), closing city-builder-depth.md §C. The rest is staged for future decor
+  rounds. One deliberate non-use, investigated and documented: the pack's own road-through-grass
+  tiles are hand-painted organic vignettes, not a modular autotile set, so they are NOT used for
+  the zoned `transit`/road surface (the existing flat `path` tile remains correct there).
+  Verified by the full gate (1066 server + 557 web tests, typecheck, build) and a build-output
+  check confirming all 105 new files land in `dist/`. Not yet seen rendered in a real browser.
+
 - **City-builder depth — camera zoom + door highlighting, vehicle art sourced (2026-09-15), not
   yet on-device confirmed** — direct answer to a real request for city-builder-style depth (zoom
   out to see the town, highlighted doors, per-building ground art, roads/sidewalks, a wagon
