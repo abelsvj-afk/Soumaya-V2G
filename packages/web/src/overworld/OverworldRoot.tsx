@@ -7,6 +7,7 @@ import { checkCivicConcern, concernAnnouncementText, markConcernAnnounced } from
 import { buildingNeglect, isNeglected } from "./data/buildingNeglect.js";
 import { detectBankWork } from "./adapter/financeAdapter.js";
 import { recordBuildingWork } from "./data/npcJobs.js";
+import { bumpStat, statsSpaceId } from "../components/achievements.js";
 import { refreshNpcLinesIfStale } from "./data/npcLlmDialogue.js";
 import { musicEnabled, nextTrack, playCurrentTrack, setMusicEnabled, stopMusicLoop } from "../lib/music.js";
 import { InputBus } from "./engine/input.js";
@@ -328,9 +329,20 @@ export function OverworldRoot() {
 
   const handleGreetConfirm = useCallback(async () => {
     if (overlay.kind !== "details") return;
+    // 2026-09-15 audit fix — sentinel_command/grand_restorer's own stats had zero writers
+    // post-galaxy-deletion. Tending a creature that was actually dimmed (isDue — the real
+    // cooling-memory signal, shared/celestial.ts's entropyFrom) is the real Overworld action
+    // both achievements originally meant ("deploy a beacon over"/"tend/restore" a cooling
+    // memory) — checked BEFORE the greet call resets its entropy server-side.
+    const wasCooling = overlay.creature.isDue;
     setGreetBusy(true);
     try {
       await greetCreature(overlay.creature.nodeId);
+      if (wasCooling) {
+        const spaceId = statsSpaceId();
+        bumpStat(spaceId, "beacons_deployed");
+        bumpStat(spaceId, "memories_tended");
+      }
       await refresh(); // FR11 — reconcile from the real server response, never a client-side guess
     } finally {
       setGreetBusy(false);

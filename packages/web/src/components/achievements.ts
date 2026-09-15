@@ -75,22 +75,13 @@ export const ACHIEVEMENTS: Achievement[] = [
     name: "Galaxy Reader",
     icon: "🗺️",
     desc: "Explored memories across 6+ types — you can read your galaxy at a glance.",
-    test: () => {
-      try {
-        const seen = JSON.parse(localStorage.getItem(`stat.types_seen.${statsSpaceId()}`) || "[]");
-        return Array.isArray(seen) && seen.length >= 6;
-      } catch {
-        return false;
-      }
-    },
-    progress: () => {
-      try {
-        const seen = JSON.parse(localStorage.getItem(`stat.types_seen.${statsSpaceId()}`) || "[]");
-        return { cur: Math.min(Array.isArray(seen) ? seen.length : 0, 6), target: 6 };
-      } catch {
-        return { cur: 0, target: 6 };
-      }
-    },
+    // 2026-09-15 audit fix: unlike the 5 other stat-based achievements below, `stat.types_seen`
+    // does have a real writer (overworld/data/achievements.ts's `syncAchievements`) — but it's
+    // simplified here anyway, computed directly from the real graph, the exact same pattern
+    // `sector_pioneer` below already uses (at a 4-type threshold), removing a whole separate
+    // "exploration tracking" mechanism for what amounts to the same real signal at a higher bar.
+    test: (c) => new Set(c.memories.map((m) => m.type).filter(Boolean)).size >= 6,
+    progress: (c) => ({ cur: Math.min(new Set(c.memories.map((m) => m.type).filter(Boolean)).size, 6), target: 6 }),
   },
   {
     id: "connector",
@@ -412,5 +403,24 @@ export function loadUnlocked(spaceId: string): Set<string> {
     return new Set(JSON.parse(localStorage.getItem(achvKey(spaceId)) || "[]"));
   } catch {
     return new Set();
+  }
+}
+
+/** Bumps a real per-brain `stat.<name>.<spaceId>` counter by 1 (or `by`) — the write half of
+ *  the stat-based achievements above (sentinel_command, cosmic_voyager, grand_restorer,
+ *  full_tank, lenscrafter), which read one. 2026-09-15 audit fix: these counters were only ever
+ *  written by the deleted 3D-galaxy code (`Graph3D.tsx`/its panels) — nothing in the Overworld
+ *  replaced the writers, which permanently locked 6 achievements and the 3 ship hulls + 2 trail
+ *  colors they gate in the Hangar. Each real call site is the Overworld action that most
+ *  honestly matches what the stat originally meant — never a new invented mechanic. Always call
+ *  with `statsSpaceId()` (not a component's own `spaceId` prop) so writes land in the exact same
+ *  bucket the achievement `test`s above read from. */
+export function bumpStat(spaceId: string, name: string, by = 1): void {
+  try {
+    const key = `stat.${name}.${spaceId}`;
+    const current = parseInt(localStorage.getItem(key) || "0", 10) || 0;
+    localStorage.setItem(key, String(current + by));
+  } catch {
+    /* worst case this achievement's progress isn't remembered this time */
   }
 }

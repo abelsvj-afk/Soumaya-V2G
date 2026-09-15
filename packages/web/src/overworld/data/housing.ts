@@ -204,7 +204,8 @@ export interface HomeResident {
 }
 
 /** Deterministic, capacity-packed, never random (housing.md decision #3): walks the town's real
- *  20 NPCs in their one stable declaration order, filling each home — in the order it was
+ *  22 NPCs (2026-09-15 audit fix — corrected from a stale "20") in their one stable declaration
+ *  order, filling each home — in the order it was
  *  actually built — to its own real capacity before moving to the next. Recomputed from real
  *  state every call rather than stored, so a newly-built home is reflected immediately with
  *  nothing else to keep in sync. Skips a home still `isUnderConstruction` (simcity-economy-

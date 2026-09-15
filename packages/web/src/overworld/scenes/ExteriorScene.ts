@@ -84,7 +84,7 @@ import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } 
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier, type RelationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
-import { loadUnlocked } from "../../components/achievements.js";
+import { bumpStat, loadUnlocked, statsSpaceId } from "../../components/achievements.js";
 import type { Thought } from "../../api/mind.js";
 import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
 import { getCachedNpcLine, pickDialogueOutcome } from "../data/npcLlmDialogue.js";
@@ -555,6 +555,10 @@ export class ExteriorScene extends Phaser.Scene {
     const path = findPath(soumaya.currentTile, destination, this.npcPathGrid);
     if (!path) return;
     soumaya.walking = true;
+    // 2026-09-15 audit fix — cosmic_voyager's own "Soumaya completes travel hops" stat had zero
+    // writers post-galaxy-deletion; her real tour (soumaya-governance.md) is the real Overworld
+    // equivalent — one real leg actually started is one real hop.
+    bumpStat(statsSpaceId(), "travel_hops");
     // Alternates real, visible variety, deterministic per stop (never Math.random, matching
     // this scene's own desync convention) — half her stops she genuinely enters the building
     // (disappears at its door, same as a Working attendant does at theirs), half she's found
@@ -1239,9 +1243,10 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** The Town Meeting gathering (npc-autonomy.md) — real teeth, real distance. Every one of
-   *  the 20 society NPCs actually walks to a real meeting slot near Town Hall (spread across
-   *  more slots than any one building has attendants, so up to 20 arrivals never stack on the
-   *  same tile), shows the 📢 cue there, then walks back to wherever their own schedule says
+   *  the town's real 22 society NPCs (2026-09-15 audit fix — corrected from a stale "20") walks
+   *  to a real meeting slot near Town Hall (regionLayout.ts's `townHallMeetingSlots`, sized to
+   *  cover all 22 so arrivals never stack on the same tile), shows the 📢 cue there, then walks
+   *  back to wherever their own schedule says
    *  they currently belong. Called from OverworldRoot.tsx once the real effect (the Bulletin
    *  Board post) has actually gone through. Sending everyone was the ORIGINAL npc-society.md
    *  proposal — only ever scaled back for the crowding risk a straight-line tween couldn't

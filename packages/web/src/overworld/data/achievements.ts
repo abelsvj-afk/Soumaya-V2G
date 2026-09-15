@@ -20,21 +20,6 @@ export function syncAchievements(graph: GraphData, fuel: Fuel | null, streak: St
   const memories: GraphNode[] = graph.nodes.filter((n) => n.kind !== "action");
   const linksCount = graph.links.length;
 
-  try {
-    const tk = `stat.types_seen.${spaceId}`;
-    const seenTypes = new Set<string>(JSON.parse(localStorage.getItem(tk) || "[]"));
-    let changed = false;
-    for (const m of memories) {
-      if (m.type && !seenTypes.has(m.type)) {
-        seenTypes.add(m.type);
-        changed = true;
-      }
-    }
-    if (changed) localStorage.setItem(tk, JSON.stringify([...seenTypes]));
-  } catch {
-    /* storage unavailable */
-  }
-
   const now = unlockedIds({ memories, links: linksCount, fuel, linkObjects: graph.links, streak });
   const key = achvKey(spaceId);
   const seen = loadUnlocked(spaceId);

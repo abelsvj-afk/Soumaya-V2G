@@ -279,9 +279,12 @@ export function isNpcPathPassable(x: number, y: number): boolean {
 
 /** A few real tiles just beyond Town Hall's own attendant band, derived purely from its
  *  footprint (never hand-typed, same convention as `attendantPosts()`) — the Town Meeting
- *  gathering's real destination. Deliberately more slots than any one building has attendants,
- *  so up to all 20 arriving NPCs spread out rather than stacking on the same couple of tiles. */
-const MEETING_ROWS_OUT = 2;
+ *  gathering's real destination. 2026-09-15 audit fix: the town's real NPC roster is 22
+ *  (`npcDialogue.ts`'s `PROFILE_LIST` — 11 buildings' worth, corrected from an earlier "20"
+ *  miscount that persisted in several comments), and up to all of them can arrive at once — at
+ *  the old `MEETING_ROWS_OUT = 2` (12 slots, `BUILDING_WIDTH` wide) several would have genuinely
+ *  shared a tile. 4 rows × 6-wide = 24 slots comfortably covers all 22 with room to spare. */
+const MEETING_ROWS_OUT = 4;
 
 export function townHallMeetingSlots(): readonly GridPosition[] {
   const townHall = DOOR_PLACES.find((p) => p.id === "townHall");

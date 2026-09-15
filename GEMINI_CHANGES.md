@@ -1,3 +1,21 @@
+### 2026-09-15 (Claude): Deep audit Wave 2 — 5 dead achievements revived, asset/doc cleanup (task #96, #100)
+- [ ] Verified by Claude
+- Continuation of the same 4-agent audit (Wave 1 entry below).
+- 5 of 6 candidate dead achievements confirmed to have zero real stat writers and fixed:
+  `sentinel_command`/`grand_restorer` (tending a genuinely cooling creature), `cosmic_voyager`
+  (Soumaya's real tour), `full_tank` (a real chat ask), `lenscrafter` (saving a real Lens). New
+  `bumpStat(spaceId, name)` in `components/achievements.ts`, always keyed by `statsSpaceId()`.
+- 6th candidate (`galaxy_reader`) already had a real writer — simplified anyway to compute
+  directly from the graph (matches `sector_pioneer`'s pattern); dead writer removed.
+- Found + fixed a real meeting-slot undercount while correcting "20 NPCs" comments (real count:
+  22) — `townHallMeetingSlots()` bumped from 12 to 24 slots so a full gathering never stacks.
+- Removed ~40MB of orphaned 3D-galaxy assets (`public/*.glb`, an image, 2 audio files,
+  `draco/`/`basis/`) with zero code references — `public/` ~56MB → ~18MB. `CREDITS.md` updated.
+- Fixed `checkCivicConcern`'s misleading "Pure:" doc comment (it has a real, intentional,
+  idempotent write — behavior unaffected).
+- Verified by 2 new test files/cases + the full gate (1066 server + 494 web tests, typecheck,
+  build) — build output confirmed to no longer include any removed asset.
+
 ### 2026-09-15 (Claude): Deep gameplay/UI-UX/asset/engine audit — 8 real bugs fixed, Wave 1 (tasks #88-95)
 - [ ] Verified by Claude
 - Direct response to being asked to judge the Overworld against SimCity/city-builder peers and go

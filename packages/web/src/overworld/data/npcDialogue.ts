@@ -340,8 +340,10 @@ export function asSocietyNpcId(id: string): SocietyNpcId | null {
   return PROFILES[id] ? id : null;
 }
 
-/** The town's real, fixed 20 society NPCs, in one stable declaration order (PROFILE_LIST's own
- *  order) — housing.ts's single source of "who exists" for deterministic home assignment. */
+/** The town's real, fixed 22 society NPCs (11 buildings x 2, 2026-09-15 audit fix — corrected
+ *  from a stale "20" that undercounted Mayor's Hall's own 2), in one stable declaration order
+ *  (PROFILE_LIST's own order) — housing.ts's single source of "who exists" for deterministic
+ *  home assignment. */
 export function allSocietyNpcIds(): readonly SocietyNpcId[] {
   return PROFILE_LIST.map((p) => p.id);
 }

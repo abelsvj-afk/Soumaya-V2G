@@ -3,6 +3,7 @@ import type { NodeRef } from "@brain/shared";
 import { askChat } from "../../api/client.js";
 import type { DueReview } from "../../api/features.js";
 import type { CreatureEntity } from "../types.js";
+import { bumpStat, statsSpaceId } from "../../components/achievements.js";
 import { actionButtonStyle, fieldStyle, leaveButtonStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface SoumayaChatOverlayProps {
@@ -49,6 +50,9 @@ export function SoumayaChatOverlay({ onClose, creatures, onFlyToNode, dueReviews
     try {
       const response = await askChat(text, history);
       setTurns((cur) => [...cur, { role: "soumaya", text: response.answer, citations: response.citations }]);
+      // 2026-09-15 audit fix — full_tank's own "commission Soumaya on demand" stat had zero
+      // writers post-galaxy-deletion; asking her a real question IS the real on-demand commission.
+      bumpStat(statsSpaceId(), "commissions");
     } catch (err) {
       setTurns((cur) => [
         ...cur,

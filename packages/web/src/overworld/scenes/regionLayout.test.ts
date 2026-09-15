@@ -307,5 +307,12 @@ describe("regionLayout — NPC Autonomy round (real pathfinding, docs/overworld/
     it("is deterministic across calls", () => {
       expect(townHallMeetingSlots()).toEqual(townHallMeetingSlots());
     });
+
+    it("2026-09-15 audit fix — comfortably covers the town's real 22-NPC roster, not just 'more than 2'", () => {
+      // npcDialogue.ts's PROFILE_LIST is the real, fixed headcount (11 buildings x 2) — every
+      // one of them can arrive at a Town Meeting at once. The old MEETING_ROWS_OUT=2 (12 slots)
+      // was sized against a stale "20" miscount and would have left several NPCs sharing a tile.
+      expect(townHallMeetingSlots().length).toBeGreaterThanOrEqual(22);
+    });
   });
 });

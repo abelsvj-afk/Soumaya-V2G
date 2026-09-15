@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Deep audit Wave 2 — 5 dead achievements revived, asset/doc cleanup (2026-09-15), not yet
+  on-device confirmed** — continuation of the same audit as the Wave 1 entry below. Confirmed
+  and fixed 5 of the 6 candidate dead achievements: `sentinel_command`/`grand_restorer` (tending
+  a genuinely cooling creature), `cosmic_voyager` (Soumaya's real tour), `full_tank` (a real
+  successful chat ask), `lenscrafter` (saving a real search as a Lens) all had zero real stat
+  writers — fixed with a new `bumpStat()` in `components/achievements.ts`, always keyed by
+  `statsSpaceId()`. The 6th, `galaxy_reader`, turned out to already have a real writer
+  (`overworld/data/achievements.ts`) — simplified anyway to compute directly from the graph,
+  removing a redundant tracking mechanism, and the now-dead writer deleted. While fixing the
+  "20 NPCs" doc-accuracy pass, found a real (if minor) correctness gap: `townHallMeetingSlots()`
+  was sized against that stale 20-count (12 slots) when the real roster is 22 — bumped to 24
+  slots. Removed ~40MB of orphaned 3D-galaxy assets from `public/` (9 `.glb` models, an image,
+  2 audio files, the `draco`/`basis` glTF loaders) confirmed to have zero code references —
+  `public/` dropped from ~56MB to ~18MB. Fixed the "20 NPCs" comment inaccuracy across 3 files
+  and `checkCivicConcern`'s misleading "Pure:" doc comment. Verified by 2 new test
+  files/cases and the full gate (1066 server + 494 web tests, typecheck, build) — build output
+  confirmed to no longer include any removed asset. Not yet seen rendered in a real browser.
+
 - **Deep gameplay/UI-UX/asset/engine audit — 8 real bugs fixed, Wave 1 (2026-09-15), not yet
   on-device confirmed** — direct response to being asked to judge the whole Overworld against
   SimCity/city-builder peers and go deeper than the same-day economy audit: real gameplay/UI-UX
