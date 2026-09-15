@@ -75,6 +75,9 @@ export function CreatureSummaryOverlay({ creature, onGreet, onClose, busy, onGra
         padding: "12px 16px",
         fontFamily: "monospace",
         borderTop: "2px solid #4b4b8f",
+        // 2026-09-15 audit fix — same z-index-layering bug as OverlayShell.tsx: this panel must
+        // out-rank the persistent TownHud/button-row (zIndex:1) rather than sit behind them.
+        zIndex: 10,
       }}
     >
       <div style={{ fontWeight: 700 }}>

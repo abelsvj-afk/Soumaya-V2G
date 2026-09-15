@@ -49,4 +49,28 @@ describe("CaptureMenu (FR8/FR9)", () => {
     render(<CaptureMenu onSubmit={vi.fn()} onClose={vi.fn()} />);
     expect((screen.getByText("Capture") as HTMLButtonElement).disabled).toBe(true);
   });
+
+  it("2026-09-15 audit fix — out-ranks the persistent TownHud/button-row's zIndex:1", () => {
+    render(<CaptureMenu onSubmit={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole("dialog").style.zIndex).toBe("10");
+  });
+
+  it("2026-09-15 audit fix — a stalled submit is never a dead end: Cancel returns to entry without losing the typed text", async () => {
+    let resolveSubmit: ((v: CreatureEntity | null) => void) | undefined;
+    const onSubmit = vi.fn(() => new Promise<CreatureEntity | null>((resolve) => (resolveSubmit = resolve)));
+    render(<CaptureMenu onSubmit={onSubmit} onClose={vi.fn()} />);
+
+    fireEvent.change(screen.getByLabelText("Thought"), { target: { value: "a stuck idea" } });
+    fireEvent.click(screen.getByText("Capture"));
+    expect(await screen.findByText(/identifying species/)).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Cancel"));
+    expect((screen.getByLabelText("Thought") as HTMLTextAreaElement).value).toBe("a stuck idea"); // text preserved
+    expect(screen.queryByText(/identifying species/)).toBeNull();
+
+    // The original request resolving late must not resurrect a screen the player already left.
+    resolveSubmit?.(makeCreature());
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByText(/A new thought/)).toBeNull();
+  });
 });

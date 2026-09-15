@@ -7,10 +7,11 @@
  */
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
-import { spendFromTreasury, treasuryBalanceCents, creditHour, revenueForPriceCents } from "./townLedger.js";
+import { refundToTreasury, spendFromTreasury, treasuryBalanceCents, creditHour, revenueForPriceCents } from "./townLedger.js";
 import { CONSTRUCTION_MS, isUnderConstruction } from "./housing.js";
 import { markWorked, buildingNeglect } from "./buildingNeglect.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
+import { footprintOverlapsAny, placedHomeFootprints } from "./placedStructures.js";
 import { zoneTypeAt } from "./zoning.js";
 
 export interface BusinessGood {
@@ -140,13 +141,29 @@ export function canAffordBusiness(spaceId: string, type: BusinessType): boolean 
   return type.priceCents <= treasuryBalanceCents(spaceId);
 }
 
+/** Cancels whatever business type is currently armed and refunds its real price back to the
+ *  treasury (simcity-economy-construction.md addendum, 2026-09-15 audit fix) — the same money-
+ *  loss fix as `housing.ts`'s `cancelArmedHome`, mirrored for the other catalog. Distinct from
+ *  `clearArmedBusiness` (used after a real placement, where no refund is due). Returns false,
+ *  changing nothing, if nothing is armed. */
+export function cancelArmedBusiness(spaceId: string): boolean {
+  const typeId = armedBusinessTypeId(spaceId);
+  if (!typeId) return false;
+  const type = businessTypeById(typeId);
+  if (type) refundToTreasury(spaceId, type.priceCents);
+  clearArmedBusiness(spaceId);
+  return true;
+}
+
 /** Buys one catalog business type and arms it for placement — a second call while one is
  *  already armed re-arms to the new type (never a queue, same convention as
- *  `housing.ts`'s `armHomeType`). Returns false and changes nothing if the type is unknown or
- *  the treasury can't cover it. */
+ *  `housing.ts`'s `armHomeType`), refunding whatever was armed before so money is never silently
+ *  lost. Returns false and changes nothing if the type is unknown or the treasury (after any
+ *  refund) can't cover it. */
 export function armBusinessType(spaceId: string, typeId: string): boolean {
   const type = businessTypeById(typeId);
   if (!type) return false;
+  if (armedBusinessTypeId(spaceId) !== typeId) cancelArmedBusiness(spaceId);
   if (!spendFromTreasury(spaceId, type.priceCents)) return false;
   try {
     localStorage.setItem(armedKey(spaceId), typeId);
@@ -162,9 +179,14 @@ function footprintOverlapsBusiness(x0: number, y0: number, x1: number, y1: numbe
 
 /** Every tile of the footprint anchored with its top-left corner at (x0, y0) must be: zoned
  *  "commercial" (business.md decision #1 — the zoning gate, mirroring housing's own), clear of
- *  the town's real geometry, clear of any town-builder decor item, and clear of every other
- *  already-placed business. A home can never legally occupy a commercial-zoned tile (zoning.ts
- *  only ever tags a tile with ONE type at a time), so no separate home-overlap check is needed. */
+ *  the town's real geometry, clear of any town-builder decor item, clear of every other
+ *  already-placed business, AND clear of every real placed home. 2026-09-15 audit fix: the old
+ *  comment here ("a home can never legally occupy a commercial-zoned tile, so no separate
+ *  home-overlap check is needed") was FALSE — `zoning.ts` let a tile be re-zoned out from under
+ *  an already-built home with zero check, so a business could legally be placed on top of it.
+ *  `zoning.ts`'s own fix closes the re-zoning hole; this direct check is the belt to that
+ *  suspenders, and the real single source of truth for "is this footprint actually free" that
+ *  callers rely on. */
 export function isFootprintFreeForBusiness(spaceId: string, x0: number, y0: number, type: BusinessType): boolean {
   const x1 = x0 + type.width - 1;
   const y1 = y0 + type.height - 1;
@@ -177,6 +199,7 @@ export function isFootprintFreeForBusiness(spaceId: string, x0: number, y0: numb
     }
   }
   if (others.some((business) => footprintOverlapsBusiness(x0, y0, x1, y1, business))) return false;
+  if (footprintOverlapsAny({ x0, y0, x1, y1 }, placedHomeFootprints(spaceId))) return false;
   return true;
 }
 

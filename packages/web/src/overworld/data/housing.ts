@@ -9,8 +9,9 @@
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
 import { allSocietyNpcIds, type SocietyNpcId } from "./npcDialogue.js";
-import { spendFromTreasury, treasuryBalanceCents } from "./townLedger.js";
+import { refundToTreasury, spendFromTreasury, treasuryBalanceCents } from "./townLedger.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
+import { footprintOverlapsAny, placedBusinessFootprints } from "./placedStructures.js";
 import { zoneTypeAt } from "./zoning.js";
 
 export interface HomeType {
@@ -108,13 +109,30 @@ export function canAffordHome(spaceId: string, type: HomeType): boolean {
   return type.priceCents <= treasuryBalanceCents(spaceId);
 }
 
+/** Cancels whatever home type is currently armed and refunds its real price back to the
+ *  treasury (simcity-economy-construction.md addendum, 2026-09-15 audit fix) — arming spends
+ *  immediately, so changing your mind, or re-arming to a different type, before ever placing it
+ *  must give the money back rather than silently forfeit it. Distinct from `clearArmedHome`
+ *  (used after a real placement, where the spend was intentional and no refund is due). Returns
+ *  false, changing nothing, if nothing is armed. */
+export function cancelArmedHome(spaceId: string): boolean {
+  const typeId = armedHomeTypeId(spaceId);
+  if (!typeId) return false;
+  const type = homeTypeById(typeId);
+  if (type) refundToTreasury(spaceId, type.priceCents);
+  clearArmedHome(spaceId);
+  return true;
+}
+
 /** Buys one catalog home type and arms it for placement — a second `armHomeType` call while
  *  one is already armed re-arms to the new type (never a queue, same one-selected-item
- *  convention as `townBuilder.ts`'s `armItem`). Returns false and changes nothing if the type is
- *  unknown or the treasury can't cover it. */
+ *  convention as `townBuilder.ts`'s `armItem`), refunding whatever was armed before so that
+ *  money is never silently lost. Returns false and changes nothing if the type is unknown or the
+ *  treasury (after any refund) can't cover it. */
 export function armHomeType(spaceId: string, typeId: string): boolean {
   const type = homeTypeById(typeId);
   if (!type) return false;
+  if (armedHomeTypeId(spaceId) !== typeId) cancelArmedHome(spaceId);
   if (!spendFromTreasury(spaceId, type.priceCents)) return false;
   try {
     localStorage.setItem(armedKey(spaceId), typeId);
@@ -131,7 +149,12 @@ function footprintOverlapsHome(x0: number, y0: number, x1: number, y1: number, h
 /** Every tile of the footprint anchored with its top-left corner at (x0, y0) must be: zoned
  *  "residential" (housing.md decision #2 — zoning gates where a home can go), clear of the
  *  town's own real geometry (buildings/objects/attendants/grass/spawn), clear of any
- *  town-builder decor item, and clear of every OTHER already-placed home. */
+ *  town-builder decor item, clear of every OTHER already-placed home, AND clear of every real
+ *  placed business — 2026-09-15 audit fix: this cross-category check was the missing half of
+ *  the zoning overlap exploit (zoning.ts's own tile-level fix closes re-zoning UNDER a built
+ *  structure, but a footprint here could still, before that fix, span onto a tile zoned
+ *  residential that already had a business under it from before re-zoning). Business's own
+ *  `isFootprintFreeForBusiness` carries the mirror check against homes. */
 export function isFootprintFreeForHome(spaceId: string, x0: number, y0: number, type: HomeType): boolean {
   const x1 = x0 + type.width - 1;
   const y1 = y0 + type.height - 1;
@@ -144,6 +167,7 @@ export function isFootprintFreeForHome(spaceId: string, x0: number, y0: number, 
     }
   }
   if (others.some((home) => footprintOverlapsHome(x0, y0, x1, y1, home))) return false;
+  if (footprintOverlapsAny({ x0, y0, x1, y1 }, placedBusinessFootprints(spaceId))) return false;
   return true;
 }
 

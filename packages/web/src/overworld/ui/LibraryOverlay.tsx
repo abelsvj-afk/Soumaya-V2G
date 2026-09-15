@@ -3,7 +3,7 @@ import type { GraphData, Lens } from "@brain/shared";
 import { createLens, deleteLens, getLenses, lensNodes, search, type SearchHit } from "../../api/client.js";
 import { groupIntoFolders } from "../data/libraryFolders.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
-import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface LibraryOverlayProps {
   graph: GraphData;
@@ -144,9 +144,7 @@ export function LibraryOverlay({ graph, spaceId, onClose }: LibraryOverlayProps)
               >
                 {activeLens?.id === lens.id ? "Viewing" : "View"}
               </button>
-              <button type="button" onClick={() => void removeLens(lens)} style={actionButtonStyle()}>
-                Delete
-              </button>
+              <ConfirmButton label="Delete" confirmLabel="Really delete?" ariaLabel={`Delete ${lens.name}`} onConfirm={() => void removeLens(lens)} />
             </li>
           ))}
         </ul>

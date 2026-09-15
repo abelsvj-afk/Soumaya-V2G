@@ -2,6 +2,9 @@ import { useState } from "react";
 import type { Fuel, Streak } from "@brain/shared";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedZoneMode, armedZoneType, disarmZoning } from "../data/zoning.js";
+import { armedItemId, cancelArmedItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
+import { armedHomeTypeId, cancelArmedHome, homeTypeById } from "../data/housing.js";
+import { armedBusinessTypeId, businessTypeById, cancelArmedBusiness } from "../data/business.js";
 
 export interface TownHudProps {
   spaceId: string;
@@ -47,11 +50,25 @@ const ZONE_LABEL: Record<string, string> = {
  * and stoppable from anywhere, not just re-discoverable back at the Hangar. Reads the real
  * armed state directly on every render (same convention as the Treasury number above) so it
  * reflects whatever was just armed in the Hangar without any extra event wiring.
+ *
+ * 2026-09-15 audit fix (gameplay-uiux-audit-2026-09-15.md, finding #4) — the SAME real gap
+ * existed for the other 3 arm modes (town-builder item, home type, business type), and they're
+ * checked FIRST in ExteriorScene.ts's interact-press priority chain, so a forgotten arm there
+ * was the MOST likely to silently eat every press with zero indication why. Each gets the same
+ * chip + Stop treatment as zoning; Stop now genuinely refunds (cancelArmedItem/Home/Business,
+ * the same money-loss fix `armItem`/`armHomeType`/`armBusinessType` already got for re-arming),
+ * since walking away from an armed purchase should never just forfeit it.
  */
 export function TownHud({ spaceId, fuel, streak, onZoningStopped }: TownHudProps) {
   const [, bump] = useState(0);
   const armedZone = armedZoneType(spaceId);
   const armedMode = armedZoneType(spaceId) ? armedZoneMode(spaceId) : null;
+  const armedItem = armedItemId(spaceId);
+  const armedItemName = armedItem ? (PLACEABLE_ITEMS.find((i) => i.id === armedItem)?.name ?? armedItem) : null;
+  const armedHome = armedHomeTypeId(spaceId);
+  const armedHomeName = armedHome ? (homeTypeById(armedHome)?.name ?? armedHome) : null;
+  const armedBusiness = armedBusinessTypeId(spaceId);
+  const armedBusinessName = armedBusiness ? (businessTypeById(armedBusiness)?.name ?? armedBusiness) : null;
   return (
     <div
       style={{ position: "absolute", top: 8, left: 8, zIndex: 1, display: "flex", gap: 4, flexWrap: "wrap", maxWidth: "70vw" }}
@@ -71,6 +88,51 @@ export function TownHud({ spaceId, fuel, streak, onZoningStopped }: TownHudProps
               disarmZoning(spaceId);
               bump((n) => n + 1);
               onZoningStopped?.();
+            }}
+            style={{ ...chipStyle, padding: "2px 6px", cursor: "pointer" }}
+          >
+            Stop
+          </button>
+        </span>
+      )}
+      {armedItemName && (
+        <span style={{ ...chipStyle, display: "flex", alignItems: "center", gap: 6 }}>
+          🛠️ Placing: {armedItemName}
+          <button
+            type="button"
+            onClick={() => {
+              cancelArmedItem(spaceId);
+              bump((n) => n + 1);
+            }}
+            style={{ ...chipStyle, padding: "2px 6px", cursor: "pointer" }}
+          >
+            Stop
+          </button>
+        </span>
+      )}
+      {armedHomeName && (
+        <span style={{ ...chipStyle, display: "flex", alignItems: "center", gap: 6 }}>
+          🏠 Building: {armedHomeName}
+          <button
+            type="button"
+            onClick={() => {
+              cancelArmedHome(spaceId);
+              bump((n) => n + 1);
+            }}
+            style={{ ...chipStyle, padding: "2px 6px", cursor: "pointer" }}
+          >
+            Stop
+          </button>
+        </span>
+      )}
+      {armedBusinessName && (
+        <span style={{ ...chipStyle, display: "flex", alignItems: "center", gap: 6 }}>
+          🏪 Building: {armedBusinessName}
+          <button
+            type="button"
+            onClick={() => {
+              cancelArmedBusiness(spaceId);
+              bump((n) => n + 1);
             }}
             style={{ ...chipStyle, padding: "2px 6px", cursor: "pointer" }}
           >

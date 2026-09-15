@@ -126,3 +126,19 @@ export function spendFromTreasury(spaceId: string, amountCents: number): boolean
   }
   return true;
 }
+
+/** The exact inverse of `spendFromTreasury` — real cents given back because a purchase was
+ *  voided before it was ever placed (re-arming a Hangar/Housing/Business slot that had already
+ *  spent on a different selection forfeited that money with no way to get it back — a real bug,
+ *  fixed here rather than in the callers so every arm-then-place module shares one refund path).
+ *  Never lets the recorded "spent" total go negative, which would otherwise inflate the balance
+ *  beyond what the town ever actually earned. A no-op for a non-positive amount. */
+export function refundToTreasury(spaceId: string, amountCents: number): void {
+  if (amountCents <= 0) return;
+  const next = Math.max(0, loadSpentCents(spaceId) - amountCents);
+  try {
+    localStorage.setItem(spentKey(spaceId), String(next));
+  } catch {
+    /* the refund still applies for this call; a failed persist just risks not being remembered */
+  }
+}

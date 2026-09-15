@@ -1409,6 +1409,59 @@ server + 451 web tests, typecheck, build). No dedicated `ExteriorScene.ts` test 
 file's established convention — verified by reading the construction-aware paint logic directly).
 Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.42 — Deep gameplay/UI-UX/asset/engine audit: 8 real bugs fixed (Wave 1)
+
+Direct response to the user asking to "step back and judge this entire thing up next to SimCity,
+city building games" and go deeper than the same-day pricing/construction audit — real gameplay
+and UI/UX pitfalls, bugs, and missing elements, not just "how it should function." Ran 4 parallel,
+read-only investigation agents (assets, UI/UX, gameplay logic, engine/scene), each required to
+cite exact `file:line` for every finding. Full findings + fix plan:
+`docs/overworld/gameplay-uiux-audit-2026-09-15.md`. This entry covers Wave 1 — 8 real correctness
+bugs, no open design decisions, fixed the same round:
+
+1. **Re-arming a Hangar item/home/business silently forfeited the money already spent.**
+   `townLedger.ts` gained `refundToTreasury()`, the exact inverse of `spendFromTreasury()`; each
+   of `armItem`/`armHomeType`/`armBusinessType` now refunds whatever was armed before spending on
+   a new selection, via new `cancelArmedItem`/`cancelArmedHome`/`cancelArmedBusiness`.
+2. **A real z-index bug**: TownHud/the Settings-track-mute button row (zIndex:1) painted over
+   and stayed clickable through every overlay's own scrim, including Settings itself, since no
+   overlay ever set a zIndex of its own. Fixed in `OverlayShell.tsx`, `CaptureMenu.tsx`,
+   `CreatureSummaryOverlay.tsx` (zIndex:10).
+3. **A real cross-type overlap exploit**: zoning never checked already-built homes/businesses, so
+   a tile could be re-zoned out from under a built home and a business legally placed on top of
+   it — directly falsifying business.ts's own doc comment that this "can never" happen. New
+   `data/placedStructures.ts` (a dependency-free, read-only projection avoiding a housing↔business↔
+   zoning import cycle) backs a real fix in all three modules.
+4. **Creature placement/roaming and NPC pathfinding were blind to placed homes/businesses — and
+   so was the PLAYER's own movement.** `loadWorldSnapshot.ts`'s creature placement, `buildRoamCage`,
+   `this.npcPathGrid` (replacing a frozen module-level constant with a live per-instance getter),
+   and the player's own `tryMove` call all gained the same `isBlockedByPlacedStructure` check —
+   before this, the player could walk straight into their own built house.
+5. **3 of 4 armed placement modes had no HUD indicator** (only zoning did), despite being checked
+   FIRST in the interact-press priority chain — the most likely to silently eat a press with zero
+   explanation. `TownHud.tsx` now shows a chip + a real refunding Stop button for item/home/
+   business arms too, mirroring zoning's own.
+6. **`CaptureMenu`'s "submitting" phase was a genuine dead end** if the request stalled — no
+   Cancel, no Escape handling anywhere in the Overworld. Added a Cancel button that returns to
+   entry (keeping the typed text) and a cancelled-ref guard so a late response can't resurrect a
+   screen the player already left.
+7. **Zero destructive-action confirmations existed anywhere** — deleting a Journey, a Timeline
+   chapter, a Lens, and quest turn-in all fired on one tap. New reusable `ConfirmButton`
+   (`OverlayShell.tsx`) — a real two-tap arm/confirm with an explicit Cancel, no auto-revert
+   timer (this codebase's own no-polling convention) — wired into all four.
+
+Verified by 6 new test files/suites (`placedStructures.test.ts`, plus new cases across
+`townLedger`/`housing`/`business`/`townBuilder`/`zoning`/`TownHud`/`OverlayShell`/`CaptureMenu`/
+`CreatureSummaryOverlay`/`LibraryOverlay`/`BulletinBoardOverlay`/`TownHallOverlay` test files) and
+the full gate (1066 server + 485 web tests, typecheck, build). No dedicated `ExteriorScene.ts`
+test exists for the collision-check composition (this file's established convention — the
+underlying `placedStructures.ts` primitives it composes are fully unit-tested; the composition
+itself is a 2-line boolean OR, verified by reading, not a fresh reproduction script). Not yet
+seen rendered in a real browser from this sandbox. Wave 2 (dead achievements, creature render
+churn, depth ordering, asset cleanup) and Wave 3 (passive income, onboarding, demolish/remove,
+zone-type function, population growth — each its own follow-up spec per Rule #1) are tracked
+separately in the audit doc.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

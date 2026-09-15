@@ -10,7 +10,7 @@
  */
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
-import { spendFromTreasury, treasuryBalanceCents } from "./townLedger.js";
+import { refundToTreasury, spendFromTreasury, treasuryBalanceCents } from "./townLedger.js";
 
 export interface PlaceableItem {
   id: string;
@@ -87,13 +87,29 @@ export function clearArmedItem(spaceId: string): void {
   }
 }
 
+/** Cancels whatever item is currently armed and refunds its real price back to the treasury
+ *  (simcity-economy-construction.md addendum, 2026-09-15 audit fix) — the same money-loss fix as
+ *  `housing.ts`'s `cancelArmedHome`, mirrored for the decor catalog. Distinct from
+ *  `clearArmedItem` (used after a real placement, where no refund is due). Returns false,
+ *  changing nothing, if nothing is armed. */
+export function cancelArmedItem(spaceId: string): boolean {
+  const itemId = armedItemId(spaceId);
+  if (!itemId) return false;
+  const item = PLACEABLE_ITEMS.find((i) => i.id === itemId);
+  if (item) refundToTreasury(spaceId, item.priceCents);
+  clearArmedItem(spaceId);
+  return true;
+}
+
 /** Buys one catalog item from the real treasury and arms it for placement — a second `armItem`
  *  call while one is already armed re-arms to the new item (never a queue, matches a
- *  Pokémon-style "one selected item from the bag"). Returns false and changes nothing if the
- *  item is unknown or the treasury can't cover it. */
+ *  Pokémon-style "one selected item from the bag"), refunding whatever was armed before so
+ *  money is never silently lost. Returns false and changes nothing if the item is unknown or the
+ *  treasury (after any refund) can't cover it. */
 export function armItem(spaceId: string, itemId: string): boolean {
   const item = PLACEABLE_ITEMS.find((i) => i.id === itemId);
   if (!item) return false;
+  if (armedItemId(spaceId) !== itemId) cancelArmedItem(spaceId);
   if (!spendFromTreasury(spaceId, item.priceCents)) return false;
   try {
     localStorage.setItem(armedKey(spaceId), itemId);

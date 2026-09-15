@@ -3,7 +3,7 @@ import type { GraphData, Journey, JourneyLinkSummary, TimelineChapter } from "@b
 import { createJourney, deleteJourney, getJourneys, journeyLinks, linkToJourney, patchJourney, unlinkFromJourney } from "../../api/journeys.js";
 import { addTimelineChapter, deleteTimelineChapter, getTimeline } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
-import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 const TREND_BADGE: Record<TimelineChapter["trend"], string> = {
   growth: "📈 growth",
@@ -156,9 +156,7 @@ export function TownHallOverlay({ spaceId, graph, onClose }: TownHallOverlayProp
                 <button type="button" onClick={() => bumpProgress(j, 0.1)} aria-label={`Advance ${j.title}`} style={actionButtonStyle()}>
                   +10%
                 </button>
-                <button type="button" onClick={() => remove(j)} aria-label={`Delete ${j.title}`} style={actionButtonStyle()}>
-                  Delete
-                </button>
+                <ConfirmButton label="Delete" confirmLabel="Really delete?" ariaLabel={`Delete ${j.title}`} onConfirm={() => void remove(j)} />
               </div>
               {expandedId === j.id && (
                 <div style={{ paddingLeft: 24, fontSize: 12 }}>
@@ -237,9 +235,7 @@ export function TownHallOverlay({ spaceId, graph, onClose }: TownHallOverlayProp
                 <div style={{ fontSize: 12, opacity: 0.8 }}>{c.summary}</div>
               </span>
               {c.origin === "user" && (
-                <button type="button" onClick={() => void removeChapter(c)} aria-label={`Delete ${c.title}`} style={actionButtonStyle()}>
-                  Delete
-                </button>
+                <ConfirmButton label="Delete" confirmLabel="Really delete?" ariaLabel={`Delete ${c.title}`} onConfirm={() => void removeChapter(c)} />
               )}
             </li>
           ))}

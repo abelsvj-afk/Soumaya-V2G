@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 export interface OverlayShellProps {
   icon: string;
@@ -36,6 +36,13 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
         justifyContent: "center",
         padding: 12,
         background: "rgba(6, 7, 16, 0.6)",
+        // 2026-09-15 audit fix — TownHud/the Settings-track-mute button row both sit at
+        // zIndex:1 (OverworldRoot.tsx, TownHud.tsx) and default z-index:auto (this overlay's
+        // old value) always paints BELOW an explicit positive z-index regardless of DOM order,
+        // so those persistent buttons rendered on top of, and stayed clickable through, every
+        // overlay's own scrim — including this component's own Settings instance. Any overlay
+        // is a modal; nothing persistent should ever out-rank it.
+        zIndex: 10,
       }}
     >
       <div
@@ -126,6 +133,54 @@ export function actionButtonStyle(disabled?: boolean): CSSProperties {
     cursor: disabled ? "default" : "pointer",
     opacity: disabled ? 0.5 : 1,
   };
+}
+
+/** A two-tap confirm button for a destructive, irreversible action (delete a Journey, delete a
+ *  Timeline chapter, delete a Lens, turn in a quest) — 2026-09-15 audit fix (finding #5): every
+ *  one of these fired immediately on a single tap, with no confirm and no undo anywhere in the
+ *  app. The first tap arms it (swaps to a distinctly red-toned confirm + a Cancel button, never
+ *  color-only — the LABEL itself changes too); the second tap on the SAME button actually does
+ *  it. No auto-revert timer (this codebase's own standing no-polling-timer convention) — Cancel
+ *  is the explicit way back, always right next to it. */
+export function ConfirmButton({
+  label,
+  confirmLabel = "Confirm?",
+  ariaLabel,
+  onConfirm,
+  disabled,
+}: {
+  label: string;
+  confirmLabel?: string;
+  ariaLabel?: string;
+  onConfirm: () => void;
+  disabled?: boolean;
+}) {
+  const [armed, setArmed] = useState(false);
+  if (armed) {
+    return (
+      <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+        <button
+          type="button"
+          aria-label={ariaLabel ? `Confirm: ${ariaLabel}` : undefined}
+          onClick={() => {
+            setArmed(false);
+            onConfirm();
+          }}
+          style={{ ...actionButtonStyle(false), background: "#7a2d3d", borderColor: "#c0596e" }}
+        >
+          {confirmLabel}
+        </button>
+        <button type="button" onClick={() => setArmed(false)} style={actionButtonStyle(false)}>
+          Cancel
+        </button>
+      </span>
+    );
+  }
+  return (
+    <button type="button" aria-label={ariaLabel} onClick={() => setArmed(true)} disabled={disabled} style={actionButtonStyle(disabled)}>
+      {label}
+    </button>
+  );
 }
 
 /** A text input/textarea styled to match the shell rather than the browser's bare default. */

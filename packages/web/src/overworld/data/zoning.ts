@@ -13,6 +13,7 @@
  */
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
+import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "./placedStructures.js";
 
 export type ZoneType = "residential" | "commercial" | "sidewalk" | "transit";
 export type ZoneMode = "tile" | "area";
@@ -64,9 +65,16 @@ export function zoneTypeAt(spaceId: string, x: number, y: number): ZoneType | nu
 
 /** Whether a tile can be zoned at all — the same real town geometry check town-builder's own
  *  placements use. A tile already zoned as something else is still zonable (re-zoning
- *  overwrites); it's real town/object/attendant geometry that's off-limits, not a prior tag. */
+ *  overwrites); it's real town/object/attendant geometry that's off-limits, not a prior tag.
+ *  2026-09-15 audit fix: a tile a real home or business already occupies is off-limits too —
+ *  re-zoning UNDER an already-built structure was the exact hole the cross-type overlap exploit
+ *  used (zone residential, build a home, re-zone commercial, build a business on the same
+ *  tile). */
 export function isTileZonable(spaceId: string, x: number, y: number): boolean {
-  return !isPlacementBlocked(x, y);
+  if (isPlacementBlocked(x, y)) return false;
+  if (isInsideAnyFootprint(placedHomeFootprints(spaceId), x, y)) return false;
+  if (isInsideAnyFootprint(placedBusinessFootprints(spaceId), x, y)) return false;
+  return true;
 }
 
 export function armedZoneType(spaceId: string): ZoneType | null {

@@ -253,6 +253,37 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Deep gameplay/UI-UX/asset/engine audit — 8 real bugs fixed, Wave 1 (2026-09-15), not yet
+  on-device confirmed** — direct response to being asked to judge the whole Overworld against
+  SimCity/city-builder peers and go deeper than the same-day economy audit: real gameplay/UI-UX
+  pitfalls, bugs, and missing elements, not just design talk. Ran 4 parallel read-only
+  investigation agents (assets, UI/UX, gameplay logic, engine/scene), each required to cite exact
+  `file:line`. Full findings + fix plan saved to
+  `docs/overworld/gameplay-uiux-audit-2026-09-15.md`. Wave 1 (this entry) fixed 8 real bugs with
+  no open design decisions: (1) re-arming a Hangar item/home/business silently forfeited the
+  money already spent — `townLedger.ts` gained a real `refundToTreasury()`, wired into all three
+  arm functions; (2) a real z-index bug where TownHud/the Settings button row painted over and
+  stayed clickable through every overlay including Settings itself; (3) a real cross-type overlap
+  exploit — zoning never checked already-built homes/businesses, so a business could legally be
+  placed on top of an existing home via re-zoning, directly falsifying business.ts's own doc
+  comment; (4) creature placement/roaming, NPC pathfinding, AND the player's own movement were all
+  blind to placed homes/businesses — the player could walk straight into their own built house;
+  (5) 3 of 4 armed placement modes (item/home/business) had no HUD indicator, despite being
+  checked FIRST in the interact-press priority chain — TownHud now shows a chip + refunding Stop
+  button for all 4 arm modes; (6) CaptureMenu's "submitting" phase was a genuine dead end with no
+  Cancel and no Escape handling anywhere in the app; (7) zero destructive-action confirmations
+  existed anywhere — a new reusable `ConfirmButton` (two-tap arm/confirm, explicit Cancel, no
+  auto-revert timer) is now wired into Journey delete, Timeline chapter delete, Lens delete, and
+  quest turn-in. Also confirmed via the asset audit: no broken/404 asset reference exists
+  anywhere, but real-in-world art is aggressively reused (5 building PNGs for 17 place/type
+  slots, creature art never varies by rarity, 3 buildings' NPC attendants fall back to literally
+  the player's own sprite) and ~40MB of orphaned 3D-galaxy assets remain on disk. Verified by 6
+  new test files/suites and the full gate (1066 server + 485 web tests, typecheck, build). Wave 2
+  (dead achievements, creature render-churn perf, depth ordering, asset cleanup) and Wave 3
+  (passive income, onboarding, demolish/remove, zone-type function, population growth) are
+  tracked separately, each getting its own follow-up spec per Rule #1 before Wave 3 code. Not yet
+  seen rendered in a real browser from this sandbox.
+
 - **Real pricing-gauged treasury income + Hangar previews + a real construction delay
   (2026-09-15), not yet on-device confirmed** — direct answer to a real request: "the town
   [should] make money for the treasury gauged amount correctly based on all including pricing,"

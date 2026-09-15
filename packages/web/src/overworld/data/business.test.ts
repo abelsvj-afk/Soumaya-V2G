@@ -6,6 +6,7 @@ import {
   businessById,
   businessDoorAt,
   businessNeglect,
+  cancelArmedBusiness,
   canAffordBusiness,
   canAffordGood,
   clearArmedBusiness,
@@ -16,7 +17,7 @@ import {
   purchaseGoodFromBusiness,
 } from "./business.js";
 import { isNeglected } from "./buildingNeglect.js";
-import { creditHour } from "./townLedger.js";
+import { creditHour, treasuryBalanceCents } from "./townLedger.js";
 import { armZoneType, zoneTileAt } from "./zoning.js";
 
 const SPACE = "test-space";
@@ -67,6 +68,31 @@ describe("business — a real multi-business economy gated on zoning (business.m
     expect(armedBusinessTypeId(SPACE)).toBe("tailor");
   });
 
+  it("simcity-economy-construction.md 2026-09-15 audit fix — re-arming a different business type refunds the first, never forfeits the money", () => {
+    const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!;
+    const tailor = BUSINESS_TYPES.find((t) => t.id === "tailor")!;
+    fundTreasury(2000);
+    const balanceBeforeAnyPurchase = treasuryBalanceCents(SPACE);
+    armBusinessType(SPACE, "bakery");
+    armBusinessType(SPACE, "tailor"); // re-arm to a DIFFERENT type — bakery's price must come back
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeAnyPurchase - tailor.priceCents);
+    expect(treasuryBalanceCents(SPACE)).not.toBe(balanceBeforeAnyPurchase - bakery.priceCents - tailor.priceCents);
+  });
+
+  it("cancelArmedBusiness refunds the armed business type's real price and clears the arm", () => {
+    const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!;
+    fundTreasury(2000);
+    const balanceBeforePurchase = treasuryBalanceCents(SPACE);
+    armBusinessType(SPACE, "bakery");
+    expect(cancelArmedBusiness(SPACE)).toBe(true);
+    expect(armedBusinessTypeId(SPACE)).toBeNull();
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforePurchase);
+  });
+
+  it("cancelArmedBusiness is a no-op, returning false, when nothing is armed", () => {
+    expect(cancelArmedBusiness(SPACE)).toBe(false);
+  });
+
   it("a footprint zoned residential (not commercial) is never buildable", () => {
     armZoneType(SPACE, "residential");
     zoneTileAt(SPACE, 2, 10);
@@ -105,6 +131,19 @@ describe("business — a real multi-business economy gated on zoning (business.m
     placeArmedBusiness(SPACE, 2, 10);
     const tailor = BUSINESS_TYPES.find((t) => t.id === "tailor")!; // 3x2 — would overlap at (3,11)
     expect(isFootprintFreeForBusiness(SPACE, 3, 11, tailor)).toBe(false);
+  });
+
+  it("2026-09-15 audit fix — a footprint overlapping an already-placed HOME is no longer free either, closing the cross-type overlap exploit", () => {
+    zoneCommercialRect(2, 10, 9, 17);
+    // A real home footprint planted directly (bypassing zoning's own residential gate — this
+    // test's only concern is business's own cross-category check; zoning.test.ts covers the
+    // re-zoning half of this fix).
+    localStorage.setItem(
+      `brain.housing.placed.${SPACE}`,
+      JSON.stringify([{ id: "h1", typeId: "cottage", x0: 2, y0: 10, x1: 3, y1: 11, door: { x: 2, y: 11 }, builtAt: 0 }]),
+    );
+    const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!; // 2x2 — exactly the home's own footprint
+    expect(isFootprintFreeForBusiness(SPACE, 2, 10, bakery)).toBe(false);
   });
 
   it("clearArmedBusiness clears without placing anything", () => {
