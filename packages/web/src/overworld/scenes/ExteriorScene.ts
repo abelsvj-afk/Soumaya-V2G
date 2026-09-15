@@ -88,8 +88,15 @@ import { bumpStat, loadUnlocked, statsSpaceId } from "../../components/achieveme
 import type { Thought } from "../../api/mind.js";
 import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
 import { getCachedNpcLine, pickDialogueOutcome } from "../data/npcLlmDialogue.js";
+import { INTERIOR_ROOM_HEIGHT, INTERIOR_ROOM_WIDTH, interiorEntryTile, interiorRoomOrigin, worldBoundsTiles } from "../data/interiorRoom.js";
+import { color as uiColor } from "../ui/theme.js";
 
 export const TILE_SIZE = 32;
+/** Backlog #80 (docs/overworld/walk-in-interiors.md) — how long the player visibly stands in
+ *  the interior room before the overlay opens (walk-in) / after it closes (walk-out). Skipped
+ *  entirely under prefersReducedMotion(), matching this file's existing motion-gate convention. */
+const INTERIOR_ENTER_DWELL_MS = 260;
+const INTERIOR_EXIT_DWELL_MS = 200;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
 const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
 /** Real cross-town paths measured 40-50 tiles for opposite corners (npc-autonomy.md's own
@@ -256,6 +263,14 @@ export class ExteriorScene extends Phaser.Scene {
   /** True while a React overlay owns input focus — set by OverworldRoot.tsx so a keypress
    *  typed into a textarea can't also walk the player. */
   private paused = false;
+  /** Backlog #80 (docs/overworld/walk-in-interiors.md) — true only during the brief walk-in/
+   *  walk-out dwell around a building visit. Deliberately separate from `paused`: OverworldRoot
+   *  unpauses the instant its own overlay-closed state commits, which would otherwise race ahead
+   *  of the exit dwell and let movement resume while the player is still teleporting back out. */
+  private interiorTransitionLock = false;
+  /** Backlog #80 — the single reusable interior room every door-building's walk-in transition
+   *  teleports the player into. Built once in create(); only its glyph changes per building. */
+  private interiorGlyphText!: Phaser.GameObjects.Text;
 
   constructor() {
     super("exterior-scene");
@@ -337,8 +352,11 @@ export class ExteriorScene extends Phaser.Scene {
     this.player.setScale(SPRITE_SCALE);
     this.player.setDepth(10);
 
-    const worldWidth = REGION_WIDTH * TILE_SIZE;
-    const worldHeight = REGION_HEIGHT * TILE_SIZE;
+    // Backlog #80 — bounds cover the real town AND the reserved interior room (worldBoundsTiles),
+    // extended once here rather than toggled at transition time (see walk-in-interiors.md).
+    const bounds = worldBoundsTiles();
+    const worldWidth = bounds.width * TILE_SIZE;
+    const worldHeight = bounds.height * TILE_SIZE;
     this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
     // The camera's own viewport size (not the world) — with Scale.RESIZE (OverworldRoot.tsx)
     // this is genuinely the device's screen, usually smaller than the 26x18-tile world, so
@@ -353,7 +371,76 @@ export class ExteriorScene extends Phaser.Scene {
     this.startIdleBob();
     // MindSpace (mindspace.md) — after this.player exists, since motes anchor to its position.
     this.renderMotes(this.pendingThoughts);
+    this.buildInteriorRoom();
     this.created = true;
+  }
+
+  /** Backlog #80 — builds the one reusable interior room, once, in reserved off-map tile space
+   *  (interiorRoom.ts). Plain rectangles + a glyph Text, not new art (walk-in-interiors.md's own
+   *  documented scoping decision) — colors pulled from the shared UI theme so the two systems
+   *  don't drift apart. */
+  private buildInteriorRoom(): void {
+    const origin = interiorRoomOrigin();
+    const px = origin.x * TILE_SIZE;
+    const py = origin.y * TILE_SIZE;
+    const w = INTERIOR_ROOM_WIDTH * TILE_SIZE;
+    const h = INTERIOR_ROOM_HEIGHT * TILE_SIZE;
+    const floor = this.add.rectangle(px + w / 2, py + h / 2, w, h, Phaser.Display.Color.HexStringToColor(uiColor.fieldBg).color);
+    floor.setDepth(0);
+    const wall = this.add.rectangle(px + w / 2, py + h / 2, w, h);
+    wall.setStrokeStyle(4, Phaser.Display.Color.HexStringToColor(uiColor.panelBorder).color);
+    wall.setDepth(1);
+    this.interiorGlyphText = this.add.text(px + w / 2, py + TILE_SIZE * 0.8, "🚪", { fontSize: "28px" });
+    this.interiorGlyphText.setOrigin(0.5);
+    this.interiorGlyphText.setDepth(2);
+  }
+
+  /** Backlog #80 — walks the player into the reusable interior room, then unlocks input and
+   *  invokes `emit` after a brief motion-gated dwell (walk-in-interiors.md's own "automatic,
+   *  not a second interact press" decision). `glyph` is whichever icon the entered building
+   *  already uses elsewhere (workIconForPlace / businessGlyphFor) — no new icon table. */
+  private enterInterior(glyph: string, emit: () => void): void {
+    this.interiorTransitionLock = true;
+    this.interiorGlyphText.setText(glyph);
+    const entry = interiorEntryTile();
+    this.movement = createMovementState(entry);
+    const targetX = entry.x * TILE_SIZE + TILE_SIZE / 2;
+    const targetY = entry.y * TILE_SIZE + TILE_SIZE / 2;
+    if (prefersReducedMotion()) {
+      this.player.setPosition(targetX, targetY);
+      this.interiorTransitionLock = false;
+      emit();
+      return;
+    }
+    // Idle bob only ever animates scaleY (see startIdleBob) — it can run concurrently with this
+    // x/y move tween with no property conflict, so it's deliberately left alone here; the
+    // move-tween handler that called afterStep() already brackets it (stopIdleBob before,
+    // startIdleBob after finish()).
+    this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: 220, ease: "Sine.easeInOut" });
+    this.time.delayedCall(INTERIOR_ENTER_DWELL_MS, () => {
+      this.interiorTransitionLock = false;
+      emit();
+    });
+  }
+
+  /** Backlog #80 — the shared tail of `returnToDoor`/`returnToBusinessDoor`: a brief dwell still
+   *  standing in the interior room (the player never left it while the overlay was open) before
+   *  teleporting back to the real exterior door tile. */
+  private exitInterior(door: { x: number; y: number }): void {
+    const targetX = door.x * TILE_SIZE + TILE_SIZE / 2;
+    const targetY = door.y * TILE_SIZE + TILE_SIZE / 2;
+    if (prefersReducedMotion()) {
+      this.movement = createMovementState(door);
+      this.player.setPosition(targetX, targetY);
+      this.interiorTransitionLock = false;
+      return;
+    }
+    this.interiorTransitionLock = true;
+    this.time.delayedCall(INTERIOR_EXIT_DWELL_MS, () => {
+      this.movement = createMovementState(door);
+      this.player.setPosition(targetX, targetY);
+      this.interiorTransitionLock = false;
+    });
   }
 
   /** Keeps the camera's viewport matching the real device size as it changes — a rotation,
@@ -1542,7 +1629,7 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   private handleInput(event: InputEvent): void {
-    if (this.paused) return;
+    if (this.paused || this.interiorTransitionLock) return;
     if (event.type === "interact") {
       this.handleInteract();
       return;
@@ -1589,7 +1676,10 @@ export class ExteriorScene extends Phaser.Scene {
   private afterStep(x: number, y: number): void {
     const door = doorPlaceAt(x, y);
     if (door) {
-      this.events.emit("enter-place", door.id);
+      // Backlog #80 — a real walk-in transition first, the overlay opens automatically once the
+      // brief dwell finishes (walk-in-interiors.md). Only real door-buildings route through this;
+      // standalone objects (Soumaya, the Bulletin Board) are unaffected — see handleInteract().
+      this.enterInterior(workIconForPlace(door.id), () => this.events.emit("enter-place", door.id));
       return;
     }
     // A real multi-business economy (business.md decision #2) — a second, dynamic door lookup
@@ -1601,7 +1691,7 @@ export class ExteriorScene extends Phaser.Scene {
     // what explains the state to the player, not a popup this scene has no mechanism to show.
     const business = businessDoorAt(this.spaceId, x, y);
     if (business && !isUnderConstruction(business)) {
-      this.events.emit("enter-business", business.id);
+      this.enterInterior(this.businessGlyphFor(business.typeId), () => this.events.emit("enter-business", business.id));
       return;
     }
     if (business) return;
@@ -1733,8 +1823,7 @@ export class ExteriorScene extends Phaser.Scene {
     const place = placeById(placeId) as Place & { door?: { x: number; y: number } };
     const door = place.door;
     if (!door) return;
-    this.movement = createMovementState(door);
-    this.player.setPosition(door.x * TILE_SIZE + TILE_SIZE / 2, door.y * TILE_SIZE + TILE_SIZE / 2);
+    this.exitInterior(door);
   }
 
   /** A real placed business's own twin of `returnToDoor` — its door tile is dynamic, not a
@@ -1743,9 +1832,7 @@ export class ExteriorScene extends Phaser.Scene {
   returnToBusinessDoor(businessId: string): void {
     const business = businessById(this.spaceId, businessId);
     if (!business) return;
-    const door = business.door;
-    this.movement = createMovementState(door);
-    this.player.setPosition(door.x * TILE_SIZE + TILE_SIZE / 2, door.y * TILE_SIZE + TILE_SIZE / 2);
+    this.exitInterior(business.door);
   }
 
   /** Soumaya chat's cited-source "fly to" — pans the camera to a creature's tile without

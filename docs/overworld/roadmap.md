@@ -1742,6 +1742,49 @@ correctly, all preloaded) and 1 updated + 1 new `HangarOverlay.test.tsx` case, p
 (1066 server + 534 web tests, typecheck, build) — build output confirmed to include all 3 new
 assets in `dist/overworld/buildings/`. Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.51 — Backlog #80: literal walk-in building interiors
+
+Direct answer to backlog #80 (`docs/overworld/walk-in-interiors.md`, task #113). Every door-
+building interaction was previously instantaneous — the real feature overlay (Bank UI, Library
+UI, etc.) popped up the same frame the player's tile matched a door, with no visual sense of
+having gone anywhere. Investigated first: confirmed there's no existing multi-`Phaser.Scene`
+convention in this codebase to mirror (`OverworldRoot.tsx` registers exactly one scene) — the
+real, already-shipped "you went somewhere and come back to exactly where you left" convention is
+`returnToDoor()`'s door-tile teleport, so the new mechanic builds on that instead of introducing
+a second Scene's worth of fragile lifecycle/input/camera wiring for a purely cosmetic feature.
+
+Shipped: a single reusable interior "room" (`data/interiorRoom.ts`, pure/testable — two plain
+`Phaser.GameObjects.Rectangle`s + one glyph `Text`, colors pulled from the shared UI `theme.ts` so
+the two systems don't drift, deliberately no new art this round per `wave4-full-vision.md` §C.1's
+own "glyph over invented art" escape hatch) drawn once at scene creation in reserved off-map tile
+space, permanently included in the camera's world bounds but never reachable by normal movement
+(`tryMove`'s bounds check is untouched). Touching a door tile now tweens the player into that room,
+updates its glyph to the entered building's own existing icon (`workIconForPlace`/
+`businessGlyphFor` — no new icon table), dwells briefly (`INTERIOR_ENTER_DWELL_MS` = 260ms, 0 under
+`prefersReducedMotion()`, matching this file's own motion-gate convention), then opens the overlay
+automatically — same trigger as before, just delayed. Leaving mirrors it: the overlay closing now
+dwells briefly still standing in the room (`INTERIOR_EXIT_DWELL_MS` = 200ms) before the real
+exterior teleport. A new `interiorTransitionLock` (separate from the existing React-owned `paused`
+flag, to avoid a real race — `OverworldRoot.tsx` unpauses the instant its overlay-closed state
+commits, which would otherwise outrun the exit dwell) gates input for both windows. Only the two
+real door-triggering `afterStep()` branches (door-buildings, player-built businesses) route through
+it — standalone objects (Soumaya, the Bulletin Board) are unaffected, matching the literal
+"building interaction" scope of the original ask.
+
+Measured, not assumed: a real reproduction script against the actual generated region layout
+confirmed the reserved room (`{x:52,y:0}`, 5x4 tiles) sits fully past the real town's east edge
+(`REGION_WIDTH=46`), with the extended camera bounds (`{width:57,height:31}`) covering both. An
+earlier version had the room managing idle-bob tweens itself; simplified after review to rely on
+the existing move-handler's own bracket (idle bob only ever animates `scaleY`, never the x/y this
+transition tweens, so there was no real conflict — the extra bracket was just unnecessary state).
+
+Verified by 5 new `interiorRoom.test.ts` cases (no overlap with the real town at any
+`REGION_WIDTH`/`REGION_HEIGHT`, entry tile inside the room's own footprint, deterministic) + the
+real-data reproduction above + the full gate (1066 server + 539 web tests, typecheck, build). Per
+this file's own established convention (see the NPC Autonomy/outings entries above),
+`ExteriorScene.ts`'s Phaser-integration code itself has no dedicated test — not yet seen rendered
+in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
