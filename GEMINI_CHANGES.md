@@ -1,3 +1,30 @@
+### 2026-09-15 (Claude): Wave 4a — total galaxy/space language purge (tasks #108, #109)
+- [ ] Verified by Claude
+- Direct response to "anything being used from the galaxy version can't be referring to space in
+  any type of way at all" — first slice of a much larger request (full backlog completion,
+  deeper SimCity mechanics, a pro design pass via Figma), planned in full in
+  `docs/overworld/wave4-full-vision.md` (Rule #1).
+- Confirmed two categories via a full `packages/` grep: legitimate feature names sharing a word
+  with space vocabulary (`constellations` — real, independent, predates the galaxy UI;
+  `shared/celestial.ts` — internal math, never rendered) stayed untouched; real leftover space
+  narrative was reworded everywhere found.
+- **Biggest finds**: the Hangar's entire cosmetics catalog (`hangarOptions.ts`) was still 100%
+  unchanged space flavor text ("Spaceship Hull," "Cosmic Trail," "Deep Space Figurine," 19
+  individual option names like "Fusion Core Destroyer"/"Dyson Megastructure") — every label
+  reskinned to a "traveler's kit" theme, every stored `value` UNCHANGED (real localStorage keys
+  a player may already have unlocked). `components/codex.ts`'s entire in-game atlas (Sectors/
+  Celestial Bodies/Fleet/Phenomena) was rewritten top to bottom — "Celestial Bodies" now reuses
+  the Overworld's own Common→Legendary rarity vocabulary (`overworld/adapter/rarity.ts`) instead
+  of a second naming scheme.
+- The actual login screen (`LoginScreen.tsx`) said "Create a new private galaxy"/"Enter My
+  Galaxy"; the crash screen (`ErrorBoundary.tsx`) said "[GALAXY DIAGNOSTIC ERROR]"/"Something
+  broke in the galaxy" — both fixed, since these are real, high-visibility user-facing text.
+- `achievements.ts` (10 names/descs reworded, ids untouched), `npcDialogue.ts` (~8 "galaxy"/
+  "orbit" flavor-line metaphors reworded to "collection"/"close to you"), `api/client.ts` (2 real
+  user-facing error messages) also fixed.
+- Verified by the full gate (1066 server + 530 web tests, typecheck, build) — only two test
+  selectors (`HangarOverlay.test.tsx` label lookups) needed updating to match new display text.
+
 ### 2026-09-15 (Claude): Wave 3 — economy depth: passive income, sidewalk/transit function, demolish, onboarding (tasks #99, #101, #103-#107)
 - [ ] Verified by Claude
 - Direct response to "Do wave 3 and continue to go deeper." Full spec + reasoning in

@@ -84,7 +84,7 @@ export interface IngestResult {
   fuel?: Fuel;
   /** True when this tend counted a new day for the streak. */
   streakAdvanced?: boolean;
-  /** True when a banked nebula shield forgave a missed day to keep the streak alive. */
+  /** True when a banked streak shield forgave a missed day to keep the streak alive. */
   shieldUsed?: boolean;
 }
 
@@ -134,11 +134,11 @@ export async function getGraph(limit = 300): Promise<GraphData> {
   const res = await afetch(`${API}/graph?limit=${limit}`, {}, BOOT_TIMEOUT_MS);
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Couldn't load your galaxy (${res.status})`);
+    throw new Error(body.error ?? `Couldn't load your town (${res.status})`);
   }
   const d = (await res.json().catch(() => null)) as Partial<GraphData> | null;
   if (!d || !Array.isArray(d.nodes) || !Array.isArray(d.links)) {
-    throw new Error("The galaxy response was invalid. Please try again.");
+    throw new Error("The town's response was invalid. Please try again.");
   }
   return {
     nodes: d.nodes,
@@ -255,7 +255,7 @@ export async function ingestText(text: string, opts?: IngestOpts): Promise<Inges
         throw new Error(body.error ?? `Ingest failed (${res.status})`);
       }
       const out = (await res.json()) as IngestResult;
-      // A banked nebula shield just forgave a missed day — surface it as a gentle,
+      // A banked streak shield just forgave a missed day — surface it as a gentle,
       // reassuring moment (a broken streak is data, not punishment) instead of a silent save.
       if (out.shieldUsed && typeof window !== "undefined") {
         try { window.dispatchEvent(new CustomEvent("brain-shield-saved")); } catch { /* no window */ }

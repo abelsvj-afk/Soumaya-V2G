@@ -1,7 +1,7 @@
 /**
  * Town Economy round (docs/overworld/npc-economy.md) — the Market's own small catalog, spent
  * from the real Town Treasury (townLedger.ts — never real Fuel/finance). Follows the exact
- * precedent HangarOverlay.tsx already established for its ship-hull/figurine choices: a real,
+ * precedent HangarOverlay.tsx already established for its outfit/charm choices: a real,
  * correctly-tracked selection with no further in-world rendering yet ("this building keeps
  * their *selection state* correct, which is what matters for parity, until/unless a later pass
  * gives them a real in-world effect") — not a new convention invented for this round.

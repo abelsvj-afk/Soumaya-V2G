@@ -113,7 +113,7 @@ function inPlaza(x: number, y: number): boolean {
 export interface ExteriorSceneConfig {
   inputBus: InputBus;
   creatures: CreatureEntity[];
-  /** Used only to read the Hangar's saved "Cosmic Trail" color (localStorage) — see
+  /** Used only to read the Hangar's saved "Footprint Trail" color (localStorage) — see
    *  readTrailColor()/refreshTrailColor(). Never used for anything space-scoped/networked
    *  here; real space-scoped API calls stay in OverworldRoot.tsx/api/client.ts. */
   spaceId: string;
@@ -246,7 +246,7 @@ export class ExteriorScene extends Phaser.Scene {
   private wasOnGrass = false;
   private created = false;
   private spaceId = "default";
-  /** The Hangar's saved "Cosmic Trail" color — read at create() and whenever
+  /** The Hangar's saved "Footprint Trail" color — read at create() and whenever
    *  refreshTrailColor() is called (OverworldRoot.tsx does this when the Hangar overlay
    *  closes, so a freshly-chosen trail shows up immediately without a scene reload). */
   private trailColor = trailColorHex("blue");
@@ -385,8 +385,9 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** A small fading dot left at the player's current tile on every step, tinted with the
-   *  Hangar's saved "Cosmic Trail" cosmetic (readTrailColor/refreshTrailColor) — the pilot's
-   *  chosen trail now actually shows up while walking, not just as a menu selection. Motion
+   *  Hangar's saved "Footprint Trail" cosmetic (readTrailColor/refreshTrailColor) — the
+   *  traveler's chosen trail now actually shows up while walking, not just as a menu
+   *  selection. Motion
    *  trails are a classic reduced-motion-off case, so this is a no-op under it. */
   private spawnTrailParticle(): void {
     if (prefersReducedMotion()) return;

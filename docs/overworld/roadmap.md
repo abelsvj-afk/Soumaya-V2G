@@ -1593,6 +1593,47 @@ Verified by 4 new `townLedger.test.ts` cases, 4 new `zoning.test.ts` cases, 1 ne
 `HangarOverlay.test.tsx` cases, 4 new `TownHud.test.tsx` cases, and the full gate (1066 server +
 530 web tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.46 — Wave 4a: total galaxy/space language purge
+
+Direct response to "anything being used from the galaxy version can't be referring to space in
+any type of way at all" — part of the larger Wave 4 request (full backlog + deeper SimCity
+mechanics + a pro design pass, tracked in `docs/overworld/wave4-full-vision.md` §A). Grepped the
+full `packages/` tree; confirmed two categories: legitimate feature names that happen to share a
+word with space vocabulary (`constellations` — a real, independent memory-clustering feature
+predating the galaxy UI; `shared/celestial.ts` — internal math module, never rendered) stayed
+untouched; genuine leftover space narrative was reworded everywhere it was found:
+
+- **The Hangar's entire cosmetics catalog** (`hangarOptions.ts`) — every display label reskinned
+  to a "traveler's kit" theme (Spaceship Hull → Traveler's Outfit, Cosmic Trail → Footprint
+  Trail, Deep Space Figurine → Keepsake Charm, and all 19 individual option names). Every stored
+  `value` is UNCHANGED — these are real localStorage keys a player may already have unlocked, so
+  only display text changed, never an id (same principle Wave 1's re-arm fix already established
+  for money: never silently cost a player their existing progress).
+- **`achievements.ts`** — 10 names/descs reworded (Galaxy Reader → Well-Read, Cosmic Voyager →
+  Faithful Companion, Sector Pioneer → Cartographer's Eye, Sentinel Command → Keeper of the
+  Watch, and others), every `id` left untouched for the same reason.
+- **`components/codex.ts`** — the single largest rewrite: the entire "Sectors/Celestial Bodies/
+  Fleet/Phenomena" atlas was 100% space metaphor top to bottom. "Celestial Bodies" now reuses the
+  Overworld's own already-shipped Common→Legendary rarity vocabulary (`overworld/adapter/
+  rarity.ts`) instead of inventing a second, competing naming scheme — every district/body/fleet/
+  phenomenon entry's lore rewritten to town language (9 district lores, 7 rarity-class lores, 3
+  Fleet entries, 11 Phenomena entries, all `CODEX_CATEGORIES` titles/blurbs).
+- **`npcDialogue.ts`** — ~8 hand-authored flavor lines using "galaxy"/"orbit" as a metaphor for
+  "your collection of memories" reworded to "collection"/"close to you."
+- **The login screen** (`LoginScreen.tsx`) — the actual first thing every user sees still said
+  "Create a new private galaxy"/"Enter My Galaxy"/"Create New Galaxy" — fixed to "town."
+- **The crash screen** (`ErrorBoundary.tsx`) — "[GALAXY DIAGNOSTIC ERROR]" and "Something broke
+  in the galaxy" fixed to "town," since a crash screen is real, high-visibility user-facing text.
+- **`api/client.ts`** — two real user-facing error messages ("Couldn't load your galaxy," "The
+  galaxy response was invalid") fixed to "town."
+
+Verified by the full gate (1066 server + 530 web tests, typecheck, build) — no test asserted on
+any of the changed display strings except two `HangarOverlay.test.tsx`/`hangarOptions.test.ts`
+label selectors, updated to match. Not yet seen rendered in a real browser from this sandbox.
+The rest of Wave 4 (backlog completion #78/#80-83/#85, population growth, a Figma-driven "pro
+design" pass on every overlay, deeper SimCity mechanics) is tracked separately per
+`wave4-full-vision.md`'s own execution order — this entry closes only §A.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -253,6 +253,32 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Wave 4a — total galaxy/space language purge (2026-09-15), not yet on-device confirmed** —
+  direct response to "anything being used from the galaxy version can't be referring to space in
+  any type of way at all," the first slice of a much larger request (full backlog completion,
+  deeper SimCity mechanics with "my spin," and a pro design pass on every overlay via Figma —
+  all planned in `docs/overworld/wave4-full-vision.md`, per Rule #1). Grepped the full
+  `packages/` tree and confirmed two categories: legitimate feature names sharing a word with
+  space vocabulary (`constellations` — a real, independent memory-clustering feature predating
+  the galaxy UI; `shared/celestial.ts` — internal math, never rendered) stayed untouched; real
+  leftover space narrative was reworded everywhere found. Biggest finds: the Hangar's ENTIRE
+  cosmetics catalog (`hangarOptions.ts` — "Spaceship Hull," "Cosmic Trail," "Deep Space
+  Figurine," and all 19 individual option names, e.g. "Fusion Core Destroyer," "Dyson
+  Megastructure") was still 100% unchanged space flavor text since the galaxy deletion, as was
+  `components/codex.ts`'s entire in-game atlas (Sectors/Celestial Bodies/Fleet/Phenomena — 9
+  district lores, 7 rarity-class lores, 3 Fleet entries, 11 Phenomena entries, all rewritten);
+  the actual LOGIN SCREEN said "Create a new private galaxy"/"Enter My Galaxy"; the crash screen
+  said "[GALAXY DIAGNOSTIC ERROR]"/"Something broke in the galaxy." Every stored achievement id
+  and Hangar cosmetic value is UNCHANGED (only display text/labels/descs changed) so no
+  existing player's unlocked progress silently re-locks — the same principle behind the Wave 1
+  re-arm money-loss fix. "Celestial Bodies" now reuses the Overworld's own already-shipped
+  Common→Legendary rarity vocabulary (`overworld/adapter/rarity.ts`) instead of inventing a
+  second naming scheme. Verified by the full gate (1066 server + 530 web tests, typecheck,
+  build) — the only test assertions touching changed strings were two label selectors in
+  `HangarOverlay.test.tsx`, updated to match. Not yet seen rendered in a real browser. The rest
+  of Wave 4 (backlog #78/#80-83/#85, population growth, the Figma design system + its rollout
+  to every overlay, deeper SimCity mechanics) is tracked separately, each its own future round.
+
 - **Wave 3 — economy depth: passive income, sidewalk/transit function, demolish, onboarding
   (2026-09-15), not yet on-device confirmed** — direct response to "Do wave 3 and continue to go
   deeper," closing 4 of the 5 structural gaps tracked at the end of Wave 2 (full account +
