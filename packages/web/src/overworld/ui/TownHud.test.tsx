@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import { TownHud } from "./TownHud.js";
-import { creditHour, treasuryBalanceCents } from "../data/townLedger.js";
+import { creditHour, spendFromTreasury, treasuryBalanceCents } from "../data/townLedger.js";
 import { armedZoneType, armZoneType } from "../data/zoning.js";
 import { armedItemId, armItem } from "../data/townBuilder.js";
 import { armedHomeTypeId, armHomeType } from "../data/housing.js";
@@ -120,6 +120,55 @@ describe("TownHud (town-hud.md)", () => {
       fireEvent.click(screen.getByLabelText("Dismiss onboarding tip"));
       render(<TownHud spaceId="space-2" fuel={null} streak={null} />);
       expect(screen.getAllByText(/New here\?/)).toHaveLength(1); // only space-2's copy
+    });
+
+    it("names the real Treasury payoff, not just 'explore' — the 2026-09-15 discoverability fix", () => {
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText(/earn your Town Treasury/)).toBeTruthy();
+    });
+  });
+
+  describe("earned-money flash (2026-09-15 real-feedback fix) — makes a Treasury increase visible", () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+
+    it("shows a real '+$0.25' next to the Treasury chip right after an action earns it", () => {
+      const { rerender } = render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText("+$0.25")).toBeNull();
+      act(() => {
+        creditHour("space-1", "library"); // the real tall-grass-capture credit
+      });
+      rerender(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText("+$0.25")).toBeTruthy();
+    });
+
+    it("clears the flash again after a couple of seconds, never sticking around forever", () => {
+      const { rerender } = render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      act(() => {
+        creditHour("space-1", "library");
+      });
+      rerender(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText("+$0.25")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(2500);
+      });
+      expect(screen.queryByText("+$0.25")).toBeNull();
+    });
+
+    it("never flashes on first render, even when the town already has a real balance", () => {
+      creditHour("space-1", "bank");
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText(/^\+\$/)).toBeNull();
+    });
+
+    it("never flashes when the balance only ever goes down (a spend), only on real increases", () => {
+      for (let i = 0; i < 20; i++) creditHour("space-1", "bank"); // $5.00
+      const { rerender } = render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      act(() => {
+        spendFromTreasury("space-1", 100);
+      });
+      rerender(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText(/^\+\$/)).toBeNull();
     });
   });
 });

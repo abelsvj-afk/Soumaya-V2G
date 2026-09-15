@@ -1954,6 +1954,63 @@ click; confirmed person nodes list separately from suggestions; tapping View pro
 into the suggestions list) plus the full gate (1066 server + 561 web tests, typecheck, build).
 Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.57 — City-builder depth §D: real roads + NPC-width sidewalks
+
+Direct continuation of `city-builder-depth.md`'s own remaining sections after §A (zoom) and §B/§C
+(door highlighting, parking aprons) shipped in Stages 2.54/2.55. §D asked for "roads that have
+the corresponding walking space next to them corresponding to the size of our NPCs." Confirmed
+directly against the tile grid before writing anything: every NPC/player sprite already occupies
+exactly one `TILE_SIZE` tile, so a zoned tile that's already exactly one tile wide is "sized to
+our NPCs" by construction — no new geometry needed, only real ground art on top of the existing
+zoning system (task #75/#77).
+
+`ExteriorScene.ts`'s `paintZoneMarker()` now also calls a new `paintZoneGround()`: a `transit`-
+zoned tile paints the same plaza dirt-path ground tile the town square already uses (a real
+"road" surface, reusing existing art rather than inventing new road tiles this round); a
+`sidewalk`-zoned tile paints the same village-pack gravel texture Stage 2.55's business parking
+apron already uses (a real walkway surface). Re-zoning a tile away from either type correctly
+clears its ground sprite first — a `Map<string, Image>` keyed the same way `zoneMarkerSprites`
+already is, so a tile never keeps stale road/sidewalk art underneath a new zone glyph.
+`residential`/`commercial` zones stay glyph-only, as before — a home/business paints its own
+ground once actually built, not before.
+
+Deliberately deferred, named directly in `city-builder-depth.md` §E's own text: weighting
+`engine/pathfinding.ts`'s BFS to prefer walking along a road/sidewalk tile over open grass. This
+round makes roads/sidewalks visually real; routing preference toward them is its own follow-up.
+
+Verified by the full gate (1066 server + 561 web tests, typecheck, build) — no new pure-logic
+test needed (this is Phaser-integration rendering code layered directly on the already-tested
+`zoning.ts`, the same convention `paintParkingApron()` itself used). Not yet seen rendered in a
+real browser from this sandbox.
+
+## Stage 2.58 — Real bug fix: money was earnable from the very first suggested action, but nothing said so
+
+Direct response to live feedback: "Money needs to be earnable from the start. As I don't see a
+way to get money to afford anything." Investigated before touching anything (per "verify before
+you build"): the mechanism was never actually broken. `OverworldRoot.tsx`'s `handleCaptureSubmit`
+already credits the Library the moment a player captures a thought in the tall grass — the exact
+first action `TownHud.tsx`'s own onboarding tip already suggests, with zero prerequisites, zero
+existing content required, and zero coins needed to attempt it. The real gap was entirely
+presentational: nothing ever told the player that a real interaction pays the Town Treasury, and
+nothing showed the payoff actually landing — the 🏦 chip just silently ticked up in the
+background, easy to miss entirely.
+
+Two purely presentational fixes, both in `TownHud.tsx`: (1) the onboarding tip now says, in plain
+words, that the exact actions it's already suggesting earn real Treasury money to spend at the
+Market and beyond; (2) the 🏦 chip now flashes the real amount just earned (`+$0.25`, etc.) for
+about two seconds right after a real interaction credits it — computed by comparing the current
+real `treasuryBalanceCents` against the previous render's own real balance for the same space,
+never a guess, and never firing on a spend (balance going down) or on the very first render of an
+already-funded town. No change to the underlying earn rate or mechanism — the economy already
+gave a genuinely reachable path to money from the first minute of play; it just needed to say so
+and show it.
+
+Verified by 4 new `TownHud.test.tsx` cases (the flash appears after a real `creditHour`, clears
+itself after its timeout, never appears on first render even with an existing balance, never
+appears on a spend) plus the full gate (1066 server + 566 web tests, typecheck, build). Not yet
+seen rendered in a real browser from this sandbox — the real fix to confirm on next on-device
+look is whether a new player now understands where their first coins come from.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

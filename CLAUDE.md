@@ -253,6 +253,38 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real bug fix: money was earnable from the very first suggested action, just never said so
+  (2026-09-15), not yet on-device confirmed** — direct response to live feedback: "Money needs
+  to be earnable from the start... I don't see a way to get money to afford anything."
+  Investigated before touching anything: the mechanism was never actually broken —
+  `OverworldRoot.tsx`'s `handleCaptureSubmit` already credits the Library the moment a player
+  captures a thought in the tall grass, the exact first action `TownHud.tsx`'s own onboarding
+  tip already suggests, with zero prerequisites. The real gap was purely presentational: nothing
+  ever told the player a real interaction pays the Town Treasury, and nothing showed the payoff
+  landing. Fixed with two purely presentational changes in `TownHud.tsx`: the onboarding tip now
+  says so in plain words, and the 🏦 chip flashes the real amount just earned (`+$0.25`) for ~2
+  seconds right after a real interaction credits it (computed from the real balance vs. the
+  previous render's own real balance, never a guess; never fires on a spend or on first render).
+  No change to the underlying earn rate or mechanism. Verified by 4 new `TownHud.test.tsx` cases
+  + the full gate (1066 server + 566 web tests, typecheck, build). Not yet seen rendered in a
+  real browser — the real thing to confirm on next on-device look is whether a new player now
+  understands where their first coins come from.
+
+- **City-builder depth §D — real roads + NPC-width sidewalks (2026-09-15), not yet on-device
+  confirmed** — direct continuation of `city-builder-depth.md`'s remaining sections. Confirmed
+  first that every NPC/player sprite already occupies exactly one tile, so a zoned tile (already
+  one tile wide) is "sized to our NPCs" by construction — no new geometry needed.
+  `ExteriorScene.ts`'s zone-marker painter now also paints real ground art: the existing plaza
+  dirt-path tile for `transit`-zoned tiles (a real road surface), the same village-pack gravel
+  texture the business parking apron already uses for `sidewalk`-zoned tiles (a real walkway).
+  Re-zoning away from either correctly clears the old ground sprite first.
+  `residential`/`commercial` stay glyph-only — a home/business paints its own ground once built.
+  Deliberately deferred (named in the spec's own text): weighting the BFS pathfinder to prefer
+  walking along roads/sidewalks over open grass — a distinct follow-up. Verified by the full
+  gate (1066 server + 561 web tests, typecheck, build) — no new pure-logic test needed (Phaser-
+  integration rendering code on top of already-tested `zoning.ts`). Not yet seen rendered in a
+  real browser.
+
 - **Backlog #85 — Sanctuary edit/delete + full person-profile view (2026-09-15), not yet
   on-device confirmed** — closes the one deferral the 2026-09-13 overlay-quality-parity audit
   left open. `SanctuaryOverlay.tsx` now takes a real `graph` prop and lists every confirmed
