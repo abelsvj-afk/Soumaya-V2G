@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { canAffordGood, MARKET_GOODS, ownedGoodIds, purchaseGood } from "../data/marketGoods.js";
-import { treasuryBalanceCents } from "../data/townLedger.js";
+import { canAffordGood, MARKET_GOODS, ownedGoodIds, purchaseGood, type MarketGood } from "../data/marketGoods.js";
+import { revenueForPriceCents, treasuryBalanceCents } from "../data/townLedger.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, OverlayShell } from "./OverlayShell.js";
 
@@ -26,11 +26,13 @@ export function MarketOverlay({ spaceId, onClose }: MarketOverlayProps) {
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const buy = (goodId: string) => {
-    setBusyId(goodId);
-    const ok = purchaseGood(spaceId, goodId);
+  const buy = (good: MarketGood) => {
+    setBusyId(good.id);
+    const ok = purchaseGood(spaceId, good.id);
     if (ok) {
-      recordBuildingWork(spaceId, "market");
+      // simcity-economy-construction.md — the treasury earns a real cut of THIS sale's own
+      // price, not a flat rate regardless of what was actually sold.
+      recordBuildingWork(spaceId, "market", Date.now(), revenueForPriceCents(good.priceCents));
       setOwned(ownedGoodIds(spaceId));
       setBalance(treasuryBalanceCents(spaceId));
     }
@@ -57,7 +59,7 @@ export function MarketOverlay({ spaceId, onClose }: MarketOverlayProps) {
               </span>
               <button
                 type="button"
-                onClick={() => buy(good.id)}
+                onClick={() => buy(good)}
                 disabled={isOwned || !affordable || busyId === good.id}
                 style={actionButtonStyle(isOwned || !affordable || busyId === good.id)}
               >

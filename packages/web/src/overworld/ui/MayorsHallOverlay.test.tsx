@@ -61,7 +61,7 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     // Fund and build one real cottage (1 resident, lives alone) on the zoned land above.
     for (let i = 0; i < 12; i++) creditHour("space-1", "bank"); // 12 * 25c = $3.00 = cottage price
     armHomeType("space-1", "cottage");
-    placeArmedHome("space-1", 2, 10);
+    placeArmedHome("space-1", 2, 10, 0); // built "long ago" — past CONSTRUCTION_MS, so it's move-in ready
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/1 of \d+ residents have a real home — 1 living alone, 0 sharing/)).toBeTruthy();
   });
@@ -75,7 +75,7 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     }
     for (let i = 0; i < 12; i++) creditHour("space-1", "bank");
     armHomeType("space-1", "cottage");
-    placeArmedHome("space-1", 2, 10);
+    placeArmedHome("space-1", 2, 10, 0); // built "long ago" — past CONSTRUCTION_MS, so it's move-in ready
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     // Cottage (capacity 1) is deterministically assigned the first real Society NPC
     // (npcDialogue.ts's own PROFILE_LIST order — Priya, Bank's teller).

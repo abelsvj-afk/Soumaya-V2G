@@ -137,13 +137,22 @@ describe("business — a real multi-business economy gated on zoning (business.m
     zoneCommercialRect(2, 10, 9, 17);
     fundTreasury(2000);
     armBusinessType(SPACE, "bakery"); // $4.00
-    const placed = placeArmedBusiness(SPACE, 2, 10)!;
+    const placed = placeArmedBusiness(SPACE, 2, 10, 0)!; // built "long ago" — past CONSTRUCTION_MS, so it's open for business
     const good = BUSINESS_TYPES.find((t) => t.id === "bakery")!.goods[0]!;
     expect(canAffordGood(SPACE, good)).toBe(true);
     expect(purchaseGoodFromBusiness(SPACE, placed.id, good.id)).toBe(true);
     expect(ownedGoodIds(SPACE, placed.id).has(good.id)).toBe(true);
     expect(purchaseGoodFromBusiness(SPACE, placed.id, good.id)).toBe(false); // already owned
     expect(isNeglected(businessNeglect(SPACE, placed))).toBe(false); // just worked — real reset
+  });
+
+  it("simcity-economy-construction.md — won't sell from a business still under construction", () => {
+    zoneCommercialRect(2, 10, 9, 17);
+    fundTreasury(2000);
+    armBusinessType(SPACE, "bakery");
+    const placed = placeArmedBusiness(SPACE, 2, 10)!; // real clock — just built, not open yet
+    const good = BUSINESS_TYPES.find((t) => t.id === "bakery")!.goods[0]!;
+    expect(purchaseGoodFromBusiness(SPACE, placed.id, good.id)).toBe(false);
   });
 
   it("a never-worked business is maximally neglected, same math as every other building", () => {

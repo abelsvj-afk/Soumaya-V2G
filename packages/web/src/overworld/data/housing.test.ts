@@ -117,10 +117,10 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
     zoneResidentialRect(2, 10, 9, 17);
     fundTreasury(2000);
     armHomeType(SPACE, "cottage"); // capacity 1
-    placeArmedHome(SPACE, 2, 10);
+    placeArmedHome(SPACE, 2, 10, 0); // built "long ago" — past CONSTRUCTION_MS, so it's move-in ready
     fundTreasury(2000);
     armHomeType(SPACE, "duplex"); // capacity 2
-    placeArmedHome(SPACE, 6, 10);
+    placeArmedHome(SPACE, 6, 10, 0);
 
     const npcIds = allSocietyNpcIds();
     const assignments = assignResidents(SPACE);
@@ -138,16 +138,24 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
     zoneResidentialRect(2, 10, 9, 17);
     fundTreasury(2000);
     armHomeType(SPACE, "cottage"); // 1 resident, lives alone
-    placeArmedHome(SPACE, 2, 10);
+    placeArmedHome(SPACE, 2, 10, 0); // built "long ago" — past CONSTRUCTION_MS, so it's move-in ready
     fundTreasury(2000);
     armHomeType(SPACE, "house"); // 3 residents, sharing
-    placeArmedHome(SPACE, 6, 12);
+    placeArmedHome(SPACE, 6, 12, 0);
 
     const summary = housingSummary(SPACE);
     expect(summary.housed).toBe(4);
     expect(summary.total).toBe(allSocietyNpcIds().length);
     expect(summary.livingAlone).toBe(1);
     expect(summary.sharing).toBe(1);
+  });
+
+  it("simcity-economy-construction.md — a freshly-placed home is still under construction and houses nobody yet", () => {
+    zoneResidentialRect(2, 10, 9, 17);
+    fundTreasury(2000);
+    armHomeType(SPACE, "cottage");
+    placeArmedHome(SPACE, 2, 10); // real clock — just built, not move-in ready yet
+    expect(housingSummary(SPACE).housed).toBe(0);
   });
 
   it("a fresh town has zero housed NPCs, not a crash", () => {

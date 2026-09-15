@@ -65,6 +65,7 @@ import {
   armedHomeTypeId,
   homeTypeById,
   isFootprintFreeForHome,
+  isUnderConstruction,
   placeArmedHome,
   placedHomes,
   type PlacedHome,
@@ -228,6 +229,12 @@ export class ExteriorScene extends Phaser.Scene {
    *  business, keyed by its persisted PlacedBusiness id (same convention as
    *  `placedHomeSprites`, since a business never moves once built). */
   private placedBusinessSprites = new Map<string, Phaser.GameObjects.Image>();
+  /** simcity-economy-construction.md (task #87) — the door-tile badge for each placed home/
+   *  business, kept in its own map (separate from the building image above) so a construction
+   *  completion can swap the badge glyph and restore full opacity without touching or
+   *  recreating the building image itself. */
+  private placedHomeBadges = new Map<string, Phaser.GameObjects.Text>();
+  private placedBusinessBadges = new Map<string, Phaser.GameObjects.Text>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -681,25 +688,42 @@ export class ExteriorScene extends Phaser.Scene {
 
   /** Draws a real placed home the same way a real door-building is drawn (drawGround's own
    *  building loop) — the COTTAGE illustration scaled to the home's own footprint — plus a
-   *  small type-glyph badge at its door tile so the 4 home types read apart from each other. */
+   *  small type-glyph badge at its door tile so the 4 home types read apart from each other.
+   *  simcity-economy-construction.md (task #87) — while genuinely still under construction, the
+   *  building renders at reduced opacity with a 🚧 badge instead of its real type glyph; already-
+   *  painted homes get their visuals updated in place (never recreated) once construction
+   *  actually completes, checked fresh on every call, same read-time convention as neglect. */
   private paintPlacedHome(home: PlacedHome): void {
-    if (this.placedHomeSprites.has(home.id)) return; // already painted — placements never move
+    const underConstruction = isUnderConstruction(home);
+    const existing = this.placedHomeSprites.get(home.id);
+    if (existing) {
+      existing.setAlpha(underConstruction ? 0.5 : 1);
+      this.placedHomeBadges.get(home.id)?.setText(underConstruction ? "🚧" : this.homeGlyphFor(home.typeId));
+      return; // the building image itself never moves once built — only its visuals may update
+    }
     const sprite = homeBuildingSprite();
     const width = (home.x1 - home.x0 + 1) * TILE_SIZE;
     const height = (home.y1 - home.y0 + 1) * TILE_SIZE;
     const image = this.add.image(home.x0 * TILE_SIZE + width / 2, home.y0 * TILE_SIZE + height / 2, sprite.key);
     image.setDisplaySize(width, height);
     image.setDepth(1);
+    image.setAlpha(underConstruction ? 0.5 : 1);
     this.placedHomeSprites.set(home.id, image);
-    const badge = this.add.text(home.door.x * TILE_SIZE + TILE_SIZE / 2, home.door.y * TILE_SIZE + TILE_SIZE / 2, this.homeGlyphFor(home.typeId), {
-      fontSize: "14px",
-    });
+    const badge = this.add.text(
+      home.door.x * TILE_SIZE + TILE_SIZE / 2,
+      home.door.y * TILE_SIZE + TILE_SIZE / 2,
+      underConstruction ? "🚧" : this.homeGlyphFor(home.typeId),
+      { fontSize: "14px" },
+    );
     badge.setOrigin(0.5);
     badge.setDepth(2);
+    this.placedHomeBadges.set(home.id, badge);
   }
 
-  /** Re-reads real placed-home state and paints anything new — call after a successful home
-   *  build instead of reloading the whole scene, same pattern as `refreshPlacedItems`. */
+  /** Re-reads real placed-home state and paints anything new (or updates an existing placement's
+   *  construction visuals) — call after a successful home build, and on every regular snapshot
+   *  refresh so a completed construction actually gets re-painted, same pattern as
+   *  `refreshPlacedItems`. */
   refreshPlacedHomes(): void {
     if (!this.created) return;
     this.renderPlacedHomes();
@@ -717,28 +741,38 @@ export class ExteriorScene extends Phaser.Scene {
 
   /** Draws a real placed business the same way a real placed home is drawn (paintPlacedHome's
    *  own twin) — the ARCHED_HALL illustration scaled to the business's own footprint, plus a
-   *  type-glyph badge at its door tile. */
+   *  type-glyph badge at its door tile. simcity-economy-construction.md (task #87) — same
+   *  under-construction dimming + 🚧 badge, updated in place once complete, as paintPlacedHome. */
   private paintPlacedBusiness(business: PlacedBusiness): void {
-    if (this.placedBusinessSprites.has(business.id)) return; // already painted — never moves
+    const underConstruction = isUnderConstruction(business);
+    const existing = this.placedBusinessSprites.get(business.id);
+    if (existing) {
+      existing.setAlpha(underConstruction ? 0.5 : 1);
+      this.placedBusinessBadges.get(business.id)?.setText(underConstruction ? "🚧" : this.businessGlyphFor(business.typeId));
+      return; // the building image itself never moves once built — only its visuals may update
+    }
     const sprite = businessBuildingSprite();
     const width = (business.x1 - business.x0 + 1) * TILE_SIZE;
     const height = (business.y1 - business.y0 + 1) * TILE_SIZE;
     const image = this.add.image(business.x0 * TILE_SIZE + width / 2, business.y0 * TILE_SIZE + height / 2, sprite.key);
     image.setDisplaySize(width, height);
     image.setDepth(1);
+    image.setAlpha(underConstruction ? 0.5 : 1);
     this.placedBusinessSprites.set(business.id, image);
     const badge = this.add.text(
       business.door.x * TILE_SIZE + TILE_SIZE / 2,
       business.door.y * TILE_SIZE + TILE_SIZE / 2,
-      this.businessGlyphFor(business.typeId),
+      underConstruction ? "🚧" : this.businessGlyphFor(business.typeId),
       { fontSize: "14px" },
     );
     badge.setOrigin(0.5);
     badge.setDepth(2);
+    this.placedBusinessBadges.set(business.id, badge);
   }
 
-  /** Re-reads real placed-business state and paints anything new — call after a successful
-   *  business build instead of reloading the whole scene, same pattern as `refreshPlacedHomes`. */
+  /** Re-reads real placed-business state and paints anything new (or updates an existing
+   *  placement's construction visuals) — call after a successful business build, and on every
+   *  regular snapshot refresh, same pattern as `refreshPlacedHomes`. */
   refreshPlacedBusinesses(): void {
     if (!this.created) return;
     this.renderPlacedBusinesses();
@@ -1505,11 +1539,16 @@ export class ExteriorScene extends Phaser.Scene {
     // A real multi-business economy (business.md decision #2) — a second, dynamic door lookup
     // alongside the static one above: stepping onto a player-built business's own door tile
     // enters it, same as a real door-building, without reworking the static check.
+    // simcity-economy-construction.md (task #87) — a business still under construction is
+    // honestly unusable: silently refuse to enter, same "no-op while blocked" convention every
+    // other arm-mode interaction in this scene already uses. The in-world dimmed/🚧 visual is
+    // what explains the state to the player, not a popup this scene has no mechanism to show.
     const business = businessDoorAt(this.spaceId, x, y);
-    if (business) {
+    if (business && !isUnderConstruction(business)) {
       this.events.emit("enter-business", business.id);
       return;
     }
+    if (business) return;
     const onGrass = isGrassTile(x, y);
     if (onGrass && !this.wasOnGrass) this.events.emit("enter-grass");
     this.wasOnGrass = onGrass;

@@ -1354,6 +1354,61 @@ Verified by 4 new `TownHallOverlay.test.tsx` cases, 1 new `MayorsHallOverlay.tes
 new `SanctuaryOverlay.test.tsx` cases, and the full gate (1066 server + 442 web tests, typecheck,
 build). Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.41 — Real pricing-gauged treasury income + Hangar previews + construction delay (tasks #86/#87)
+
+Direct response to a real user request: "the town [should] make money for the treasury gauged
+amount correctly based on all including pricing," the Hangar should show "images or something
+showing the actual property... that'll be put down," and "it must be built after being placed."
+Specced first (`docs/overworld/simcity-economy-construction.md`) per Rule #1, with "verify before
+you build" confirming, by reading the actual code, that (a) every building earned an identical
+flat 25¢ per real interaction regardless of type or what was actually transacted, (b) neither
+`hoursWorked` nor `wagesEarnedCents` is rendered anywhere in the UI (safe to restructure
+internally), and (c) Housing/Business both always render the same shared COTTAGE/ARCHED_HALL
+illustration in-world regardless of type (`buildingSprites.ts`'s `homeBuildingSprite`/
+`businessBuildingSprite`) while the Hangar's own catalog only ever showed a generic emoji — a real
+preview/in-world mismatch, but NOT one that applied to town-builder decor (already plain emoji
+in-world too, so already an honest WYSIWYG preview there).
+
+Three real fixes:
+
+1. **Pricing-gauged revenue.** `townLedger.ts` gained `revenueForPriceCents(priceCents)` — a real
+   50% cut of the specific price being sold, floored at the old flat 25¢ baseline so a cheap sale
+   never earns less than before. `creditHour`/`recordBuildingWork` both gained an optional
+   trailing `wageCents` override (default unchanged, so every existing civic-building call site —
+   Bank, Library, Sanctuary, etc. — is byte-identical); `MarketOverlay.tsx` and
+   `business.ts`'s `purchaseGoodFromBusiness` now pass `revenueForPriceCents(good.priceCents)`
+   instead of the flat rate. The Town Treasury (`townTreasuryEarnedCents`) is now the sum of real
+   accumulated earned cents per building rather than `hours × flat-rate` — still cosmetic-only,
+   never real Bank/finance or the real Fuel meter.
+
+2. **A real construction delay.** `housing.ts` gained `CONSTRUCTION_MS` (90 real seconds) and
+   `isUnderConstruction(placed, nowMs)` — a pure, read-time-computed function of the real
+   `builtAt` timestamp vs. now, same wall-clock convention `buildingNeglect.ts` already
+   established (no running timer). `business.ts` reuses the exact same function rather than
+   redefining it, so the two building categories can't drift apart. `assignResidents` now skips a
+   home still under construction (no NPC moves into an unfinished house);
+   `purchaseGoodFromBusiness` refuses a sale at a business still under construction; stepping onto
+   a still-under-construction business's own door tile is a silent no-op in `ExteriorScene.ts`
+   (same "silent no-op while blocked" convention as zoning/town-builder placement — no toast
+   system is mounted in the Overworld). In-world, a home/business under construction renders at
+   half alpha with a "🚧" badge instead of its real type glyph, updating live in place once
+   `refreshPlacedHomes`/`refreshPlacedBusinesses` next runs after the delay elapses.
+
+3. **Real Hangar previews.** `HangarOverlay.tsx`'s Housing and Business catalog rows now each show
+   a real `<img>` thumbnail of the exact same illustration that actually renders in-world for that
+   category, sized proportionally to the type's own real footprint (a 4x3 Apartment Block visibly
+   previews bigger than a 2x2 Cottage) — an honest preview, not an invented one, since every type
+   in a category really does share one illustration in-world (the type-glyph badge is what tells
+   them apart, both here and in the world). Both sections' copy now also states the real
+   construction delay up front.
+
+Verified by 4 new `townLedger.test.ts` cases (pricing-gauge math + the flat-baseline
+byte-identical check), 2 new `housing.test.ts` cases, 1 new `business.test.ts` case, 3 new
+`HangarOverlay.test.tsx` cases (image preview + sizing + delay copy), and the full gate (1066
+server + 451 web tests, typecheck, build). No dedicated `ExteriorScene.ts` test exists (this
+file's established convention — verified by reading the construction-aware paint logic directly).
+Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -21,7 +21,7 @@ function placeRealBakery(): string {
   }
   fundTreasury(2000);
   armBusinessType(SPACE, "bakery");
-  return placeArmedBusiness(SPACE, 2, 10)!.id;
+  return placeArmedBusiness(SPACE, 2, 10, 0)!.id; // built "long ago" — past CONSTRUCTION_MS, so it's open for business
 }
 
 describe("BusinessOverlay (business.md)", () => {

@@ -5,9 +5,37 @@ import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
 import { armedZoneMode, armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneMode, type ZoneType } from "../data/zoning.js";
-import { armedHomeTypeId, armHomeType, canAffordHome, HOME_TYPES } from "../data/housing.js";
+import { armedHomeTypeId, armHomeType, canAffordHome, CONSTRUCTION_MS, HOME_TYPES } from "../data/housing.js";
 import { armBusinessType, armedBusinessTypeId, BUSINESS_TYPES, canAffordBusiness } from "../data/business.js";
+import { homeBuildingSprite, businessBuildingSprite } from "../scenes/buildingSprites.js";
 import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+
+const HOME_SPRITE_URL = homeBuildingSprite().url;
+const BUSINESS_SPRITE_URL = businessBuildingSprite().url;
+
+/** A real preview of what gets placed in the world — the exact same illustration
+ *  ExteriorScene.ts actually renders for a built home/business (buildingSprites.ts), scaled by
+ *  each type's own real footprint so a bigger building visibly previews bigger
+ *  (simcity-economy-construction.md decision #4). Every type in a category shares one
+ *  illustration honestly (that's what really renders in-world); the type-glyph badge already
+ *  distinguishes them, both here and in the world. */
+function BuildingPreview({ url, width, height }: { url: string; width: number; height: number }) {
+  return (
+    <img
+      src={url}
+      alt=""
+      aria-hidden="true"
+      style={{
+        width: width * 14,
+        height: height * 14,
+        objectFit: "cover",
+        borderRadius: 4,
+        flexShrink: 0,
+        border: "1px solid #2a2c55",
+      }}
+    />
+  );
+}
 
 const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
   residential: { label: "Residential", icon: "🏠" },
@@ -244,7 +272,8 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
 
       <h3>Housing</h3>
       <p style={{ marginTop: 0 }}>
-        Only buildable on ground already zoned Residential above.
+        Only buildable on ground already zoned Residential above. Takes a real {Math.round(CONSTRUCTION_MS / 1000)} seconds to
+        finish building before anyone can move in.
         {armedHome && (
           <>
             {" "}
@@ -259,6 +288,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const isArmed = armedHome === type.id;
           return (
             <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <BuildingPreview url={HOME_SPRITE_URL} width={type.width} height={type.height} />
               <span aria-hidden="true">{type.icon}</span>
               <span style={{ flex: 1 }}>
                 {type.name} — {type.capacity} resident{type.capacity === 1 ? "" : "s"} — {formatCents(type.priceCents)}
@@ -278,7 +308,8 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
 
       <h3>Business</h3>
       <p style={{ marginTop: 0 }}>
-        Only buildable on ground already zoned Commercial above. Walk into a built one to shop.
+        Only buildable on ground already zoned Commercial above. Takes a real {Math.round(CONSTRUCTION_MS / 1000)} seconds to
+        finish building before it's open — walk into a built one to shop.
         {armedBusiness && (
           <>
             {" "}
@@ -293,6 +324,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const isArmed = armedBusiness === type.id;
           return (
             <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}>
+              <BuildingPreview url={BUSINESS_SPRITE_URL} width={type.width} height={type.height} />
               <span aria-hidden="true">{type.icon}</span>
               <span style={{ flex: 1 }}>
                 {type.name} — {formatCents(type.priceCents)}

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HangarOverlay } from "./HangarOverlay.js";
 import { creditHour } from "../data/townLedger.js";
+import { CONSTRUCTION_MS } from "../data/housing.js";
 
 describe("HangarOverlay", () => {
   beforeEach(() => localStorage.clear());
@@ -117,6 +118,21 @@ describe("HangarOverlay", () => {
       expect(screen.getByText("Duplex")).toBeTruthy();
       expect(cottageRow.querySelector("button")?.textContent).toBe("Can't afford"); // never re-armed
     });
+
+    it("simcity-economy-construction.md — every home row shows a real image preview of what actually renders in-world, sized by footprint", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const cottageImg = screen.getByText(/Cottage — 1 resident/).closest("li")!.querySelector("img")!;
+      const apartmentImg = screen.getByText(/Apartment Block — 4 residents/).closest("li")!.querySelector("img")!;
+      expect(cottageImg.getAttribute("src")).toBe("/overworld/buildings/human-city.png"); // the real COTTAGE sprite
+      // A 4x3 Apartment Block previews visibly bigger than a 2x2 Cottage — honest to real footprint.
+      expect(parseFloat(apartmentImg.style.width)).toBeGreaterThan(parseFloat(cottageImg.style.width));
+    });
+
+    it("simcity-economy-construction.md — advertises the real construction delay before move-in", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      // Housing AND Business each advertise it — both are gated by the same real construction delay.
+      expect(screen.getAllByText(new RegExp(`${Math.round(CONSTRUCTION_MS / 1000)} seconds to`)).length).toBe(2);
+    });
   });
 
   describe("Business (business.md)", () => {
@@ -141,6 +157,12 @@ describe("HangarOverlay", () => {
       expect(screen.getByText("Tailor")).toBeTruthy();
       expect(bakeryRow.querySelector("button")?.textContent).toBe("Buy"); // re-armable, never still "Armed"
       expect(screen.getAllByText("Armed")).toHaveLength(1); // only Tailor
+    });
+
+    it("simcity-economy-construction.md — every business row shows a real image preview of what actually renders in-world", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      const bakeryImg = screen.getByText(/Bakery — \$4\.00/).closest("li")!.querySelector("img")!;
+      expect(bakeryImg.getAttribute("src")).toBe("/overworld/buildings/human-city2.png"); // the real ARCHED_HALL sprite
     });
   });
 });
