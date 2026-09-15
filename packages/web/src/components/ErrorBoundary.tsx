@@ -47,7 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <>
             {this.props.fallback}
             <div style={{ position: "fixed", bottom: "10px", left: "10px", right: "10px", zIndex: 999999, background: "rgba(40,10,15,0.95)", color: "#ff8899", padding: "12px", border: "1px solid #ff4466", borderRadius: "8px", fontFamily: "monospace", fontSize: "11px", whiteSpace: "pre-wrap", maxHeight: "200px", overflow: "auto" }}>
-              <strong>[GALAXY DIAGNOSTIC ERROR]</strong>: {this.state.error.message}
+              <strong>[TOWN DIAGNOSTIC ERROR]</strong>: {this.state.error.message}
               {"\n"}{this.state.error.stack}
             </div>
           </>
@@ -55,7 +55,7 @@ export class ErrorBoundary extends Component<Props, State> {
       }
       return (
         <div className="fatal">
-          <h1>Something broke in the galaxy</h1>
+          <h1>Something broke in the town</h1>
           <p>{this.state.error.message}</p>
           <button onClick={() => window.location.reload()}>Reload</button>
           <pre>{this.state.error.stack}</pre>

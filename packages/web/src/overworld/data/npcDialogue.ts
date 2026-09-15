@@ -62,7 +62,7 @@ const PROFILE_LIST: NpcProfile[] = [
     "Otis",
     ["Reconciling the books. Nothing dramatic — just steady, honest arithmetic.", "A bank only runs on trust. Good thing this town has plenty."],
     [
-      { achievementId: "connector", line: "25 real connections woven through your galaxy. I like when the numbers actually mean something." },
+      { achievementId: "connector", line: "25 real connections woven through your collection. I like when the numbers actually mean something." },
       { achievementId: "sector_pioneer", line: "Four whole categories catalogued. Diversifying — smart, same as a good portfolio." },
     ],
     (other) => `${other} and I split the closing shift most nights. Good company for dull paperwork.`,
@@ -73,9 +73,9 @@ const PROFILE_LIST: NpcProfile[] = [
     "library",
     0,
     "Callum",
-    ["Shelving new memories all morning. This town never runs out of things to remember.", "Ask me about anything in the stacks — well, anything already in your galaxy."],
+    ["Shelving new memories all morning. This town never runs out of things to remember.", "Ask me about anything in the stacks — well, anything already in your collection."],
     [
-      { achievementId: "weaver_100", line: "A hundred connections woven through your galaxy. I've started a shelf just for the well-linked ones." },
+      { achievementId: "weaver_100", line: "A hundred connections woven through your collection. I've started a shelf just for the well-linked ones." },
       { achievementId: "goal_achiever", line: "Heard a goal got carried all the way to done. That deserves its own bookmark." },
     ],
     (other) => `${other} stopped by earlier — always good company on a break.`,
@@ -86,7 +86,7 @@ const PROFILE_LIST: NpcProfile[] = [
     "Vera",
     ["Cataloguing the archives. A well-organized library is a well-organized mind.", "Every memory that comes through here earns its place on a real shelf."],
     [
-      { achievementId: "web_250", line: "250 connections now — a densely-woven galaxy. I had to build a whole new wing for the index." },
+      { achievementId: "web_250", line: "250 connections now — a densely-woven collection. I had to build a whole new wing for the index." },
       { achievementId: "nexus", line: "One memory alone reached 8 connections. That one gets its own reading table." },
     ],
     (other) => `${other} always knows exactly where I left off. Rare, that.`,
@@ -126,7 +126,7 @@ const PROFILE_LIST: NpcProfile[] = [
     "Wren",
     ["Sorting today's notifications. Everything real gets delivered, nothing invented.", "The mailbag's light today — quiet, but that's alright too."],
     [
-      { achievementId: "inner_circle", line: "Five people mapped in your orbit now. That's five more addresses on my real route." },
+      { achievementId: "inner_circle", line: "Five people mapped close to you now. That's five more addresses on my real route." },
       { achievementId: "enduring_light", line: "A memory kept alive 180 days — I like delivering the ones that last." },
     ],
     (other) => `${other} covers my route when I'm behind. Good partner for this job.`,
@@ -209,8 +209,8 @@ const PROFILE_LIST: NpcProfile[] = [
     "Hale",
     ["Minding the counter. Every purchase here comes straight out of real wages — never invented.", "Business is only as good as the hours this town actually puts in."],
     [
-      { achievementId: "connector", line: "25 real connections now. I like a customer whose galaxy is actually well-linked." },
-      { achievementId: "web_250", line: "250 connections — a densely-woven galaxy. That's the kind of regular I remember." },
+      { achievementId: "connector", line: "25 real connections now. I like a customer whose collection is actually well-linked." },
+      { achievementId: "web_250", line: "250 connections — a densely-woven collection. That's the kind of regular I remember." },
     ],
     (other) => `${other} and I split the till every night. Never once had it come up short.`,
   ),
@@ -280,7 +280,7 @@ const PROFILE_LIST: NpcProfile[] = [
     "hangar",
     0,
     "Zeke",
-    ["Running maintenance on whatever's actually flown. Real hops, real wear.", "Cosmic Trail's holding up nice. Good choice, for what it's worth."],
+    ["Running maintenance on whatever's actually flown. Real hops, real wear.", "That Footprint Trail's holding up nice. Good choice, for what it's worth."],
     [
       { achievementId: "cosmic_voyager", line: "Fifteen real travel hops logged. I've been tracking every one from the bay." },
       { achievementId: "galactic_megastructure", line: "Fifty real connections formed. That's the kind of structure I respect — built, not assumed." },
@@ -291,7 +291,7 @@ const PROFILE_LIST: NpcProfile[] = [
     "hangar",
     1,
     "Nova",
-    ["Restoring what's actually been let go cold. Slow, careful work.", "Every hull in this bay's been earned through real use, not just picked from a menu."],
+    ["Restoring what's actually been let go cold. Slow, careful work.", "Every outfit in this bay's been earned through real use, not just picked from a menu."],
     [
       { achievementId: "grand_restorer", line: "Ten cooling memories tended back to life. That's real restoration — I know the work." },
       { achievementId: "skill_master", line: "A skill grown all the way to Expert. Feels good watching that happen from the bay." },

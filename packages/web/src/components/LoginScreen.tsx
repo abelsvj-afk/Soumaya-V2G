@@ -54,8 +54,8 @@ export function LoginScreen({ onAuthed }: { onAuthed: (space: { id: string; name
         </h1>
         <p className="login-sub">
           {isSignUp
-            ? "Create a new private galaxy. Choose a unique gamer tag and name your companion."
-            : "Open your private galaxy with your gamer tag and passcode."}
+            ? "Create a new private town. Choose a unique gamer tag and name your companion."
+            : "Open your private town with your gamer tag and passcode."}
         </p>
 
         <div className="login-tabs" style={{ display: "flex", gap: "1rem", marginBottom: "1.5rem" }}>
@@ -76,7 +76,7 @@ export function LoginScreen({ onAuthed }: { onAuthed: (space: { id: string; name
               flex: 1,
             }}
           >
-            Enter My Galaxy
+            Enter My Town
           </button>
           <button
             type="button"
@@ -95,7 +95,7 @@ export function LoginScreen({ onAuthed }: { onAuthed: (space: { id: string; name
               flex: 1,
             }}
           >
-            Create New Galaxy
+            Create New Town
           </button>
         </div>
 
@@ -105,7 +105,7 @@ export function LoginScreen({ onAuthed }: { onAuthed: (space: { id: string; name
             <input
               value={gamerTag}
               onChange={(e) => setGamerTag(e.target.value)}
-              placeholder="e.g. pilot77"
+              placeholder="e.g. wanderer77"
               autoCapitalize="none"
               autoCorrect="off"
               minLength={2}
@@ -151,7 +151,7 @@ export function LoginScreen({ onAuthed }: { onAuthed: (space: { id: string; name
               passcode.length < 4
             }
           >
-            {busy ? "Opening…" : isSignUp ? "Create my galaxy" : "Enter my galaxy"}
+            {busy ? "Opening…" : isSignUp ? "Create my town" : "Enter my town"}
           </button>
         </form>
         <p className="login-note">

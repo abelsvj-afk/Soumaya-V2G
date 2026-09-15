@@ -1,24 +1,31 @@
 import type { GraphNode, CelestialClass } from "@brain/shared";
-import { CELESTIAL_CLASSES, CELESTIAL_ICON, CELESTIAL_LABEL, NODE_TYPE_LABEL } from "@brain/shared";
+import { CELESTIAL_CLASSES, NODE_TYPE_LABEL } from "@brain/shared";
 import { statsSpaceId } from "./achievements.js";
+import { rarityFor } from "../overworld/adapter/rarity.js";
 
 /**
- * The Codex — a living, gamified atlas of your memory galaxy. Entries start LOCKED
- * (undiscovered), unlock as your galaxy grows, then LEVEL UP the more you engage.
+ * The Codex — a living, gamified atlas of your town. Entries start LOCKED
+ * (undiscovered), unlock as your town grows, then LEVEL UP the more you engage.
  * Everything is computed live from graph state (+ a couple of localStorage stats),
  * mirroring the achievements pattern — no server round-trip to render it.
+ *
+ * wave4-full-vision.md §A — reworded away from the deleted 3D galaxy's own vocabulary
+ * (sectors/celestial bodies/fleet were all literal space metaphor). "Celestial Bodies"
+ * now reuses the Overworld's own established Common→Legendary rarity naming
+ * (overworld/adapter/rarity.ts) for consistency with what a player already sees on
+ * creatures, rather than inventing a second, competing vocabulary.
  */
 
 export type CodexCategory = "sectors" | "bodies" | "constellations" | "mind" | "fleet" | "phenomena" | "fieldnotes";
 
 export const CODEX_CATEGORIES: { id: CodexCategory; title: string; icon: string; blurb: string }[] = [
-  { id: "sectors", title: "Sectors", icon: "🗺️", blurb: "The named regions of your inner cosmos — one per kind of memory." },
-  { id: "constellations", title: "Constellations", icon: "🌌", blurb: "The Maps of Content you've charted from clusters of related memories." },
-  { id: "mind", title: "The Mind Layer", icon: "🧠", blurb: "What your galaxy is THINKING — the goals, skills, people and ideas that give it direction." },
-  { id: "bodies", title: "Celestial Bodies", icon: "✸", blurb: "The classes of body a memory can grow into, from asteroid to supergiant." },
-  { id: "fleet", title: "The Fleet", icon: "🛸", blurb: "Soumaya and the machines that tend your galaxy." },
-  { id: "phenomena", title: "Phenomena", icon: "✦", blurb: "Rare events and milestones discovered as your galaxy comes alive." },
-  { id: "fieldnotes", title: "Soumaya's Field Notes", icon: "✒️", blurb: "Discoveries Soumaya charted on her own, as your galaxy revealed them." },
+  { id: "sectors", title: "Districts", icon: "🗺️", blurb: "The named districts of your town — one per kind of memory." },
+  { id: "constellations", title: "Constellations", icon: "🕸️", blurb: "The Maps of Content you've charted from clusters of related memories." },
+  { id: "mind", title: "The Mind Layer", icon: "🧠", blurb: "What's on your mind — the goals, skills, people and ideas that give your town direction." },
+  { id: "bodies", title: "Creature Rarities", icon: "🐾", blurb: "The rarity classes a memory-creature can grow into, from Common to Legendary." },
+  { id: "fleet", title: "Soumaya's Circle", icon: "🧭", blurb: "Soumaya and the helpers who tend your town." },
+  { id: "phenomena", title: "Phenomena", icon: "✦", blurb: "Rare events and milestones discovered as your town comes alive." },
+  { id: "fieldnotes", title: "Soumaya's Field Notes", icon: "✒️", blurb: "Discoveries Soumaya charted on her own, as your town revealed them." },
 ];
 
 /** A server-charted discovery (Soumaya's field notes) → a discovered Codex entry. */
@@ -86,17 +93,17 @@ function tierOf(count: number, thresholds: number[]): { level: number; next?: nu
   return { level, next };
 }
 
-// ---- Sectors: a region per memory kind, matching the server-side lore cosmology ----
+// ---- Districts: a neighborhood per memory kind, matching the server-side lore cosmology ----
 const SECTOR_DEFS: { type: string; name: string; lore: string }[] = [
-  { type: "person", name: "The Kinship Reaches", lore: "Where the people of your life burn — the bodies you orbit and are orbited by. Warm, crowded space; every star here has a name you know." },
-  { type: "company", name: "The Guild Expanse", lore: "A trade-lane of institutions and teams — cold, orderly systems that your other memories dock with and depart." },
-  { type: "project", name: "The Forge Fields", lore: "Restless space where efforts are hammered into being. Bodies here flare bright while active and cool the moment the work is set down." },
-  { type: "decision", name: "The Crossroad Nebula", lore: "Every fork you've stood at, frozen mid-choice. Twin lights and the dark lane between them — the atlas remembers the road not taken." },
-  { type: "meeting", name: "The Confluence", lore: "Where paths crossed at a single point in time. Brief, bright conjunctions that leave a gravitational mark long after they pass." },
-  { type: "daily", name: "The Drift", lore: "The vast, gentle current of ordinary days — fleeting motes of light that, in sheer number, hold the galaxy together." },
-  { type: "knowledge", name: "The Archive Belt", lore: "A slow ring of durable facts and learnings. Little heat, great permanence — the bedrock the living bodies are built upon." },
-  { type: "concept", name: "The Deep Field", lore: "The abstract far reaches — ideas and principles that gravitationally lens everything nearer to the core." },
-  { type: "other", name: "The Uncharted Verge", lore: "The edge of the mapped galaxy, where anything that fits no known region drifts until it finds its place." },
+  { type: "person", name: "The Kinship Quarter", lore: "Where the people of your life live — the ones you visit and who visit you. A warm, crowded quarter; every house here has a name you know." },
+  { type: "company", name: "The Guild District", lore: "A row of workshops and offices — steady institutions your other memories pass through on their way somewhere else." },
+  { type: "project", name: "The Workyard", lore: "A restless corner of town where efforts get built. Loud and busy while the work is live, quiet the moment it's set down." },
+  { type: "decision", name: "Crossroads Square", lore: "Every fork you've stood at, frozen mid-choice. Two paths and the quiet ground between them — the town remembers the road not taken." },
+  { type: "meeting", name: "The Meeting Hall", lore: "Where paths crossed for a moment in time. Brief, bright gatherings that leave a mark long after everyone's gone home." },
+  { type: "daily", name: "Main Street", lore: "The steady flow of ordinary days — the small errands and passing moments that, in sheer number, hold the town together." },
+  { type: "knowledge", name: "The Archive Hall", lore: "A quiet room of durable facts and learnings. Little excitement, great permanence — the foundation everything else is built on." },
+  { type: "concept", name: "The Old Library", lore: "The far, quiet stacks — ideas and principles that shape everything nearer to the center of town." },
+  { type: "other", name: "The Outskirts", lore: "The edge of the mapped town, where anything that fits no known district settles until it finds its place." },
 ];
 
 function sectorEntries(ctx: CodexCtx): CodexEntry[] {
@@ -119,15 +126,15 @@ function sectorEntries(ctx: CodexCtx): CodexEntry[] {
   });
 }
 
-// ---- Celestial bodies: one entry per class + the black hole ----
+// ---- Creature rarities: one entry per class + the ultimate keepsake ----
 const BODY_LORE: Record<CelestialClass, string> = {
-  asteroid: "The smallest bodies — new or fleeting thoughts, barely massed. Most memories begin here.",
-  moon: "A thought with a little pull, caught in orbit of something larger than itself.",
-  planet: "A settled, self-holding memory — round, weighty, worth returning to.",
-  gas_giant: "A dense, emotionally-charged body whose gravity bends the bodies around it. Rings mark the rare ones.",
-  giant: "A memory grown vast through connection and significance — a landmark you navigate by.",
-  star: "A memory that burns — highly important, highly connected. It lights the space around it.",
-  supergiant: "The rarest, heaviest light in your galaxy. A defining memory whose gravity shapes whole sectors.",
+  asteroid: "The smallest, most everyday creatures — new or fleeting thoughts, barely grown. Most memories start out here.",
+  moon: "A thought with a little pull, drawn into the wake of something bigger than itself.",
+  planet: "A settled, self-standing memory — sturdy, familiar, worth visiting again.",
+  gas_giant: "A dense, emotionally-charged creature whose presence bends the ones nearby. The rare ones even carry rings.",
+  giant: "A memory grown large through connection and significance — a landmark you navigate the town by.",
+  star: "A memory that shines — highly important, highly connected. It lights up everything nearby.",
+  supergiant: "The rarest, most cherished creature in your town. A defining memory whose presence shapes whole districts.",
 };
 
 function bodyEntries(ctx: CodexCtx): CodexEntry[] {
@@ -136,33 +143,34 @@ function bodyEntries(ctx: CodexCtx): CodexEntry[] {
   const entries: CodexEntry[] = CELESTIAL_CLASSES.map((cls) => {
     const n = countCls(cls);
     const { level, next } = tierOf(n, [1, 5, 20]);
+    const rarity = rarityFor(cls);
     return {
       id: `body-${cls}`,
       category: "bodies" as const,
-      icon: CELESTIAL_ICON[cls],
-      title: `The ${CELESTIAL_LABEL[cls]}`.replace(/\b\w/, (c) => c.toUpperCase()),
-      lockedHint: `Grow a memory to ${CELESTIAL_LABEL[cls]} class to catalog it.`,
+      icon: rarity.badge,
+      title: rarity.label,
+      lockedHint: `Grow a memory to ${rarity.label} rarity to catalog it.`,
       lore: BODY_LORE[cls],
       discovered: has(cls),
       level: Math.max(0, level),
       maxLevel: 3,
-      levelLabel: has(cls) ? `${n} in your galaxy` : "Never observed",
+      levelLabel: has(cls) ? `${n} in your town` : "Never seen",
       progressToNext: next ? { cur: n, target: next } : undefined,
     };
   });
-  // The black hole — the prestige body.
+  // The rarest keepsake — a full year of remembering.
   const singularity = ctx.memories.length;
   entries.push({
     id: "body-singularity",
     category: "bodies",
-    icon: "🕳️",
-    title: "The Singularity",
-    lockedHint: "Reach 365 memories — a full year of your mind — to witness it.",
-    lore: "A black hole at the edge of your galaxy: the collapse-point of a year's remembering, more massive than any star. Nothing in your cosmos is bigger.",
+    icon: "💎",
+    title: "The Keepsake",
+    lockedHint: "Reach 365 memories — a full year of your mind — to earn it.",
+    lore: "The town's most treasured keepsake: the mark of a full year of remembering, heavier than any single memory. Nothing in your collection outweighs it.",
     discovered: singularity >= 365,
     level: singularity >= 365 ? 1 : 0,
     maxLevel: 1,
-    levelLabel: singularity >= 365 ? "Witnessed" : "Unseen",
+    levelLabel: singularity >= 365 ? "Earned" : "Unearned",
     progressToNext: singularity >= 365 ? undefined : { cur: singularity, target: 365 },
   });
   return entries;
@@ -175,7 +183,7 @@ function constellationEntries(ctx: CodexCtx): CodexEntry[] {
       {
         id: "constellation-none",
         category: "constellations",
-        icon: "🌌",
+        icon: "🕸️",
         title: "Chart your first constellation",
         lockedHint: "In the Insights tab, group related memories with “✦ Save as constellation”.",
         lore: "A constellation is a named hub that summarizes a whole body of work — a front door to a region of your mind. You haven't charted one yet.",
@@ -192,7 +200,7 @@ function constellationEntries(ctx: CodexCtx): CodexEntry[] {
     return {
       id: `constellation-${hub.id}`,
       category: "constellations" as const,
-      icon: "🌌",
+      icon: "🕸️",
       title: hub.label,
       lockedHint: "",
       lore: hub.content || "A charted constellation of related memories.",
@@ -207,13 +215,13 @@ function constellationEntries(ctx: CodexCtx): CodexEntry[] {
 
 // ---- The Mind Layer: discover each cognitive kind as it first appears ----
 const MIND_DEFS: { kind: string; title: string; icon: string; lore: string; hint: string }[] = [
-  { kind: "goal", title: "The Ambition", icon: "🎯", hint: "Set a goal in the Mind tab to chart it.", lore: "A goal is a gravity well set in your future — a body your memories fall toward, pulling your galaxy in a direction rather than just a shape." },
-  { kind: "skill", title: "The Craft", icon: "🛠️", hint: "Add a skill in the Mind tab.", lore: "A skill brightens with every memory that proves practice — a star you don't set by hand but earn, tier by tier, from what you actually do." },
-  { kind: "person_entity", title: "The Kindred", icon: "👤", hint: "Add a person in the Mind tab.", lore: "A person is a named star others orbit. Every memory that mentions them drifts into their gravity, and their light warms or cools with how you've been." },
+  { kind: "goal", title: "The Ambition", icon: "🎯", hint: "Set a goal in the Mind tab to chart it.", lore: "A goal is a fixed point set out ahead of you — something your memories build toward, giving the town a direction rather than just a shape." },
+  { kind: "skill", title: "The Craft", icon: "🛠️", hint: "Add a skill in the Mind tab.", lore: "A skill brightens with every memory that proves practice — a badge you don't set by hand but earn, tier by tier, from what you actually do." },
+  { kind: "person_entity", title: "The Kindred", icon: "👤", hint: "Add a person in the Mind tab.", lore: "A person is someone others in your life gather around. Every memory that mentions them draws them closer, and their warmth rises or cools with how you've been." },
   { kind: "identity", title: "The Self", icon: "🪞", hint: "Define an identity in the Mind tab.", lore: "An identity is held to the evidence of your life: memories that express who you are brighten it; ones that contradict it, in your own words, dim it." },
-  { kind: "idea", title: "The Spark", icon: "💡", hint: "Capture an idea in the Mind tab.", lore: "An idea is alive — it brightens as memories come to support it, fades if you never return, and, once ripe, can be promoted into a goal your memories orbit." },
-  { kind: "intention", title: "The Intention", icon: "🌠", hint: "Note something you mean to do soon.", lore: "A short-lived comet: an intention either gets fulfilled — you act, and it settles into memory — or it expires, burning up unremembered." },
-  { kind: "motivation", title: "The Driving Force", icon: "🧭", hint: "Name a motivation in the Mind tab.", lore: "A motivation is the deep current beneath your goals — a gravity well that brightens as more of your galaxy aligns with it." },
+  { kind: "idea", title: "The Spark", icon: "💡", hint: "Capture an idea in the Mind tab.", lore: "An idea is alive — it brightens as memories come to support it, fades if you never return, and, once ripe, can be promoted into a goal your memories build toward." },
+  { kind: "intention", title: "The Intention", icon: "🌱", hint: "Note something you mean to do soon.", lore: "A short-lived sprout: an intention either gets fulfilled — you act, and it settles into memory — or it expires, wilting unremembered." },
+  { kind: "motivation", title: "The Driving Force", icon: "🧭", hint: "Name a motivation in the Mind tab.", lore: "A motivation is the deep current beneath your goals — a pull that grows stronger as more of your town aligns with it." },
 ];
 
 function mindEntries(ctx: CodexCtx): CodexEntry[] {
@@ -245,39 +253,39 @@ function fleetEntries(ctx: CodexCtx): CodexEntry[] {
     {
       id: "fleet-soumaya",
       category: "fleet",
-      icon: "🛸",
-      title: "Soumaya, the Starpilot",
+      icon: "🧭",
+      title: "Soumaya, on Her Rounds",
       lockedHint: "Log your first memory to summon her.",
-      lore: "Your autonomous caretaker. She flies the galaxy tending memories, forging connections, and keeping the dark at bay — a companion, not a tool.",
+      lore: "Your autonomous caretaker. She walks the town tending memories, forging connections, and keeping the cold at bay — a companion, not a tool.",
       discovered: hasMem,
       level: hops >= 15 ? 3 : hops >= 1 ? 2 : hasMem ? 1 : 0,
       maxLevel: 3,
-      levelLabel: hasMem ? `${hops} voyages logged` : "Dormant",
+      levelLabel: hasMem ? `${hops} rounds logged` : "Dormant",
       progressToNext: hops >= 15 ? undefined : { cur: hops, target: hops >= 1 ? 15 : 1 },
     },
     {
       id: "fleet-station",
       category: "fleet",
-      icon: "🌐",
-      title: "Waystation Soumaya-Prime",
+      icon: "🏡",
+      title: "Soumaya's Cottage",
       lockedHint: "Log your first memory.",
-      lore: "The great orbital station where Soumaya recharges. The fixed point your galaxy turns around, second only to the Sun.",
+      lore: "The small house where Soumaya returns between rounds. The fixed point your town turns around, second only to Town Hall.",
       discovered: hasMem,
       level: hasMem ? 1 : 0,
       maxLevel: 1,
-      levelLabel: hasMem ? "Online" : "—",
+      levelLabel: hasMem ? "Open" : "—",
     },
     {
       id: "fleet-beacon",
       category: "fleet",
-      icon: "🛰️",
-      title: "Aura Beacons",
-      lockedHint: "They deploy over memories going cold — keep tending as your galaxy grows.",
-      lore: "Warming relays flung out to orbit cooling memories, projecting energy beams tinted by each star's emotion.",
+      icon: "🕯️",
+      title: "Tending Rounds",
+      lockedHint: "Paid over memories going cold — keep tending as your town grows.",
+      lore: "Warm visits paid to memories going cold, a little care left behind each time, tinted by each memory's own mood.",
       discovered: beacons >= 1,
       level: beacons >= 5 ? 2 : beacons >= 1 ? 1 : 0,
       maxLevel: 2,
-      levelLabel: beacons >= 1 ? `${beacons} deployed` : "Undeployed",
+      levelLabel: beacons >= 1 ? `${beacons} paid` : "Not yet paid",
       progressToNext: beacons >= 5 ? undefined : { cur: beacons, target: beacons >= 1 ? 5 : 1 },
     },
   ];
@@ -320,17 +328,17 @@ function phenomenaEntries(ctx: CodexCtx): CodexEntry[] {
   const supergiant = ctx.memories.some((m) => m.celestial === "supergiant");
   const bigHub = ctx.constellations.some((h) => (h.degree ?? 0) >= 12);
   return [
-    def("firstlink", "🔌", "First Synapse", "Log two related memories.", "The first filament between two memories — the moment a pile of notes became a mind.", firstLink),
-    def("star", "★", "Ignition", "Grow a memory to star class.", "The first memory to catch fire and burn as a star: important, connected, luminous.", star),
-    def("supernova", "💥", "Supernova", "Grow a memory to supergiant — the rarest, heaviest light.", "The brightest event your sky can hold: a memory so massive it bends whole sectors around it. Few galaxies ever see one.", supergiant),
-    def("deep", "🧲", "Deep Cluster", "Grow a memory to 6+ connections.", "A gravity well: one memory so connected that others fall into orbit around it.", deep),
-    def("crown", "👑", "Crown Jewel", "Grow a constellation to 12+ members.", "A constellation dense enough to be a landmark of its own — a crown of related stars you can navigate a whole region by.", bigHub),
-    def("goldenhour", "🌅", "Golden Hour", "Log a deeply joyful memory.", "A star burning warm gold at the top of your emotional range — the light you return to on the hard days.", joyful),
-    def("theweight", "🪨", "The Weight", "Log a deeply heavy memory.", "A dense, heavy body pulling hard on the space around it. Naming it is how you keep it from pulling the rest of the sky down with it.", heavy),
-    def("aurora", "🌈", "Aurora", "Hold joyful, neutral AND heavy memories at once.", "The full emotional spectrum lit across your sky at once — proof of a galaxy that holds the whole of a life, not just its highlights.", bands.size >= 3),
-    def("ancient", "🕰️", "Ancient Light", "Keep a memory alive for 90+ days.", "Light from a memory that has survived a full season — the oldest, steadiest glow in your sky.", ancient),
-    def("cooling", "❄️", "The Cold", "Let a memory drift untended for a while.", "You've witnessed entropy: a memory cooling in neglect, its color bleeding toward blue. The dark your galaxy is always fighting.", cooling),
-    def("tender", "🌿", "The Gardener", "Warm 10+ cooling memories back to life.", "Proof that nothing here truly dies while you return — light restored by hand, over and over.", tended >= 10),
+    def("firstlink", "🔌", "First Thread", "Log two related memories.", "The first thread between two memories — the moment a pile of notes became a mind.", firstLink),
+    def("star", "★", "Breakthrough", "Grow a memory to Epic rarity.", "The first memory to really catch on: important, connected, hard to miss.", star),
+    def("supernova", "💥", "Legendary Moment", "Grow a memory to Legendary — the rarest, most cherished.", "The biggest event your town has held: a memory so significant it reshapes whole districts around it. Few towns ever see one.", supergiant),
+    def("deep", "🧲", "Deep Cluster", "Grow a memory to 6+ connections.", "A real pull: one memory so connected that others gather around it.", deep),
+    def("crown", "👑", "Crown Jewel", "Grow a constellation to 12+ members.", "A constellation dense enough to be a landmark of its own — a hub you can navigate a whole district by.", bigHub),
+    def("goldenhour", "🌅", "Golden Hour", "Log a deeply joyful memory.", "A memory glowing warm at the top of your emotional range — the one you return to on the hard days.", joyful),
+    def("theweight", "🪨", "The Weight", "Log a deeply heavy memory.", "A heavy memory pressing hard on everything around it. Naming it is how you keep it from dragging the rest of the town down with it.", heavy),
+    def("aurora", "🌈", "Full Spectrum", "Hold joyful, neutral AND heavy memories at once.", "The full emotional range held in your town at once — proof it holds the whole of a life, not just its highlights.", bands.size >= 3),
+    def("ancient", "🕰️", "Old Growth", "Keep a memory alive for 90+ days.", "A memory that has stood through a full season — the oldest, steadiest presence in your town.", ancient),
+    def("cooling", "❄️", "The Cold", "Let a memory drift untended for a while.", "You've witnessed entropy: a memory cooling in neglect, its color fading toward blue. The cold your town is always fighting.", cooling),
+    def("tender", "🌿", "The Gardener", "Warm 10+ cooling memories back to life.", "Proof that nothing here truly fades while you return — brought back by hand, over and over.", tended >= 10),
   ];
 }
 

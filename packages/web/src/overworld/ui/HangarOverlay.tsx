@@ -100,11 +100,11 @@ function formatCents(cents: number): string {
 
 /**
  * The Hangar — kept ~1:1 with the existing HangarPanel.tsx (per the build brief), reusing
- * the exact same localStorage keys and unlock gates (data/hangarOptions.ts) so a pilot's
- * earned cosmetics carry over between the galaxy and the Overworld. The chosen Cosmic Trail
+ * the exact same localStorage keys and unlock gates (data/hangarOptions.ts) so a traveler's
+ * earned cosmetics carry over between the galaxy and the Overworld. The chosen Footprint Trail
  * now actually renders — ExteriorScene.ts reads it (readTrailColor/refreshTrailColor) and
- * colors the fading trail the player leaves while walking. Ship hull + figurine choices still
- * have no 2D equivalent to apply to (no per-hull sprite art exists) — this building keeps
+ * colors the fading trail the player leaves while walking. Outfit + charm choices still
+ * have no 2D equivalent to apply to (no per-outfit sprite art exists) — this building keeps
  * their *selection state* correct, which is what matters for parity, until/unless a later
  * pass gives them a real in-world effect.
  *
@@ -218,16 +218,16 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
 
   return (
     <OverlayShell icon="🛠️" title="Hangar" onClose={onClose}>
-      <OptionSelect label="Spaceship Hull" options={shipOptions(unlocked, memoriesCount)} value={ship} onChange={(v) => persist(keys.ship, v, setShip)} />
-      <OptionSelect label="Cosmic Trail" options={trailOptions(unlocked)} value={trail} onChange={(v) => persist(keys.trail, v, setTrail)} />
+      <OptionSelect label="Traveler's Outfit" options={shipOptions(unlocked, memoriesCount)} value={ship} onChange={(v) => persist(keys.ship, v, setShip)} />
+      <OptionSelect label="Footprint Trail" options={trailOptions(unlocked)} value={trail} onChange={(v) => persist(keys.trail, v, setTrail)} />
       <OptionSelect
-        label="Deep Space Figurine — Slot 1"
+        label="Keepsake Charm — Slot 1"
         options={figurineOptions(unlocked, memoriesCount)}
         value={fig1}
         onChange={(v) => persist(keys.fig1, v, setFig1)}
       />
       <OptionSelect
-        label="Deep Space Figurine — Slot 2"
+        label="Keepsake Charm — Slot 2"
         options={figurineOptions(unlocked, memoriesCount)}
         value={fig2}
         onChange={(v) => persist(keys.fig2, v, setFig2)}

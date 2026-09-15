@@ -19,7 +19,7 @@ function formatCents(cents: number): string {
  * (townLedger.ts) — never real Fuel/finance. Buying something is itself the Market's own real
  * work event, same as every other building's real interaction. Selection state is tracked
  * correctly (ownedGoodIds) with no further in-world rendering yet — the exact same precedent
- * HangarOverlay.tsx already established for its ship-hull/figurine choices.
+ * HangarOverlay.tsx already established for its outfit/charm choices.
  */
 export function MarketOverlay({ spaceId, onClose }: MarketOverlayProps) {
   const [owned, setOwned] = useState(() => ownedGoodIds(spaceId));

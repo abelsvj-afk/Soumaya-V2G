@@ -14,11 +14,11 @@ function codexPctFrom(c: { memories: GraphNode[]; links: number }): number {
 /**
  * Achievements = FEATS — things you actively did (kept deliberately disjoint from
  * the Codex, which covers discoveries: see a thing once → entry + lore + fuel).
- * No predicate may exist in both systems, and Pilot Rank is the single
- * memory-count ladder (rank-up is the only count celebration; the Hangar gates
+ * No predicate may exist in both systems, and the memory-count ladder is the single
+ * count-based ladder (rank-up is the only count celebration; the Hangar gates
  * its count-based cosmetics on raw counts directly).
  * Pure client-side + offline-safe: each is a predicate over the current
- * galaxy/fuel state. Unlocks are detected in App, persisted per-brain in
+ * town/fuel state. Unlocks are detected in App, persisted per-brain in
  * localStorage, and announced with a toast.
  */
 export interface AchievementCtx {
@@ -72,9 +72,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   // the CODEX as discoveries now — they were double-rewarded here.)
   {
     id: "galaxy_reader",
-    name: "Galaxy Reader",
+    name: "Well-Read",
     icon: "🗺️",
-    desc: "Explored memories across 6+ types — you can read your galaxy at a glance.",
+    desc: "Explored memories across 6+ types — you can read your whole collection at a glance.",
     // 2026-09-15 audit fix: unlike the 5 other stat-based achievements below, `stat.types_seen`
     // does have a real writer (overworld/data/achievements.ts's `syncAchievements`) — but it's
     // simplified here anyway, computed directly from the real graph, the exact same pattern
@@ -117,7 +117,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: "full_tank",
     name: "Patron",
     icon: "⚡",
-    desc: "Commission Soumaya to warm your galaxy on demand.",
+    desc: "Commission Soumaya to warm your town on demand.",
     test: () => {
       try {
         return (parseInt(localStorage.getItem(`stat.commissions.${statsSpaceId()}`) || "0", 10) || 0) >= 1;
@@ -130,9 +130,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   // === NEW GAMIFICATION WAVE 3 ACHIEVEMENTS ===
   {
     id: "pathfinder_quest",
-    name: "Pathfinder Quest",
+    name: "Trailblazer",
     icon: "🧭",
-    desc: "Create a path of 5+ connected memories. Unlocks Aegis Shield Spire.",
+    desc: "Create a path of 5+ connected memories. Unlocks Warden's Spire.",
     test: (c) => {
       if (!c.linkObjects || c.linkObjects.length < 4) return false;
       // Build adjacency list
@@ -180,9 +180,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "consistent_pilot",
-    name: "Consistent Pilot",
+    name: "Steady Hand",
     icon: "📅",
-    desc: "Keep a 3-day tending streak. Unlocks Hyperdrive Neon Trail.",
+    desc: "Keep a 3-day tending streak. Unlocks Festival Neon Trail.",
     // The server streak is the source of truth (device-independent); the
     // distinct-created-days set is the offline/legacy fallback.
     test: (c) => consistentDays(c) >= 3,
@@ -190,9 +190,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "sector_pioneer",
-    name: "Sector Pioneer",
-    icon: "🌌",
-    desc: "Catalog memories in 4+ distinct type categories. Unlocks Solar Gold Exhaust.",
+    name: "Cartographer's Eye",
+    icon: "🗺️",
+    desc: "Catalog memories in 4+ distinct type categories. Unlocks Harvest Gold Trail.",
     test: (c) => {
       const types = new Set(c.memories.map((m) => m.type).filter(Boolean));
       return types.size >= 4;
@@ -204,9 +204,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "sentinel_command",
-    name: "Sentinel Command",
-    icon: "📡",
-    desc: "Deploy 5+ Aura Beacons over cooling memories. Unlocks Holographic Sentinel Hull.",
+    name: "Keeper of the Watch",
+    icon: "🕯️",
+    desc: "Pay 5+ tending rounds to cooling memories. Unlocks Watcher's Cloak.",
     test: (c) => {
       // Checked via stats loaded from localStorage in App
       try {
@@ -231,9 +231,9 @@ export const ACHIEVEMENTS: Achievement[] = [
     // Renamed from "Deep Cluster" — the Codex phenomenon "Deep Cluster" (a memory
     // with 6+ connections) shared the name with a different rule.
     id: "deep_cluster",
-    name: "Sector Dominion",
+    name: "Local Expert",
     icon: "🧲",
-    desc: "Grow a single sector category to 6+ memories. Unlocks Quantum Singularity Core.",
+    desc: "Grow a single category to 6+ memories. Unlocks Heartwood Core.",
     test: (c) => {
       const counts = new Map<string, number>();
       for (const m of c.memories) {
@@ -254,9 +254,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "cosmic_voyager",
-    name: "Cosmic Voyager",
-    icon: "💫",
-    desc: "Soumaya completes 15+ travel hops on maintenance rounds. Unlocks Fusion Core Destroyer.",
+    name: "Faithful Companion",
+    icon: "🧭",
+    desc: "Soumaya completes 15+ rounds tending the town. Unlocks Voyager's Longcoat.",
     test: (c) => {
       try {
         const spaceId = statsSpaceId();
@@ -278,9 +278,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
   {
     id: "galactic_megastructure",
-    name: "Megastructure",
+    name: "Master Builder",
     icon: "🏟️",
-    desc: "Form 50+ total synapses/connections. Unlocks Synapse Hyper-Array.",
+    desc: "Form 50+ total connections. Unlocks Loom of Threads.",
     test: (c) => c.links >= 50,
     progress: (c) => ({ cur: Math.min(c.links, 50), target: 50 }),
   },
@@ -288,17 +288,17 @@ export const ACHIEVEMENTS: Achievement[] = [
     // The one meta-badge bridging the two systems: completing the whole Codex is
     // itself a feat. (Individual codex entries never appear as achievements.)
     id: "galactic_atlas",
-    name: "Galactic Atlas",
+    name: "Complete Record",
     icon: "📖",
-    desc: "Discover the entire Codex — every sector, body, constellation, phenomenon.",
+    desc: "Discover the entire Codex — every district, creature rarity, constellation, phenomenon.",
     test: (c) => codexPctFrom(c) >= 100,
     progress: (c) => ({ cur: codexPctFrom(c), target: 100 }),
   },
   {
     id: "grand_restorer",
-    name: "Grand Restorer",
-    icon: "🌟",
-    desc: "Tend/restore old high-entropy memories 10+ times. Unlocks Void Purple Trail.",
+    name: "Restorer",
+    icon: "🔧",
+    desc: "Tend/restore old high-entropy memories 10+ times. Unlocks Twilight Purple Trail.",
     test: (c) => {
       try {
         const spaceId = statsSpaceId();
@@ -320,7 +320,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   },
 
   // === LIFETIME LADDER (Wave 4) — feats that keep unlocking for years. Kept disjoint
-  //     from the Codex (discoveries) and from Pilot Rank (the memory-COUNT ladder). ===
+  //     from the Codex (discoveries) and from the memory-COUNT ladder. ===
 
   // Tending streaks — the long game of showing up.
   { id: "streak_week", name: "Weekly Ritual", icon: "🗓️", desc: "Hold a 7-day tending streak.",
@@ -335,7 +335,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   // Connection depth — the web keeps growing.
   { id: "weaver_100", name: "Weaver", icon: "🕸️", desc: "Weave 100 connections across your brain.",
     test: (c) => c.links >= 100, progress: (c) => ({ cur: Math.min(c.links, 100), target: 100 }) },
-  { id: "web_250", name: "Web of Mind", icon: "🌐", desc: "Weave 250 connections — a densely-woven galaxy.",
+  { id: "web_250", name: "Web of Mind", icon: "🌐", desc: "Weave 250 connections — a densely-woven collection.",
     test: (c) => c.links >= 250, progress: (c) => ({ cur: Math.min(c.links, 250), target: 250 }) },
   { id: "living_nexus", name: "Living Nexus", icon: "🌟", desc: "A single memory reaches 15+ connections.",
     test: (c) => c.memories.some((n) => (n.degree ?? 0) >= 15),
@@ -353,20 +353,20 @@ export const ACHIEVEMENTS: Achievement[] = [
     test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.6) },
   { id: "skill_master", name: "Master", icon: "🥋", desc: "Grow a skill all the way to Expert.",
     test: (c) => c.memories.some((n) => n.kind === "skill" && (n.progress ?? 0) >= 0.85) },
-  { id: "inner_circle", name: "Inner Circle", icon: "👥", desc: "Map 5 people you orbit.",
+  { id: "inner_circle", name: "Inner Circle", icon: "👥", desc: "Map 5 people close to you.",
     test: (c) => c.memories.filter((n) => n.kind === "person_entity").length >= 5,
     progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "person_entity").length, 5), target: 5 }) },
   { id: "idea_garden", name: "Idea Garden", icon: "💡", desc: "Cultivate 5 living ideas at once.",
     test: (c) => c.memories.filter((n) => n.kind === "idea").length >= 5,
     progress: (c) => ({ cur: Math.min(c.memories.filter((n) => n.kind === "idea").length, 5), target: 5 }) },
 
-  // Curation — saving reusable views of your galaxy (Smart Lenses).
-  { id: "lenscrafter", name: "Lenscrafter", icon: "⧉", desc: "Save 3 Smart Lenses — reusable views of your galaxy.",
+  // Curation — saving reusable views of your collection (Smart Lenses).
+  { id: "lenscrafter", name: "Lenscrafter", icon: "⧉", desc: "Save 3 Smart Lenses — reusable views of your collection.",
     test: () => { try { return (parseInt(localStorage.getItem(`stat.lenses_made.${statsSpaceId()}`) || "0", 10) || 0) >= 3; } catch { return false; } },
     progress: () => { try { const v = parseInt(localStorage.getItem(`stat.lenses_made.${statsSpaceId()}`) || "0", 10) || 0; return { cur: Math.min(v, 3), target: 3 }; } catch { return { cur: 0, target: 3 }; } } },
 
-  // Emotional range + longevity — the texture of a lived-in galaxy.
-  { id: "light_bringer", name: "Light Bringer", icon: "☀️", desc: "Hold 15 joyful memories in your sky.",
+  // Emotional range + longevity — the texture of a lived-in town.
+  { id: "light_bringer", name: "Light Bringer", icon: "☀️", desc: "Hold 15 joyful memories in your collection.",
     test: (c) => c.memories.filter((n) => (n.emotionalWeight ?? 0) > 0.25).length >= 15,
     progress: (c) => ({ cur: Math.min(c.memories.filter((n) => (n.emotionalWeight ?? 0) > 0.25).length, 15), target: 15 }) },
   { id: "enduring_light", name: "Enduring Light", icon: "🕯️", desc: "Keep a memory alive for 180+ days.",
@@ -410,7 +410,7 @@ export function loadUnlocked(spaceId: string): Set<string> {
  *  the stat-based achievements above (sentinel_command, cosmic_voyager, grand_restorer,
  *  full_tank, lenscrafter), which read one. 2026-09-15 audit fix: these counters were only ever
  *  written by the deleted 3D-galaxy code (`Graph3D.tsx`/its panels) — nothing in the Overworld
- *  replaced the writers, which permanently locked 6 achievements and the 3 ship hulls + 2 trail
+ *  replaced the writers, which permanently locked 6 achievements and the 3 outfit + 2 trail
  *  colors they gate in the Hangar. Each real call site is the Overworld action that most
  *  honestly matches what the stat originally meant — never a new invented mechanic. Always call
  *  with `statsSpaceId()` (not a component's own `spaceId` prop) so writes land in the exact same
