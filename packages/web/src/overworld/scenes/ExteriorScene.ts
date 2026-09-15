@@ -230,6 +230,11 @@ export class ExteriorScene extends Phaser.Scene {
    *  a stable id like placed items, since re-zoning overwrites the SAME tile and this needs to
    *  replace its old glyph rather than accumulate one per zoning decision ever made). */
   private zoneMarkerSprites = new Map<string, Phaser.GameObjects.Text>();
+  /** city-builder-depth.md §D — a real road/sidewalk ground surface under a `transit`/`sidewalk`
+   *  zoned tile's own glyph (keyed the same way as `zoneMarkerSprites`, same re-zoning-replaces
+   *  convention). `residential`/`commercial` zones stay glyph-only, unbuilt-placeholder ground —
+   *  only these two types are real, permanent infrastructure the moment they're zoned. */
+  private zoneGroundSprites = new Map<string, Phaser.GameObjects.Image>();
   /** Zoning rework (docs/overworld/zoning-rework.md, task #77) — the single pending "area" mode
    *  anchor marker, if any. Unlike `zoneMarkerSprites` there is at most one of these at a time
    *  (destroyed on commit or on re-arming), so a plain nullable field is enough. */
@@ -828,6 +833,31 @@ export class ExteriorScene extends Phaser.Scene {
     glyph.setAlpha(0.5);
     glyph.setDepth(1);
     this.zoneMarkerSprites.set(key, glyph);
+    this.paintZoneGround(tile);
+  }
+
+  /** city-builder-depth.md §D — a real road (the same `path` ground tile the plaza already
+   *  uses) for `transit`, a real gravel walkway (the same village-pack tile the business parking
+   *  apron already uses) for `sidewalk` — both already exactly one tile wide, the same footprint
+   *  every NPC/player sprite already occupies, so "sized to our NPCs" is true by construction.
+   *  `residential`/`commercial` clear any previous ground here (re-zoning away from a road/
+   *  sidewalk shouldn't leave its surface behind) and stay glyph-only otherwise — real
+   *  buildings paint their own ground when actually built. */
+  private paintZoneGround(tile: ZonedTile): void {
+    const key = `${tile.x},${tile.y}`;
+    this.zoneGroundSprites.get(key)?.destroy();
+    this.zoneGroundSprites.delete(key);
+    const cx = tile.x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = tile.y * TILE_SIZE + TILE_SIZE / 2;
+    if (tile.type === "transit") {
+      const ground = this.tileAt(tile.x, tile.y, TileFrame.path, 0.4);
+      this.zoneGroundSprites.set(key, ground);
+    } else if (tile.type === "sidewalk") {
+      const ground = this.add.image(cx, cy, GRAVEL_APRON.key);
+      ground.setDisplaySize(TILE_SIZE, TILE_SIZE);
+      ground.setDepth(0.4);
+      this.zoneGroundSprites.set(key, ground);
+    }
   }
 
   /** Re-reads real zoning state and (re)paints anything changed — call after a successful

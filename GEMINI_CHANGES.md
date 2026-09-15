@@ -1,3 +1,33 @@
+### 2026-09-15 (Claude): Real bug fix — money was earnable from the start, just never said so (complete)
+- [ ] Verified by Claude
+- Direct response to live feedback: "Money needs to be earnable from the start... I don't see a
+  way to get money to afford anything."
+- Investigated first: the mechanism was never actually broken.
+  `OverworldRoot.tsx`'s `handleCaptureSubmit` already credits the Library the instant a player
+  captures a thought in the tall grass — the exact first action `TownHud.tsx`'s own onboarding
+  tip already suggests, with zero prerequisites. The gap was purely presentational.
+- Fixed in `TownHud.tsx`: the onboarding tip now says in plain words that these actions earn real
+  Town Treasury money; the 🏦 chip now flashes the real amount just earned (`+$0.25`) for ~2
+  seconds right after an interaction credits it, computed from the real balance vs. the previous
+  render's own real balance — never on a spend, never on first render.
+- No change to the underlying earn rate/mechanism.
+- Verified by 4 new `TownHud.test.tsx` cases + the full gate (1066 server + 566 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
+### 2026-09-15 (Claude): City-builder depth §D — real roads + NPC-width sidewalks (complete)
+- [ ] Verified by Claude
+- Direct continuation of `city-builder-depth.md` after §A/§B/§C shipped in prior rounds.
+- Confirmed every NPC/player sprite already occupies exactly one tile, so an existing one-tile-
+  wide zoned tile is already "sized to our NPCs" — no new geometry needed.
+- `ExteriorScene.ts`'s zone-marker painter now also paints real ground art: the existing plaza
+  dirt-path tile for `transit` zones (a road surface), the same village-pack gravel texture the
+  business parking apron already uses for `sidewalk` zones (a walkway surface). Re-zoning away
+  from either clears the old ground sprite first. `residential`/`commercial` stay glyph-only.
+- Deliberately deferred: weighting the BFS pathfinder to prefer roads/sidewalks over open grass —
+  a distinct follow-up, named in the spec's own text.
+- Verified by the full gate (1066 server + 561 web tests, typecheck, build) — no new pure-logic
+  test needed (Phaser-integration rendering code on top of already-tested `zoning.ts`).
+
 ### 2026-09-15 (Claude): Backlog #85 — Sanctuary edit/delete + person profile (task #117, complete)
 - [ ] Verified by Claude
 - Direct continuation of "keep going through the list" — closes the one deferral the 2026-09-13
