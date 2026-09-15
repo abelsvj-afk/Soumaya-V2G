@@ -29,6 +29,7 @@ import { SoumayaChatOverlay } from "./ui/SoumayaChatOverlay.js";
 import { MarketOverlay } from "./ui/MarketOverlay.js";
 import { ParkOverlay } from "./ui/ParkOverlay.js";
 import { MayorsHallOverlay } from "./ui/MayorsHallOverlay.js";
+import { TheaterOverlay } from "./ui/TheaterOverlay.js";
 import { BusinessOverlay } from "./ui/BusinessOverlay.js";
 import { SettingsOverlay } from "./ui/SettingsOverlay.js";
 import { TownHud } from "./ui/TownHud.js";
@@ -49,6 +50,7 @@ const DOOR_PLACE_IDS = new Set<PlaceId>([
   "sanctuary",
   "postOffice",
   "observatory",
+  "theater",
   "gym",
   "market",
   "townHall",
@@ -486,6 +488,9 @@ export function OverworldRoot() {
         />
       )}
       {overlay.kind === "postOffice" && <PostOfficeOverlay spaceId={spaceId} onClose={closeOverlay} onOpenPlace={openPlace} />}
+      {overlay.kind === "theater" && (
+        <TheaterOverlay spaceId={spaceId} creatures={snapshot?.creatures ?? []} onClose={closeOverlay} />
+      )}
       {overlay.kind === "gym" && snapshot && (
         <GymOverlay graph={snapshot.graph} fuel={snapshot.fuel} streak={snapshot.streak} onClose={closeOverlay} />
       )}

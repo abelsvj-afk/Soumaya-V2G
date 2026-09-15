@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #81 — the Theater + Town Gazette (2026-09-15), not yet on-device confirmed** — a
+  12th door-building, added to `regionLayout.ts`'s generated layout as one spec-list entry (the
+  row-generation algorithm derives its own footprint/door/`REGION_WIDTH` growth). Two new
+  hand-authored attendants (Marlowe, Odalys) join the roster. "Showings" are real, never
+  invented: `data/theater.ts` picks the player's own top-4 memories by celestial tier, and
+  `TheaterOverlay.tsx` shows each one's real evolving lore (`getLore`/`evolveLore`), with
+  evolving a showing crediting real building work. The Town Gazette folds into the existing
+  Bulletin Board — a headline pulled from the same real `getDigest()` synthesis output
+  Observatory already surfaces, never a fabricated "new achievement" headline. A real regression
+  surfaced and was fixed at the root, not routed around: growing `REGION_WIDTH` shifted Mayor's
+  Hall's centered x-position enough that its own attendant band started landing on the south
+  row's wall tiles (a latent bug that only avoided detection before by X-coordinate luck) —
+  `SOUTH_ROW_BOTTOM`'s clearance now derives from `ATTENDANTS_PER_BUILDING` instead of a flat
+  margin, confirmed via a real reproduction script (zero collisions across all 24 attendant
+  posts). Verified by 5 new `theater.test.ts` cases, 6 new `TheaterOverlay.test.tsx` cases, 3 new
+  Gazette cases, the collision-fix reproduction, and the full gate (1066 server + 552 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
 - **Backlog #80 — literal walk-in building interiors (2026-09-15), not yet on-device
   confirmed** — every door-building interaction used to be instantaneous (touch the door tile,
   the real feature overlay pops up the same frame, no visual sense of having gone anywhere).

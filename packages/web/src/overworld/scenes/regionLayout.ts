@@ -29,6 +29,7 @@ export type PlaceId =
   | "sanctuary"
   | "postOffice"
   | "observatory"
+  | "theater"
   | "gym"
   | "market"
   | "townHall"
@@ -72,6 +73,11 @@ const SIDE_MARGIN = 2;
  *  open plaza in between (verified by regionLayout.test.ts, not just eyeballed). */
 const NORTH_Y0 = 1;
 const SOUTH_Y0 = 20;
+/** How many attendants pace in front of each building — moved up here (used by both
+ *  `attendantPostsFor` below and `SOUTH_ROW_BOTTOM`'s own clearance math) so Mayor's Hall's
+ *  attendant band, computed from ITS OWN footprint, can never collide with the south row's
+ *  regardless of how REGION_WIDTH (and so Mayor's Hall's own x-centering) happens to land. */
+const ATTENDANTS_PER_BUILDING = 2;
 
 interface RowBuildingSpec {
   id: PlaceId;
@@ -96,12 +102,17 @@ function layoutRow(specs: readonly RowBuildingSpec[], y0: number, facesDown: boo
 }
 
 // North row — Bank, Library, Sanctuary, Post Office, Observatory (unchanged from Stage 2).
+// Theater (backlog #81, docs/overworld/theater-and-gazette.md) — real memories' evolving lore
+// (getLore/evolveLore) surfaced as "showings," a genuine SimCity-style entertainment building
+// rather than a folded-in feature; the generated layout absorbs a 6th north-row building with
+// zero coordinate math changed anywhere else.
 const NORTH_ROW_SPECS: RowBuildingSpec[] = [
   { id: "bank", label: "Bank", glyph: "🏦" },
   { id: "library", label: "Library", glyph: "📚" },
   { id: "sanctuary", label: "Sanctuary", glyph: "🧘" },
   { id: "postOffice", label: "Post Office", glyph: "📮" },
   { id: "observatory", label: "Observatory", glyph: "🔭" },
+  { id: "theater", label: "Theater", glyph: "🎭" },
 ];
 
 // South row — Gym, Market, Town Hall, Park, Hangar. Market and Park are new (npc-economy.md):
@@ -119,8 +130,15 @@ const ROWS_DOOR_PLACES: DoorPlace[] = [...layoutRow(NORTH_ROW_SPECS, NORTH_Y0, t
 
 const RIGHTMOST_X1 = Math.max(...ROWS_DOOR_PLACES.map((p) => p.footprint.x1));
 export const REGION_WIDTH = RIGHTMOST_X1 + SIDE_MARGIN + 1;
-/** South row's bottom edge + one clear margin row below it — where Mayor's Hall's own row starts. */
-const SOUTH_ROW_BOTTOM = SOUTH_Y0 + BUILDING_HEIGHT + 1;
+/** South row's bottom edge + enough clear rows that Mayor's Hall's OWN attendant band (which
+ *  paces `ATTENDANTS_PER_BUILDING` rows above its door, same as every other building) can never
+ *  land on the south row's own wall — a real bug the Theater's addition surfaced: growing
+ *  REGION_WIDTH shifts Mayor's Hall's centered x0, and the old flat "+1" margin only happened to
+ *  clear the south row by X-coordinate luck, not by construction. Measured: south row's wall
+ *  bottom is at `SOUTH_Y0 + BUILDING_HEIGHT - 1`; Mayor's Hall's northmost attendant row is
+ *  `SOUTH_ROW_BOTTOM - ATTENDANTS_PER_BUILDING`, so this needs to clear that wall by at least 1
+ *  regardless of x — `SOUTH_Y0 + BUILDING_HEIGHT + ATTENDANTS_PER_BUILDING` does exactly that. */
+const SOUTH_ROW_BOTTOM = SOUTH_Y0 + BUILDING_HEIGHT + ATTENDANTS_PER_BUILDING;
 
 // Mayor's Hall (docs/overworld/mayors-hall.md, task #63) — soumaya-governance.md's real
 // governing role for Soumaya gets literally the biggest building on the map: 4x any other
@@ -226,10 +244,6 @@ export interface AttendantPost {
   a: { x: number; y: number };
   b: { x: number; y: number };
 }
-
-/** How many attendants pace in front of each building — "a few of them per job building",
- *  not just one. Each gets its own row directly outside, so their 2-tile paces never cross. */
-const ATTENDANTS_PER_BUILDING = 2;
 
 function attendantPostsFor(place: DoorPlace): AttendantPost[] {
   const { x0, x1, y0, y1 } = place.footprint;

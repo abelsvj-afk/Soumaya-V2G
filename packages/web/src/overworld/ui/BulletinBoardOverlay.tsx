@@ -1,6 +1,6 @@
-import { useState } from "react";
-import type { GraphData, GraphNode } from "@brain/shared";
-import { ackReminder, deleteNode, ingestText } from "../../api/client.js";
+import { useEffect, useState } from "react";
+import type { GraphData, GraphNode, Insight } from "@brain/shared";
+import { ackReminder, deleteNode, getDigest, ingestText } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
 import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 import { color } from "./theme.js";
@@ -19,11 +19,23 @@ export interface BulletinBoardOverlayProps {
  * reward for actions older than its own minimum-age guard). Reminders are any node with
  * remindAt set; acking clears it server-side via ackReminder. Posting or turning in a real
  * quest is this building's own real work event (npc-economy.md).
+ *
+ * Town Gazette (backlog #81, docs/overworld/theater-and-gazette.md) — a rotating headline
+ * reusing the exact same real synthesis output ObservatoryOverlay.tsx already surfaces
+ * (getDigest()), never an invented "new achievement/new building" headline this app has no
+ * real event log to honestly back.
  */
 export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: BulletinBoardOverlayProps) {
   const [newQuest, setNewQuest] = useState("");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [posting, setPosting] = useState(false);
+  const [digest, setDigest] = useState<Insight[] | null>(null);
+
+  useEffect(() => {
+    void getDigest().then(setDigest);
+  }, []);
+
+  const gazetteHeadline = digest && digest.length > 0 ? [...digest].sort((a, b) => b.score - a.score)[0] : null;
 
   const quests = graph.nodes.filter((n) => n.kind === "action");
   const reminders = graph.nodes.filter((n) => n.kind !== "action" && n.remindAt);
@@ -65,6 +77,17 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
 
   return (
     <OverlayShell icon="📋" title="Bulletin Board" onClose={onClose}>
+      <div style={{ marginBottom: 10, paddingBottom: 8, borderBottom: `1px solid ${color.divider}` }}>
+        <h3 style={{ margin: "0 0 4px" }}>📰 Town Gazette</h3>
+        {digest === null ? (
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>Fetching today's story...</p>
+        ) : gazetteHeadline ? (
+          <p style={{ margin: 0, fontSize: 12 }}>{gazetteHeadline.text}</p>
+        ) : (
+          <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>No fresh headlines yet.</p>
+        )}
+      </div>
+
       <h3 style={{ marginTop: 0 }}>Active quests</h3>
       {quests.length === 0 ? (
         <p>Nothing posted right now.</p>

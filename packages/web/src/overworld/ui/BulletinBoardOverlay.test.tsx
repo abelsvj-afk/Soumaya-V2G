@@ -7,6 +7,7 @@ vi.mock("../../api/client.js", () => ({
   deleteNode: vi.fn().mockResolvedValue(undefined),
   ackReminder: vi.fn().mockResolvedValue(true),
   ingestText: vi.fn().mockResolvedValue({ nodes: [] }),
+  getDigest: vi.fn().mockResolvedValue([]),
 }));
 
 function makeNode(overrides: Partial<GraphNode> = {}): GraphNode {
@@ -60,5 +61,34 @@ describe("BulletinBoardOverlay", () => {
     fireEvent.change(screen.getByLabelText("New quest"), { target: { value: "Renew passport" } });
     fireEvent.click(screen.getByText("Post"));
     await waitFor(() => expect(ingestText).toHaveBeenCalledWith("Renew passport", { kind: "action" }));
+  });
+
+  describe("Town Gazette (backlog #81)", () => {
+    it("shows a real headline once getDigest resolves", async () => {
+      const { getDigest } = await import("../../api/client.js");
+      (getDigest as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, text: "A real latent connection surfaced.", score: 0.9, createdAt: "2026-01-01", nodes: [] },
+      ]);
+      render(<BulletinBoardOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} refresh={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("A real latent connection surfaced.")).toBeTruthy());
+    });
+
+    it("picks the highest-scored insight when several exist", async () => {
+      const { getDigest } = await import("../../api/client.js");
+      (getDigest as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: 1, text: "Lower score.", score: 0.2, createdAt: "2026-01-01", nodes: [] },
+        { id: 2, text: "Higher score.", score: 0.8, createdAt: "2026-01-01", nodes: [] },
+      ]);
+      render(<BulletinBoardOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} refresh={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText("Higher score.")).toBeTruthy());
+      expect(screen.queryByText("Lower score.")).toBeNull();
+    });
+
+    it("never invents a headline when the real digest is empty", async () => {
+      const { getDigest } = await import("../../api/client.js");
+      (getDigest as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      render(<BulletinBoardOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} refresh={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/No fresh headlines yet/)).toBeTruthy());
+    });
   });
 });

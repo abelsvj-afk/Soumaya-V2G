@@ -167,6 +167,32 @@ const PROFILE_LIST: NpcProfile[] = [
     (other) => `${other} spotted a real connection before I did last week. Fair enough — happens.`,
   ),
 
+  // Theater (backlog #81, docs/overworld/theater-and-gazette.md) — Marlowe (usher), Odalys
+  // (programmer). Their real "showings" are the player's own most significant memories'
+  // evolving lore, never invented programming.
+  profile(
+    "theater",
+    0,
+    "Marlowe",
+    ["Seating the evening's showings. Every one of them is a real memory, evolving its own way.", "A quiet house tonight — some stories take longer to find their next chapter."],
+    [
+      { achievementId: "light_bringer", line: "Fifteen joyful memories now held in your collection. That's a real run of good showings." },
+      { achievementId: "enduring_light", line: "One memory kept alive six months and counting. That's the kind of story that earns a long run." },
+    ],
+    (other) => `${other} always knows which showing to lead with. Good instinct for a program.`,
+  ),
+  profile(
+    "theater",
+    1,
+    "Odalys",
+    ["Programming tonight's lineup from whichever memories have the most to say for themselves.", "Every showing here is real — nothing on this bill was ever invented."],
+    [
+      { achievementId: "enduring_light", line: "Half a year and a memory's story is still going. I gave it top billing tonight." },
+      { achievementId: "light_bringer", line: "Fifteen joyful ones in the collection now — practically a whole festival's worth." },
+    ],
+    (other) => `${other} and I argue over the running order more than we'd admit. Always lands right, though.`,
+  ),
+
   // Gym — Rocco (training floor), Fern (progress log).
   profile(
     "gym",

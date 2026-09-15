@@ -167,7 +167,7 @@ describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
 });
 
 describe("regionLayout — Town Economy round (generated layout, docs/overworld/npc-economy.md)", () => {
-  it("has all 11 door-buildings, including Market/Park and Mayor's Hall", () => {
+  it("has all 12 door-buildings, including Market/Park, Mayor's Hall, and the Theater", () => {
     const doorIds = allPlaces()
       .filter((p) => p.kind === "door")
       .map((p) => p.id);
@@ -178,6 +178,7 @@ describe("regionLayout — Town Economy round (generated layout, docs/overworld/
         "sanctuary",
         "postOffice",
         "observatory",
+        "theater",
         "gym",
         "market",
         "townHall",
