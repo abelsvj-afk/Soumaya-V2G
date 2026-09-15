@@ -88,6 +88,7 @@ import { bumpStat, loadUnlocked, statsSpaceId } from "../../components/achieveme
 import type { Thought } from "../../api/mind.js";
 import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
 import { getCachedNpcLine, pickDialogueOutcome } from "../data/npcLlmDialogue.js";
+import { moteAwarenessLine } from "../data/moteAwareness.js";
 import { INTERIOR_ROOM_HEIGHT, INTERIOR_ROOM_WIDTH, interiorEntryTile, interiorRoomOrigin, worldBoundsTiles } from "../data/interiorRoom.js";
 import { color as uiColor } from "../ui/theme.js";
 
@@ -1199,6 +1200,11 @@ export class ExteriorScene extends Phaser.Scene {
    *  hand-authored pool (the default), or a gesture-only beat with no bubble at all (an empty
    *  string — `showSpeechBubble` already no-ops on that, so nothing new is needed there). */
   private resolveDialogueLine(id: SocietyNpcId, unlocked: ReadonlySet<string>, tier: RelationshipTier, otherName: string, seed: number): string {
+    // Mote awareness (backlog #82, docs/overworld/theater-and-gazette.md's sibling decision) —
+    // checked first, ahead of the existing 3-way outcome split it leaves untouched: real, only
+    // when the player genuinely has 2+ active MindSpace thoughts, and low-frequency even then.
+    const mote = moteAwarenessLine(id, seed, this.pendingThoughts.length);
+    if (mote) return mote;
     const outcome = pickDialogueOutcome(id, seed);
     if (outcome === "gesture") return "";
     if (outcome === "llm") {

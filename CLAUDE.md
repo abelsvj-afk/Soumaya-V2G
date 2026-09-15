@@ -253,6 +253,16 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #82 — NPC mote awareness (2026-09-15), not yet on-device confirmed** — extends the
+  Break-time dialogue system with a real, low-frequency line noticing the player has 2+ active
+  MindSpace thoughts (`getThoughts()`'s own count) — never inventing anything about a specific
+  thought's substance (an NPC may notice THAT you're thinking, never WHAT). New
+  `data/moteAwareness.ts` (pure, deterministic, no `Math.random`): fires only past the real
+  2-thought trigger, and even then only ~1-in-8 times. Wired into `ExteriorScene.ts`'s
+  `resolveDialogueLine()`, checked first, ahead of the existing LLM/pool/gesture 3-way split
+  which is left untouched. Verified by 5 new `moteAwareness.test.ts` cases + the full gate (1066
+  server + 557 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **Backlog #81 — the Theater + Town Gazette (2026-09-15), not yet on-device confirmed** — a
   12th door-building, added to `regionLayout.ts`'s generated layout as one spec-list entry (the
   row-generation algorithm derives its own footprint/door/`REGION_WIDTH` growth). Two new
