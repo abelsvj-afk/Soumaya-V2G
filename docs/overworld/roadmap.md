@@ -1498,6 +1498,46 @@ Verified by 2 new test files (`components/achievements.test.ts`), new cases in
 (1066 server + 494 web tests, typecheck, build) — build output confirmed to no longer include
 any of the removed assets. Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.44 — Deep audit Wave 2 cont'd: creature render-churn perf fix; depth-ordering resolved
+
+Closes out the last two Wave 1 findings from the same 2026-09-15 audit
+(`docs/overworld/gameplay-uiux-audit-2026-09-15.md`):
+
+1. **Creature render churn (perf).** `renderCreatures` used to unconditionally destroy and
+   recreate every visible creature's Phaser objects (sprite, idle-bob tween, up to 3 text
+   markers) on every single `refresh()` call — after every greet/capture — even for creatures
+   whose visuals hadn't changed at all. New `creatureVisualsChanged()` compares only the 4 real
+   fields `paintCreature` actually reads (`type`/`isDue`/`dueForRecall`/`rarity.badge`) and skips
+   the repaint when none changed, leaving the already-running tween/roam state alone. Measured,
+   not assumed: a real reproduction script simulating 850 creatures across 20 refresh cycles (one
+   creature's `isDue` flipping per cycle — the realistic "one greet resets one creature" case)
+   showed the old behavior repainting 17,000 times total vs. the new behavior's 7 — a 99.96%
+   reduction in Phaser object churn for the common case.
+
+2. **Creature/NPC depth-ordering vs. placed buildings.** The audit flagged that creatures and
+   placed homes/businesses shared depth 1 with an insertion-order tie-break instead of a real
+   y-sort, so a creature trapped under a building could render invisible-but-still-greetable.
+   Turns out this was only ever a real bug IN COMBINATION with the occupancy bug Stage 2.42
+   already fixed (task #92 — creature placement, roaming, AND NPC pathfinding are now all blind
+   to placed structures no longer, so none of them can ever actually occupy the same tile as a
+   building). With that root cause fixed, two sprites can no longer be co-located there, so the
+   depth tie-break has nothing to resolve for this case — closed without a broader y-sort
+   rewrite, which stays a real but lower-priority nice-to-have (tracked as a general depth-
+   ordering polish item, not a bug) for the player's own depth relative to other moving sprites.
+
+Verified by the measurement above + the full gate (1066 server + 494 web tests, typecheck,
+build). No dedicated `ExteriorScene.ts` test exists for the render-churn fix (this file's
+established convention — verified by direct reproduction/measurement instead, per CLAUDE.md's
+own "verify before you build" standard). Not yet seen rendered in a real browser from this
+sandbox.
+
+This closes Wave 1 (8 correctness bugs) and Wave 2 (dead achievements, meeting-slot undercount,
+asset/doc cleanup, render-churn perf, depth-ordering) of the 2026-09-15 audit in full. Wave 3
+(passive income from built structures, onboarding/tutorial, a real demolish/remove mechanic,
+giving sidewalk/transit zones real function, population growth) remains tracked, each needing
+its own spec per Rule #1 before code — see the audit doc's own "Structural gaps vs. the genre"
+section.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

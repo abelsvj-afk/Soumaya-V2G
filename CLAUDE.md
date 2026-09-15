@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Deep audit Wave 2 finished — creature render-churn perf fix, depth-ordering resolved
+  (2026-09-15), not yet on-device confirmed** — closes the last two findings from the same audit.
+  (1) `renderCreatures` used to destroy+recreate every visible creature's Phaser objects on
+  every `refresh()` even when nothing about that creature changed; new `creatureVisualsChanged()`
+  skips the repaint when the 4 real fields that affect it are unchanged — measured via a real
+  reproduction script: 17,000 repaints down to 7 across 20 simulated refresh cycles of 850
+  creatures (99.96% reduction) for the realistic "one greet resets one creature" case. (2) The
+  flagged creature/NPC-vs-building depth-ordering issue turned out to only be a real bug in
+  combination with the occupancy gap the same audit's Wave 1 already fixed (task #92) — since
+  creatures/NPCs can no longer occupy a placed structure's tile at all, there's nothing left for
+  the depth tie-break to get wrong for this case; closed without a broader y-sort rewrite (which
+  remains a real, lower-priority cosmetic polish item, not a bug). This closes Wave 1 (8
+  correctness bugs) and Wave 2 (dead achievements, meeting-slot fix, asset/doc cleanup, this
+  perf/depth pair) of the 2026-09-15 audit in full. Wave 3 (passive income, onboarding,
+  demolish/remove, zone-type function, population growth) remains tracked, each needing its own
+  spec per Rule #1 before code. Verified by the measurement above + the full gate (1066 server +
+  494 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **Deep audit Wave 2 — 5 dead achievements revived, asset/doc cleanup (2026-09-15), not yet
   on-device confirmed** — continuation of the same audit as the Wave 1 entry below. Confirmed
   and fixed 5 of the 6 candidate dead achievements: `sentinel_command`/`grand_restorer` (tending

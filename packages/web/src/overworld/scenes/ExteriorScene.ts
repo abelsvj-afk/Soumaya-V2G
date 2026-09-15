@@ -1397,6 +1397,20 @@ export class ExteriorScene extends Phaser.Scene {
     }
   }
 
+  /** Whether anything `paintCreature` actually draws differently between two reads of the same
+   *  creature — the only fields that change its sprite frame, alpha, or markers. 2026-09-15
+   *  audit fix (render-churn perf): every OTHER real field (degree, entropy's raw number,
+   *  celestial, uncharted, ...) either never changes `paintCreature`'s output or is covered by
+   *  one of these four proxies, so comparing just these is sufficient, not an approximation. */
+  private creatureVisualsChanged(previous: CreatureEntity, next: CreatureEntity): boolean {
+    return (
+      previous.type !== next.type ||
+      previous.isDue !== next.isDue ||
+      previous.dueForRecall !== next.dueForRecall ||
+      previous.rarity.badge !== next.rarity.badge
+    );
+  }
+
   private renderCreatures(creatures: CreatureEntity[]): void {
     const seen = new Set<number>();
     for (const entity of creatures) {
@@ -1404,8 +1418,16 @@ export class ExteriorScene extends Phaser.Scene {
       seen.add(entity.nodeId);
       const existing = this.creatureSprites.get(entity.nodeId);
       if (existing) {
+        // 2026-09-15 audit fix — this used to unconditionally destroy+recreate every visible
+        // creature's Phaser objects (sprite, idle-bob tween, up to 3 text markers) on EVERY
+        // refresh() call (after every single greet/capture), even when nothing about this
+        // particular creature changed. With placement capacity around 850-1100 tiles, that's a
+        // believable real-device slowdown path as the node count grows. Now a no-op repaint
+        // when the creature's actual visuals haven't changed — the tween/roam state already
+        // running is left alone rather than restarted from scratch for no reason.
+        const visualsChanged = this.creatureVisualsChanged(existing.entity, entity);
         existing.entity = entity;
-        this.paintCreature(existing.container, entity);
+        if (visualsChanged) this.paintCreature(existing.container, entity);
         continue;
       }
       const home = entity.tile;

@@ -1,3 +1,21 @@
+### 2026-09-15 (Claude): Deep audit Wave 2 finished — creature render-churn perf fix, depth-ordering resolved (task #97, #98)
+- [ ] Verified by Claude
+- Closes the last two findings from the same 4-agent audit.
+- `renderCreatures` destroyed+recreated every visible creature's Phaser objects on EVERY
+  refresh(), even with zero visual change. New `creatureVisualsChanged()` in ExteriorScene.ts
+  skips the repaint when none of the 4 real fields that affect it changed.
+- Measured via a real reproduction script (not assumed): 850 simulated creatures across 20
+  refresh cycles, one creature's isDue flipping per cycle — old behavior 17,000 repaints, new
+  behavior 7 (99.96% reduction) for the realistic case.
+- The flagged creature/NPC-vs-building depth-ordering bug turned out to only manifest in
+  combination with the occupancy gap task #92 already fixed — closed without a broader y-sort
+  rewrite (tracked as a real but lower-priority cosmetic polish item, not a bug).
+- This closes Wave 1 + Wave 2 of the 2026-09-15 audit in full. Wave 3 (passive income,
+  onboarding, demolish/remove, zone-type function, population growth) remains tracked, each
+  needing its own spec per Rule #1.
+- Verified by the measurement above + the full gate (1066 server + 494 web tests, typecheck,
+  build).
+
 ### 2026-09-15 (Claude): Deep audit Wave 2 — 5 dead achievements revived, asset/doc cleanup (task #96, #100)
 - [ ] Verified by Claude
 - Continuation of the same 4-agent audit (Wave 1 entry below).
