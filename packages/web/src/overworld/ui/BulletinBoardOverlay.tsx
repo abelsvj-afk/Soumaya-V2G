@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { GraphData, GraphNode } from "@brain/shared";
 import { ackReminder, deleteNode, ingestText } from "../../api/client.js";
 import { recordBuildingWork } from "../data/npcJobs.js";
-import { actionButtonStyle, fieldStyle, OverlayShell } from "./OverlayShell.js";
+import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./OverlayShell.js";
 
 export interface BulletinBoardOverlayProps {
   graph: GraphData;
@@ -75,9 +75,13 @@ export function BulletinBoardOverlay({ graph, spaceId, onClose, refresh }: Bulle
               style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: "1px solid #2a2c55" }}
             >
               <span style={{ flex: 1 }}>{q.label}</span>
-              <button type="button" onClick={() => turnIn(q)} disabled={busyId === q.id} style={actionButtonStyle(busyId === q.id)}>
-                {busyId === q.id ? "…" : "Turn in"}
-              </button>
+              {busyId === q.id ? (
+                <button type="button" disabled style={actionButtonStyle(true)}>
+                  …
+                </button>
+              ) : (
+                <ConfirmButton label="Turn in" confirmLabel="Really turn in?" ariaLabel={`Turn in ${q.label}`} onConfirm={() => turnIn(q)} />
+              )}
             </li>
           ))}
         </ul>

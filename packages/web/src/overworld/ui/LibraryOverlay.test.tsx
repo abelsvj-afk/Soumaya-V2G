@@ -92,13 +92,15 @@ describe("LibraryOverlay", () => {
       expect(screen.queryByText("Alice")).toBeNull();
     });
 
-    it("deleting a lens removes it from the real list", async () => {
+    it("deleting a lens removes it from the real list, behind a real confirm step (2026-09-15 audit fix)", async () => {
       const { getLenses, deleteLens } = await import("../../api/client.js");
       (getLenses as ReturnType<typeof vi.fn>).mockResolvedValue([{ id: 1, name: "rockets", query: { text: "rocket" }, pinned: false }]);
       (deleteLens as ReturnType<typeof vi.fn>).mockResolvedValue(true);
       render(<LibraryOverlay graph={{ nodes: [], links: [] }} spaceId="space-1" onClose={vi.fn()} />);
       await waitFor(() => expect(screen.getByText(/rockets/)).toBeTruthy());
       fireEvent.click(screen.getByText("Delete"));
+      expect(deleteLens).not.toHaveBeenCalled(); // the first tap only arms the confirm, never deletes
+      fireEvent.click(screen.getByText("Really delete?"));
       await waitFor(() => expect(screen.queryByText(/rockets/)).toBeNull());
       expect(deleteLens).toHaveBeenCalledWith(1);
     });

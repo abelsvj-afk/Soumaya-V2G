@@ -11,6 +11,7 @@ import { isPlacementBlocked, REGION_HEIGHT, REGION_WIDTH } from "../scenes/regio
 import { syncAchievements } from "./achievements.js";
 import { recordBuildingWork } from "./npcJobs.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
+import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "./placedStructures.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -56,12 +57,22 @@ export function buildWorldSnapshot(
   const unplaced = graph.nodes
     .filter((n) => n.status !== "archived" && n.kind !== "action")
     .map((n) => nodeToCreature(n, { dueForRecall: dueIds.has(n.id) }));
+  const homeFootprints = spaceId != null ? placedHomeFootprints(spaceId) : [];
+  const businessFootprints = spaceId != null ? placedBusinessFootprints(spaceId) : [];
   const creatures = placeCreaturesOnGrid(unplaced, {
     width: REGION_WIDTH,
     height: REGION_HEIGHT,
     // town-builder.md — a creature can never spawn on top of something the player already
     // built, the one integration point the new placement system needs outside its own module.
-    isBlocked: (x, y) => isPlacementBlocked(x, y) || (spaceId != null && isTileOccupiedByPlacedItem(spaceId, x, y)),
+    // 2026-09-15 audit fix: this only ever checked town-builder decor, never real placed homes/
+    // businesses — a creature could be freshly, deterministically placed directly onto a tile
+    // inside an already-built structure on every graph reconciliation (after every greet/
+    // capture), rendering invisible behind the building while staying hit-testable there.
+    isBlocked: (x, y) =>
+      isPlacementBlocked(x, y) ||
+      (spaceId != null && isTileOccupiedByPlacedItem(spaceId, x, y)) ||
+      isInsideAnyFootprint(homeFootprints, x, y) ||
+      isInsideAnyFootprint(businessFootprints, x, y),
   });
   return {
     creatures,

@@ -1,3 +1,38 @@
+### 2026-09-15 (Claude): Deep gameplay/UI-UX/asset/engine audit — 8 real bugs fixed, Wave 1 (tasks #88-95)
+- [ ] Verified by Claude
+- Direct response to being asked to judge the Overworld against SimCity/city-builder peers and go
+  deeper than the same-day economy audit — real gameplay/UI-UX pitfalls, bugs, missing elements.
+- Ran 4 parallel read-only investigation agents (assets, UI/UX, gameplay logic, engine/scene),
+  each required to cite exact `file:line`. Full findings + fix plan:
+  `docs/overworld/gameplay-uiux-audit-2026-09-15.md`.
+- **Money-loss bug**: re-arming a Hangar item/home/business forfeited the money already spent.
+  New `townLedger.ts::refundToTreasury()` wired into `armItem`/`armHomeType`/`armBusinessType`
+  via new `cancelArmedItem`/`cancelArmedHome`/`cancelArmedBusiness`.
+- **z-index bug**: TownHud/Settings-track-mute buttons painted over and stayed clickable through
+  every overlay. Fixed in `OverlayShell.tsx`/`CaptureMenu.tsx`/`CreatureSummaryOverlay.tsx`.
+- **Cross-type overlap exploit**: zoning never checked built homes/businesses — a business could
+  legally be placed on top of a home via re-zoning. New `data/placedStructures.ts` (avoids a
+  housing↔business↔zoning import cycle) backs the real fix in all three modules.
+- **Creature/NPC/player collision blind to placed structures**: `loadWorldSnapshot.ts`,
+  `buildRoamCage`, `this.npcPathGrid` (now a live per-instance getter, not a frozen module
+  constant), and the player's own `tryMove` all gained a real placed-structure check — the player
+  could previously walk straight into their own built house.
+- **No HUD indicator for 3 of 4 arm modes** (only zoning had one), despite being checked FIRST in
+  the interact-press priority chain. `TownHud.tsx` now shows a chip + refunding Stop button for
+  all 4.
+- **CaptureMenu dead end**: a stalled submit had no Cancel/Escape. Added Cancel + a
+  cancelled-ref guard.
+- **Zero destructive-action confirmations anywhere**: new reusable `ConfirmButton`
+  (`OverlayShell.tsx`, two-tap arm/confirm, explicit Cancel, no auto-revert timer) wired into
+  Journey delete, Timeline chapter delete, Lens delete, quest turn-in.
+- Asset audit also confirmed: no broken/404 references anywhere, but real reuse (5 building PNGs
+  for 17 place/type slots, creature art never varies by rarity, 3 buildings' NPCs fall back to
+  the player's own sprite) and ~40MB of orphaned 3D-galaxy assets still on disk.
+- Verified by 6 new test files/suites + updated cases across 12 existing test files + the full
+  gate (1066 server + 485 web tests, typecheck, build). Wave 2 (dead achievements, render-churn
+  perf, depth ordering, asset cleanup) and Wave 3 (passive income, onboarding, demolish/remove,
+  zone-type function, population growth) tracked separately in the audit doc.
+
 ### 2026-09-15 (Claude): Real pricing-gauged treasury income + Hangar previews + a real construction delay (tasks #86/#87)
 - [ ] Verified by Claude
 - Direct answer to a real request: town income should be "gauged... based on all including

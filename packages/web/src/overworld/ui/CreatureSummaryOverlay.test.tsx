@@ -40,6 +40,13 @@ describe("CreatureSummaryOverlay (Details tab equivalent)", () => {
     expect(screen.getByText(/Connections: 3/)).toBeTruthy();
   });
 
+  it("2026-09-15 audit fix — out-ranks the persistent TownHud/button-row's zIndex:1", async () => {
+    const { journeysFor } = await import("../../api/journeys.js");
+    (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    render(<CreatureSummaryOverlay creature={makeCreature()} onGreet={vi.fn()} onClose={vi.fn()} />);
+    expect(screen.getByRole("dialog").style.zIndex).toBe("10");
+  });
+
   it("shows 'Uncharted' rather than an error when the node belongs to no Journey", async () => {
     const { journeysFor } = await import("../../api/journeys.js");
     (journeysFor as ReturnType<typeof vi.fn>).mockResolvedValue([]);

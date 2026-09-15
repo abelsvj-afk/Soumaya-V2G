@@ -3,6 +3,7 @@ import {
   PLACEABLE_ITEMS,
   armedItemId,
   armItem,
+  cancelArmedItem,
   canAffordItem,
   clearArmedItem,
   isTileFreeForPlacement,
@@ -10,7 +11,7 @@ import {
   placeArmedItem,
   placedItems,
 } from "./townBuilder.js";
-import { creditHour } from "./townLedger.js";
+import { creditHour, treasuryBalanceCents } from "./townLedger.js";
 
 const SPACE = "test-space";
 
@@ -47,6 +48,32 @@ describe("townBuilder — the Hangar's real select-then-place mechanism", () => 
     armItem(SPACE, "bench");
     armItem(SPACE, "lamp_post");
     expect(armedItemId(SPACE)).toBe("lamp_post");
+  });
+
+  it("simcity-economy-construction.md 2026-09-15 audit fix — re-arming a different item refunds the first, never forfeits the money", () => {
+    const bench = PLACEABLE_ITEMS.find((i) => i.id === "bench")!;
+    const lampPost = PLACEABLE_ITEMS.find((i) => i.id === "lamp_post")!;
+    fundTreasury(1000);
+    const balanceBeforeAnyPurchase = treasuryBalanceCents(SPACE);
+    armItem(SPACE, "bench");
+    armItem(SPACE, "lamp_post"); // re-arm to a DIFFERENT item — bench's price must come back
+    // Only lamp_post's own price is actually spent — bench's was refunded, not kept spent too.
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeAnyPurchase - lampPost.priceCents);
+    expect(treasuryBalanceCents(SPACE)).not.toBe(balanceBeforeAnyPurchase - bench.priceCents - lampPost.priceCents);
+  });
+
+  it("cancelArmedItem refunds the armed item's real price and clears the arm", () => {
+    const bench = PLACEABLE_ITEMS.find((i) => i.id === "bench")!;
+    fundTreasury(1000);
+    const balanceBeforePurchase = treasuryBalanceCents(SPACE);
+    armItem(SPACE, "bench");
+    expect(cancelArmedItem(SPACE)).toBe(true);
+    expect(armedItemId(SPACE)).toBeNull();
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforePurchase);
+  });
+
+  it("cancelArmedItem is a no-op, returning false, when nothing is armed", () => {
+    expect(cancelArmedItem(SPACE)).toBe(false);
   });
 
   it("places the armed item at a free tile, persists it, and clears the armed state", () => {

@@ -129,6 +129,28 @@ describe("zoning — the SimCity foundation under housing/business (zoning.md)",
     expect(isTileZonable(SPACE, 2, 1)).toBe(false);
   });
 
+  it("2026-09-15 audit fix — a tile a real placed home already occupies is never zonable, closing the re-zone-under-a-building exploit", () => {
+    // Same repro the audit found: zone residential, build a home, re-zone the same tile
+    // commercial (used to succeed with nothing stopping it), build a business on top of it.
+    // (10,10)-(12,11) is the same real open ground this suite's own zoneRectangle test above
+    // already confirmed is fully zonable — the home footprint sits inside it.
+    localStorage.setItem(
+      `brain.housing.placed.${SPACE}`,
+      JSON.stringify([{ id: "h1", typeId: "cottage", x0: 10, y0: 10, x1: 11, y1: 10, door: { x: 10, y: 10 }, builtAt: 0 }]),
+    );
+    expect(isTileZonable(SPACE, 10, 10)).toBe(false);
+    expect(isTileZonable(SPACE, 11, 10)).toBe(false); // every tile of the footprint, not just its corner
+    expect(isTileZonable(SPACE, 12, 10)).toBe(true); // one tile outside the footprint, same open row, is unaffected
+  });
+
+  it("2026-09-15 audit fix — a tile a real placed business already occupies is never zonable", () => {
+    localStorage.setItem(
+      `brain.business.placed.${SPACE}`,
+      JSON.stringify([{ id: "b1", typeId: "bakery", x0: 10, y0: 10, x1: 11, y1: 10, door: { x: 10, y: 10 }, builtAt: 0 }]),
+    );
+    expect(isTileZonable(SPACE, 10, 10)).toBe(false);
+  });
+
   it("a tile already zoned is still zonable — re-zoning is allowed", () => {
     armZoneType(SPACE, "commercial");
     zoneTileAt(SPACE, 15, 15);

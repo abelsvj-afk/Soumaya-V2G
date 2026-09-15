@@ -4,6 +4,7 @@ import {
   armHomeType,
   armedHomeTypeId,
   assignResidents,
+  cancelArmedHome,
   canAffordHome,
   clearArmedHome,
   homeForNpc,
@@ -13,7 +14,7 @@ import {
   placedHomes,
   residentsOfHome,
 } from "./housing.js";
-import { creditHour } from "./townLedger.js";
+import { creditHour, treasuryBalanceCents } from "./townLedger.js";
 import { armZoneType, zoneTileAt } from "./zoning.js";
 import { allSocietyNpcIds } from "./npcDialogue.js";
 
@@ -66,6 +67,31 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
     expect(armedHomeTypeId(SPACE)).toBe("duplex");
   });
 
+  it("simcity-economy-construction.md 2026-09-15 audit fix — re-arming a different home type refunds the first, never forfeits the money", () => {
+    const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
+    const duplex = HOME_TYPES.find((t) => t.id === "duplex")!;
+    fundTreasury(2000);
+    const balanceBeforeAnyPurchase = treasuryBalanceCents(SPACE);
+    armHomeType(SPACE, "cottage");
+    armHomeType(SPACE, "duplex"); // re-arm to a DIFFERENT type — cottage's price must come back
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeAnyPurchase - duplex.priceCents);
+    expect(treasuryBalanceCents(SPACE)).not.toBe(balanceBeforeAnyPurchase - cottage.priceCents - duplex.priceCents);
+  });
+
+  it("cancelArmedHome refunds the armed home type's real price and clears the arm", () => {
+    const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
+    fundTreasury(2000);
+    const balanceBeforePurchase = treasuryBalanceCents(SPACE);
+    armHomeType(SPACE, "cottage");
+    expect(cancelArmedHome(SPACE)).toBe(true);
+    expect(armedHomeTypeId(SPACE)).toBeNull();
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforePurchase);
+  });
+
+  it("cancelArmedHome is a no-op, returning false, when nothing is armed", () => {
+    expect(cancelArmedHome(SPACE)).toBe(false);
+  });
+
   it("a footprint on unzoned open ground is never buildable — zoning gates where a home can go", () => {
     // x=2..9,y=10..17 is real open ground, but nothing has been zoned residential yet.
     const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
@@ -103,6 +129,19 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
     placeArmedHome(SPACE, 2, 10);
     const duplex = HOME_TYPES.find((t) => t.id === "duplex")!; // 3x2 — would overlap at (3,11)
     expect(isFootprintFreeForHome(SPACE, 3, 11, duplex)).toBe(false);
+  });
+
+  it("2026-09-15 audit fix — a footprint overlapping an already-placed BUSINESS is no longer free either, closing the cross-type overlap exploit", () => {
+    zoneResidentialRect(2, 10, 9, 17);
+    // A real business footprint planted directly (bypassing zoning's own commercial gate,
+    // since this test's only concern is housing's own cross-category check, not how the
+    // business itself got there — zoning.test.ts covers the re-zoning half of this fix).
+    localStorage.setItem(
+      `brain.business.placed.${SPACE}`,
+      JSON.stringify([{ id: "b1", typeId: "bakery", x0: 2, y0: 10, x1: 3, y1: 11, door: { x: 2, y: 11 }, builtAt: 0 }]),
+    );
+    const cottage = HOME_TYPES.find((t) => t.id === "cottage")!; // 2x2 — exactly the business's own footprint
+    expect(isFootprintFreeForHome(SPACE, 2, 10, cottage)).toBe(false);
   });
 
   it("clearArmedHome clears without placing anything", () => {

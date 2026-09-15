@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CreatureEntity } from "../types.js";
 
 export interface CaptureMenuProps {
@@ -21,17 +21,30 @@ type Phase =
 export function CaptureMenu({ onSubmit, onClose }: CaptureMenuProps) {
   const [text, setText] = useState("");
   const [phase, setPhase] = useState<Phase>({ kind: "entry" });
+  // 2026-09-15 audit fix — a stalled `onSubmit` was a genuine dead end: "submitting" had no
+  // Cancel and there's no Escape handling anywhere in the Overworld, so reloading the page was
+  // the only way out. A ref (not state) survives the phase change Cancel makes, so the late
+  // network response is silently dropped instead of resurrecting a screen the player already left.
+  const cancelledRef = useRef(false);
 
   const submit = async () => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    cancelledRef.current = false;
     setPhase({ kind: "submitting" });
     try {
       const creature = await onSubmit(trimmed);
+      if (cancelledRef.current) return;
       setPhase({ kind: "reveal", creature });
     } catch (err) {
+      if (cancelledRef.current) return;
       setPhase({ kind: "error", message: err instanceof Error ? err.message : "Something went wrong." });
     }
+  };
+
+  const cancelSubmit = () => {
+    cancelledRef.current = true;
+    setPhase({ kind: "entry" }); // back to entry, not closed — the typed thought is kept
   };
 
   return (
@@ -50,6 +63,9 @@ export function CaptureMenu({ onSubmit, onClose }: CaptureMenuProps) {
         gap: 12,
         padding: 16,
         fontFamily: "monospace",
+        // 2026-09-15 audit fix — same z-index-layering bug as OverlayShell.tsx: this modal must
+        // out-rank the persistent TownHud/button-row (zIndex:1) rather than sit behind them.
+        zIndex: 10,
       }}
     >
       {phase.kind === "entry" && (
@@ -72,7 +88,14 @@ export function CaptureMenu({ onSubmit, onClose }: CaptureMenuProps) {
           </div>
         </>
       )}
-      {phase.kind === "submitting" && <p>🔍 identifying species...</p>}
+      {phase.kind === "submitting" && (
+        <>
+          <p>🔍 identifying species...</p>
+          <button type="button" onClick={cancelSubmit}>
+            Cancel
+          </button>
+        </>
+      )}
       {phase.kind === "reveal" && (
         <>
           {phase.creature ? (

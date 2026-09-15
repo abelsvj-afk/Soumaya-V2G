@@ -108,15 +108,16 @@ describe("HangarOverlay", () => {
       expect(screen.getAllByText("Armed")).toHaveLength(2); // Garden Bed AND Cottage, independent arm slots
     });
 
-    it("buying a second home type re-arms rather than queuing", () => {
-      for (let i = 0; i < 40; i++) creditHour("space-1", "bank");
+    it("buying a second home type re-arms rather than queuing, refunding the first (2026-09-15 audit fix)", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank"); // 40 * 25c = $10.00
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
       const cottageRow = screen.getByText(/Cottage — 1 resident/).closest("li")!;
       const duplexRow = screen.getByText(/Duplex — 2 residents/).closest("li")!;
-      fireEvent.click(cottageRow.querySelector("button")!);
-      fireEvent.click(duplexRow.querySelector("button")!);
+      fireEvent.click(cottageRow.querySelector("button")!); // $3.00 — $7.00 left
+      fireEvent.click(duplexRow.querySelector("button")!); // refunds $3.00 ($10.00), spends $5.00 — $5.00 left
       expect(screen.getByText("Duplex")).toBeTruthy();
-      expect(cottageRow.querySelector("button")?.textContent).toBe("Can't afford"); // never re-armed
+      // Cottage's own $3.00 came back — re-armable, never "Can't afford" from a forfeited spend.
+      expect(cottageRow.querySelector("button")?.textContent).toBe("Buy");
     });
 
     it("simcity-economy-construction.md — every home row shows a real image preview of what actually renders in-world, sized by footprint", () => {

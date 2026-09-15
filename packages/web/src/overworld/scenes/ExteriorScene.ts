@@ -80,6 +80,7 @@ import {
   placedBusinesses,
   type PlacedBusiness,
 } from "../data/business.js";
+import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "../data/placedStructures.js";
 import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier, type RelationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
@@ -102,9 +103,6 @@ const NPC_STEP_MS = 160;
  *  elapsed time even across a reload — the cycle LENGTH itself (CYCLE_TICKS * this) is
  *  unchanged from the original arcade-paced 60 real seconds. */
 const SOCIETY_TICK_MS = 1500;
-/** The passability rule NPC travel uses — real walls/objects/bounds, but not other attendants'
- *  fixed posts (npc-autonomy.md decision #2). One frozen object reused everywhere it's needed. */
-const NPC_PATH_GRID: MovementGrid = { width: REGION_WIDTH, height: REGION_HEIGHT, isPassable: isNpcPathPassable };
 /** The town square: a purely cosmetic dirt-path patch around the spawn/standalone objects —
  *  never touches collision, so it must stay inside `isMovementPassable`'s open ground. */
 const PLAZA: { x0: number; y0: number; x1: number; y1: number } = { x0: 10, y0: 8, x1: 16, y1: 11 };
@@ -281,6 +279,32 @@ export class ExteriorScene extends Phaser.Scene {
   private readTrailColor(): number {
     const saved = localStorage.getItem(hangarKeys(this.spaceId).trail) || "blue";
     return trailColorHex(saved);
+  }
+
+  /** 2026-09-15 audit fix — a real tile a placed home or business now occupies, checked live
+   *  (not cached, since what's built can change mid-session). Neither `isMovementPassable` nor
+   *  `isNpcPathPassable` (regionLayout.ts) ever knew about these — real placed structures, unlike
+   *  every other collision rule, are per-space player state rather than static world geometry,
+   *  so this stays a scene-level concern layered on top of them rather than a change to their
+   *  own pure, spaceId-agnostic signatures. Before this fix: the player could walk straight
+   *  through/into their own built home, and any creature/NPC could roam or path across it too. */
+  private isBlockedByPlacedStructure(x: number, y: number): boolean {
+    return (
+      isInsideAnyFootprint(placedHomeFootprints(this.spaceId), x, y) ||
+      isInsideAnyFootprint(placedBusinessFootprints(this.spaceId), x, y)
+    );
+  }
+
+  /** The passability rule NPC travel uses — real walls/objects/bounds, but not other attendants'
+   *  fixed posts (npc-autonomy.md decision #2), PLUS the placed-structure exclusion above.
+   *  Recomputed per access rather than a frozen module-level constant (its pre-2026-09-15-audit
+   *  shape) since it must reflect whatever the player has actually built by the time it's used. */
+  private get npcPathGrid(): MovementGrid {
+    return {
+      width: REGION_WIDTH,
+      height: REGION_HEIGHT,
+      isPassable: (x, y) => isNpcPathPassable(x, y) && !this.isBlockedByPlacedStructure(x, y),
+    };
   }
 
   preload(): void {
@@ -528,7 +552,7 @@ export class ExteriorScene extends Phaser.Scene {
     if (doors.length === 0) return;
     this.soumayaTourIndex = (this.soumayaTourIndex + 1) % doors.length;
     const destination = doors[this.soumayaTourIndex]!.door;
-    const path = findPath(soumaya.currentTile, destination, NPC_PATH_GRID);
+    const path = findPath(soumaya.currentTile, destination, this.npcPathGrid);
     if (!path) return;
     soumaya.walking = true;
     // Alternates real, visible variety, deterministic per stop (never Math.random, matching
@@ -1037,7 +1061,7 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.outingCount = sequence + 1;
     const destinationPlaceId = this.outingDestinationPlaceId(sequence);
     const destination = this.outingDestinationTile(sprite, sequence);
-    const outbound = findPath(this.spriteTile(sprite), destination, NPC_PATH_GRID);
+    const outbound = findPath(this.spriteTile(sprite), destination, this.npcPathGrid);
     if (!outbound) return; // genuinely unreachable — tolerate gracefully, just skip this outing
 
     // Stays in outingActive for the ENTIRE round trip (out, linger, AND back) — only cleared
@@ -1059,7 +1083,7 @@ export class ExteriorScene extends Phaser.Scene {
         // deletes from outingActive and kills the tween) — if so, there's nothing left to do.
         if (!this.outingActive.has(sprite.post.npcId)) return;
         this.outingArrivedAt.delete(sprite.post.npcId); // leaving — no longer a real encounter target
-        const inbound = findPath(destination, sprite.post.a, NPC_PATH_GRID);
+        const inbound = findPath(destination, sprite.post.a, this.npcPathGrid);
         if (!inbound) {
           // Couldn't route back — snap straight to post rather than leaving them stranded
           // visibly at an unreachable tile; Home stays visible now, so this can't just hide.
@@ -1237,7 +1261,7 @@ export class ExteriorScene extends Phaser.Scene {
 
   private sendToMeeting(sprite: AttendantSprite, slot: GridPosition): void {
     if (sprite.atMeeting) return; // already on their way from a very recent double-fire
-    const outbound = findPath(this.spriteTile(sprite), slot, NPC_PATH_GRID);
+    const outbound = findPath(this.spriteTile(sprite), slot, this.npcPathGrid);
     if (!outbound) return; // genuinely unreachable — tolerate gracefully, this one NPC just stays put
 
     // A real gathering always wins over an in-flight outing.
@@ -1256,7 +1280,7 @@ export class ExteriorScene extends Phaser.Scene {
       this.time.delayedCall(holdMs, () => {
         icon.destroy();
         const resting = this.restingTileFor(sprite);
-        const inbound = findPath(slot, resting.tile, NPC_PATH_GRID);
+        const inbound = findPath(slot, resting.tile, this.npcPathGrid);
         if (!inbound) {
           sprite.atMeeting = false;
           sprite.image.setVisible(resting.visible);
@@ -1413,7 +1437,7 @@ export class ExteriorScene extends Phaser.Scene {
       { x: home.x, y: home.y + 1 },
       { x: home.x, y: home.y - 1 },
     ];
-    return candidates.filter((t) => isMovementPassable(t.x, t.y));
+    return candidates.filter((t) => isMovementPassable(t.x, t.y) && !this.isBlockedByPlacedStructure(t.x, t.y));
   }
 
   /** Wanders the creature between its cage tiles on a slow, desynced timer — a no-op (stays
@@ -1497,7 +1521,10 @@ export class ExteriorScene extends Phaser.Scene {
     const result = tryMove(this.movement, event.direction, {
       width: REGION_WIDTH,
       height: REGION_HEIGHT,
-      isPassable: isMovementPassable,
+      // 2026-09-15 audit fix — isMovementPassable alone never knew about real placed homes/
+      // businesses (per-space player state, not static world geometry), so the player could
+      // walk straight through/into a structure they'd just built.
+      isPassable: (x, y) => isMovementPassable(x, y) && !this.isBlockedByPlacedStructure(x, y),
     });
     this.movement = result.state;
     if (!result.moved) return;

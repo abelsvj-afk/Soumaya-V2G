@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   creditHour,
   hoursWorked,
+  refundToTreasury,
   revenueForPriceCents,
   spendFromTreasury,
   townTreasuryEarnedCents,
@@ -107,6 +108,33 @@ describe("townLedger (cosmetic only — never real finance/Fuel)", () => {
       creditHour("space-1", "bank");
       expect(spendFromTreasury("space-1", 0)).toBe(false);
       expect(spendFromTreasury("space-1", -10)).toBe(false);
+    });
+  });
+
+  describe("2026-09-15 audit fix — refundToTreasury, the exact inverse of spendFromTreasury", () => {
+    it("gives real spent cents back, restoring the exact balance from before the spend", () => {
+      creditHour("space-1", "bank");
+      const balanceBeforeSpend = treasuryBalanceCents("space-1");
+      spendFromTreasury("space-1", 25);
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeSpend - 25);
+      refundToTreasury("space-1", 25);
+      expect(treasuryBalanceCents("space-1")).toBe(balanceBeforeSpend);
+    });
+
+    it("never inflates the balance beyond what was ever actually spent — floors at zero spent", () => {
+      creditHour("space-1", "bank");
+      const fullBalance = treasuryBalanceCents("space-1");
+      refundToTreasury("space-1", 999_999); // nothing was ever spent — a runaway refund is a no-op past zero
+      expect(treasuryBalanceCents("space-1")).toBe(fullBalance);
+    });
+
+    it("is a no-op for a zero or negative amount", () => {
+      creditHour("space-1", "bank");
+      spendFromTreasury("space-1", 25);
+      const balanceAfterSpend = treasuryBalanceCents("space-1");
+      refundToTreasury("space-1", 0);
+      refundToTreasury("space-1", -10);
+      expect(treasuryBalanceCents("space-1")).toBe(balanceAfterSpend);
     });
   });
 });

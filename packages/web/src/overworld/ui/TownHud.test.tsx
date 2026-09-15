@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { TownHud } from "./TownHud.js";
-import { creditHour } from "../data/townLedger.js";
+import { creditHour, treasuryBalanceCents } from "../data/townLedger.js";
 import { armedZoneType, armZoneType } from "../data/zoning.js";
+import { armedItemId, armItem } from "../data/townBuilder.js";
+import { armedHomeTypeId, armHomeType } from "../data/housing.js";
+import { armedBusinessTypeId, armBusinessType } from "../data/business.js";
 
 describe("TownHud (town-hud.md)", () => {
   beforeEach(() => localStorage.clear());
@@ -45,5 +48,49 @@ describe("TownHud (town-hud.md)", () => {
     render(<TownHud spaceId="space-1" fuel={null} streak={null} onZoningStopped={onZoningStopped} />);
     fireEvent.click(screen.getByText("Stop"));
     expect(onZoningStopped).toHaveBeenCalledTimes(1);
+  });
+
+  describe("2026-09-15 audit fix — the other 3 arm modes (town-builder item, home, business) get the same chip + refunding Stop button zoning already had", () => {
+    it("shows an armed town-builder item and a Stop button that refunds it", () => {
+      for (let i = 0; i < 10; i++) creditHour("space-1", "bank"); // 10 * 25c = $2.50
+      armItem("space-1", "garden_bed"); // $0.80
+      const balanceAfterArm = treasuryBalanceCents("space-1");
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText(/Placing: Garden Bed/)).toBeTruthy();
+      fireEvent.click(screen.getByText("Stop"));
+      expect(screen.queryByText(/Placing:/)).toBeNull();
+      expect(armedItemId("space-1")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBeGreaterThan(balanceAfterArm); // real refund, not forfeited
+    });
+
+    it("shows an armed home type and a Stop button that refunds it", () => {
+      for (let i = 0; i < 20; i++) creditHour("space-1", "bank"); // $5.00
+      armHomeType("space-1", "cottage"); // $3.00
+      const balanceAfterArm = treasuryBalanceCents("space-1");
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText(/Building: Cottage/)).toBeTruthy();
+      fireEvent.click(screen.getByText("Stop"));
+      expect(screen.queryByText(/Building:/)).toBeNull();
+      expect(armedHomeTypeId("space-1")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBeGreaterThan(balanceAfterArm);
+    });
+
+    it("shows an armed business type and a Stop button that refunds it", () => {
+      for (let i = 0; i < 20; i++) creditHour("space-1", "bank"); // $5.00
+      armBusinessType("space-1", "bakery"); // $4.00
+      const balanceAfterArm = treasuryBalanceCents("space-1");
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.getByText(/Building: Bakery/)).toBeTruthy();
+      fireEvent.click(screen.getByText("Stop"));
+      expect(screen.queryByText(/Building:/)).toBeNull();
+      expect(armedBusinessTypeId("space-1")).toBeNull();
+      expect(treasuryBalanceCents("space-1")).toBeGreaterThan(balanceAfterArm);
+    });
+
+    it("shows no item/home/business chip when nothing is armed", () => {
+      render(<TownHud spaceId="space-1" fuel={null} streak={null} />);
+      expect(screen.queryByText(/Placing:/)).toBeNull();
+      expect(screen.queryByText(/Building:/)).toBeNull();
+    });
   });
 });

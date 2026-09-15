@@ -31,12 +31,14 @@ describe("BulletinBoardOverlay", () => {
     expect(screen.queryByText("Untouched memory")).toBeNull();
   });
 
-  it("turning in a quest deletes it and refreshes", async () => {
+  it("turning in a quest deletes it and refreshes, behind a real confirm step (2026-09-15 audit fix)", async () => {
     const { deleteNode } = await import("../../api/client.js");
     const refresh = vi.fn();
     const graph: GraphData = { nodes: [makeNode({ id: 1, kind: "action", label: "Call the bank" })], links: [] };
     render(<BulletinBoardOverlay graph={graph} spaceId="space-1" onClose={vi.fn()} refresh={refresh} />);
     fireEvent.click(screen.getByText("Turn in"));
+    expect(deleteNode).not.toHaveBeenCalled(); // the first tap only arms the confirm, never turns it in
+    fireEvent.click(screen.getByText("Really turn in?"));
     await waitFor(() => expect(deleteNode).toHaveBeenCalledWith(1));
     await waitFor(() => expect(refresh).toHaveBeenCalled());
   });

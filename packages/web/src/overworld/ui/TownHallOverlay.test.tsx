@@ -165,6 +165,20 @@ describe("TownHallOverlay", () => {
       expect(screen.getByLabelText("Delete My own chapter")).toBeTruthy();
     });
 
+    it("2026-09-15 audit fix — deleting a chapter is behind a real confirm step, never a single tap", async () => {
+      const { getJourneys } = await import("../../api/journeys.js");
+      (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+      const { getTimeline, deleteTimelineChapter } = await import("../../api/client.js");
+      (getTimeline as ReturnType<typeof vi.fn>).mockResolvedValue([makeChapter({ id: 2, title: "My own chapter", origin: "user" })]);
+      (deleteTimelineChapter as ReturnType<typeof vi.fn>).mockResolvedValue(true);
+      render(<TownHallOverlay spaceId="space-1" graph={EMPTY_GRAPH} onClose={vi.fn()} />);
+      await waitFor(() => expect(screen.getByText(/My own chapter/)).toBeTruthy());
+      fireEvent.click(screen.getByLabelText("Delete My own chapter"));
+      expect(deleteTimelineChapter).not.toHaveBeenCalled(); // the first tap only arms the confirm
+      fireEvent.click(screen.getByText("Really delete?"));
+      await waitFor(() => expect(deleteTimelineChapter).toHaveBeenCalledWith(2));
+    });
+
     it("marking a chapter now calls the real addTimelineChapter and refreshes the list", async () => {
       const { getJourneys } = await import("../../api/journeys.js");
       (getJourneys as ReturnType<typeof vi.fn>).mockResolvedValue([]);
