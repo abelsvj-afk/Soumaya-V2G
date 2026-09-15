@@ -253,6 +253,19 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #85 — Sanctuary edit/delete + full person-profile view (2026-09-15), not yet
+  on-device confirmed** — closes the one deferral the 2026-09-13 overlay-quality-parity audit
+  left open. `SanctuaryOverlay.tsx` now takes a real `graph` prop and lists every confirmed
+  person node under a new "Known people" section (distinct from the existing unconfirmed-name
+  "Suggested people" list) — tapping "View profile" expands the real `getPersonProfile(id)`
+  result inline (count/tone/last-contact/interaction history), no new navigation pattern
+  invented. "Let go" (a genuine server-side thought delete) now goes through the same real
+  `ConfirmButton` two-tap pattern every other destructive action already uses — the one
+  overlay the 2026-09-15 audit's confirm-pattern pass had missed. Editing a thought's own text
+  deliberately stays unwired, matching the "no raw text editing anywhere in the Overworld"
+  convention. Verified by 4 new `SanctuaryOverlay.test.tsx` cases + the full gate (1066 server +
+  561 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **The full "RTS Pack: Medieval" added; a real parking-lot apron wired in (2026-09-15), not yet
   on-device confirmed** — direct response to "add all those other assets you showed me. All of
   them," a follow-up to the vehicle-art research pass below. Added the full Kenney "RTS Pack:

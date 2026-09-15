@@ -514,7 +514,9 @@ export function OverworldRoot() {
       {overlay.kind === "library" && snapshot && (
         <LibraryOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} />
       )}
-      {overlay.kind === "sanctuary" && <SanctuaryOverlay spaceId={spaceId} onClose={closeOverlay} />}
+      {overlay.kind === "sanctuary" && snapshot && (
+        <SanctuaryOverlay spaceId={spaceId} graph={snapshot.graph} onClose={closeOverlay} />
+      )}
       {overlay.kind === "bulletinBoard" && snapshot && (
         <BulletinBoardOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} refresh={refresh} />
       )}

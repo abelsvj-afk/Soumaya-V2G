@@ -1926,6 +1926,34 @@ pure logic was added (the apron position is one line of arithmetic inside Phaser
 code, same convention as every other in-world marker in this file) — not yet seen rendered in a
 real browser from this sandbox.
 
+## Stage 2.56 — Backlog #85: Sanctuary edit/delete + full person-profile view
+
+Direct answer to backlog #85 (task #117), closing the one deferral the 2026-09-13
+overlay-quality-parity audit left open in `SanctuaryOverlay.tsx`. Two real gaps, both already
+resolved in that audit's own doc: `getPersonProfile` had zero call sites (a full profile view
+needed a navigation pattern the app didn't have yet), and "Let go" — a genuine server-side
+`DELETE /working/:id` — was a single unconfirmed click, the one destructive action in this
+overlay the 2026-09-15 `ConfirmButton` pass had missed.
+
+Shipped: `SanctuaryOverlay` now takes a real `graph: GraphData` prop (wired from
+`OverworldRoot.tsx`'s existing snapshot) and lists every confirmed person node
+(`graph.nodes.filter(n => n.type === "person")`) under a new "Known people" section, distinct
+from the existing "Suggested people" (unconfirmed name mentions, renamed from the old bare
+"People" heading for clarity). Tapping "View profile" expands the real `getPersonProfile(id)`
+result inline (interaction count, tone, last-contact date, the interaction list) — no new
+navigation pattern, no modal-on-modal, just an inline expand/collapse. "Let go" now goes through
+the same real `ConfirmButton` two-tap pattern every other destructive action in this app already
+uses. Editing a thought's own text (`editThought`, a real API function with zero callers)
+deliberately stays unwired — thoughts are meant to be captured and evolve via reinforcement, not
+hand-edited, matching the "no raw text editing anywhere in the Overworld" convention confirmed
+across every other overlay before this decision was finalized.
+
+Verified by 4 new `SanctuaryOverlay.test.tsx` cases (the confirm-tap gate really blocks the first
+click; confirmed person nodes list separately from suggestions; tapping View profile calls
+`getPersonProfile` with the real node id and renders its real fields; a person node never leaks
+into the suggestions list) plus the full gate (1066 server + 561 web tests, typecheck, build).
+Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

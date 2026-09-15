@@ -1,3 +1,21 @@
+### 2026-09-15 (Claude): Backlog #85 — Sanctuary edit/delete + person profile (task #117, complete)
+- [ ] Verified by Claude
+- Direct continuation of "keep going through the list" — closes the one deferral the 2026-09-13
+  overlay-quality-parity audit left open in `SanctuaryOverlay.tsx`.
+- `SanctuaryOverlay` now takes a real `graph: GraphData` prop (wired from `OverworldRoot.tsx`'s
+  existing snapshot) and lists every confirmed person node under a new "Known people" section,
+  distinct from the existing "Suggested people" (unconfirmed name mentions, renamed from the old
+  bare "People" heading).
+- Tapping "View profile" expands the real `getPersonProfile(id)` result inline (interaction
+  count, tone, last-contact date, interaction history) — no new navigation pattern, just an
+  inline expand/collapse.
+- "Let go" (a genuine server-side `DELETE /working/:id`) now goes through the same real
+  `ConfirmButton` two-tap pattern every other destructive action in this app already uses.
+- Editing a thought's own text deliberately stays unwired — thoughts are meant to be captured and
+  evolve via reinforcement, not hand-edited, matching this app's "no raw text editing" convention.
+- Verified by 4 new `SanctuaryOverlay.test.tsx` cases and the full gate (1066 server + 561 web
+  tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-15 (Claude): Full "RTS Pack: Medieval" added; a real parking-lot apron wired in
 - [ ] Verified by Claude
 - Direct response to "add all those other assets you showed me. All of them" — a follow-up to
