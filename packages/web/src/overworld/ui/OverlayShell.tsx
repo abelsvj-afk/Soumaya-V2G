@@ -1,4 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { color, panelShadow, radius, spacing } from "./theme.js";
 
 export interface OverlayShellProps {
   icon: string;
@@ -22,6 +23,13 @@ export interface OverlayShellProps {
  * of redesigning each one independently. Deliberately still a system monospace font (no new
  * font dependency — CLAUDE.md's "don't add dependencies casually" — the win here is layout,
  * color, and depth, not typography sourcing).
+ *
+ * Pro-design pass (wave4-full-vision.md §B/#111) — every color here now comes from `theme.ts`,
+ * the code side of the Figma design system (https://www.figma.com/design/Max8E6fAzoFZhV0sWCISMg)
+ * built from this exact palette. Three real, visible upgrades ported from that Figma component,
+ * not a re-skin: (1) the icon sits in a bordered badge instead of floating bare next to the
+ * title, (2) a real accent line under the header, (3) a genuine two-layer depth shadow
+ * (`panelShadow`) instead of one flat hard offset.
  */
 export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children }: OverlayShellProps) {
   return (
@@ -35,7 +43,7 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
         alignItems: "center",
         justifyContent: "center",
         padding: 12,
-        background: "rgba(6, 7, 16, 0.6)",
+        background: color.scrim,
         // 2026-09-15 audit fix — TownHud/the Settings-track-mute button row both sit at
         // zIndex:1 (OverworldRoot.tsx, TownHud.tsx) and default z-index:auto (this overlay's
         // old value) always paints BELOW an explicit positive z-index regardless of DOM order,
@@ -53,10 +61,10 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
           maxHeight: 560,
           display: "flex",
           flexDirection: "column",
-          background: "#1b1d3a",
-          border: "3px solid #4a4d7a",
-          borderRadius: 10,
-          boxShadow: "0 6px 0 rgba(0,0,0,0.35), 0 0 0 1px #0c0e1f inset",
+          background: color.panelBg,
+          border: `3px solid ${color.panelBorder}`,
+          borderRadius: radius.md,
+          boxShadow: panelShadow,
           overflow: "hidden",
         }}
       >
@@ -64,25 +72,40 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            padding: "10px 14px",
-            background: "#2a2d5c",
-            borderBottom: "3px solid #4a4d7a",
+            gap: spacing.sm + 2,
+            padding: `${spacing.md - 2}px ${spacing.lg - 2}px`,
+            background: color.headerBg,
             flexShrink: 0,
           }}
         >
-          <span aria-hidden="true" style={{ fontSize: 18, lineHeight: 1 }}>
+          <span
+            aria-hidden="true"
+            style={{
+              fontSize: 16,
+              lineHeight: 1,
+              width: 30,
+              height: 30,
+              flexShrink: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              background: color.panelBg,
+              border: `2px solid ${color.panelBorder}`,
+              borderRadius: radius.sm,
+            }}
+          >
             {icon}
           </span>
-          <h2 style={{ margin: 0, fontSize: 15, color: "#f4f1ff", fontFamily: "monospace", letterSpacing: 0.5 }}>
+          <h2 style={{ margin: 0, fontSize: 15, color: color.textTitle, fontFamily: "monospace", letterSpacing: 0.5 }}>
             {title}
           </h2>
         </div>
+        <div aria-hidden="true" style={{ height: 3, flexShrink: 0, background: color.buttonBorder }} />
         <div
           style={{
-            padding: 14,
+            padding: spacing.md + 2,
             overflowY: "auto",
-            color: "#e7e5ff",
+            color: color.textBody,
             fontFamily: "monospace",
             fontSize: 13,
             flex: 1,
@@ -91,7 +114,14 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
         >
           {children}
         </div>
-        <div style={{ padding: "10px 14px", borderTop: "2px solid #33356b", background: "#181a35", flexShrink: 0 }}>
+        <div
+          style={{
+            padding: `${spacing.md - 2}px ${spacing.lg - 2}px`,
+            borderTop: `2px solid ${color.footerBorder}`,
+            background: color.footerBg,
+            flexShrink: 0,
+          }}
+        >
           {footer ?? (
             <button type="button" onClick={onClose} style={leaveButtonStyle}>
               Leave
@@ -106,10 +136,10 @@ export function OverlayShell({ icon, title, ariaLabel, onClose, footer, children
 export const leaveButtonStyle: CSSProperties = {
   width: "100%",
   padding: "8px 0",
-  background: "#3d4080",
-  color: "#f4f1ff",
-  border: "2px solid #5a5db0",
-  borderRadius: 6,
+  background: color.buttonBg,
+  color: color.buttonText,
+  border: `2px solid ${color.buttonBorder}`,
+  borderRadius: radius.sm,
   fontFamily: "monospace",
   fontSize: 13,
   fontWeight: 700,
@@ -123,10 +153,10 @@ export const leaveButtonStyle: CSSProperties = {
 export function actionButtonStyle(disabled?: boolean): CSSProperties {
   return {
     padding: "6px 12px",
-    background: "#3d4080",
-    color: "#f4f1ff",
-    border: "2px solid #5a5db0",
-    borderRadius: 6,
+    background: color.buttonBg,
+    color: color.buttonText,
+    border: `2px solid ${color.buttonBorder}`,
+    borderRadius: radius.sm,
     fontFamily: "monospace",
     fontSize: 12,
     fontWeight: 700,
@@ -166,7 +196,7 @@ export function ConfirmButton({
             setArmed(false);
             onConfirm();
           }}
-          style={{ ...actionButtonStyle(false), background: "#7a2d3d", borderColor: "#c0596e" }}
+          style={{ ...actionButtonStyle(false), background: color.dangerBg, borderColor: color.dangerBorder }}
         >
           {confirmLabel}
         </button>
@@ -185,10 +215,10 @@ export function ConfirmButton({
 
 /** A text input/textarea styled to match the shell rather than the browser's bare default. */
 export const fieldStyle: CSSProperties = {
-  background: "#12142a",
-  color: "#f4f1ff",
-  border: "2px solid #3a3d70",
-  borderRadius: 6,
+  background: color.fieldBg,
+  color: color.textTitle,
+  border: `2px solid ${color.fieldBorder}`,
+  borderRadius: radius.sm,
   padding: "6px 8px",
   fontFamily: "monospace",
   fontSize: 13,

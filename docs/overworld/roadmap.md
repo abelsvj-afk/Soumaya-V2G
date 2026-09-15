@@ -1659,6 +1659,31 @@ List Row component, and — the largest remaining piece — translating this sys
 15+ overlay React components in code. No repo code changed this round (Figma-only); the existing
 gate (1066 server + 530 web tests, typecheck, build) is unaffected.
 
+## Stage 2.48 — Wave 4c: pro-design rollout to code, starting with the shared shell
+
+Direct continuation of Stage 2.47 — translating the Figma design system into actual code. New
+`overworld/ui/theme.ts` is the code side of that Figma file: every value in it is named and
+valued 1:1 with the Figma Color/Spacing/Radius variable collections, not a separate palette.
+
+`OverlayShell.tsx` — the single shared component EVERY "walked into a place" overlay already
+routes through — now imports from `theme.ts` and carries the same 3 real upgrades the Figma
+reference component demonstrated: (1) the icon sits in a bordered badge instead of floating bare
+next to the title, (2) a real accent line under the header, (3) a genuine two-layer depth shadow
+(`panelShadow`) replacing the old single flat hard offset. Because every overlay already renders
+through this one shell (the same precedent Stage 2.14's original redesign used), this single
+change visually lifts all 15+ overlays at once rather than needing a per-overlay pass.
+
+**Deliberately not attempted this round**: the handful of overlays with bespoke layout beyond
+the shell itself (Hangar's multi-section catalog list rows, Observatory's dashboard, Mayor's
+Hall's data tables) still use their own ad hoc inline colors rather than `theme.ts` tokens —
+tracked as the remaining piece of task #111, its own follow-up pass. A Button variant set and
+List Row component (also deferred from Stage 2.47) would make that follow-up mechanical rather
+than another hand-rolled pass per overlay.
+
+Verified by the existing `OverlayShell.test.tsx` suite (9 cases, all passing unmodified — this
+was a visual/token change, not a behavior change) and the full gate (1066 server + 530 web
+tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Wave 4c — pro-design rollout to code, starting with the shared shell (2026-09-15), not yet
+  on-device confirmed** — direct continuation of Wave 4b, translating the Figma design system
+  into actual code. New `overworld/ui/theme.ts` is the code side of that Figma file — every
+  value named/valued 1:1 with its Color/Spacing/Radius variable collections. `OverlayShell.tsx`
+  (the single shared component EVERY "walked into a place" overlay already routes through) now
+  imports from `theme.ts` and carries the 3 real upgrades the Figma reference component
+  demonstrated: an icon badge instead of a bare emoji, a real accent line under the header, and
+  a genuine two-layer depth shadow replacing the old flat one. Because all 15+ overlays already
+  share this one shell (same precedent Stage 2.14's original redesign used), this single change
+  lifts all of them at once. Deliberately not attempted this round: the handful of overlays with
+  bespoke layout beyond the shell (Hangar's catalog rows, Observatory's dashboard, Mayor's
+  Hall's data tables) still use ad hoc inline colors — the remaining piece of task #111, its own
+  follow-up pass. Verified by the existing `OverlayShell.test.tsx` suite (9 cases, unmodified —
+  a visual/token change, not a behavior change) and the full gate (1066 server + 530 web tests,
+  typecheck, build). Not yet seen rendered in a real browser from this sandbox.
+
 - **Wave 4b — Figma design system v1 foundation (2026-09-15), not a code change, not yet applied
   to any overlay** — direct response to "all overlays need to be pro designed... use Figma MCP
   where necessary." Built via `use_figma` (Figma MCP) following the `figma-generate-library`
