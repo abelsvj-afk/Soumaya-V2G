@@ -1,3 +1,28 @@
+### 2026-09-15 (Claude): City-builder depth — zoom, door highlighting, vehicle art sourced (partial)
+- [ ] Verified by Claude
+- Direct response to a detailed request for city-builder-style depth: camera zoom, highlighted
+  doors, per-building ground art (parking lots etc.), roads with NPC-width sidewalks, and a
+  transportation system starting with a horse-drawn carriage. Resolved in
+  `docs/overworld/city-builder-depth.md` per Rule #1.
+- Asset research first: searched the same trusted CC0 aggregator behind every existing building/
+  tile (1101 cataloged packs) for horse-drawn/dragon-drawn carriage art. Found and shipped a real
+  horse-drawn covered wagon illustration (OpenGameArt "Caravan," CC0) plus two matching signs
+  from the same author/style family, copied to `public/overworld/vehicles/wagon.png` and
+  `public/overworld/decor/{road-sign,crossroads-sign}.png`; `CREDITS.md` updated. Confirmed no
+  usable dragon-carriage art or animated horse-cart spritesheet exists anywhere reachable — per
+  the user's own direction, shipped the real wagon now and explicitly deferred a dragon carriage/
+  further vehicle tiers until real matching art exists.
+- Shipped this round: mouse-wheel camera zoom (clamped 0.4-1x, smoothly tweened, instant under
+  reduced motion) with matching 🔍-/🔍+ touch buttons (touch has no wheel event); a real,
+  non-color-only 🚪 door marker (gently pulsing) at each of the 12 static door-buildings.
+  Deliberately not added to player-built businesses — their door tile already has a real
+  type-glyph/🚧 badge a second marker would collide with, not complement.
+- Per-building ground art, real roads/sidewalks, and the wagon travel system are specced but not
+  yet built (each its own follow-up round); the 3 new vehicle/decor assets are staged in
+  `public/` for that work, confirmed present in the build output.
+- Verified by the full gate (1066 server + 557 web tests, typecheck, build). Not yet seen
+  rendered in a real browser.
+
 ### 2026-09-15 (Claude): Backlog #82 — NPC mote awareness (task #115, complete)
 - [ ] Verified by Claude
 - Direct continuation of "keep going through the list" — extends the existing Break-time

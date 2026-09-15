@@ -47,6 +47,22 @@ being a different art style or too specifically themed to read as a generic buil
 home-style match was found in this pass; the type-glyph badge remains the distinguishing cue
 there, same as before.
 
+**`overworld/vehicles/wagon.png`, `overworld/decor/road-sign.png`, `overworld/decor/
+crossroads-sign.png`** — a real horse-drawn covered wagon illustration plus two matching
+wayfinding signs (`docs/overworld/city-builder-depth.md`, direct response to a request for a
+transportation system "like city builder games"). Same aggregator/license family as every
+building illustration above — OpenGameArt "Caravan" ([source](https://opengameart.org/content/
+caravan)), "Road sign" ([source](https://opengameart.org/content/road-sign)), and "Crossroads
+sign" ([source](https://opengameart.org/content/crossroads-sign)), all **CC0 (public domain)**,
+via https://github.com/Tiddybub/2d-assets — the same author/style family as the caravan, so they
+read as one cohesive set. Investigated first, not guessed: no dragon-carriage sprite (2D or
+otherwise usable) and no animated horse-cart spritesheet exist in any CC0 source reachable from
+this sandbox — the only dragon asset found (`oga-dragon`) is an unlit grey 3D clay render,
+unusable without real texturing this session can't do blind, and Kenney's "RPG Urban Pack" (the
+only pack with animated vehicle sprites) is modern-city car art, a real style clash with this
+game's fantasy illustration mix. Per the user's own direction: ship the real wagon now; a dragon
+carriage or further vehicle tiers stay explicitly deferred until real matching art exists.
+
 ## Overworld music
 
 **`ambient-loop.mp3`, `interstellar.mp3`, `slow-tide.mp3`** — the same 3 tracks the old 3D
