@@ -758,8 +758,8 @@ export class ExteriorScene extends Phaser.Scene {
     this.renderPlacedHomes();
   }
 
-  /** Business type-glyph, distinct per type so all 3 stay tellable apart even though every
-   *  business reuses the same ARCHED_HALL illustration (never color-only). */
+  /** Business type-glyph — each type now also has its own distinct illustration (backlog #78),
+   *  but the badge stays as a second, non-color cue rather than relying on silhouette alone. */
   private businessGlyphFor(typeId: string): string {
     return businessTypeById(typeId)?.icon ?? "🏪";
   }
@@ -769,9 +769,10 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** Draws a real placed business the same way a real placed home is drawn (paintPlacedHome's
-   *  own twin) — the ARCHED_HALL illustration scaled to the business's own footprint, plus a
-   *  type-glyph badge at its door tile. simcity-economy-construction.md (task #87) — same
-   *  under-construction dimming + 🚧 badge, updated in place once complete, as paintPlacedHome. */
+   *  own twin) — a real illustration distinct per business type (backlog #78,
+   *  businessBuildingSprite()) scaled to the business's own footprint, plus a type-glyph badge
+   *  at its door tile. simcity-economy-construction.md (task #87) — same under-construction
+   *  dimming + 🚧 badge, updated in place once complete, as paintPlacedHome. */
   private paintPlacedBusiness(business: PlacedBusiness): void {
     const underConstruction = isUnderConstruction(business);
     const existing = this.placedBusinessSprites.get(business.id);
@@ -780,7 +781,7 @@ export class ExteriorScene extends Phaser.Scene {
       this.placedBusinessBadges.get(business.id)?.setText(underConstruction ? "🚧" : this.businessGlyphFor(business.typeId));
       return; // the building image itself never moves once built — only its visuals may update
     }
-    const sprite = businessBuildingSprite();
+    const sprite = businessBuildingSprite(business.typeId);
     const width = (business.x1 - business.x0 + 1) * TILE_SIZE;
     const height = (business.y1 - business.y0 + 1) * TILE_SIZE;
     const image = this.add.image(business.x0 * TILE_SIZE + width / 2, business.y0 * TILE_SIZE + height / 2, sprite.key);

@@ -29,14 +29,14 @@ import { actionButtonStyle, ConfirmButton, fieldStyle, OverlayShell } from "./Ov
 import { color } from "./theme.js";
 
 const HOME_SPRITE_URL = homeBuildingSprite().url;
-const BUSINESS_SPRITE_URL = businessBuildingSprite().url;
 
 /** A real preview of what gets placed in the world — the exact same illustration
  *  ExteriorScene.ts actually renders for a built home/business (buildingSprites.ts), scaled by
  *  each type's own real footprint so a bigger building visibly previews bigger
- *  (simcity-economy-construction.md decision #4). Every type in a category shares one
- *  illustration honestly (that's what really renders in-world); the type-glyph badge already
- *  distinguishes them, both here and in the world. */
+ *  (simcity-economy-construction.md decision #4). Housing still shares one illustration across
+ *  its 4 types (task #78 didn't find a good additional CC0 home-style match — the type-glyph
+ *  badge distinguishes them instead); Business now previews each type's own real distinct
+ *  illustration (backlog #78, businessBuildingSprite(typeId)). */
 function BuildingPreview({ url, width, height }: { url: string; width: number; height: number }) {
   return (
     <img
@@ -419,7 +419,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const isArmed = armedBusiness === type.id;
           return (
             <li key={type.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
-              <BuildingPreview url={BUSINESS_SPRITE_URL} width={type.width} height={type.height} />
+              <BuildingPreview url={businessBuildingSprite(type.id).url} width={type.width} height={type.height} />
               <span aria-hidden="true">{type.icon}</span>
               <span style={{ flex: 1 }}>
                 {type.name} — {formatCents(type.priceCents)}

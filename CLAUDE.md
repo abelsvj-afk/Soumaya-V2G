@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #78 — distinct art for business types (2026-09-15), not yet on-device confirmed** —
+  every business type (Bakery/Tailor/Bookshop) previously shared the exact same illustration
+  Market/Library/Sanctuary already use — the most confusing art overlap the original audit
+  flagged. Sourced 3 more real CC0 illustrations (OpenGameArt "Inn"/"Tavern"/"Warehouse", CC0
+  confirmed per-pack) from the same trusted aggregator already used for the 5 existing building
+  sprites — investigated first: browsed the aggregator's `fantasy/` category, visually compared
+  several candidates against the existing painterly stone/wood style, rejected ones that were a
+  different art style or too specifically themed. `businessBuildingSprite()` now takes the real
+  business `typeId` and returns a distinct sprite per type (Bakery→Inn, Tailor→Tavern,
+  Bookshop→Warehouse), wired through `ExteriorScene.ts` and `HangarOverlay.tsx`'s catalog
+  preview. Housing's 4 types still share one illustration — no equally good CC0 home-style
+  candidate found this pass, an honest partial result rather than a forced fit. Verified by 3
+  new `buildingSprites.test.ts` cases, 1 updated + 1 new `HangarOverlay.test.tsx` case, and the
+  full gate (1066 server + 534 web tests, typecheck, build) — build output confirmed to include
+  all 3 new assets. Not yet seen rendered in a real browser from this sandbox.
+
 - **Wave 4d — theme rollout finished, every overlay, task #111 closed (2026-09-15), not yet
   on-device confirmed** — direct continuation of Wave 4c, closing the "bespoke overlays still
   hardcoded" gap that round deliberately deferred. Grepped every file in `overworld/ui/` for

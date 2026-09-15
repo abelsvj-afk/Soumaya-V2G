@@ -1714,6 +1714,34 @@ hardcoded hex colors in `overworld/ui/` after the fix confirms only `theme.ts` i
 source of truth) and the two deliberately-out-of-scope HUD files remain. Not yet seen rendered
 in a real browser from this sandbox.
 
+## Stage 2.50 — Backlog #78: distinct art for business types
+
+Direct answer to backlog #78 (wave4-full-vision.md §C.1). Every business type (Bakery/Tailor/
+Bookshop) previously shared the exact same ARCHED_HALL illustration Market/Library/Sanctuary
+already use — the most confusing overlap flagged in the original audit. Sourced 3 more real CC0
+illustrations from the same trusted aggregator (`github.com/Tiddybub/2d-assets`) already used
+for the 5 existing building sprites: OpenGameArt "Inn," "Tavern," and "Warehouse," all confirmed
+CC0 via each pack's own `SOURCE.md` before use. Investigated first, not guessed: browsed the
+full aggregator's `fantasy/` category for building-shaped packs, visually compared several
+candidates (a fisherman's stilt house, a hunter's tent, a village scene, a townhall) against the
+existing painterly stone/wood style, and rejected the ones that were either a different art
+style or too specifically themed to read as a generic building — only kept the 3 that were a
+real, checked visual match.
+
+`buildingSprites.ts`'s `businessBuildingSprite()` now takes the business's real `typeId` and
+returns a distinct illustration per type (Bakery→Inn, Tailor→Tavern, Bookshop→Warehouse),
+falling back to the original ARCHED_HALL for an unknown type. `ExteriorScene.ts`'s
+`paintPlacedBusiness()` passes the real `business.typeId` through; `HangarOverlay.tsx`'s catalog
+preview does the same per row instead of one shared module-level constant. Housing's 4 types
+still share one illustration — no equally good additional CC0 home-style candidate was found in
+this pass (a genuinely honest partial result, not force-fit), left for a future pass; the
+type-glyph badge remains the distinguishing cue there, unchanged.
+
+Verified by 3 new `buildingSprites.test.ts` cases (all 3 types return distinct keys, fall back
+correctly, all preloaded) and 1 updated + 1 new `HangarOverlay.test.tsx` case, plus the full gate
+(1066 server + 534 web tests, typecheck, build) — build output confirmed to include all 3 new
+assets in `dist/overworld/buildings/`. Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

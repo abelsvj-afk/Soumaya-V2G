@@ -1,3 +1,27 @@
+### 2026-09-15 (Claude): Backlog #78 — distinct art for business types (task #112, partial)
+- [ ] Verified by Claude
+- Direct continuation of "keep going through the list" — every business type (Bakery/Tailor/
+  Bookshop) previously shared the exact same `human-city2.png` illustration Market/Library/
+  Sanctuary already use, the most confusing art overlap the original 2026-09-15 audit flagged.
+- Sourced 3 more real CC0 illustrations (OpenGameArt "Inn"/"Tavern"/"Warehouse") from the same
+  trusted `github.com/Tiddybub/2d-assets` aggregator already used for the 5 existing building
+  sprites — browsed its `fantasy/` category, visually compared several candidates against the
+  existing painterly stone/wood style, rejected a fisherman's stilt house and a hunter's tent
+  for being a different art style / too specifically themed.
+- `businessBuildingSprite()` now takes the real business `typeId` (optional, backward-compatible)
+  and returns a distinct sprite per type (Bakery→Inn, Tailor→Tavern, Bookshop→Warehouse), wired
+  through `ExteriorScene.ts`'s in-world paint and `HangarOverlay.tsx`'s catalog preview (now
+  computed per-row instead of one shared module-level constant).
+- Housing's 4 types still share one illustration (`human-city.png`) — no equally good CC0
+  home-style candidate found this pass; the type-glyph badge remains the distinguishing cue
+  there. An honest partial result, not a forced fit — matches this spec's own documented
+  escape hatch (`docs/overworld/wave4-full-vision.md` §C.1).
+- A batch sourcing/lookup script initially mis-picked 2 candidates that turned out stylistically
+  off on visual inspection — caught before committing, re-picked from the same aggregator.
+- Verified by 3 new `buildingSprites.test.ts` cases, 1 updated + 1 new `HangarOverlay.test.tsx`
+  case, and the full gate (1066 server + 534 web tests, typecheck, build). Not yet seen rendered
+  in a real browser from this sandbox.
+
 ### 2026-09-15 (Claude): Wave 4d — theme rollout finished, every overlay, task #111 closed (task #111, complete)
 - [ ] Verified by Claude
 - Direct continuation of Wave 4c, closing the "bespoke overlays still hardcoded" gap.
