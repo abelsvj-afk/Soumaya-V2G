@@ -39,6 +39,7 @@ import {
   workIconForPlace,
 } from "./tileAtlas.js";
 import { allBuildingSprites, businessBuildingSprite, buildingSpriteForPlace, homeBuildingSprite } from "./buildingSprites.js";
+import { allVillageSprites, GRAVEL_APRON } from "./villagePack.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
 import {
   armedItemId,
@@ -247,6 +248,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  recreating the building image itself. */
   private placedHomeBadges = new Map<string, Phaser.GameObjects.Text>();
   private placedBusinessBadges = new Map<string, Phaser.GameObjects.Text>();
+  /** city-builder-depth.md §C — a real gravel parking-lot/loading apron just outside a
+   *  business's own door, painted once per business (never re-painted on refresh, same
+   *  "never moves once built" convention as the building image itself). */
+  private businessApronSprites = new Map<string, Phaser.GameObjects.Image>();
   /** Cycles through every door place in turn — deterministic, never Math.random, matching the
    *  rest of this scene's desync convention. She tours the whole town over time instead of an
    *  arbitrary open tile, which reads as "doing her rounds" rather than aimless wandering. */
@@ -340,6 +345,8 @@ export class ExteriorScene extends Phaser.Scene {
     });
     // Complete pre-made building illustrations, not a modular kit — see buildingSprites.ts.
     for (const sprite of allBuildingSprites()) this.load.image(sprite.key, sprite.url);
+    // Kenney "RTS Pack: Medieval" (CC0) — see villagePack.ts.
+    for (const sprite of allVillageSprites()) this.load.image(sprite.key, sprite.url);
   }
 
   create(): void {
@@ -944,6 +951,23 @@ export class ExteriorScene extends Phaser.Scene {
     badge.setOrigin(0.5);
     badge.setDepth(2);
     this.placedBusinessBadges.set(business.id, badge);
+    this.paintParkingApron(business);
+  }
+
+  /** city-builder-depth.md §C — every player-placed business's door sits on its footprint's
+   *  own bottom row (`business.ts`'s `door: { y: y1 }`), so "outward" is always due south;
+   *  no per-business orientation logic needed. Painted once, at depth 0.3 — below the attendant
+   *  post markers (0.5) and every building/badge (1+), so it can never visually conflict with
+   *  anything drawn on top of it. Silently skipped past the map edge (a business built on the
+   *  south row's own last tile) rather than painting off-world. */
+  private paintParkingApron(business: PlacedBusiness): void {
+    if (this.businessApronSprites.has(business.id)) return;
+    const aproneY = business.door.y + 1;
+    if (aproneY >= REGION_HEIGHT) return;
+    const apron = this.add.image(business.door.x * TILE_SIZE + TILE_SIZE / 2, aproneY * TILE_SIZE + TILE_SIZE / 2, GRAVEL_APRON.key);
+    apron.setDisplaySize(TILE_SIZE, TILE_SIZE);
+    apron.setDepth(0.3);
+    this.businessApronSprites.set(business.id, apron);
   }
 
   /** Re-reads real placed-business state and paints anything new (or updates an existing

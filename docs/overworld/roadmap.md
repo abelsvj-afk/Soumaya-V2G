@@ -1889,6 +1889,43 @@ Phaser-integration code (measured/verified by the pure logic it calls into, whic
 both pieces are pure rendering/input wiring with no new data module). Not yet seen rendered in a
 real browser from this sandbox.
 
+## Stage 2.55 — the full "RTS Pack: Medieval" added; a real parking-lot apron wired in
+
+Direct response to "add all those other assets you showed me. All of them" — a follow-up to
+Stage 2.54's vehicle-art research pass, which had only shipped 3 of the many real, license-clean
+pieces found. Added the FULL Kenney "RTS Pack: Medieval" (CC0, kenney.nl/assets/medieval-rts, the
+same author as the Tiny Town/Tiny Dungeon tiles already in this game) — 102 individual 64x64
+pieces (58 ground/path tiles, 23 structures, 24 environment pieces) — plus 3 more real pieces
+from the same research pass (`caravan-wreck.png`, `village-illustration.png`, `town-tiles.png`).
+All copied into `public/overworld/village-pack/` and `public/overworld/decor/`, fully credited in
+`CREDITS.md`.
+
+Only one piece is wired into gameplay this round: `villagePack.ts`'s `GRAVEL_APRON` (a real
+gravel/stone tile) now paints a genuine parking-lot/loading apron one tile south of every
+player-built business's own door (`paintParkingApron()`, `ExteriorScene.ts`) — closing
+`city-builder-depth.md`'s §C ("a business may have a parking lot when you zoom in"). Every
+player-placed business's door sits on its footprint's own bottom row by construction
+(`business.ts`'s `door: { y: y1 }`), so "outward" is always due south — no per-business
+orientation logic was needed. Painted once per business, at a depth below every other marker so
+it can never visually conflict with anything drawn on top of it; silently skipped for a business
+built on the map's own southern edge rather than painting off-world.
+
+The rest of the pack (windmill, market stall, bench, well, tents, trees, berries, crates, and the
+road-through-grass tiles) is staged, not yet placed anywhere — each is real future decor, tracked
+honestly rather than silently left unused. One deliberate non-use, investigated and documented:
+the pack's own winding "path through grass" tiles were NOT used for the zoned `transit`/road
+surface — visual inspection confirmed they're hand-painted organic vignettes for scattered
+placement (the same convention Park's own tree/bench decor already uses), not a modular
+edge-to-edge autotile set, so painting them systematically across every zoned road tile would
+look visually broken at the seams. The existing single flat `path` ground tile remains correct
+for that use.
+
+Verified by the full gate (1066 server + 557 web tests, typecheck, build) and a build-output
+check confirming all 102 new village-pack files plus the 3 decor pieces land in `dist/`. No new
+pure logic was added (the apron position is one line of arithmetic inside Phaser-integration
+code, same convention as every other in-world marker in this file) — not yet seen rendered in a
+real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

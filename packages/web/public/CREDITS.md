@@ -63,6 +63,32 @@ only pack with animated vehicle sprites) is modern-city car art, a real style cl
 game's fantasy illustration mix. Per the user's own direction: ship the real wagon now; a dragon
 carriage or further vehicle tiers stay explicitly deferred until real matching art exists.
 
+**`overworld/village-pack/{tile,structure,environment}/*.png`** — the full "RTS Pack: Medieval"
+by **Kenney** (kenney.nl/assets/medieval-rts), **CC0**, via https://github.com/Tiddybub/2d-assets
+— the same author as the "Tiny Town"/"Tiny Dungeon" tiles already in `tiles.png`, so this is a
+direct style match, not a new aesthetic. 102 individual 64x64 pieces (58 ground/path tiles, 23
+buildings/structures — windmill, market stall, bench, well, tents — plus 24 tree/berry/crate
+environment pieces), added in full per direct request ("add all those other assets... all of
+them"). Only one piece is wired into the game so far: `tile/medievalTile_15.png`, a gravel/stone
+tile, as a real parking-lot/loading apron painted just outside every player-built business's door
+(`villagePack.ts`, `docs/overworld/city-builder-depth.md` §C). The rest — road-through-grass
+tiles, the windmill/market stall/bench/well, trees/berries/crates — are staged for future decor
+rounds, not yet placed anywhere. **The winding "path through grass" tiles are deliberately NOT
+used for the zoned `transit`/road system**: visual inspection confirmed they're hand-painted,
+organic vignettes meant for scattered placement (like Park's own tree/bench decor), not a
+modular edge-to-edge autotile set — painting them systematically across every zoned road tile
+would look visually broken at the seams. The existing single flat `TileFrame.path` ground tile
+(already in `tiles.png`) remains the right choice for that use, per this doc's own §D.
+
+**`overworld/decor/caravan-wreck.png`, `village-illustration.png`, `town-tiles.png`** — three more
+real CC0 pieces from the same aggregator/investigation pass, added in full per the same direct
+request. OpenGameArt "Caravan wreck" ([source](https://opengameart.org/content/caravan-wreck)) —
+a broken-down wagon, a natural decorative pairing with the real wagon above. "Village"
+([source](https://opengameart.org/content/village)) — a small illustrated village scene. "Town
+Tiles" ([source](https://opengameart.org/content/town-tiles)) — a 16x16 pixel tile sheet. All
+**CC0 (public domain)**. None of these three are wired into any code yet — staged for a future
+decor pass, same as most of the village pack above.
+
 ## Overworld music
 
 **`ambient-loop.mp3`, `interstellar.mp3`, `slow-tide.mp3`** — the same 3 tracks the old 3D
