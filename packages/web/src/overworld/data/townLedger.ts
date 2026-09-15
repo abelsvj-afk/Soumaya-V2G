@@ -6,13 +6,37 @@
  * player-spendable currency; checked before assuming otherwise). Hours/wages/treasury here are
  * entirely fictional, isolated in their own localStorage bucket, same convention as
  * achievements.ts/npcRelationships.ts.
+ *
+ * Real pricing-gauged income (docs/overworld/simcity-economy-construction.md, task #86) — real
+ * feedback that treasury income should be "gauged correctly based on... pricing," not a flat
+ * rate identical for every building regardless of what actually happened. `creditHour` now
+ * accumulates real EARNED CENTS per place (not `hours × flat-rate` computed at read time), so a
+ * point-of-sale caller (a Market/Business good purchase) can credit a real cut of that specific
+ * sale's price via `revenueForPriceCents`, while every civic-building call site keeps the exact
+ * same flat rate as before by simply not passing an override.
  */
 
-/** Fictional cents per hour worked — a readable unit, never real money. */
+/** Fictional cents per hour worked — the flat baseline for civic buildings (no real pricing
+ *  data exists there to gauge against) and the floor under any pricing-gauged sale below. */
 const WAGE_PER_HOUR_CENTS = 25;
+
+/** The real cut of a sale's own price that flows to the treasury as earned income — a genuinely
+ *  pricier good earns more, a cheap one still earns at least the flat baseline. */
+const REVENUE_RATE = 0.5;
+
+/** How much a real point-of-sale (a Market/Business good purchase) should credit the treasury,
+ *  gauged by that specific sale's own real price — never invented, never flat regardless of
+ *  value (simcity-economy-construction.md decision #1). */
+export function revenueForPriceCents(priceCents: number): number {
+  return Math.max(WAGE_PER_HOUR_CENTS, Math.round(priceCents * REVENUE_RATE));
+}
 
 function hoursKey(spaceId: string): string {
   return `brain.townLedger.hours.${spaceId}`;
+}
+
+function earnedKey(spaceId: string): string {
+  return `brain.townLedger.earned.${spaceId}`;
 }
 
 function spentKey(spaceId: string): string {
@@ -28,6 +52,15 @@ function loadHours(spaceId: string): Record<string, number> {
   }
 }
 
+function loadEarned(spaceId: string): Record<string, number> {
+  try {
+    const raw = JSON.parse(localStorage.getItem(earnedKey(spaceId)) || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch {
+    return {};
+  }
+}
+
 function loadSpentCents(spaceId: string): number {
   try {
     const raw = Number(localStorage.getItem(spentKey(spaceId)) || "0");
@@ -37,18 +70,24 @@ function loadSpentCents(spaceId: string): number {
   }
 }
 
-/** Credits one real hour of work to this building — called once per real interaction
- *  (npcJobs.ts's `recordBuildingWork`), never on a timer. Returns the new total. */
-export function creditHour(spaceId: string, placeId: string): number {
-  const all = loadHours(spaceId);
-  const next = (all[placeId] ?? 0) + 1;
-  all[placeId] = next;
+/** Credits one real interaction to this building — called once per real interaction
+ *  (npcJobs.ts's `recordBuildingWork`), never on a timer. `wageCents` defaults to the flat civic
+ *  baseline; a point-of-sale caller passes `revenueForPriceCents(priceCents)` instead so the
+ *  real amount earned is gauged by what was actually sold. Returns the new interaction count
+ *  (unchanged contract — still "hours worked", an interaction count, not earned cents). */
+export function creditHour(spaceId: string, placeId: string, wageCents: number = WAGE_PER_HOUR_CENTS): number {
+  const hours = loadHours(spaceId);
+  const nextHours = (hours[placeId] ?? 0) + 1;
+  hours[placeId] = nextHours;
+  const earned = loadEarned(spaceId);
+  earned[placeId] = (earned[placeId] ?? 0) + wageCents;
   try {
-    localStorage.setItem(hoursKey(spaceId), JSON.stringify(all));
+    localStorage.setItem(hoursKey(spaceId), JSON.stringify(hours));
+    localStorage.setItem(earnedKey(spaceId), JSON.stringify(earned));
   } catch {
-    /* the hour still happened — worst case it's just not remembered */
+    /* the interaction still happened — worst case it's just not remembered */
   }
-  return next;
+  return nextHours;
 }
 
 export function hoursWorked(spaceId: string, placeId: string): number {
@@ -56,7 +95,7 @@ export function hoursWorked(spaceId: string, placeId: string): number {
 }
 
 export function wagesEarnedCents(spaceId: string, placeId: string): number {
-  return hoursWorked(spaceId, placeId) * WAGE_PER_HOUR_CENTS;
+  return loadEarned(spaceId)[placeId] ?? 0;
 }
 
 /** Every building that has ever earned an hour, sorted for stable display. */
@@ -66,8 +105,7 @@ export function workedPlaceIds(spaceId: string): string[] {
 
 /** The town's total real earnings across every building — the pool the Market spends from. */
 export function townTreasuryEarnedCents(spaceId: string): number {
-  const all = loadHours(spaceId);
-  return Object.values(all).reduce((sum, hours) => sum + hours * WAGE_PER_HOUR_CENTS, 0);
+  return Object.values(loadEarned(spaceId)).reduce((sum, cents) => sum + cents, 0);
 }
 
 /** What's actually left to spend — earned minus already spent. Never negative. */

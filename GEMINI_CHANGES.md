@@ -1,3 +1,29 @@
+### 2026-09-15 (Claude): Real pricing-gauged treasury income + Hangar previews + a real construction delay (tasks #86/#87)
+- [ ] Verified by Claude
+- Direct answer to a real request: town income should be "gauged... based on all including
+  pricing," the Hangar should show "images or something showing the actual property," and a
+  placed building "must be built after being placed." Specced first
+  (`docs/overworld/simcity-economy-construction.md`).
+- Verified before building: every building earned an identical flat 25¢ regardless of type/price
+  (`townLedger.ts`); neither `hoursWorked` nor `wagesEarnedCents` is rendered anywhere (safe to
+  restructure); Housing/Business both always render the same shared illustration in-world
+  regardless of type (`buildingSprites.ts`) — a real Hangar preview mismatch, but town-builder
+  decor was already honest (plain emoji in-world too).
+- **Pricing-gauged revenue**: new `townLedger.ts::revenueForPriceCents(priceCents)` — a real 50%
+  cut of the specific price sold, floored at the old flat 25¢. `creditHour`/`recordBuildingWork`
+  gained an optional trailing wage override (default unchanged — every civic call site
+  byte-identical). Market/Business purchases now credit the real gauged amount.
+- **Construction delay**: new `housing.ts::CONSTRUCTION_MS` (90s) + `isUnderConstruction()` —
+  same read-time wall-clock convention `buildingNeglect.ts` uses; reused as-is by `business.ts`.
+  A home under construction houses nobody; a business under construction won't sell; both render
+  at half alpha with a "🚧" badge in-world (`ExteriorScene.ts`).
+- **Hangar previews**: `HangarOverlay.tsx`'s Housing/Business rows now show a real `<img>`
+  thumbnail of the actual in-world illustration, sized proportionally to the type's real
+  footprint.
+- Verified by 4 new `townLedger.test.ts` cases, 3 new `housing.test.ts`/`business.test.ts`
+  cases, 3 new `HangarOverlay.test.tsx` cases, and the full gate (1066 server + 451 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-13 (Claude): Overlay/menu quality-parity audit: real gaps closed (task #79)
 - [ ] Verified by Claude
 - Direct response to detailed feedback that overlays are "broken" vs. the old galaxy-era menus.

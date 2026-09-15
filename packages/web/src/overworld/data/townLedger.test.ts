@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import {
   creditHour,
   hoursWorked,
+  revenueForPriceCents,
   spendFromTreasury,
   townTreasuryEarnedCents,
   treasuryBalanceCents,
@@ -41,6 +42,28 @@ describe("townLedger (cosmetic only — never real finance/Fuel)", () => {
       creditHour("space-1", "library");
       creditHour("space-1", "bank");
       expect(workedPlaceIds("space-1")).toEqual(["bank", "library"]);
+    });
+  });
+
+  describe("simcity-economy-construction.md — revenue gauged by real pricing, not a flat wage", () => {
+    it("revenueForPriceCents is a real cut of the specific price, never a flat amount", () => {
+      expect(revenueForPriceCents(400)).toBe(200); // 50% of a $4.00 good
+      expect(revenueForPriceCents(1000)).toBe(500); // 50% of a $10.00 good — scales, doesn't cap
+    });
+
+    it("revenueForPriceCents floors at the old flat wage so a cheap sale never earns less than before", () => {
+      expect(revenueForPriceCents(10)).toBe(25); // 50% of 10c is 5c, floored up to the flat 25c baseline
+    });
+
+    it("creditHour's optional wageCents override credits the real gauged amount, not the flat default", () => {
+      creditHour("space-1", "market", revenueForPriceCents(400)); // a $4.00 sale
+      expect(wagesEarnedCents("space-1", "market")).toBe(200);
+      expect(hoursWorked("space-1", "market")).toBe(1); // still one interaction, unchanged contract
+    });
+
+    it("a civic building with no override still earns the flat baseline, byte-identical to before", () => {
+      creditHour("space-1", "bank");
+      expect(wagesEarnedCents("space-1", "bank")).toBe(25);
     });
   });
 

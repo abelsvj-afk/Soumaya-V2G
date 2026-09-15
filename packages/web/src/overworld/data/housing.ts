@@ -42,6 +42,23 @@ export interface PlacedHome {
   x1: number;
   y1: number;
   door: { x: number; y: number };
+  /** ms epoch when this home was placed — drives `isUnderConstruction` (simcity-economy-
+   *  construction.md, task #87). Read-time-computed, same wall-clock convention
+   *  buildingNeglect.ts already uses, never a running timer. */
+  builtAt: number;
+}
+
+/** Real, short construction period — long enough to register as "not instant" (the user's own
+ *  "it must be built after being placed"), short enough not to be tedious in a low-stakes,
+ *  single-player cosmetic game. */
+export const CONSTRUCTION_MS = 90_000;
+
+/** Pure function of the real placement timestamp vs. now — no running timer, computed fresh on
+ *  every read (same pattern `buildingNeglect.ts`'s own functions already use). Generic over any
+ *  placed structure with a real `builtAt` (business.ts's `PlacedBusiness` reuses this exact
+ *  function rather than redefining it, so the two building categories can never drift). */
+export function isUnderConstruction(placed: { builtAt: number }, nowMs: number = Date.now()): boolean {
+  return nowMs - placed.builtAt < CONSTRUCTION_MS;
 }
 
 function placedKey(spaceId: string): string {
@@ -133,8 +150,9 @@ export function isFootprintFreeForHome(spaceId: string, x0: number, y0: number, 
 /** Places the currently-armed home type with its footprint anchored at (x0, y0), then clears
  *  the armed state. The caller must have already confirmed `isFootprintFreeForHome`. Returns
  *  null and changes nothing if nothing is armed. Deliberately does not re-check
- *  treasury/afford — the spend already happened at `armHomeType` time. */
-export function placeArmedHome(spaceId: string, x0: number, y0: number): PlacedHome | null {
+ *  treasury/afford — the spend already happened at `armHomeType` time. `nowMs` defaults to the
+ *  real clock; callers only ever override it in tests. */
+export function placeArmedHome(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedHome | null {
   const typeId = armedHomeTypeId(spaceId);
   if (!typeId) return null;
   const type = homeTypeById(typeId);
@@ -149,6 +167,7 @@ export function placeArmedHome(spaceId: string, x0: number, y0: number): PlacedH
     x1,
     y1,
     door: { x: x0 + Math.floor(type.width / 2), y: y1 },
+    builtAt: nowMs,
   };
   savePlacedHomes(spaceId, [...placedHomes(spaceId), placed]);
   clearArmedHome(spaceId);
@@ -164,13 +183,16 @@ export interface HomeResident {
  *  20 NPCs in their one stable declaration order, filling each home — in the order it was
  *  actually built — to its own real capacity before moving to the next. Recomputed from real
  *  state every call rather than stored, so a newly-built home is reflected immediately with
- *  nothing else to keep in sync. */
-export function assignResidents(spaceId: string): HomeResident[] {
+ *  nothing else to keep in sync. Skips a home still `isUnderConstruction` (simcity-economy-
+ *  construction.md, task #87) — an NPC can't move into an unfinished house; `nowMs` defaults to
+ *  the real clock, only ever overridden in tests. */
+export function assignResidents(spaceId: string, nowMs: number = Date.now()): HomeResident[] {
   const npcIds = allSocietyNpcIds();
   const homes = placedHomes(spaceId);
   const assignments: HomeResident[] = [];
   let i = 0;
   for (const home of homes) {
+    if (isUnderConstruction(home, nowMs)) continue;
     const type = homeTypeById(home.typeId);
     const capacity = type?.capacity ?? 0;
     for (let slot = 0; slot < capacity && i < npcIds.length; slot++, i++) {

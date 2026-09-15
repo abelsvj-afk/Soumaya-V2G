@@ -253,6 +253,33 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real pricing-gauged treasury income + Hangar previews + a real construction delay
+  (2026-09-15), not yet on-device confirmed** — direct answer to a real request: "the town
+  [should] make money for the treasury gauged amount correctly based on all including pricing,"
+  the Hangar should show "images or something showing the actual property... that'll be put
+  down," and "it must be built after being placed." Specced first
+  (`docs/overworld/simcity-economy-construction.md`) per Rule #1. Verified before building, not
+  guessed: every building earned an identical flat 25¢ per interaction regardless of type or
+  price (confirmed by reading `townLedger.ts`); neither `hoursWorked` nor `wagesEarnedCents` is
+  rendered anywhere (safe to restructure internally); Housing/Business both always render the
+  same shared COTTAGE/ARCHED_HALL illustration in-world regardless of type
+  (`buildingSprites.ts`), so the Hangar's generic-emoji catalog really was a mismatch — but
+  town-builder decor items were already honest (plain emoji in-world too), so no fix needed
+  there. Shipped: (1) `townLedger.ts`'s new `revenueForPriceCents(priceCents)` — a real 50% cut
+  of the specific price sold, floored at the old flat 25¢ so nothing earns less than before;
+  `creditHour`/`recordBuildingWork` gained an optional trailing wage override (default
+  unchanged, every existing civic call site byte-identical); Market/Business purchases now pass
+  the real gauged amount. (2) `housing.ts`'s new `CONSTRUCTION_MS` (90 real seconds) +
+  `isUnderConstruction()` — the same read-time wall-clock convention `buildingNeglect.ts`
+  already uses, reused as-is by `business.ts` so the two categories can't drift; a home under
+  construction houses nobody, a business under construction won't sell, and both render at half
+  alpha with a "🚧" badge in-world instead of their type glyph. (3) `HangarOverlay.tsx`'s Housing
+  and Business rows now show a real `<img>` thumbnail of the actual in-world illustration, sized
+  proportionally to the type's real footprint. Verified by 4 new `townLedger.test.ts` cases, 3
+  new `housing.test.ts`/`business.test.ts` cases, 3 new `HangarOverlay.test.tsx` cases, and the
+  full gate (1066 server + 451 web tests, typecheck, build). Not yet seen rendered in a real
+  browser from this sandbox.
+
 - **Overlay/menu quality-parity audit: real gaps closed (2026-09-13), not yet on-device
   confirmed** — direct response to detailed feedback that the overlays are "broken" vs. the old
   galaxy-era menus. Ran a concrete audit (diffed every overlay's real usage against its

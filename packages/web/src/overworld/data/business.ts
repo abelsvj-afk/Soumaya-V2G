@@ -7,7 +7,8 @@
  */
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
-import { spendFromTreasury, treasuryBalanceCents, creditHour } from "./townLedger.js";
+import { spendFromTreasury, treasuryBalanceCents, creditHour, revenueForPriceCents } from "./townLedger.js";
+import { CONSTRUCTION_MS, isUnderConstruction } from "./housing.js";
 import { markWorked, buildingNeglect } from "./buildingNeglect.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { zoneTypeAt } from "./zoning.js";
@@ -83,7 +84,16 @@ export interface PlacedBusiness {
   x1: number;
   y1: number;
   door: { x: number; y: number };
+  /** ms epoch when this business was placed — drives `isUnderConstruction` (simcity-economy-
+   *  construction.md, task #87). Read-time-computed, same wall-clock convention
+   *  buildingNeglect.ts already uses, never a running timer. */
+  builtAt: number;
 }
+
+/** Same real, short construction period as housing.ts's own — imported, not redefined, so the
+ *  two building categories can never silently drift out of sync with each other. Re-exported so
+ *  business.ts's own callers (HangarOverlay.tsx, ExteriorScene.ts) don't need a second import. */
+export { CONSTRUCTION_MS, isUnderConstruction };
 
 function placedKey(spaceId: string): string {
   return `brain.business.placed.${spaceId}`;
@@ -172,8 +182,9 @@ export function isFootprintFreeForBusiness(spaceId: string, x0: number, y0: numb
 
 /** Places the currently-armed business type with its footprint anchored at (x0, y0), then
  *  clears the armed state. The caller must have already confirmed `isFootprintFreeForBusiness`.
- *  Returns null and changes nothing if nothing is armed. */
-export function placeArmedBusiness(spaceId: string, x0: number, y0: number): PlacedBusiness | null {
+ *  Returns null and changes nothing if nothing is armed. `nowMs` defaults to the real clock;
+ *  callers only ever override it in tests. */
+export function placeArmedBusiness(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedBusiness | null {
   const typeId = armedBusinessTypeId(spaceId);
   if (!typeId) return null;
   const type = businessTypeById(typeId);
@@ -188,6 +199,7 @@ export function placeArmedBusiness(spaceId: string, x0: number, y0: number): Pla
     x1,
     y1,
     door: { x: x0 + Math.floor(type.width / 2), y: y1 },
+    builtAt: nowMs,
   };
   savePlacedBusinesses(spaceId, [...placedBusinesses(spaceId), placed]);
   clearArmedBusiness(spaceId);
@@ -225,13 +237,16 @@ export function canAffordGood(spaceId: string, good: BusinessGood): boolean {
 }
 
 /** Spends real earned wages from the Town Treasury on one of this business's own goods, then
- *  credits that SAME business's own real hours and resets its own real neglect clock (business.md
- *  decision #1 — `creditHour`/`markWorked` are already string-keyed, so the business's own
- *  dynamic id works with zero changes to either). Returns false and changes nothing if the good
- *  is unknown, doesn't belong to this business's type, already owned here, or unaffordable. */
+ *  credits that SAME business's own real revenue and resets its own real neglect clock
+ *  (business.md decision #1 — `creditHour`/`markWorked` are already string-keyed, so the
+ *  business's own dynamic id works with zero changes to either). The revenue credited is gauged
+ *  by THIS good's own real price (`revenueForPriceCents`, simcity-economy-construction.md), not
+ *  a flat rate regardless of what was actually sold. Returns false and changes nothing if the
+ *  good is unknown, doesn't belong to this business's type, already owned here, or unaffordable. */
 export function purchaseGoodFromBusiness(spaceId: string, businessId: string, goodId: string): boolean {
   const business = businessById(spaceId, businessId);
   if (!business) return false;
+  if (isUnderConstruction(business)) return false;
   const type = businessTypeById(business.typeId);
   const good = type?.goods.find((g) => g.id === goodId);
   if (!good) return false;
@@ -244,7 +259,7 @@ export function purchaseGoodFromBusiness(spaceId: string, businessId: string, go
   } catch {
     /* the treasury spend already happened — worst case this purchase isn't remembered */
   }
-  creditHour(spaceId, businessId);
+  creditHour(spaceId, businessId, revenueForPriceCents(good.priceCents));
   markWorked(spaceId, businessId);
   return true;
 }
