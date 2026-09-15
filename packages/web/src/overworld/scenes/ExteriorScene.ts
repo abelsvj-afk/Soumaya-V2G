@@ -98,6 +98,12 @@ export const TILE_SIZE = 32;
  *  entirely under prefersReducedMotion(), matching this file's existing motion-gate convention. */
 const INTERIOR_ENTER_DWELL_MS = 260;
 const INTERIOR_EXIT_DWELL_MS = 200;
+/** City-builder depth (docs/overworld/city-builder-depth.md, §A) — 1 is the original fixed
+ *  zoom every prior screenshot/measurement in this codebase assumed; MIN pulls back enough to
+ *  see most of a real town at once without shrinking sprites past legibility. */
+const ZOOM_MIN = 0.4;
+const ZOOM_MAX = 1;
+const ZOOM_STEP = 0.1;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
 const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
 /** Real cross-town paths measured 40-50 tiles for opposite corners (npc-autonomy.md's own
@@ -272,6 +278,9 @@ export class ExteriorScene extends Phaser.Scene {
   /** Backlog #80 — the single reusable interior room every door-building's walk-in transition
    *  teleports the player into. Built once in create(); only its glyph changes per building. */
   private interiorGlyphText!: Phaser.GameObjects.Text;
+  /** City-builder depth (docs/overworld/city-builder-depth.md, §A) — clamped camera zoom, so the
+   *  player can pull back and see the whole town like a city-builder overview. */
+  private zoomLevel = 1;
 
   constructor() {
     super("exterior-scene");
@@ -366,6 +375,10 @@ export class ExteriorScene extends Phaser.Scene {
     this.scale.on("resize", this.handleResize, this);
     const lerp = prefersReducedMotion() ? 1 : 0.18;
     this.cameras.main.startFollow(this.player, true, lerp, lerp);
+    // City-builder depth (docs/overworld/city-builder-depth.md, §A) — mouse-wheel zoom, clamped.
+    // Phaser's own bounds-clamping already accounts for zoom when following a target, so no
+    // extra bounds math is needed here beyond the existing setBounds() above.
+    this.input.on("wheel", this.handleWheelZoom, this);
 
     this.keys = this.input.keyboard?.addKeys("W,A,S,D,UP,DOWN,LEFT,RIGHT,SPACE,ENTER") ?? {};
     this.unsubscribe = this.inputBus.subscribe((event) => this.handleInput(event));
@@ -450,6 +463,35 @@ export class ExteriorScene extends Phaser.Scene {
     this.cameras.main.setSize(gameSize.width, gameSize.height);
   }
 
+  /** City-builder depth (§A) — mouse-wheel zoom, clamped to [ZOOM_MIN, ZOOM_MAX]. `deltaY` is
+   *  positive scrolling down (zoom out) in every browser's real wheel-event convention. */
+  private handleWheelZoom(_pointer: unknown, _gameObjects: unknown, _deltaX: number, deltaY: number): void {
+    const next = Phaser.Math.Clamp(this.zoomLevel - Math.sign(deltaY) * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX);
+    this.applyZoom(next);
+  }
+
+  /** Applied by both the wheel handler and OverworldRoot.tsx's zoom buttons (touch has no wheel
+   *  event) — a smooth tween under normal motion, an instant jump under reduced motion, matching
+   *  this file's own `flyToNode`-style motion-gate convention for camera changes. */
+  private applyZoom(next: number): void {
+    if (next === this.zoomLevel) return;
+    this.zoomLevel = next;
+    if (prefersReducedMotion()) {
+      this.cameras.main.setZoom(next);
+      return;
+    }
+    this.tweens.add({ targets: this.cameras.main, zoom: next, duration: 150, ease: "Sine.easeOut" });
+  }
+
+  /** Real zoom-in/out buttons in OverworldRoot.tsx (touch devices have no wheel event). */
+  zoomIn(): void {
+    this.applyZoom(Phaser.Math.Clamp(this.zoomLevel + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
+  }
+
+  zoomOut(): void {
+    this.applyZoom(Phaser.Math.Clamp(this.zoomLevel - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
+  }
+
   /** Gentle "breathing" loop for the player while standing still — stopped before every step
    *  (stopIdleBob) so it never fights the move/squash tween, restarted once the step lands.
    *  A no-op under reduced motion, same as every other decorative loop in this scene. */
@@ -513,6 +555,21 @@ export class ExteriorScene extends Phaser.Scene {
     marker.setDepth(0.5);
   }
 
+  /** City-builder depth (§B) — a real, always-visible door marker (never color-only: a door
+   *  pictograph, unambiguous regardless of color perception), gently pulsing to read as "this is
+   *  the way in" rather than blending into the building illustration behind it. A no-op pulse
+   *  (present, static) under `prefersReducedMotion()`, same convention as every other decorative
+   *  loop in this file. */
+  private addDoorMarker(tile: { x: number; y: number }): void {
+    const marker = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, "🚪", {
+      fontSize: "16px",
+    });
+    marker.setOrigin(0.5);
+    marker.setDepth(2);
+    if (prefersReducedMotion()) return;
+    this.tweens.add({ targets: marker, scale: 1.25, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+  }
+
   private drawGround(): void {
     // Base ground layer: grass everywhere, with the FR8 grass-zone and the cosmetic town-square
     // path patch swapped in. Building interiors get painted over below (they're never walked on).
@@ -540,6 +597,7 @@ export class ExteriorScene extends Phaser.Scene {
       const image = this.add.image(x0 * TILE_SIZE + width / 2, y0 * TILE_SIZE + height / 2, sprite.key);
       image.setDisplaySize(width, height);
       image.setDepth(1);
+      this.addDoorMarker(place.door);
     }
 
     // Park's own footprint: a paved courtyard (the same `path` tile the plaza already uses),
@@ -1893,6 +1951,7 @@ export class ExteriorScene extends Phaser.Scene {
 
   shutdown(): void {
     this.scale.off("resize", this.handleResize, this);
+    this.input.off("wheel", this.handleWheelZoom, this);
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.idleTween?.stop();

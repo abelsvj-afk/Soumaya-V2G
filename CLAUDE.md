@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **City-builder depth — camera zoom + door highlighting, vehicle art sourced (2026-09-15), not
+  yet on-device confirmed** — direct answer to a real request for city-builder-style depth (zoom
+  out to see the town, highlighted doors, per-building ground art, roads/sidewalks, a wagon
+  transit system). Resolved in `docs/overworld/city-builder-depth.md`. Asset research first:
+  searched the same trusted CC0 aggregator behind every existing building/tile for horse-drawn/
+  dragon-drawn carriage art — found and shipped a real horse-drawn covered wagon illustration
+  (OpenGameArt "Caravan," CC0) plus 2 matching signs, staged in `public/overworld/{vehicles,
+  decor}/` for a follow-up round (not yet wired into code); confirmed no usable dragon-carriage
+  or animated horse-cart art exists anywhere reachable — per the user's own direction, ship the
+  real wagon now, defer the rest until real art exists. Shipped this round: mouse-wheel camera
+  zoom (clamped `[0.4, 1]`, tweened, touch buttons added since touch has no wheel event) and a
+  real, non-color-only 🚪 door marker at each of the 12 static door-buildings (deliberately not
+  added to player-built businesses, whose door tile already carries a real type-glyph/🚧 badge
+  that a second marker would visually collide with). Per-building ground art, roads/sidewalks,
+  and the wagon travel system are specced but not yet built — each is its own follow-up round.
+  Verified by the full gate (1066 server + 557 web tests, typecheck, build) and a build-output
+  check confirming the 3 new assets land in `dist/`. Not yet seen rendered in a real browser.
+
 - **Backlog #82 — NPC mote awareness (2026-09-15), not yet on-device confirmed** — extends the
   Break-time dialogue system with a real, low-frequency line noticing the player has 2+ active
   MindSpace thoughts (`getThoughts()`'s own count) — never inventing anything about a specific

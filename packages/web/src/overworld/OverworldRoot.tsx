@@ -299,6 +299,16 @@ export function OverworldRoot() {
     void nextTrack();
   }, []);
 
+  // City-builder depth (docs/overworld/city-builder-depth.md, §A) — touch devices have no wheel
+  // event, so these are the only way to zoom without a physical mouse.
+  const zoomIn = useCallback(() => {
+    sceneRef.current?.zoomIn();
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    sceneRef.current?.zoomOut();
+  }, []);
+
   const closeOverlay = useCallback(() => {
     // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
@@ -436,6 +446,36 @@ export function OverworldRoot() {
           }}
         >
           {musicOn ? "🔊" : "🔇"}
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom out"
+          onClick={zoomOut}
+          style={{
+            background: "#00000099",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 14,
+          }}
+        >
+          🔍-
+        </button>
+        <button
+          type="button"
+          aria-label="Zoom in"
+          onClick={zoomIn}
+          style={{
+            background: "#00000099",
+            color: "#fff",
+            border: "none",
+            borderRadius: 6,
+            padding: "4px 8px",
+            fontSize: 14,
+          }}
+        >
+          🔍+
         </button>
       </div>
       {loadError && (

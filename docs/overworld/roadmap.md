@@ -1849,6 +1849,46 @@ deterministic; never an empty string) + the full gate (1066 server + 557 web tes
 build). `ExteriorScene.ts`'s own dialogue-bubble rendering is unconfirmed on-device, same as
 every other Phaser-integration change this session.
 
+## Stage 2.54 — City-builder depth: camera zoom + door highlighting (asset research for the rest)
+
+Direct answer to a real, detailed request for city-builder-style depth: zoom out to see the whole
+town, highlighted doors, ground art matching each building's type (a business showing its own
+parking lot up close), real roads with NPC-width sidewalks, and a transportation system (starting
+with a horse-drawn wagon) that travels the roads with genuine movement, never an instant
+teleport. Resolved in `docs/overworld/city-builder-depth.md` per Rule #1 — this round ships the
+two self-contained pieces (zoom, door highlighting) and specs the rest (per-building ground art,
+roads/sidewalks, the wagon transit system) for the following rounds.
+
+Asset research first, not guessed: searched the same trusted CC0 aggregator every existing
+building/tile already comes from (1101 cataloged packs) for horse-drawn/dragon-drawn carriage
+art. Found and shipped a real horse-drawn covered wagon illustration (OpenGameArt "Caravan," CC0)
+plus two matching wayfinding signs from the same author/style family — copied to
+`public/overworld/vehicles/wagon.png` and `public/overworld/decor/{road-sign,crossroads-sign}.png`,
+`CREDITS.md` updated. Confirmed no usable dragon-carriage art exists anywhere reachable (the only
+dragon asset is an unlit grey 3D clay render) and no animated horse-cart spritesheet exists either
+— per the user's own direction, ship the real wagon now, defer a dragon carriage or further
+vehicle tiers until real matching art exists rather than forcing a compromise. These 3 assets are
+staged (present in the build, not yet wired into any code) for §E's wagon-travel-system round.
+
+Shipped this round: (1) mouse-wheel camera zoom, clamped `[0.4, 1]`, smoothly tweened (instant
+under `prefers-reduced-motion`) — Phaser's own bounds-clamping already accounts for zoom on a
+followed camera, so no new bounds math was needed beyond the existing `worldBoundsTiles()`
+`setBounds()` call. Touch has no wheel event, so `OverworldRoot.tsx`'s existing Settings/
+Next-track/Mute button row gained matching 🔍-/🔍+ buttons calling new `zoomIn()`/`zoomOut()`
+scene methods. (2) A real, always-visible, non-color-only door marker (a 🚪 pictograph, gently
+pulsing, static under reduced motion) at each of the 12 static door-buildings — every door
+previously blended into its building's illustration with zero distinct marker. Deliberately NOT
+added to player-built businesses: their door tile already carries a real type-glyph/🚧 badge at
+the exact same position, and a second marker there would visually collide with, not complement,
+an already-real one.
+
+Verified by the full gate (1066 server + 557 web tests, typecheck, build) and a build-output
+check confirming all 3 new vehicle/decor assets land in `dist/`. `ExteriorScene.ts`'s
+zoom/door-marker code has no dedicated test — this file's established convention for
+Phaser-integration code (measured/verified by the pure logic it calls into, which here is none:
+both pieces are pure rendering/input wiring with no new data module). Not yet seen rendered in a
+real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
