@@ -6,6 +6,7 @@ import { armHomeType, CONSTRUCTION_MS, placeArmedHome } from "../data/housing.js
 import { armBusinessType, placeArmedBusiness } from "../data/business.js";
 import { armItem, placeArmedItem } from "../data/townBuilder.js";
 import { armZoneType, zoneTileAt } from "../data/zoning.js";
+import { queueArmedItem } from "../data/buildQueue.js";
 
 describe("HangarOverlay", () => {
   beforeEach(() => localStorage.clear());
@@ -63,6 +64,32 @@ describe("HangarOverlay", () => {
       // (the catalog row's own text is "Bench — $1.20", so it can't collide with this match).
       expect(screen.getByText("Bench")).toBeTruthy();
       expect(screen.getAllByText("Armed")).toHaveLength(1); // only Bench, not Garden Bed too
+    });
+  });
+
+  describe("Build Queue (build-queue-dispatch.md)", () => {
+    it("defaults to manual placement (dispatch mode off)", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText("Send a crew instead")).toBeTruthy();
+    });
+
+    it("toggling switches the label and persists the real setting", () => {
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getByText("Send a crew instead"));
+      expect(screen.getByText("Switch to building it yourself")).toBeTruthy();
+      expect(localStorage.getItem("brain.buildQueue.dispatchMode.space-1")).toBe("1");
+    });
+
+    it("shows a real pending order and cancelling it refunds the treasury and removes the row", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank");
+      armItem("space-1", "garden_bed");
+      queueArmedItem("space-1", 5, 5, "garden_bed");
+      render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
+      expect(screen.getByText(/at \(5, 5\)/)).toBeTruthy();
+      const before = treasuryBalanceCents("space-1");
+      fireEvent.click(screen.getByText("Cancel"));
+      expect(treasuryBalanceCents("space-1")).toBeGreaterThan(before);
+      expect(screen.queryByText(/at \(5, 5\)/)).toBeNull();
     });
   });
 

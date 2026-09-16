@@ -253,6 +253,33 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **The build-queue/dispatch system (task #123) (2026-09-16), not yet on-device confirmed** —
+  closes the one deferral the SimCity-realism-pass round left open ("we need a proper way...
+  queue hangar employees to dispatch and do the building"). Resolved in
+  `docs/overworld/build-queue-dispatch.md`. Investigated first: zoning already has a real Area
+  mode (a whole rectangle in one action) — the genuine gap is that every real placement flow
+  (zoning/town-builder/housing/business) requires the player's own avatar to be physically
+  standing at the target and press interact themselves; nothing lets work happen without their
+  literal presence. "Hangar employees" is literal — the same 2 real attendants (Zeke/Nova) every
+  other building already has, never invented characters; dispatch reuses the exact real BFS-pathed
+  walk (`findPath`/`walkPath`) the outing system already proved, no teleporting. A new Hangar
+  toggle ("Send a crew instead") decides what an interact press does on the SAME walk-there-and-
+  interact targeting every manual flow already uses — place/zone it now (unchanged default), or
+  queue it for a worker to build later. Supplement, never replace; treasury cost unchanged either
+  way (an item's real price still spends at `armItem` time — queueing never double-charges). New
+  `data/buildQueue.ts` (pure): enqueue/cancel/complete for zone-tile, zone-rect, and item orders,
+  independent of whatever's currently armed in the Hangar. `ExteriorScene.ts` gained a
+  `dispatched` sprite flag mirroring `atMeeting`'s own suspension shape, plus a real cross-system
+  bug caught and fixed before shipping: `maybeStartOuting`/`sendToMeeting` now also refuse to
+  claim an already-dispatched sprite, so outings/meetings/dispatch can never fight over the same
+  tween. Scope: this slice covers 1-tile zoning/decor-item orders (exactly what the request
+  named); dispatching a multi-tile home/business placement is deliberately deferred to its own
+  follow-up. Verified by 21 new `buildQueue.test.ts` cases, 3 new `HangarOverlay.test.tsx` cases,
+  and the full gate (1066 server + 630 web tests, typecheck, build). `ExteriorScene.ts`'s own
+  Phaser-integration code has no dedicated test (this file's established convention) — the tween-
+  conflict fix was verified by direct code reading of every sprite-tween call site, not a
+  browser. Not yet seen rendered in a real browser from this sandbox.
+
 - **A SimCity-realism pass: real interior agency, NPC teleport, population income (2026-09-16),
   not yet on-device confirmed** — direct response to detailed real feedback bundling 4
   complaints (interiors popping the overlay before you can walk around and exiting the whole

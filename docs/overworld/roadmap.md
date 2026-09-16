@@ -2179,6 +2179,70 @@ cases (real accrual, real neglect gating, no retroactive banking, real multi-NPC
 tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration code has no dedicated test
 (this file's established convention) — not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.63 — the build-queue/dispatch system (task #123, closing Stage 2.62's own deferral)
+
+Direct continuation of Stage 2.62's own deferred piece — resolved and scoped in
+`docs/overworld/build-queue-dispatch.md`, per Rule #1. Investigated first, not guessed: zoning
+already has a real Area mode (`zoning-rework.md`) that zones a whole rectangle in one action, so
+"one tile, one Hangar trip" friction was already fixed. What's still genuinely missing, confirmed
+by reading every arm-then-place flow (zoning/town-builder/housing/business): every one of them
+requires the player's own avatar to be physically standing at the target and press interact
+themselves — zero mechanism anywhere lets work happen without the player's literal real-time
+presence. That's the real gap this round closes, not remaining tile-by-tile friction.
+
+**Decisions.** "Hangar employees" is literal — the same 2 real, already-hand-authored attendants
+every other building has (Zeke/Nova), never invented characters. Dispatch reuses the exact real
+BFS-pathed, tile-by-tile tweened walk (`findPath`/`walkPath`) the outing system already proved —
+no teleporting, the same standard Stage 2.62 just fixed for outings, applied consistently here by
+construction. A new toggle in the Hangar ("Send a crew instead") decides what an interact press
+does on the SAME walk-there-and-interact targeting every manual flow already uses — place/zone it
+immediately (today's default, unchanged), or queue it for a Hangar attendant to build later.
+Supplement, never replace. Treasury cost is unchanged either way: zoning stays free, and an item's
+real price is spent at the exact same moment it already was (`armItem`) — queueing never spends a
+second time.
+
+**Scope.** This slice covers exactly the two cases the original request named: zoning orders
+(single tile or a whole rectangle) and town-builder decor items — both strictly 1-tile-target
+operations. Dispatching a home/business placement (multi-tile footprints, whose "is this free"
+check spans several tiles and can go stale mid-walk) is deliberately deferred to its own follow-up.
+
+**What shipped.** New `data/buildQueue.ts` (pure, localStorage-backed): `enqueueZoneTile`/
+`enqueueZoneRect` (free, matching zoning's own convention), `queueArmedItem` (takes an ALREADY-
+armed-and-paid item — mirrors `placeArmedItem`'s own "the spend already happened" convention, so
+dispatch mode can never double-charge), `cancelOrder` (refunds a paid item order), `completeOrder`
+(applies the order's own captured type/item — deliberately independent of whatever's currently
+armed in the Hangar, since the player may have re-armed something else since queueing). New
+`zoning.ts` exports `applyZoneTile`/`applyZoneRect`/`zonableTilesInRect` (explicit-type variants +
+a shared "which tiles in this rectangle are actually zonable" helper, refactored so
+`zoneRectangle`'s own existing behavior is unchanged, just factored through the new shared code).
+New `townBuilder.ts` export `placeItemDirectly` (places without touching arm state/treasury,
+re-validating the target at completion time since it may have gone stale).
+
+`ExteriorScene.ts`: a new `dispatched?: boolean` flag on `AttendantSprite`, mirroring `atMeeting`'s
+existing suspension shape exactly — the society tick skips its own Working/Break/Home rendering for
+a dispatched sprite, and (a real cross-system bug caught before shipping, not after) `maybeStartOuting`
+and `sendToMeeting` both now also refuse to claim an already-dispatched sprite, so outings/meetings/
+dispatch can never fight over the same sprite's tween. A new `processBuildQueue()` tick (own pace,
+independent of the society clock) hands a free Hangar attendant the next unclaimed pending order;
+`startDispatch` walks them there, holds for a real visible "🔨" beat, applies the order's real
+effect, then either claims the next pending order (real parallel throughput — both attendants can be
+out at once) or walks home and clears `dispatched`, letting the very next real society tick repaint
+them correctly (the same tick-driven repaint every other errand already relies on, never a bespoke
+tween). A genuinely unreachable target (should be rare — the same grid every outing already proves
+reachable) releases the sprite back to normal duty rather than leaving it stuck mid-chain.
+
+Hangar UI: a new "Build Queue" section — the toggle, plus a real list of pending orders (never a
+score/fake ETA) with a Cancel button per order (refunds a paid item order).
+
+Verified by 21 new `buildQueue.test.ts` cases (enqueue/cancel/complete semantics, FIFO order, the
+no-double-spend item path, stale-target drop+refund, an order's own captured type applying
+independent of live arm state), 3 new `HangarOverlay.test.tsx` cases, and the full gate (1066
+server + 630 web tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration code has no
+dedicated test (this file's established convention) — the tween-conflict fix was verified by direct
+code reading of every place a sprite's `image` gets tweened (outings, meetings, dispatch, the
+society transition itself), confirming the new guards close every cross-system claim this round
+introduced; not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

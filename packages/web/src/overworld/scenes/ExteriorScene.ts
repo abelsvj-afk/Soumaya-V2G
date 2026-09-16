@@ -42,6 +42,7 @@ import { allVillageSprites, GRAVEL_APRON } from "./villagePack.js";
 import { asSocietyNpcId, dialogueFor, npcProfile, type SocietyNpcId } from "../data/npcDialogue.js";
 import {
   armedItemId,
+  clearArmedItem,
   isTileFreeForPlacement,
   placeArmedItem,
   placedItems,
@@ -54,6 +55,7 @@ import {
   clearZoneAnchor,
   isTileZonable,
   setZoneAnchor,
+  zonableTilesInRect,
   zoneAnchor,
   zonedTiles,
   zoneRectangle,
@@ -97,6 +99,7 @@ import {
   isInsideInteriorRoom,
   worldBoundsTiles,
 } from "../data/interiorRoom.js";
+import { completeOrder, dispatchModeEnabled, enqueueZoneRect, enqueueZoneTile, queueArmedItem, queuedOrders, type WorkOrder } from "../data/buildQueue.js";
 import { color as uiColor } from "../ui/theme.js";
 
 export const TILE_SIZE = 32;
@@ -164,6 +167,12 @@ interface AttendantSprite {
    *  per-tick rendering is suspended for exactly this sprite so the meeting's own walk/return
    *  tweens are never fought by a Working/Break/Home transition firing mid-trip. */
   atMeeting?: boolean;
+  /** Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) — true
+   *  while this Hangar attendant is out walking to/working a queued order. Same suspension
+   *  shape as `atMeeting`: tickSociety's normal rendering is skipped for exactly this sprite, and
+   *  the outing/meeting starters both refuse to also claim a sprite that's already dispatched, so
+   *  no two of these three systems ever fight over the same sprite.image tween. */
+  dispatched?: boolean;
 }
 
 /** Soumaya, the partner NPC — a real autonomous companion (Stage 2.17: restores the role she
@@ -215,6 +224,12 @@ export class ExteriorScene extends Phaser.Scene {
    *  transition or a Town Meeting call can cleanly interrupt one in flight (kill the in-progress
    *  walk tween) instead of fighting it. */
   private outingActive = new Set<string>();
+  /** Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) — order
+   *  ids a Hangar attendant is currently walking to/working, so the OTHER attendant (or the same
+   *  one, next tick) never claims the same pending order twice. Deliberately not persisted (same
+   *  convention as outingActive/atMeeting) — a reload just leaves an in-flight order available
+   *  for the next free worker; the real treasury spend, if any, already happened once at enqueue. */
+  private claimedOrderIds = new Set<string>();
   /** Cross-building social depth (docs/overworld/social-depth.md, task #59) — npcIds (post.npcId)
    *  currently genuinely LINGERING at their outing destination, mapped to which place that is.
    *  Present only during the linger phase (added when the outbound walk completes, removed the
@@ -877,6 +892,25 @@ export class ExteriorScene extends Phaser.Scene {
     this.paintZoneGround(tile);
   }
 
+  /** Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) — a real,
+   *  distinct "⏳" placeholder at every tile a just-queued zoning order actually covers, so
+   *  queueing isn't visually silent while a Hangar worker is still en route. Reuses the exact
+   *  same keyed sprite map `paintZoneMarker` uses (destroy-and-recreate by tile), so when the
+   *  order later completes and `renderZoneMarkers` repaints those same tiles with the real type
+   *  glyph, the pending marker is replaced automatically — no separate cleanup needed. */
+  private paintPendingOrderMarkers(order: WorkOrder): void {
+    const tiles = order.kind === "zone-rect" ? zonableTilesInRect(this.spaceId, order.x0, order.y0, order.x1, order.y1) : [{ x: order.x0, y: order.y0 }];
+    for (const tile of tiles) {
+      const key = `${tile.x},${tile.y}`;
+      this.zoneMarkerSprites.get(key)?.destroy();
+      const glyph = this.add.text(tile.x * TILE_SIZE + TILE_SIZE / 2, tile.y * TILE_SIZE + TILE_SIZE / 2, "⏳", { fontSize: "14px" });
+      glyph.setOrigin(0.5);
+      glyph.setAlpha(0.5);
+      glyph.setDepth(1);
+      this.zoneMarkerSprites.set(key, glyph);
+    }
+  }
+
   /** city-builder-depth.md §D — a real road (the same `path` ground tile the plaza already
    *  uses) for `transit`, a real gravel walkway (the same village-pack tile the business parking
    *  apron already uses) for `sidewalk` — both already exactly one tile wide, the same footprint
@@ -1073,6 +1107,9 @@ export class ExteriorScene extends Phaser.Scene {
     }
     this.time.addEvent({ delay: SOCIETY_TICK_MS, loop: true, callback: () => this.tickSociety() });
     this.spawnOutingTimers();
+    // Build queue + worker dispatch (build-queue-dispatch.md) — its own pace, independent of the
+    // society clock (checking every 4s is plenty; a dispatch trip itself takes several seconds).
+    this.time.addEvent({ delay: 4000, loop: true, callback: () => this.processBuildQueue() });
   }
 
   /** NPC Autonomy round — one independent, desynced timer per society NPC that occasionally
@@ -1112,10 +1149,11 @@ export class ExteriorScene extends Phaser.Scene {
       const id = asSocietyNpcId(sprite.post.npcId);
       if (!id) continue;
       const state = scheduleStateAt(id, this.societyTickCount);
-      // A sprite away at a real Town Meeting keeps its OWN walk/return tweens running
+      // A sprite away at a real Town Meeting (or dispatched on a build-queue errand,
+      // build-queue-dispatch.md task #123) keeps its OWN walk/return tweens running
       // uninterrupted (npc-autonomy.md) — the real schedule state is still tracked underneath
       // (restingTileFor reads it the moment they get back) but never rendered while they're away.
-      if (sprite.atMeeting) {
+      if (sprite.atMeeting || sprite.dispatched) {
         sprite.societyState = state;
       } else {
         this.applySocietyState(sprite, state);
@@ -1126,7 +1164,7 @@ export class ExteriorScene extends Phaser.Scene {
     }
 
     for (const [placeId, entries] of byPlace) {
-      const available = entries.filter((e) => !e.sprite.atMeeting);
+      const available = entries.filter((e) => !e.sprite.atMeeting && !e.sprite.dispatched);
       const onBreak = available.filter((e) => e.state === "break");
       const [first, second] = onBreak;
       const wasBothOnBreak = this.societyBothOnBreak.get(placeId) ?? false;
@@ -1326,6 +1364,7 @@ export class ExteriorScene extends Phaser.Scene {
   private maybeStartOuting(sprite: AttendantSprite): void {
     if (sprite.societyState !== "home") return;
     if (sprite.atMeeting) return;
+    if (sprite.dispatched) return; // build-queue-dispatch.md — already out on a build errand
     if (this.outingActive.has(sprite.post.npcId)) return;
 
     const sequence = sprite.outingCount ?? 0;
@@ -1538,6 +1577,11 @@ export class ExteriorScene extends Phaser.Scene {
 
   private sendToMeeting(sprite: AttendantSprite, slot: GridPosition): void {
     if (sprite.atMeeting) return; // already on their way from a very recent double-fire
+    // build-queue-dispatch.md — a currently-dispatched Hangar attendant sits out this one
+    // meeting instance rather than fighting the in-flight dispatch walk tween; their real
+    // schedule state is still tracked underneath (tickSociety) and they rejoin normally once
+    // their build errand finishes.
+    if (sprite.dispatched) return;
     const outbound = findPath(this.spriteTile(sprite), slot, this.npcPathGrid);
     if (!outbound) return; // genuinely unreachable — tolerate gracefully, this one NPC just stays put
 
@@ -1570,6 +1614,88 @@ export class ExteriorScene extends Phaser.Scene {
         });
       });
     });
+  }
+
+  /** Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) — checked
+   *  periodically for a free Hangar attendant and a pending order to hand them. Deliberately its
+   *  own pace, not tied to the society clock (dispatch work isn't a Working/Break/Home concept).
+   *  "Hangar employees" is literal here: the same 2 real, already-hand-authored attendants
+   *  (Zeke/Nova) every other building already has, never invented characters. */
+  private processBuildQueue(): void {
+    const hangarAttendants = this.attendantSprites.filter((s) => s.post.placeId === "hangar");
+    for (const sprite of hangarAttendants) {
+      if (sprite.dispatched || sprite.atMeeting || this.outingActive.has(sprite.post.npcId)) continue;
+      const order = queuedOrders(this.spaceId).find((o) => !this.claimedOrderIds.has(o.id));
+      if (order) this.startDispatch(sprite, order);
+    }
+  }
+
+  /** Walks a Hangar attendant to a queued order's target, holds there to "do the building" (a
+   *  real, visible beat — same 🔨 work-icon convention `showWorkIcon` already provides), then
+   *  applies the order's real effect and either picks up the next pending order or walks home.
+   *  No teleporting anywhere in this flow — the same real BFS + tile-by-tile walk every other
+   *  NPC cross-map trip in this scene already uses (this round's own fix for the sibling "NPCs
+   *  teleporting" bug applies equally here by construction, not by a separate patch). */
+  private startDispatch(sprite: AttendantSprite, order: WorkOrder): void {
+    const target = { x: order.x0, y: order.y0 };
+    const path = findPath(this.spriteTile(sprite), target, this.npcPathGrid);
+    if (!path) {
+      // Genuinely unreachable right now — tolerate gracefully: leave the order unclaimed for a
+      // retry, and make sure this attendant (which may already be mid-dispatch-chain, via
+      // continueOrReturnFromDispatch) isn't left stranded in a permanent dispatched state.
+      sprite.dispatched = false;
+      sprite.societyState = undefined;
+      return;
+    }
+    this.claimedOrderIds.add(order.id);
+    sprite.dispatched = true;
+    sprite.image.setVisible(true);
+    sprite.image.setAlpha(1);
+    this.walkPath(sprite, path, () => {
+      this.showWorkIcon(sprite, "🔨");
+      const workMs = prefersReducedMotion() ? 200 : 3000;
+      this.time.delayedCall(workMs, () => {
+        completeOrder(this.spaceId, order.id);
+        this.applyBuildQueueCompletionVisuals(order);
+        this.claimedOrderIds.delete(order.id);
+        this.continueOrReturnFromDispatch(sprite);
+      });
+    });
+  }
+
+  /** Repaints whatever a just-completed order actually changed — reuses the existing full
+   *  render passes (both already idempotent: paintZoneMarker/paintPlacedItem key by tile/id and
+   *  simply redraw in place), rather than duplicating their drawing logic here. */
+  private applyBuildQueueCompletionVisuals(order: WorkOrder): void {
+    if (order.kind === "item") {
+      this.renderPlacedItems();
+    } else {
+      this.renderZoneMarkers();
+    }
+  }
+
+  /** Either hands this attendant the next pending order (real parallel throughput when both
+   *  attendants are out — build-queue-dispatch.md decision #6) or walks them back to the Hangar
+   *  and clears dispatched, letting the very next real society tick repaint them to wherever
+   *  their true current schedule state actually belongs (the tick-driven repaint every other
+   *  errand — outings, Town Meetings — already relies on, never a bespoke tween here). */
+  private continueOrReturnFromDispatch(sprite: AttendantSprite): void {
+    const next = queuedOrders(this.spaceId).find((o) => !this.claimedOrderIds.has(o.id));
+    if (next) {
+      this.startDispatch(sprite, next);
+      return;
+    }
+    const home = this.doorTileFor(sprite.post.placeId);
+    const arrive = (): void => {
+      sprite.dispatched = false;
+      sprite.societyState = undefined; // force applySocietyState to repaint on the very next tick
+    };
+    const path = findPath(this.spriteTile(sprite), home, this.npcPathGrid);
+    if (!path) {
+      arrive();
+      return;
+    }
+    this.walkPath(sprite, path, arrive);
   }
 
   private attendantWorkTick(sprite: AttendantSprite): void {
@@ -1917,10 +2043,23 @@ export class ExteriorScene extends Phaser.Scene {
       );
       const soumayaHere = this.soumaya && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y;
       if (!creatureHere && !soumayaHere && isTileFreeForPlacement(this.spaceId, front.x, front.y)) {
-        const placed = placeArmedItem(this.spaceId, front.x, front.y);
-        if (placed) {
-          this.paintPlacedItem(placed);
-          this.events.emit("item-placed", placed.itemId);
+        // Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) —
+        // the SAME targeting flow either way (arm in the Hangar, walk up, interact); the
+        // dispatch-mode toggle only changes what interact does with an already-armed, already-
+        // paid item: place it under the player's own hands now, or queue it for a Hangar
+        // attendant to build later.
+        if (dispatchModeEnabled(this.spaceId)) {
+          const order = queueArmedItem(this.spaceId, front.x, front.y, armedId);
+          if (order) {
+            clearArmedItem(this.spaceId);
+            this.events.emit("item-queued", order.itemId);
+          }
+        } else {
+          const placed = placeArmedItem(this.spaceId, front.x, front.y);
+          if (placed) {
+            this.paintPlacedItem(placed);
+            this.events.emit("item-placed", placed.itemId);
+          }
         }
       }
       return;
@@ -1933,12 +2072,25 @@ export class ExteriorScene extends Phaser.Scene {
     // feedback that a fresh Hangar trip per tile was "too slow"), and "area" mode turns two
     // presses (anchor, then commit) into a whole-rectangle zoning action instead of one tile.
     if (armedZoneType(this.spaceId)) {
+      const zoneType = armedZoneType(this.spaceId)!;
+      const dispatch = dispatchModeEnabled(this.spaceId);
       if (armedZoneMode(this.spaceId) === "area") {
         const anchor = zoneAnchor(this.spaceId);
         if (!anchor) {
           if (isTileZonable(this.spaceId, front.x, front.y)) {
             setZoneAnchor(this.spaceId, front.x, front.y);
             this.paintZoneAnchorMarker(front.x, front.y);
+          }
+        } else if (dispatch) {
+          // Build queue + worker dispatch (docs/overworld/build-queue-dispatch.md, task #123) —
+          // queues the whole rectangle as ONE order (a Hangar attendant applies every tile in
+          // it at once on arrival), rather than the immediate-paint path below.
+          const order = enqueueZoneRect(this.spaceId, anchor.x, anchor.y, front.x, front.y, zoneType);
+          clearZoneAnchor(this.spaceId);
+          this.clearZoneAnchorMarker();
+          if (order) {
+            this.paintPendingOrderMarkers(order);
+            this.events.emit("tile-zoned-queued", zoneType);
           }
         } else {
           const tiles = zoneRectangle(this.spaceId, anchor.x, anchor.y, front.x, front.y);
@@ -1951,10 +2103,18 @@ export class ExteriorScene extends Phaser.Scene {
         return;
       }
       if (isTileZonable(this.spaceId, front.x, front.y)) {
-        const tile = zoneTileAt(this.spaceId, front.x, front.y);
-        if (tile) {
-          this.paintZoneMarker(tile);
-          this.events.emit("tile-zoned", tile.type);
+        if (dispatch) {
+          const order = enqueueZoneTile(this.spaceId, front.x, front.y, zoneType);
+          if (order) {
+            this.paintPendingOrderMarkers(order);
+            this.events.emit("tile-zoned-queued", zoneType);
+          }
+        } else {
+          const tile = zoneTileAt(this.spaceId, front.x, front.y);
+          if (tile) {
+            this.paintZoneMarker(tile);
+            this.events.emit("tile-zoned", tile.type);
+          }
         }
       }
       return;
