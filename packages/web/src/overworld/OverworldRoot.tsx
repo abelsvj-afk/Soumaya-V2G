@@ -40,7 +40,7 @@ type Overlay =
   | { kind: "none" }
   | { kind: "capture" }
   | { kind: "details"; creature: CreatureEntity }
-  | { kind: "business"; businessId: string }
+  | { kind: "business"; businessId: string; stallIndex: number }
   | { kind: "settings" }
   | { kind: PlaceId };
 
@@ -250,8 +250,9 @@ export function OverworldRoot() {
         if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "hangar");
       });
       // business.md — stepping onto a real placed business's own door tile opens its overlay,
-      // same as any real door-building's "enter-place".
-      scene.events.on("enter-business", (businessId: string) => setOverlay({ kind: "business", businessId }));
+      // same as any real door-building's "enter-place". mall.md decision #3 — the emitted
+      // stallIndex is 0 for every normal single-catalog business, so this is unchanged for them.
+      scene.events.on("enter-business", (businessId: string, stallIndex: number) => setOverlay({ kind: "business", businessId, stallIndex }));
 
       void refresh();
     });
@@ -313,7 +314,7 @@ export function OverworldRoot() {
     // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
     // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
     if (overlay.kind === "business") {
-      sceneRef.current?.returnToBusinessDoor(overlay.businessId);
+      sceneRef.current?.returnToBusinessDoor(overlay.businessId, overlay.stallIndex);
     } else if (
       overlay.kind !== "none" &&
       overlay.kind !== "capture" &&
@@ -541,7 +542,9 @@ export function OverworldRoot() {
       {overlay.kind === "park" && <ParkOverlay onClose={closeOverlay} />}
       {overlay.kind === "mayorsHall" && <MayorsHallOverlay spaceId={spaceId} onClose={closeOverlay} />}
       {overlay.kind === "hangar" && <HangarOverlay spaceId={spaceId} memoriesCount={memoriesCount} onClose={closeOverlay} />}
-      {overlay.kind === "business" && <BusinessOverlay spaceId={spaceId} businessId={overlay.businessId} onClose={closeOverlay} />}
+      {overlay.kind === "business" && (
+        <BusinessOverlay spaceId={spaceId} businessId={overlay.businessId} stallIndex={overlay.stallIndex} onClose={closeOverlay} />
+      )}
       {overlay.kind === "settings" && <SettingsOverlay onClose={closeOverlay} />}
       {overlay.kind === "soumaya" && (
         <SoumayaChatOverlay

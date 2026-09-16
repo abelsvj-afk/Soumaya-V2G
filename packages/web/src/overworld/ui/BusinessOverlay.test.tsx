@@ -79,4 +79,41 @@ describe("BusinessOverlay (business.md)", () => {
     fireEvent.click(screen.getByText("Leave"));
     expect(onClose).toHaveBeenCalled();
   });
+
+  describe("the Mall — a real multi-stall business (mall.md, backlog #83)", () => {
+    function placeRealMall(): string {
+      for (let y = 10; y <= 17; y++) {
+        for (let x = 2; x <= 9; x++) {
+          armZoneType(SPACE, "commercial");
+          zoneTileAt(SPACE, x, y);
+        }
+      }
+      fundTreasury(2000);
+      armBusinessType(SPACE, "mall");
+      return placeArmedBusiness(SPACE, 2, 10, 0)!.id;
+    }
+
+    it("titles the overlay with the building AND the specific stall entered, showing only that stall's own goods", () => {
+      const businessId = placeRealMall();
+      render(<BusinessOverlay spaceId={SPACE} businessId={businessId} stallIndex={1} onClose={vi.fn()} />);
+      expect(screen.getByText(/The Mall · Flower Stall/)).toBeTruthy();
+      expect(screen.getByText(/Fresh Bouquet/)).toBeTruthy();
+      expect(screen.queryByText(/Paper Kite/)).toBeNull(); // the Toy Stall's own good, not this stall's
+    });
+
+    it("defaults to stall 0 when no stallIndex is passed", () => {
+      const businessId = placeRealMall();
+      render(<BusinessOverlay spaceId={SPACE} businessId={businessId} onClose={vi.fn()} />);
+      expect(screen.getByText(/The Mall · Toy Stall/)).toBeTruthy();
+    });
+
+    it("buying a good at one stall never marks a same-named-shape good at a different stall as owned", () => {
+      const businessId = placeRealMall();
+      const { rerender } = render(<BusinessOverlay spaceId={SPACE} businessId={businessId} stallIndex={0} onClose={vi.fn()} />);
+      fireEvent.click(screen.getAllByText("Buy")[0]!);
+      expect(screen.getAllByText("Owned").length).toBeGreaterThan(0);
+      rerender(<BusinessOverlay spaceId={SPACE} businessId={businessId} stallIndex={1} onClose={vi.fn()} />);
+      expect(screen.queryByText("Owned")).toBeNull(); // the Flower Stall's own goods are untouched
+    });
+  });
 });

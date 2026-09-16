@@ -253,6 +253,22 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Backlog #83 — the Mall, a real multi-stall business (2026-09-16), not yet on-device
+  confirmed** — closes a backlog item deferred three separate times, each time with the same
+  resolved framing: a real widening of Business (task #67), not a new mechanic. Specced first
+  (`docs/overworld/mall.md`). `BusinessType` gains an optional `stalls?`; every existing type
+  (Bakery/Tailor/Bookshop) leaves it absent and is completely unchanged. A multi-stall business's
+  real door tiles are never stored — computed purely from the footprint + stall count (reduces
+  byte-for-byte to the existing single-door formula for one stall, verified directly). Stepping
+  onto any stall's door opens the SAME `BusinessOverlay.tsx`, told which stall via a
+  `stallIndex`. The Mall itself: 6x3 footprint, 1200¢ (above Bookshop's 800¢ — more building for
+  more money, not a shortcut), 3 real distinct stalls (Toy/Flower/Candle) each with their own
+  3-good catalog. `HangarOverlay.tsx` needed zero changes (already iterates `BUSINESS_TYPES`
+  generically). No new art sourced this round (falls to the existing `ARCHED_HALL` default, same
+  as Market). Verified by 6 new `business.test.ts` cases + 3 new `BusinessOverlay.test.tsx`
+  cases + 1 updated `HangarOverlay.test.tsx` count + the full gate (1066 server + 574 web tests,
+  typecheck, build). Not yet seen rendered in a real browser.
+
 - **Real bug fix: money was earnable from the very first suggested action, just never said so
   (2026-09-15), not yet on-device confirmed** — direct response to live feedback: "Money needs
   to be earnable from the start... I don't see a way to get money to afford anything."

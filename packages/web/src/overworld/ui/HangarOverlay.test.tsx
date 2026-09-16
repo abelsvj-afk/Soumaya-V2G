@@ -40,9 +40,9 @@ describe("HangarOverlay", () => {
   describe("Town Building (town-builder.md)", () => {
     it("can't afford anything with an empty treasury", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
-      // 4 real town-builder decor items + 4 real home types (housing.md) + 3 real business
-      // types (business.md), all unaffordable.
-      expect(screen.getAllByText("Can't afford").length).toBe(11);
+      // 4 real town-builder decor items + 4 real home types (housing.md) + 4 real business
+      // types (business.md, now including the Mall — mall.md, backlog #83), all unaffordable.
+      expect(screen.getAllByText("Can't afford").length).toBe(12);
     });
 
     it("buying an affordable item arms it and spends the real treasury", () => {
