@@ -35,6 +35,18 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     expect(treasuryBalanceCents(SPACE)).toBe(balanceBefore);
   });
 
+  it("task #125 — a representative structure visibly earns a real whole cent within single-digit real minutes, not real hours/days", () => {
+    zoneResidentialRect(2, 10, 9, 17);
+    fundTreasury(2000);
+    armHomeType(SPACE, "cottage"); // 300c, the town's own cheapest (slowest-earning) home type
+    const builtAt = 0;
+    placeArmedHome(SPACE, 2, 10, builtAt)!;
+    const balanceBefore = treasuryBalanceCents(SPACE);
+    const FIVE_MINUTES_MS = 5 * 60 * 1000;
+    collectPassiveIncome(SPACE, builtAt + FIVE_MINUTES_MS);
+    expect(treasuryBalanceCents(SPACE)).toBeGreaterThan(balanceBefore);
+  });
+
   it("accrues real rent proportional to elapsed real time and the structure's own real price", () => {
     zoneResidentialRect(2, 10, 9, 17);
     fundTreasury(2000);
@@ -45,8 +57,9 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     const balanceBefore = treasuryBalanceCents(SPACE);
     const oneDayLater = builtAt + MS_PER_DAY;
     collectPassiveIncome(SPACE, oneDayLater);
-    // 10% of $3.00 = 30c for one real day elapsed (no sidewalk bonus here).
-    expect(treasuryBalanceCents(SPACE)).toBe(balanceBefore + Math.floor(cottage.priceCents * 0.1));
+    // 120% of $3.00 = 360c for one real day elapsed (no sidewalk bonus here) — task #125's
+    // retuned rate (up from the original 10%, which took real hours to earn a single cent).
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBefore + Math.floor(cottage.priceCents * 1.2));
   });
 
   it("never counts as a real interaction — hoursWorked/workedPlaceIds stay untouched by passive accrual", () => {
@@ -59,7 +72,7 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     expect(workedPlaceIds(SPACE)).not.toContain(home.id);
   });
 
-  it("caps accrual at 3 real days — never rewards leaving a structure untouched indefinitely", () => {
+  it("caps accrual at 1 real day (task #125, down from 3) — never rewards leaving a structure untouched indefinitely", () => {
     zoneResidentialRect(2, 10, 9, 17);
     fundTreasury(2000);
     const cottage = HOME_TYPES.find((t) => t.id === "cottage")!;
@@ -68,8 +81,8 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     const balanceBefore = treasuryBalanceCents(SPACE);
     collectPassiveIncome(SPACE, 30 * MS_PER_DAY); // 30 real days later, never collected
     const cappedGain = treasuryBalanceCents(SPACE) - balanceBefore;
-    const threeDayGain = Math.floor(cottage.priceCents * 0.1 * 3);
-    expect(cappedGain).toBe(threeDayGain);
+    const oneDayGain = Math.floor(cottage.priceCents * 1.2);
+    expect(cappedGain).toBe(oneDayGain);
   });
 
   it("a home still under construction accrues nothing", () => {
@@ -97,7 +110,7 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     const business = placeArmedBusiness(SPACE, 2, 10, builtAt)!;
     const balanceBefore = treasuryBalanceCents(SPACE);
     collectPassiveIncome(SPACE, builtAt + MS_PER_DAY);
-    expect(treasuryBalanceCents(SPACE)).toBe(balanceBefore + Math.floor(bakery.priceCents * 0.1));
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBefore + Math.floor(bakery.priceCents * 1.2));
   });
 
   it("a sidewalk-adjacent structure earns 1.5x the base rate", () => {
@@ -112,16 +125,17 @@ describe("passiveIncome — real rent accrual from built structures (wave3-econo
     const balanceBefore = treasuryBalanceCents(SPACE);
     collectPassiveIncome(SPACE, builtAt + MS_PER_DAY);
     const boostedGain = treasuryBalanceCents(SPACE) - balanceBefore;
-    expect(boostedGain).toBe(Math.floor(cottage.priceCents * 0.1 * 1.5));
+    expect(boostedGain).toBe(Math.floor(cottage.priceCents * 1.2 * 1.5));
   });
 
   it("doesn't lose sub-cent progress to frequent refreshes — many small calls total close to one big one", () => {
-    // Step size (500s) is deliberately smaller than what it takes to earn a single whole cent
-    // (~48 real minutes at this cottage's 30c/day rate) — most individual calls credit nothing,
-    // proving unpaid fractional time isn't discarded when a call happens to earn 0 cents. Many
-    // separate floor()s vs. one big floor() can differ by a cent or two from rounding alone —
-    // the real guarantee under test is "roughly the same total," not bit-identical.
-    const STEP_MS = 500_000;
+    // Step size (60s) is deliberately smaller than what it takes to earn a single whole cent
+    // (4 real minutes at this cottage's real 360c/day rate, task #125's retuned pacing) — most
+    // individual calls credit nothing, proving unpaid fractional time isn't discarded when a
+    // call happens to earn 0 cents. Many separate floor()s vs. one big floor() can differ by a
+    // cent or two from rounding alone — the real guarantee under test is "roughly the same
+    // total," not bit-identical.
+    const STEP_MS = 60_000;
     const CALLS = 100;
     const TOTAL_MS = STEP_MS * CALLS;
 

@@ -96,9 +96,9 @@ import {
   INTERIOR_ROOM_WIDTH,
   interiorCounterTile,
   interiorEntryTile,
+  interiorRoomBounds,
   interiorRoomOrigin,
   isInsideInteriorRoom,
-  worldBoundsTiles,
 } from "../data/interiorRoom.js";
 import { completeOrder, dispatchModeEnabled, enqueueZoneRect, enqueueZoneTile, queueArmedItem, queuedOrders, type WorkOrder } from "../data/buildQueue.js";
 import { createPlayerWalkAnimations, idleFrameFor, PLAYER_WALK_SHEET, walkAnimKey } from "./characterSprites.js";
@@ -426,12 +426,12 @@ export class ExteriorScene extends Phaser.Scene {
     this.player.setScale(PLAYER_SPRITE_SCALE);
     this.player.setDepth(10);
 
-    // Backlog #80 — bounds cover the real town AND the reserved interior room (worldBoundsTiles),
-    // extended once here rather than toggled at transition time (see walk-in-interiors.md).
-    const bounds = worldBoundsTiles();
-    const worldWidth = bounds.width * TILE_SIZE;
-    const worldHeight = bounds.height * TILE_SIZE;
-    this.cameras.main.setBounds(0, 0, worldWidth, worldHeight);
+    // Real exterior-only bounds (task #125) — a real measured bug: the original design unioned
+    // this with the reserved interior room into one shared rectangle set once here, which clamped
+    // the camera hard against the world's far edge whenever the player stood in the tiny room
+    // (2-6% of the screen showing real room content, the rest empty). `applyInteriorCamera`/
+    // `restoreExteriorCamera` now toggle bounds at the real transition instead.
+    this.cameras.main.setBounds(0, 0, REGION_WIDTH * TILE_SIZE, REGION_HEIGHT * TILE_SIZE);
     // The camera's own viewport size (not the world) — with Scale.RESIZE (OverworldRoot.tsx)
     // this is genuinely the device's screen, usually smaller than the 26x18-tile world, so
     // this is a real scrolling camera now, not a shrunk-to-fit picture of the whole map.
@@ -453,20 +453,27 @@ export class ExteriorScene extends Phaser.Scene {
     this.created = true;
   }
 
-  /** Backlog #80 — builds the one reusable interior room, once, in reserved off-map tile space
-   *  (interiorRoom.ts). Plain rectangles + a glyph Text, not new art (walk-in-interiors.md's own
-   *  documented scoping decision) — colors pulled from the shared UI theme so the two systems
-   *  don't drift apart. */
+  /** Backlog #80, real floor art added in task #125 — builds the one reusable interior room,
+   *  once, in reserved off-map tile space (interiorRoom.ts). The floor now tiles the SAME real
+   *  ground texture already used outdoors for the plaza (`TileFrame.path`, `tileAt()`'s own
+   *  per-tile convention `drawGround()` already uses) instead of a flat-color rectangle — a real
+   *  answer to "no real looking building interiors" using zero newly-sourced art. The wall stays
+   *  a bordered frame (a real architectural wall texture is its own future asset-sourcing round,
+   *  not this one's real scope) but themed from the building palette instead of the generic UI
+   *  panel-border color, so it reads as a wall around a real floor rather than a placeholder box. */
   private buildInteriorRoom(): void {
     const origin = interiorRoomOrigin();
     const px = origin.x * TILE_SIZE;
     const py = origin.y * TILE_SIZE;
     const w = INTERIOR_ROOM_WIDTH * TILE_SIZE;
     const h = INTERIOR_ROOM_HEIGHT * TILE_SIZE;
-    const floor = this.add.rectangle(px + w / 2, py + h / 2, w, h, Phaser.Display.Color.HexStringToColor(uiColor.fieldBg).color);
-    floor.setDepth(0);
+    for (let y = origin.y; y < origin.y + INTERIOR_ROOM_HEIGHT; y++) {
+      for (let x = origin.x; x < origin.x + INTERIOR_ROOM_WIDTH; x++) {
+        this.tileAt(x, y, TileFrame.path, 0);
+      }
+    }
     const wall = this.add.rectangle(px + w / 2, py + h / 2, w, h);
-    wall.setStrokeStyle(4, Phaser.Display.Color.HexStringToColor(uiColor.panelBorder).color);
+    wall.setStrokeStyle(4, Phaser.Display.Color.HexStringToColor(uiColor.fieldBorder).color);
     wall.setDepth(1);
     this.interiorGlyphText = this.add.text(px + w / 2, py + TILE_SIZE * 0.8, "🚪", { fontSize: "28px" });
     this.interiorGlyphText.setOrigin(0.5);
@@ -490,9 +497,16 @@ export class ExteriorScene extends Phaser.Scene {
     this.movement = createMovementState(entry);
     const targetX = entry.x * TILE_SIZE + TILE_SIZE / 2;
     const targetY = entry.y * TILE_SIZE + TILE_SIZE / 2;
+    // task #125 — frame the interior camera (and flip insideInterior) BEFORE the player visually
+    // slides in, not after: the real exterior-only bounds now shipped by this same fix can't
+    // reach the interior room's own coordinates, so the entry tween must already be viewed
+    // through the room's own camera, not the exterior one trying and failing to follow it.
+    // handleInput stays fully gated by interiorTransitionLock through the whole dwell below, so
+    // nothing can act on this early flip; a resize mid-dwell now re-fits correctly too.
+    this.insideInterior = true;
+    this.applyInteriorCamera();
     const unlock = () => {
       this.interiorTransitionLock = false;
-      this.insideInterior = true;
     };
     if (prefersReducedMotion()) {
       this.player.setPosition(targetX, targetY);
@@ -522,6 +536,7 @@ export class ExteriorScene extends Phaser.Scene {
       this.interiorTransitionLock = false;
       this.insideInterior = false;
       this.interiorReturnDoor = null;
+      this.restoreExteriorCamera(); // task #125 — real exterior bounds/zoom/follow, restored
     };
     if (prefersReducedMotion()) {
       finish();
@@ -551,16 +566,61 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   /** Keeps the camera's viewport matching the real device size as it changes — a rotation,
-   *  a resized browser window, or a mobile browser's chrome showing/hiding. */
+   *  a resized browser window, or a mobile browser's chrome showing/hiding. While genuinely
+   *  inside the interior room, also re-fits/re-centers its own fixed camera (task #125) — a
+   *  resize mid-visit must not leave the room mis-framed again. */
   private handleResize(gameSize: Phaser.Structs.Size): void {
     this.cameras.main.setSize(gameSize.width, gameSize.height);
+    if (this.insideInterior) this.applyInteriorCamera();
   }
 
   /** City-builder depth (§A) — mouse-wheel zoom, clamped to [ZOOM_MIN, ZOOM_MAX]. `deltaY` is
-   *  positive scrolling down (zoom out) in every browser's real wheel-event convention. */
+   *  positive scrolling down (zoom out) in every browser's real wheel-event convention. A no-op
+   *  while inside the interior room (task #125) — its own fixed fit-zoom isn't user-adjustable,
+   *  and applying an exterior zoom level there would immediately re-break the real fit. */
   private handleWheelZoom(_pointer: unknown, _gameObjects: unknown, _deltaX: number, deltaY: number): void {
+    if (this.insideInterior) return;
     const next = Phaser.Math.Clamp(this.zoomLevel - Math.sign(deltaY) * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX);
     this.applyZoom(next);
+  }
+
+  /** The real "contain" zoom for the interior room within the CURRENT real viewport (task #125)
+   *  — the room's own real pixel size vs. `this.scale.width/height`, the same concept the
+   *  exterior zoom feature already established, just fit to a room far smaller than the town
+   *  instead of clamped to `[ZOOM_MIN, ZOOM_MAX]` (that range doesn't apply here — a fixed 5x4
+   *  room needs a much higher zoom to fill any real screen). A small margin (0.9) keeps the
+   *  room's own walls off the exact screen edge. */
+  private interiorFitZoom(): number {
+    const bounds = interiorRoomBounds();
+    const roomWidthPx = bounds.width * TILE_SIZE;
+    const roomHeightPx = bounds.height * TILE_SIZE;
+    const fit = Math.min(this.scale.width / roomWidthPx, this.scale.height / roomHeightPx);
+    return fit * 0.9;
+  }
+
+  /** Switches the camera to the interior room's own small bounds + a real fit zoom, centered on
+   *  it (task #125) — replaces `startFollow`, since the room never scrolls. Called once the
+   *  walk-in dwell finishes, and again on every resize while inside (`handleResize`). */
+  private applyInteriorCamera(): void {
+    const bounds = interiorRoomBounds();
+    const px = bounds.x * TILE_SIZE;
+    const py = bounds.y * TILE_SIZE;
+    const w = bounds.width * TILE_SIZE;
+    const h = bounds.height * TILE_SIZE;
+    this.cameras.main.stopFollow();
+    this.cameras.main.setBounds(px, py, w, h);
+    this.cameras.main.setZoom(this.interiorFitZoom());
+    this.cameras.main.centerOn(px + w / 2, py + h / 2);
+  }
+
+  /** Restores the real exterior-only camera bounds, the player's own chosen exterior zoom level
+   *  (never the interior's fixed fit-zoom), and resumes following — the exit half of task #125's
+   *  fix, called once the real exit-dwell/teleport lands. */
+  private restoreExteriorCamera(): void {
+    this.cameras.main.setBounds(0, 0, REGION_WIDTH * TILE_SIZE, REGION_HEIGHT * TILE_SIZE);
+    this.cameras.main.setZoom(this.zoomLevel);
+    const lerp = prefersReducedMotion() ? 1 : 0.18;
+    this.cameras.main.startFollow(this.player, true, lerp, lerp);
   }
 
   /** Applied by both the wheel handler and OverworldRoot.tsx's zoom buttons (touch has no wheel
@@ -576,12 +636,15 @@ export class ExteriorScene extends Phaser.Scene {
     this.tweens.add({ targets: this.cameras.main, zoom: next, duration: 150, ease: "Sine.easeOut" });
   }
 
-  /** Real zoom-in/out buttons in OverworldRoot.tsx (touch devices have no wheel event). */
+  /** Real zoom-in/out buttons in OverworldRoot.tsx (touch devices have no wheel event). A no-op
+   *  while inside the interior room (task #125) — see `handleWheelZoom`'s own comment. */
   zoomIn(): void {
+    if (this.insideInterior) return;
     this.applyZoom(Phaser.Math.Clamp(this.zoomLevel + ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   }
 
   zoomOut(): void {
+    if (this.insideInterior) return;
     this.applyZoom(Phaser.Math.Clamp(this.zoomLevel - ZOOM_STEP, ZOOM_MIN, ZOOM_MAX));
   }
 
