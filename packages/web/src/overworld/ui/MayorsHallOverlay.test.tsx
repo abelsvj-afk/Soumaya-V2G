@@ -6,6 +6,9 @@ import { creditHour } from "../data/townLedger.js";
 import { armZoneType, zoneTileAt } from "../data/zoning.js";
 import { armHomeType, placeArmedHome } from "../data/housing.js";
 import { armBusinessType, placeArmedBusiness } from "../data/business.js";
+import { markConcernAnnounced } from "../data/civicConcern.js";
+import { allSocietyNpcIds } from "../data/npcDialogue.js";
+import { allResidentNpcIds } from "../data/residents.js";
 
 describe("MayorsHallOverlay (mayors-hall.md)", () => {
   beforeEach(() => localStorage.clear());
@@ -130,5 +133,43 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     render(<MayorsHallOverlay spaceId="space-1" onClose={onClose} />);
     fireEvent.click(screen.getByText("Leave"));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("Town Report (town-report.md, task #119) — real numbers already computed elsewhere, put next to each other", () => {
+    it("shows the real total population — society NPCs plus the real Resident roster", () => {
+      render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      const total = allSocietyNpcIds().length + allResidentNpcIds().length;
+      expect(screen.getByText(`Population: ${total}`)).toBeTruthy();
+    });
+
+    it("shows the real Treasury balance, buildings-needing-a-visit count, and 'no zoning yet' on a fresh town", () => {
+      for (let i = 0; i < 40; i++) creditHour("space-1", "bank"); // $10.00
+      render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      expect(screen.getByText("Treasury: $10.00")).toBeTruthy();
+      expect(screen.getByText(/Buildings needing a visit: \d+ of \d+/)).toBeTruthy();
+      expect(screen.getByText("Zoning balance: no zoning yet")).toBeTruthy();
+    });
+
+    it("shows the real residential:commercial zoning balance once tiles are actually zoned", () => {
+      armZoneType("space-1", "residential");
+      zoneTileAt("space-1", 2, 10);
+      armZoneType("space-1", "residential");
+      zoneTileAt("space-1", 3, 10);
+      armZoneType("space-1", "commercial");
+      zoneTileAt("space-1", 4, 10);
+      render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      expect(screen.getByText("Zoning balance: 2 residential : 1 commercial")).toBeTruthy();
+    });
+
+    it("reads civic concern as stable on a fresh town", () => {
+      render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      expect(screen.getByText("Civic concern: stable")).toBeTruthy();
+    });
+
+    it("reads civic concern as due once a real concern has actually been announced", () => {
+      markConcernAnnounced("space-1");
+      render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+      expect(screen.getByText("Civic concern: a town meeting is due")).toBeTruthy();
+    });
   });
 });

@@ -1,3 +1,20 @@
+### 2026-09-16 (Claude): The Town Report (Wave 4 §E.1, task #119) (complete)
+- [ ] Verified by Claude
+- A real Mayor's Office "how's my city doing" view, built entirely from real numbers already
+  computed elsewhere in `MayorsHallOverlay.tsx` — never a new invented "happiness %".
+- New "Town Report" section at the top: Population, Treasury, Buildings needing a visit (reused
+  from the existing Town Health section), Zoning balance (`N residential : M commercial`, or "no
+  zoning yet"), Civic concern (`stable` / `a town meeting is due`).
+- Added one new read-only getter, `civicConcernActive(spaceId)` (`civicConcern.ts`) — the
+  existing `checkCivicConcern` writes as a side effect of evaluating a NEW check, which the Town
+  Report shouldn't trigger just by being viewed.
+- Deliberately deferred: building tiers from real accumulated use (§E part 2) — the real neglect
+  data stored is a single timestamp, not a continuous history, so this needs either a new streak-
+  tracking mechanism or a documented proxy, a design decision not guessed this round.
+- Verified by 4 new `civicConcern.test.ts` cases + 5 new `MayorsHallOverlay.test.tsx` cases + the
+  full gate (1066 server + 592 web tests, typecheck, build). Not yet seen rendered in a real
+  browser.
+
 ### 2026-09-16 (Claude): Population growth (task #118), correcting a stale plan before building it (complete)
 - [ ] Verified by Claude
 - The standing plan (`wave4-full-vision.md` §D) assumed real unfilled attendant-post slack

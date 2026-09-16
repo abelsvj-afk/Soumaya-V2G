@@ -21,6 +21,15 @@ function isCurrentlyActive(spaceId: string): boolean {
   }
 }
 
+/** Deepening SimCity mechanics — the "Town Report" (docs/overworld/town-report.md, task #119) —
+ *  a real, read-only status check with zero side effects (unlike `checkCivicConcern`, which
+ *  intentionally writes as it goes), for a caller that just wants to KNOW the current real state
+ *  rather than evaluate/announce a new one. Exposes the exact same flag `checkCivicConcern`
+ *  itself reads and writes. */
+export function civicConcernActive(spaceId: string): boolean {
+  return isCurrentlyActive(spaceId);
+}
+
 /** Records that a concern was just announced, so it won't re-announce again until neglect
  *  actually drops back below the threshold (`clearConcern` below). */
 export function markConcernAnnounced(spaceId: string): void {

@@ -1,5 +1,6 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { businessNeglect, businessTypeById, placedBusinesses } from "../data/business.js";
+import { civicConcernActive } from "../data/civicConcern.js";
 import { homeTypeById, housingSummary, placedHomes, residentsOfHome } from "../data/housing.js";
 import { npcDisplayName } from "../data/residents.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
@@ -32,6 +33,11 @@ function formatCents(cents: number): string {
  * doc comment already promised "the honest who-lives-where summary lives in Mayor's Hall" —
  * only the aggregate counts actually did. The per-home resident breakdown below makes that
  * promise real.
+ *
+ * Town Report (docs/overworld/town-report.md, task #119) — SimCity's own "how's my city doing"
+ * view, built entirely from real numbers this overlay already computes lower down (population,
+ * treasury, buildings needing a visit, zoning balance, civic-concern status) — never a new
+ * invented "happiness %".
  */
 export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) {
   const balance = treasuryBalanceCents(spaceId);
@@ -42,9 +48,28 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
   const homes = placedHomes(spaceId);
   const businesses = placedBusinesses(spaceId);
 
+  const zoningBalance =
+    counts.residential === 0 && counts.commercial === 0
+      ? "no zoning yet"
+      : `${counts.residential} residential : ${counts.commercial} commercial`;
+  const concernActive = civicConcernActive(spaceId);
+
   return (
     <OverlayShell icon="🏛️" title="Mayor's Office" onClose={onClose}>
       <p style={{ marginTop: 0 }}>Everything real, in one place — nothing here is a score, just what's actually true right now.</p>
+
+      <h3>Town Report</h3>
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        <li style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>Population: {housing.total}</li>
+        <li style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>Treasury: {formatCents(balance)}</li>
+        <li style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>
+          Buildings needing a visit: {neglectedCount} of {doorPlaces.length}
+        </li>
+        <li style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>Zoning balance: {zoningBalance}</li>
+        <li style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>
+          Civic concern: {concernActive ? "a town meeting is due" : "stable"}
+        </li>
+      </ul>
 
       <h3>Town Treasury</h3>
       <p style={{ marginTop: 0 }}>
