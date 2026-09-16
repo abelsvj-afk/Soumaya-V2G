@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { checkCivicConcern, concernAnnouncementText, markConcernAnnounced } from "./civicConcern.js";
+import { checkCivicConcern, civicConcernActive, concernAnnouncementText, markConcernAnnounced } from "./civicConcern.js";
 
 const SPACE = "test-space";
 
@@ -50,5 +50,32 @@ describe("civicConcern — the D3-compliant townwide reframe of crime/policing (
   it("the announcement text lists all names when there are 3 or fewer, no 'and others'", () => {
     const text = concernAnnouncementText(["Bank", "Library"], 10);
     expect(text).toBe("Town meeting: 2 of 10 buildings haven't had real work in a while — Bank, Library.");
+  });
+
+  describe("civicConcernActive — a real, read-only status check with zero side effects (town-report.md, task #119)", () => {
+    it("reads false on a fresh town, never a fake alarm", () => {
+      expect(civicConcernActive(SPACE)).toBe(false);
+    });
+
+    it("reads true once a real concern has actually been announced", () => {
+      checkCivicConcern(SPACE, 6, 10, ["Bank"]);
+      markConcernAnnounced(SPACE);
+      expect(civicConcernActive(SPACE)).toBe(true);
+    });
+
+    it("never writes anything itself — reading it repeatedly changes nothing", () => {
+      checkCivicConcern(SPACE, 6, 10, ["Bank"]);
+      markConcernAnnounced(SPACE);
+      civicConcernActive(SPACE);
+      civicConcernActive(SPACE);
+      expect(civicConcernActive(SPACE)).toBe(true); // still active — reading it never cleared it
+    });
+
+    it("reads false again once the concern has genuinely cleared", () => {
+      checkCivicConcern(SPACE, 6, 10, ["Bank"]);
+      markConcernAnnounced(SPACE);
+      checkCivicConcern(SPACE, 3, 10, ["Bank"]); // drops below majority — clears the active flag
+      expect(civicConcernActive(SPACE)).toBe(false);
+    });
   });
 });

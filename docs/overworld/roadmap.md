@@ -2084,6 +2084,35 @@ capacity, confirmed every society NPC AND every Resident gets a real home, in th
 (1066 server + 583 web tests, typecheck, build). Not yet seen rendered in a real browser from this
 sandbox.
 
+## Stage 2.61 — the Town Report (Wave 4 §E.1, task #119)
+
+Direct continuation of "keep going through the list" into Wave 4's last major item: "deeper
+SimCity mechanics with my spin." §E already resolved part 1 — a real Mayor's Office "Town
+Report," SimCity's own signature "how's my city doing" view, built entirely from real numbers
+already computed elsewhere, never a new invented "happiness %". Specced in
+`docs/overworld/town-report.md`.
+
+`MayorsHallOverlay.tsx` gained a "Town Report" section at the very top: Population
+(`housingSummary().total` — the real combined society+Resident count from Stage 2.60), Treasury,
+Buildings needing a visit (the exact same count the existing "Town Health" section below already
+computes, reused not recomputed), Zoning balance (a real `N residential : M commercial` ratio, or
+"no zoning yet"), and Civic concern (`stable` / `a town meeting is due`). The one genuinely new
+piece: `civicConcern.ts` never had a read-only status getter — `checkCivicConcern` evaluates AND
+writes as a side effect, which the Town Report shouldn't trigger just by being viewed — so a new
+`civicConcernActive(spaceId)` was added, a pure read of the exact same stored flag.
+
+Deliberately deferred (§E part 2, tracked separately): building tiers from real accumulated use.
+The real data this app keeps (`buildingNeglect.ts`) is a single "last worked at" timestamp, not a
+continuous history, so "never fell neglected for 14 days straight" isn't directly answerable from
+what's actually stored — it would need either a new streak-tracking mechanism or a documented
+proxy (e.g. a real interaction-count threshold), a design decision not guessed in this round.
+
+Verified by 4 new `civicConcern.test.ts` cases (`civicConcernActive` reflects the real flag
+without ever writing to it) + 5 new `MayorsHallOverlay.test.tsx` cases (each Town Report line
+shows its real current value; the zoning-balance line reads "no zoning yet" on a fresh town) +
+the full gate (1066 server + 592 web tests, typecheck, build). Not yet seen rendered in a real
+browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
