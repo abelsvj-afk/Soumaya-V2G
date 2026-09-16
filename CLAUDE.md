@@ -253,6 +253,41 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Real interior-camera bug, real interior floor art, real start-earning-right-away (task #125)
+  (2026-09-16), not yet on-device confirmed** — direct response to "building interiors are like
+  75% off screen for some reason when you enter a building... I also noticed no real looking
+  building interiors at all. Also earning money at the beginnning needs to be possible. Just like
+  city builder games you start earn right away as soon as you start placing buildings and have
+  people coming into the town." Resolved in `docs/overworld/interior-camera-and-income-fixes.md`.
+  **Camera bug** — measured directly (real Phaser camera-clamp math against this repo's real
+  `REGION_WIDTH=55`/`REGION_HEIGHT=32`/interior-room geometry): the interior room's own footprint
+  filled only 2.0%-6.2% of the visible screen across 3 realistic viewports — worse than reported.
+  Root cause: `worldBoundsTiles()` unioned the exterior town AND the tiny 5x4 interior room into
+  one shared camera-bounds rectangle set once at scene creation, clamping the camera hard against
+  the world's far edge when following the player inside the small room. Fixed with real dynamic
+  bounds toggling (`interiorRoomBounds()` replacing `worldBoundsTiles()`; new
+  `applyInteriorCamera()`/`restoreExteriorCamera()` in `ExteriorScene.ts` computing a real
+  "contain" fit-zoom), applied synchronously at the START of `enterInterior()` so even the entry
+  tween is never seen through stale bounds. Measured post-fix: 29.9%-63.3% screen coverage across
+  the same 3 viewports — a real 10-30x improvement. **No real-looking interior** — confirmed via
+  `buildInteriorRoom()`'s own doc comment ("Plain rectangles... not new art"); fixed by painting
+  the real floor with `TileFrame.path` (already-loaded outdoor plaza tile, zero new sourcing) and
+  retoning the wall to the real `uiColor.fieldBorder` design token. **Earning right away** —
+  measured the original `passiveIncome.ts` rate: a representative 500¢ structure took over 2 REAL
+  HOURS to earn a single whole cent. Retuned `DAILY_RATE: 0.1 → 1.2` with `MAX_ACCRUAL_DAYS: 3 →
+  1` (prevents an AFK windfall at the faster rate) — the same structure now earns within
+  single-digit real minutes. **Population income** — new `data/passiveResidentIncome.ts` closes
+  "people coming into the town" earning nothing: 1 real cent per real hour for every Resident
+  (population-growth.md, task #118) currently, genuinely HOUSED per `housing.ts`'s real
+  `assignResidents()`, capped at 24 real hours per call, same baseline/no-retroactive-payout
+  convention as the existing `passiveNpcIncome.ts`. All three passive-income streams (structure
+  rent, NPC working-hours, Resident housing) now stack independently. Verified by pre/post-fix
+  camera-clamp measurements, 1 new + 4 updated `passiveIncome.test.ts` cases, 1 new +
+  1 updated `interiorRoom.test.ts` case, 7 new `passiveResidentIncome.test.ts` cases, and the full
+  gate (1066 server + 646 web tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration
+  code has no dedicated test (this file's established convention). Not yet seen rendered in a real
+  browser from this sandbox — the camera/zoom fix especially needs on-device reconfirmation.
+
 - **Asset completion pass: unused decor wired in, real player walk animation (task #124)
   (2026-09-16), not yet on-device confirmed** — direct response to "do the deferred too" / "I
   dont see any of the new buildings or assests we added in the hangar" / "Ask those cco u found

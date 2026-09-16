@@ -14,6 +14,7 @@ import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "./placedStructures.js";
 import { collectPassiveIncome } from "./passiveIncome.js";
 import { collectPassiveNpcIncome } from "./passiveNpcIncome.js";
+import { collectPassiveResidentIncome } from "./passiveResidentIncome.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -124,6 +125,11 @@ export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
   // simcity-realism-pass.md — the OTHER real passive income stream: the town's own population,
   // taxed for real time genuinely spent working, independent of the structure rent above.
   if (spaceId) collectPassiveNpcIncome(spaceId);
+  // interior-camera-and-income-fixes.md, task #125 — a THIRD, independent stream: real Residents
+  // (task #118's population-growth batch) have no job/schedule to tax, so their genuine presence
+  // in a real built home is what earns instead — "people coming into the town" now has a real
+  // economic effect, not just a headcount.
+  if (spaceId) collectPassiveResidentIncome(spaceId);
   return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId, thoughts);
 }
 

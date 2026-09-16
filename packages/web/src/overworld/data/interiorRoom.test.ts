@@ -5,9 +5,9 @@ import {
   INTERIOR_ROOM_WIDTH,
   interiorCounterTile,
   interiorEntryTile,
+  interiorRoomBounds,
   interiorRoomOrigin,
   isInsideInteriorRoom,
-  worldBoundsTiles,
 } from "./interiorRoom.js";
 
 describe("interiorRoom (backlog #80 — reserved off-map room for walk-in transitions)", () => {
@@ -32,19 +32,20 @@ describe("interiorRoom (backlog #80 — reserved off-map room for walk-in transi
     expect(entry.y).toBe(origin.y + INTERIOR_ROOM_HEIGHT - 1);
   });
 
-  it("world bounds cover both the real town and the reserved room, never smaller than either", () => {
-    const bounds = worldBoundsTiles();
-    expect(bounds.width).toBeGreaterThanOrEqual(REGION_WIDTH);
-    expect(bounds.height).toBeGreaterThanOrEqual(REGION_HEIGHT);
+  it("interiorRoomBounds is exactly the room's own footprint (task #125) — never the exterior union a real camera-clamp bug measured", () => {
+    const bounds = interiorRoomBounds();
     const origin = interiorRoomOrigin();
-    expect(bounds.width).toBeGreaterThanOrEqual(origin.x + INTERIOR_ROOM_WIDTH);
-    expect(bounds.height).toBeGreaterThanOrEqual(origin.y + INTERIOR_ROOM_HEIGHT);
+    expect(bounds).toEqual({ x: origin.x, y: origin.y, width: INTERIOR_ROOM_WIDTH, height: INTERIOR_ROOM_HEIGHT });
+    // Deliberately NOT >= REGION_WIDTH/REGION_HEIGHT — the whole point of the fix is that the
+    // camera-bounds rectangle used while inside is small, not a union with the exterior town.
+    expect(bounds.width).toBeLessThan(REGION_WIDTH);
+    expect(bounds.height).toBeLessThan(REGION_HEIGHT);
   });
 
   it("is deterministic — repeated calls return the same tiles (no randomness)", () => {
     expect(interiorRoomOrigin()).toEqual(interiorRoomOrigin());
     expect(interiorEntryTile()).toEqual(interiorEntryTile());
-    expect(worldBoundsTiles()).toEqual(worldBoundsTiles());
+    expect(interiorRoomBounds()).toEqual(interiorRoomBounds());
   });
 
   describe("real walk-in agency (simcity-realism-pass.md) — the counter tile and room bounds", () => {

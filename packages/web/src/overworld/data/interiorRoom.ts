@@ -5,7 +5,7 @@
  * this repo's convention for anything spatial (see engine/movement.ts, adapter/placement.ts).
  */
 
-import { REGION_HEIGHT, REGION_WIDTH } from "../scenes/regionLayout.js";
+import { REGION_WIDTH } from "../scenes/regionLayout.js";
 
 /** How far past the real town's east edge the reserved room starts — never 0, so there's no
  *  chance of it butting directly against a real east-edge building's own door approach. */
@@ -49,13 +49,16 @@ export function isInsideInteriorRoom(x: number, y: number): boolean {
   return x >= origin.x && x < origin.x + INTERIOR_ROOM_WIDTH && y >= origin.y && y < origin.y + INTERIOR_ROOM_HEIGHT;
 }
 
-/** The world-bounds rectangle the camera needs to cover both the real town AND the reserved
- *  room, computed from the same `REGION_WIDTH`/`REGION_HEIGHT` the exterior camera already uses
- *  — a single `setBounds` call at scene creation, never toggled at transition time. */
-export function worldBoundsTiles(): { width: number; height: number } {
+/** The interior room's own real footprint, in tile coordinates — the camera-bounds rectangle
+ *  `ExteriorScene.ts` switches TO while the player is genuinely inside, replacing the real
+ *  exterior-only bounds, and restores away from on exit (interior-camera-and-income-fixes.md,
+ *  task #125). Replaces the earlier `worldBoundsTiles()`, which unioned both spaces into ONE
+ *  shared camera-bounds rectangle set once at scene creation — measured directly to be a real
+ *  bug: centering the camera on a player standing in this tiny 5x4 room, inside bounds sized for
+ *  the whole ~66-tile-wide union, clamped the camera hard against the world's far edge, so the
+ *  room's own real footprint occupied only 2-6% of the visible screen across 3 realistic
+ *  viewports — the rest showed the reserved margin gap or nothing at all. */
+export function interiorRoomBounds(): { x: number; y: number; width: number; height: number } {
   const origin = interiorRoomOrigin();
-  return {
-    width: Math.max(REGION_WIDTH, origin.x + INTERIOR_ROOM_WIDTH),
-    height: Math.max(REGION_HEIGHT, origin.y + INTERIOR_ROOM_HEIGHT),
-  };
+  return { x: origin.x, y: origin.y, width: INTERIOR_ROOM_WIDTH, height: INTERIOR_ROOM_HEIGHT };
 }

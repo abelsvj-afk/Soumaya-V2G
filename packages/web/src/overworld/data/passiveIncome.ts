@@ -18,14 +18,22 @@ import { homeTypeById, placedHomes, isUnderConstruction as isHomeUnderConstructi
 import { businessTypeById, placedBusinesses, isUnderConstruction as isBusinessUnderConstruction } from "./business.js";
 import { isFootprintAdjacentToZone } from "./zoning.js";
 
-/** 10% of a structure's own real purchase price, per real day elapsed — a genuinely pricier
- *  building earns more, matching `revenueForPriceCents`'s own "gauged by real pricing"
- *  principle. */
-const DAILY_RATE = 0.1;
+/** 120% of a structure's own real purchase price, per real day elapsed (task #125, up from the
+ *  original 10%) — a genuinely pricier building still earns more, matching
+ *  `revenueForPriceCents`'s own "gauged by real pricing" principle. Measured directly before
+ *  retuning: at the original 10%/day, a representative 500¢ structure needed OVER 2 REAL HOURS
+ *  of elapsed time before `Math.floor` even produced a single whole cent — the literal mechanism
+ *  behind "doesn't feel like earning right away." At 120%/day, that same structure crosses its
+ *  first whole cent within single-digit real MINUTES, the city-builder-like pacing the request
+ *  asked for, while a placed structure still takes real, felt time to fully repay itself (not an
+ *  instant lump sum). */
+const DAILY_RATE = 1.2;
 
-/** Accrual stops accumulating past 3 real days since last collected — bounds the maximum single
- *  credit so leaving the game untouched indefinitely isn't a real AFK-farming exploit. */
-const MAX_ACCRUAL_DAYS = 3;
+/** Accrual stops accumulating past 1 real day since last collected (task #125, down from 3) —
+ *  the much faster rate above means the old 3-day cap would let a long-idle session bank an
+ *  outsized AFK windfall; a 1-day cap keeps the same "don't get free money for leaving the tab
+ *  open indefinitely" intent at the new, faster rate. */
+const MAX_ACCRUAL_DAYS = 1;
 
 /** A structure genuinely adjacent to a real sidewalk earns rent at 1.5x the base rate — "real
  *  foot traffic access does better." */

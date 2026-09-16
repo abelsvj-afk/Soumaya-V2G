@@ -2296,6 +2296,70 @@ scaled, confirming the new walk-cycle layers safely on top without conflict. Not
 in a real browser from this sandbox — the row-to-direction mapping (down/left/right/up) is a
 documented assumption pending on-device confirmation, trivially correctable if wrong.
 
+## Stage 2.65 — real interior-camera bug, real interior floor art, real start-earning-right-away (task #125)
+
+Direct response to: "building interiors are like 75% off screen for some reason when you enter a
+building... I also noticed no real looking building interiors at all. Also earning money at the
+beginnning needs to be possible. Just like city builder games you start earn right away as soon as
+you start placing buildings and have people coming into the town." Resolved in
+`docs/overworld/interior-camera-and-income-fixes.md`, per Rule #1 — all three complaints measured/
+investigated against the real code before any fix was written.
+
+**The camera bug — measured, worse than reported.** A real script computed Phaser's actual
+camera-clamp math against this repo's real `REGION_WIDTH=55`/`REGION_HEIGHT=32`/interior-room
+geometry: `worldBoundsTiles()` unioned the exterior town AND the tiny 5x4 interior room into one
+shared `66x32`-tile camera-bounds rectangle (the original spec's own deliberate choice to avoid
+"toggling bounds at transition time"), which clamps the camera hard against the world's far edge
+when centering on a player standing in the small room — across 3 realistic viewports the room's
+own real footprint filled only **2.0%–6.2% of the visible screen**, worse than the reported "75%
+off". Fixed with real dynamic bounds toggling: `ExteriorScene.ts` gained `interiorRoomBounds()`
+(replacing `worldBoundsTiles()`, `interiorRoom.ts`) plus `applyInteriorCamera()`/
+`restoreExteriorCamera()` — `enterInterior()` now `stopFollow()`s, sets bounds to the room's own
+real pixel rect, computes a real "contain" fit-zoom (`interiorFitZoom()` — room px vs. real
+`this.scale.width/height`, same concept as CSS `background-size: contain`), and centers on it,
+synchronously at the START of the function (not after the dwell tween) so the entry animation
+itself is never seen through stale exterior-clamped bounds; `exitInterior()` restores the exterior
+bounds/zoom/follow. `handleResize()` and the manual zoom controls are guarded so a device rotation
+or the zoom buttons can't fight the interior's own fit-zoom while inside. **Measured post-fix**:
+the same fit-zoom math against the same 3 viewports shows the room filling **29.9%–63.3%** of the
+screen — a real 10-30x improvement, letterboxing accepted as correct on aspect-mismatched
+viewports (e.g., portrait phones) rather than cropping content.
+
+**No real-looking interior — confirmed, fixed with already-loaded art.** `buildInteriorRoom()`'s
+own doc comment admitted it: "Plain rectangles + a glyph Text, not new art." Fixed by painting the
+room's real floor with `TileFrame.path` (the same real ground tile already tiled across the
+outdoor plaza — zero new sourcing, the exact per-tile `tileAt()` convention `drawGround()` already
+uses outdoors) instead of a flat-color rectangle; the wall stays a bordered rectangle (a genuine
+architectural wall texture is a bigger, separately-scoped art-sourcing task) but retoned to the
+real `uiColor.fieldBorder` design-system token instead of a placeholder color, so it reads as a
+wall around a real floor.
+
+**Money earnable "right away," population now really contributes.** `passiveIncome.ts`'s own real
+math, measured before retuning: at the original `DAILY_RATE=0.1` (10%/day), a representative 500¢
+structure needed OVER 2 REAL HOURS of elapsed time before `Math.floor` produced even a single
+whole cent — the literal mechanism behind "doesn't feel like earning right away." Retuned to
+`DAILY_RATE=1.2` (120%/day) with `MAX_ACCRUAL_DAYS` tightened from 3 to 1 (the much faster rate
+would otherwise let a long-idle session bank an outsized AFK windfall) — the same representative
+structure now crosses its first whole cent within single-digit real MINUTES. Separately, a real
+third income stream closes "people coming into the town": `passiveNpcIncome.ts` already taxes the
+24 hand-authored society NPCs' real working hours, but Residents (population-growth.md, task #118)
+have no job/schedule at all and earned nothing — new `data/passiveResidentIncome.ts` credits 1
+real cent per real hour for every Resident currently, genuinely HOUSED (`housing.ts`'s own real
+`assignResidents()` output — never a phantom unassigned resident), capped at 24 real hours per
+call, using the same baseline/no-retroactive-payout convention `passiveNpcIncome.ts` already
+established. Wired into `loadWorldSnapshot.ts` alongside the other two passive-income collectors.
+All three streams stack independently and honestly.
+
+Verified by the pre-fix and post-fix camera-clamp measurements above (not eyeballed —
+`ExteriorScene.ts`'s own Phaser-integration code has no dedicated test, this file's established
+convention), 1 new + 4 updated `passiveIncome.test.ts` cases at the new rate/cap, 1 new +
+1 updated `interiorRoom.test.ts` case (`interiorRoomBounds` replacing `worldBoundsTiles`), 7 new
+`passiveResidentIncome.test.ts` cases (baseline-on-first-call, credits only while genuinely
+housed, an unhoused stretch never banked, the 24-hour cap), and the full gate (1066 server + 646
+web tests, typecheck, build). Not yet seen rendered in a real browser from this sandbox — the
+camera/zoom fix especially needs on-device reconfirmation, since it's the one most directly tied
+to the original visual complaint.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
