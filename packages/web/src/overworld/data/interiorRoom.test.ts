@@ -3,8 +3,10 @@ import { REGION_HEIGHT, REGION_WIDTH } from "../scenes/regionLayout.js";
 import {
   INTERIOR_ROOM_HEIGHT,
   INTERIOR_ROOM_WIDTH,
+  interiorCounterTile,
   interiorEntryTile,
   interiorRoomOrigin,
+  isInsideInteriorRoom,
   worldBoundsTiles,
 } from "./interiorRoom.js";
 
@@ -43,5 +45,41 @@ describe("interiorRoom (backlog #80 — reserved off-map room for walk-in transi
     expect(interiorRoomOrigin()).toEqual(interiorRoomOrigin());
     expect(interiorEntryTile()).toEqual(interiorEntryTile());
     expect(worldBoundsTiles()).toEqual(worldBoundsTiles());
+  });
+
+  describe("real walk-in agency (simcity-realism-pass.md) — the counter tile and room bounds", () => {
+    it("the counter tile is inside the room's own footprint, at the top-center", () => {
+      const origin = interiorRoomOrigin();
+      const counter = interiorCounterTile();
+      expect(counter.x).toBeGreaterThanOrEqual(origin.x);
+      expect(counter.x).toBeLessThan(origin.x + INTERIOR_ROOM_WIDTH);
+      expect(counter.y).toBe(origin.y);
+    });
+
+    it("the counter tile is always distinct from the entry tile — a real room to walk across", () => {
+      expect(interiorCounterTile()).not.toEqual(interiorEntryTile());
+    });
+
+    it("isInsideInteriorRoom is true for every tile in the room's own footprint", () => {
+      const origin = interiorRoomOrigin();
+      for (let y = origin.y; y < origin.y + INTERIOR_ROOM_HEIGHT; y++) {
+        for (let x = origin.x; x < origin.x + INTERIOR_ROOM_WIDTH; x++) {
+          expect(isInsideInteriorRoom(x, y)).toBe(true);
+        }
+      }
+    });
+
+    it("isInsideInteriorRoom is false just outside every edge of the room", () => {
+      const origin = interiorRoomOrigin();
+      expect(isInsideInteriorRoom(origin.x - 1, origin.y)).toBe(false);
+      expect(isInsideInteriorRoom(origin.x + INTERIOR_ROOM_WIDTH, origin.y)).toBe(false);
+      expect(isInsideInteriorRoom(origin.x, origin.y - 1)).toBe(false);
+      expect(isInsideInteriorRoom(origin.x, origin.y + INTERIOR_ROOM_HEIGHT)).toBe(false);
+    });
+
+    it("isInsideInteriorRoom is false for every real exterior tile — the two spaces never overlap", () => {
+      expect(isInsideInteriorRoom(0, 0)).toBe(false);
+      expect(isInsideInteriorRoom(REGION_WIDTH - 1, REGION_HEIGHT - 1)).toBe(false);
+    });
   });
 });

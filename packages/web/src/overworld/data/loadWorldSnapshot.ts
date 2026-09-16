@@ -13,6 +13,7 @@ import { recordBuildingWork } from "./npcJobs.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "./placedStructures.js";
 import { collectPassiveIncome } from "./passiveIncome.js";
+import { collectPassiveNpcIncome } from "./passiveNpcIncome.js";
 import type { BankLedgerRow, CreatureEntity } from "../types.js";
 
 export interface WorldSnapshot {
@@ -120,6 +121,9 @@ export async function loadWorldSnapshot(): Promise<WorldSnapshot> {
   // accrued fresh on every real refresh (never a running timer, same convention as the
   // achievement sync above).
   if (spaceId) collectPassiveIncome(spaceId);
+  // simcity-realism-pass.md — the OTHER real passive income stream: the town's own population,
+  // taxed for real time genuinely spent working, independent of the structure rent above.
+  if (spaceId) collectPassiveNpcIncome(spaceId);
   return buildWorldSnapshot(graph, moneySky ?? [], financeSummary, fuel, streak, dueReviews, spaceId, thoughts);
 }
 

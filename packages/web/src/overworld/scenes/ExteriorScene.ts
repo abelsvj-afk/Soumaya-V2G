@@ -21,7 +21,6 @@ import {
   type AttendantPost,
   type DoorPlace,
   type ObjectPlace,
-  type Place,
   type PlaceId,
 } from "./regionLayout.js";
 import { findPath } from "../engine/pathfinding.js";
@@ -73,9 +72,7 @@ import {
 } from "../data/housing.js";
 import {
   armedBusinessTypeId,
-  businessById,
   businessStallDoorAt,
-  businessStallDoors,
   businessTypeById,
   isFootprintFreeForBusiness,
   placeArmedBusiness,
@@ -83,7 +80,7 @@ import {
   type PlacedBusiness,
 } from "../data/business.js";
 import { isInsideAnyFootprint, placedBusinessFootprints, placedHomeFootprints } from "../data/placedStructures.js";
-import { scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
+import { SOCIETY_TICK_MS, scheduleStateAt, type ScheduleState } from "../data/npcSchedule.js";
 import { bumpRelationship, relationshipCount, relationshipTier, type RelationshipTier } from "../data/npcRelationships.js";
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { bumpStat, loadUnlocked, statsSpaceId } from "../../components/achievements.js";
@@ -91,7 +88,15 @@ import type { Thought } from "../../api/mind.js";
 import { moteOffset, strongestThoughts } from "../adapter/moteLayout.js";
 import { getCachedNpcLine, pickDialogueOutcome } from "../data/npcLlmDialogue.js";
 import { moteAwarenessLine } from "../data/moteAwareness.js";
-import { INTERIOR_ROOM_HEIGHT, INTERIOR_ROOM_WIDTH, interiorEntryTile, interiorRoomOrigin, worldBoundsTiles } from "../data/interiorRoom.js";
+import {
+  INTERIOR_ROOM_HEIGHT,
+  INTERIOR_ROOM_WIDTH,
+  interiorCounterTile,
+  interiorEntryTile,
+  interiorRoomOrigin,
+  isInsideInteriorRoom,
+  worldBoundsTiles,
+} from "../data/interiorRoom.js";
 import { color as uiColor } from "../ui/theme.js";
 
 export const TILE_SIZE = 32;
@@ -113,12 +118,6 @@ const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
  *  player's own 140ms/tile step (Stage 2.20 measured this directly: 160ms is already slower, by
  *  design — "NPCs shouldn't fly across the map or move any quicker than I can"). */
 const NPC_STEP_MS = 160;
-/** Town Persistence (docs/overworld/town-persistence.md, task #68) — the NPC schedule's own
- *  tick length, in real ms. `tickSociety()` derives its tick from `Date.now() / SOCIETY_TICK_MS`
- *  rather than counting timer fires, so the schedule phase is always consistent with real
- *  elapsed time even across a reload — the cycle LENGTH itself (CYCLE_TICKS * this) is
- *  unchanged from the original arcade-paced 60 real seconds. */
-const SOCIETY_TICK_MS = 1500;
 /** The town square: a purely cosmetic dirt-path patch around the spawn/standalone objects —
  *  never touches collision, so it must stay inside `isMovementPassable`'s open ground. */
 const PLAZA: { x0: number; y0: number; x1: number; y1: number } = { x0: 10, y0: 8, x1: 16, y1: 11 };
@@ -289,6 +288,18 @@ export class ExteriorScene extends Phaser.Scene {
   /** Backlog #80 — the single reusable interior room every door-building's walk-in transition
    *  teleports the player into. Built once in create(); only its glyph changes per building. */
   private interiorGlyphText!: Phaser.GameObjects.Text;
+  /** simcity-realism-pass.md — real walk-in agency: true from the moment the entry transition
+   *  finishes until the player steps back onto the real exterior door tile. While true,
+   *  `handleInput`'s movement grid is scoped to the small interior room instead of the exterior
+   *  town, and `afterStep` watches for the counter/doorway tiles instead of exterior doors. */
+  private insideInterior = false;
+  /** The building's own overlay-opening callback, deferred until the player actually WALKS to
+   *  the counter tile (simcity-realism-pass.md) — no longer fired the instant the entry
+   *  transition finishes. `null` once fired (or before an interior visit has started). */
+  private pendingInteriorEmit: (() => void) | null = null;
+  /** The real exterior door tile this interior visit should return to once the player walks back
+   *  onto the interior room's own entry/doorway tile. */
+  private interiorReturnDoor: GridPosition | null = null;
   /** City-builder depth (docs/overworld/city-builder-depth.md, §A) — clamped camera zoom, so the
    *  player can pull back and see the whole town like a city-builder overview. */
   private zoomLevel = 1;
@@ -422,21 +433,30 @@ export class ExteriorScene extends Phaser.Scene {
     this.interiorGlyphText.setDepth(2);
   }
 
-  /** Backlog #80 — walks the player into the reusable interior room, then unlocks input and
-   *  invokes `emit` after a brief motion-gated dwell (walk-in-interiors.md's own "automatic,
-   *  not a second interact press" decision). `glyph` is whichever icon the entered building
-   *  already uses elsewhere (workIconForPlace / businessGlyphFor) — no new icon table. */
+  /** simcity-realism-pass.md — walks the player into the reusable interior room, then unlocks
+   *  REAL control (a small movement grid scoped to the room, see `handleInput`) instead of
+   *  auto-firing `emit` — the player now has to actually walk to the counter tile
+   *  (`interiorCounterTile()`) for `emit` to fire, fixing "the overlay pops up before you can
+   *  walk around." `glyph` is whichever icon the entered building already uses elsewhere
+   *  (workIconForPlace / businessGlyphFor) — no new icon table. The return door is simply
+   *  wherever the player was just standing — that's exactly the real door tile `afterStep`
+   *  matched to get here, so no caller needs to pass it separately. */
   private enterInterior(glyph: string, emit: () => void): void {
     this.interiorTransitionLock = true;
+    this.interiorReturnDoor = { ...this.movement.position };
+    this.pendingInteriorEmit = emit;
     this.interiorGlyphText.setText(glyph);
     const entry = interiorEntryTile();
     this.movement = createMovementState(entry);
     const targetX = entry.x * TILE_SIZE + TILE_SIZE / 2;
     const targetY = entry.y * TILE_SIZE + TILE_SIZE / 2;
+    const unlock = () => {
+      this.interiorTransitionLock = false;
+      this.insideInterior = true;
+    };
     if (prefersReducedMotion()) {
       this.player.setPosition(targetX, targetY);
-      this.interiorTransitionLock = false;
-      emit();
+      unlock();
       return;
     }
     // Idle bob only ever animates scaleY (see startIdleBob) — it can run concurrently with this
@@ -444,30 +464,50 @@ export class ExteriorScene extends Phaser.Scene {
     // move-tween handler that called afterStep() already brackets it (stopIdleBob before,
     // startIdleBob after finish()).
     this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: 220, ease: "Sine.easeInOut" });
-    this.time.delayedCall(INTERIOR_ENTER_DWELL_MS, () => {
-      this.interiorTransitionLock = false;
-      emit();
-    });
+    this.time.delayedCall(INTERIOR_ENTER_DWELL_MS, unlock);
   }
 
-  /** Backlog #80 — the shared tail of `returnToDoor`/`returnToBusinessDoor`: a brief dwell still
-   *  standing in the interior room (the player never left it while the overlay was open) before
-   *  teleporting back to the real exterior door tile. */
-  private exitInterior(door: { x: number; y: number }): void {
+  /** simcity-realism-pass.md — triggered by the player themselves walking back onto the interior
+   *  room's own doorway tile (never by the overlay closing — closing it just returns real control
+   *  inside the room, per `OverworldRoot.tsx`'s `closeOverlay`). Tweens/snaps back to
+   *  `interiorReturnDoor`, the real exterior door tile stored when this visit started. */
+  private exitInterior(): void {
+    const door = this.interiorReturnDoor;
+    if (!door) return; // tolerate-gracefully — should be unreachable, entry always sets this first
     const targetX = door.x * TILE_SIZE + TILE_SIZE / 2;
     const targetY = door.y * TILE_SIZE + TILE_SIZE / 2;
-    if (prefersReducedMotion()) {
+    const finish = () => {
       this.movement = createMovementState(door);
       this.player.setPosition(targetX, targetY);
       this.interiorTransitionLock = false;
+      this.insideInterior = false;
+      this.interiorReturnDoor = null;
+    };
+    if (prefersReducedMotion()) {
+      finish();
       return;
     }
     this.interiorTransitionLock = true;
-    this.time.delayedCall(INTERIOR_EXIT_DWELL_MS, () => {
-      this.movement = createMovementState(door);
-      this.player.setPosition(targetX, targetY);
-      this.interiorTransitionLock = false;
-    });
+    this.time.delayedCall(INTERIOR_EXIT_DWELL_MS, finish);
+  }
+
+  /** simcity-realism-pass.md — the interior room's own real interaction points, checked instead
+   *  of the exterior door/business lookups while `insideInterior` (mutually exclusive: interior
+   *  coordinates always sit past `REGION_WIDTH`, so the two can never both match the same tile).
+   *  Reaching the counter with a real building visit pending opens its overlay for real, driven
+   *  by genuine player movement; reaching the doorway leaves for real. */
+  private handleInteriorStep(x: number, y: number): void {
+    const counter = interiorCounterTile();
+    if (x === counter.x && y === counter.y && this.pendingInteriorEmit) {
+      const emit = this.pendingInteriorEmit;
+      this.pendingInteriorEmit = null;
+      emit();
+      return;
+    }
+    const entry = interiorEntryTile();
+    if (x === entry.x && y === entry.y) {
+      this.exitInterior();
+    }
   }
 
   /** Keeps the camera's viewport matching the real device size as it changes — a rotation,
@@ -1130,8 +1170,11 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.societyState = state;
     // A real schedule transition always wins over an in-flight outing — kill its walk tween
     // (never fires the walk's own onComplete chain, so it can't fight this transition's own
-    // tween on the same sprite.image) rather than letting the two compete.
-    if (this.outingActive.delete(sprite.post.npcId)) {
+    // tween on the same sprite.image) rather than letting the two compete. simcity-realism-
+    // pass.md — captured BEFORE the delete so the branches below know whether the sprite can
+    // genuinely be anywhere across the map right now (Park/Market, mid-walk), not just at post.
+    const wasOnOuting = this.outingActive.delete(sprite.post.npcId);
+    if (wasOnOuting) {
       this.tweens.killTweensOf(sprite.image);
     }
     this.outingArrivedAt.delete(sprite.post.npcId); // no longer a real encounter target either way
@@ -1147,6 +1190,8 @@ export class ExteriorScene extends Phaser.Scene {
       if (reduced || firstPaint) {
         sprite.image.setPosition(doorX, doorY);
         sprite.image.setVisible(false);
+      } else if (wasOnOuting) {
+        this.walkInterruptedOutingHome(sprite, door, () => sprite.image.setVisible(false));
       } else {
         this.tweens.add({
           targets: sprite.image,
@@ -1165,11 +1210,30 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.image.setVisible(true);
     if (reduced || firstPaint) {
       sprite.image.setPosition(postX, postY);
+    } else if (wasOnOuting) {
+      this.walkInterruptedOutingHome(sprite, sprite.post.a);
     } else {
       sprite.image.setPosition(doorX, doorY);
       this.tweens.add({ targets: sprite.image, x: postX, y: postY, duration: 500, ease: "Sine.easeInOut" });
     }
     this.applyNeglectVisual(sprite);
+  }
+
+  /** simcity-realism-pass.md — when a real schedule transition interrupts an active outing, the
+   *  sprite can genuinely be anywhere across the map (Park/Market, mid-walk), so routing it home
+   *  with an instant snap or a flat-duration tween reads as flying/teleporting regardless of real
+   *  distance. Routes it back via the exact same real `findPath`/`walkPath` machinery the outing
+   *  itself used to get there. Falls back to an instant snap only if the path genuinely can't be
+   *  found — should be unreachable given the same grid every outing already proves reachable, but
+   *  tolerate-gracefully rather than leaving the sprite stuck mid-map. */
+  private walkInterruptedOutingHome(sprite: AttendantSprite, target: GridPosition, onArrive?: () => void): void {
+    const path = findPath(this.spriteTile(sprite), target, this.npcPathGrid);
+    if (!path) {
+      sprite.image.setPosition(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2);
+      onArrive?.();
+      return;
+    }
+    this.walkPath(sprite, path, onArrive);
   }
 
   /** A neglected building's attendants render exactly like a neglected memory does — a real
@@ -1753,14 +1817,25 @@ export class ExteriorScene extends Phaser.Scene {
       this.handleInteract();
       return;
     }
-    const result = tryMove(this.movement, event.direction, {
-      width: REGION_WIDTH,
-      height: REGION_HEIGHT,
-      // 2026-09-15 audit fix — isMovementPassable alone never knew about real placed homes/
-      // businesses (per-space player state, not static world geometry), so the player could
-      // walk straight through/into a structure they'd just built.
-      isPassable: (x, y) => isMovementPassable(x, y) && !this.isBlockedByPlacedStructure(x, y),
-    });
+    // simcity-realism-pass.md — while inside the reserved interior room, movement is confined to
+    // its own small footprint instead of the exterior town grid; the exterior grid's own width/
+    // height would otherwise reject every interior tile outright (they all sit past
+    // REGION_WIDTH), which is exactly why the room could never be walked before this fix.
+    const grid = this.insideInterior
+      ? {
+          width: interiorRoomOrigin().x + INTERIOR_ROOM_WIDTH,
+          height: interiorRoomOrigin().y + INTERIOR_ROOM_HEIGHT,
+          isPassable: isInsideInteriorRoom,
+        }
+      : {
+          width: REGION_WIDTH,
+          height: REGION_HEIGHT,
+          // 2026-09-15 audit fix — isMovementPassable alone never knew about real placed homes/
+          // businesses (per-space player state, not static world geometry), so the player could
+          // walk straight through/into a structure they'd just built.
+          isPassable: (x: number, y: number) => isMovementPassable(x, y) && !this.isBlockedByPlacedStructure(x, y),
+        };
+    const result = tryMove(this.movement, event.direction, grid);
     this.movement = result.state;
     if (!result.moved) return;
     if (!this.following) this.resumeFollow();
@@ -1793,11 +1868,21 @@ export class ExteriorScene extends Phaser.Scene {
   }
 
   private afterStep(x: number, y: number): void {
+    // simcity-realism-pass.md — a real step taken WHILE inside the interior room routes through
+    // its own counter/doorway checks instead of the exterior door/business lookups below (the
+    // two spaces never overlap — interior coordinates always sit past REGION_WIDTH).
+    if (this.insideInterior) {
+      this.handleInteriorStep(x, y);
+      return;
+    }
     const door = doorPlaceAt(x, y);
     if (door) {
-      // Backlog #80 — a real walk-in transition first, the overlay opens automatically once the
-      // brief dwell finishes (walk-in-interiors.md). Only real door-buildings route through this;
-      // standalone objects (Soumaya, the Bulletin Board) are unaffected — see handleInteract().
+      // Backlog #80 / simcity-realism-pass.md — a real walk-in transition first; the overlay
+      // opens once the player actually walks to the interior room's own counter tile, not the
+      // instant they arrive (walk-in-interiors.md's original "automatic on arrival" decision
+      // turned out to remove all real interior agency — real walking to the counter replaces it).
+      // Only real door-buildings route through this; standalone objects (Soumaya, the Bulletin
+      // Board) are unaffected — see handleInteract().
       this.enterInterior(workIconForPlace(door.id), () => this.events.emit("enter-place", door.id));
       return;
     }
@@ -1937,26 +2022,6 @@ export class ExteriorScene extends Phaser.Scene {
     if (object) this.events.emit("enter-place", object.id);
   }
 
-  /** Called by OverworldRoot.tsx when a door-building's overlay closes, to place the player
-   *  back at the exact door tile (FR3 — leaving returns to the exact tile entered from). */
-  returnToDoor(placeId: PlaceId): void {
-    const place = placeById(placeId) as Place & { door?: { x: number; y: number } };
-    const door = place.door;
-    if (!door) return;
-    this.exitInterior(door);
-  }
-
-  /** A real placed business's own twin of `returnToDoor` — its door tile is dynamic, not a
-   *  static `PlaceId`, so it can't go through `placeById`. Silently no-ops if the business
-   *  somehow no longer exists (tolerate-gracefully, same as every other lookup here).
-   *  mall.md decision #2 — `stallIndex` returns you to the SAME stall door you entered through,
-   *  never always stall 0's; defaults to 0 so every normal single-stall business is unchanged. */
-  returnToBusinessDoor(businessId: string, stallIndex = 0): void {
-    const business = businessById(this.spaceId, businessId);
-    if (!business) return;
-    const door = businessStallDoors(business).find((d) => d.stallIndex === stallIndex) ?? business.door;
-    this.exitInterior(door);
-  }
 
   /** Soumaya chat's cited-source "fly to" — pans the camera to a creature's tile without
    *  moving the player (2D equivalent of the galaxy's existing chat-citation navigation).
