@@ -77,6 +77,25 @@ export function isTileZonable(spaceId: string, x: number, y: number): boolean {
   return true;
 }
 
+/** Every zonable tile inside a rectangle (corners normalized, either order) — the one real
+ *  "which tiles would this rectangle actually touch" computation `zoneRectangle`/`applyZoneRect`
+ *  both need, plus the build queue (build-queue-dispatch.md, task #123), which needs the same
+ *  read WITHOUT writing anything (deciding whether a rectangle is worth queuing at all, and
+ *  which tiles to show a pending marker on). Kept in one place so all three stay consistent. */
+export function zonableTilesInRect(spaceId: string, x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
+  const minX = Math.min(x0, x1);
+  const maxX = Math.max(x0, x1);
+  const minY = Math.min(y0, y1);
+  const maxY = Math.max(y0, y1);
+  const tiles: Array<{ x: number; y: number }> = [];
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (isTileZonable(spaceId, x, y)) tiles.push({ x, y });
+    }
+  }
+  return tiles;
+}
+
 export function armedZoneType(spaceId: string): ZoneType | null {
   try {
     const raw = localStorage.getItem(armedKey(spaceId));
@@ -171,6 +190,20 @@ export function zoneTileAt(spaceId: string, x: number, y: number): ZonedTile | n
   return tile;
 }
 
+/** The same real write `zoneTileAt` does, but for an EXPLICIT type rather than whatever's
+ *  currently armed (build-queue-dispatch.md, task #123) — a dispatched worker applies a queued
+ *  order's own captured type, which must never depend on live Hangar arm state (the player may
+ *  have re-armed a different type in the Hangar since the order was queued). Also re-validates
+ *  `isTileZonable` itself (unlike `zoneTileAt`, which trusts an already-checked caller) since a
+ *  queued order's target may have gone stale by the time a worker actually arrives. Returns
+ *  false, changing nothing, if the tile isn't zonable. */
+export function applyZoneTile(spaceId: string, x: number, y: number, type: ZoneType): boolean {
+  if (!isTileZonable(spaceId, x, y)) return false;
+  const others = zonedTiles(spaceId).filter((t) => !(t.x === x && t.y === y));
+  saveZonedTiles(spaceId, [...others, { x, y, type }]);
+  return true;
+}
+
 /** Zones every zonable tile in the rectangle spanning two corners (inclusive), in one action —
  *  the real "a lot of space at one time" fix (zoning-rework.md decision #2). Corners are
  *  normalized so either can be passed in either order. Blocked tiles are silently skipped, same
@@ -181,16 +214,14 @@ export function zoneTileAt(spaceId: string, x: number, y: number): ZonedTile | n
 export function zoneRectangle(spaceId: string, x0: number, y0: number, x1: number, y1: number): ZonedTile[] {
   const type = armedZoneType(spaceId);
   if (!type) return [];
-  const minX = Math.min(x0, x1);
-  const maxX = Math.max(x0, x1);
-  const minY = Math.min(y0, y1);
-  const maxY = Math.max(y0, y1);
-  const zoned: ZonedTile[] = [];
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = minX; x <= maxX; x++) {
-      if (isTileZonable(spaceId, x, y)) zoned.push({ x, y, type });
-    }
-  }
+  return applyZoneRect(spaceId, x0, y0, x1, y1, type);
+}
+
+/** The same real write `zoneRectangle` does, but for an EXPLICIT type (build-queue-dispatch.md,
+ *  task #123) — see `applyZoneTile`'s own doc comment for why a queued order can't depend on
+ *  live arm state. Corners are normalized the same way `zoneRectangle` already does. */
+export function applyZoneRect(spaceId: string, x0: number, y0: number, x1: number, y1: number, type: ZoneType): ZonedTile[] {
+  const zoned: ZonedTile[] = zonableTilesInRect(spaceId, x0, y0, x1, y1).map((t) => ({ ...t, type }));
   if (zoned.length === 0) return [];
   const untouched = zonedTiles(spaceId).filter((t) => !zoned.some((z) => z.x === t.x && z.y === t.y));
   saveZonedTiles(spaceId, [...untouched, ...zoned]);

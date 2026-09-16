@@ -5,6 +5,7 @@ import { recordBuildingWork } from "../data/npcJobs.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { armedItemId, armItem, canAffordItem, PLACEABLE_ITEMS, placedItems, removePlacedItem } from "../data/townBuilder.js";
 import { armedZoneMode, armedZoneType, armZoneType, zoneCounts, ZONE_TYPES, type ZoneMode, type ZoneType } from "../data/zoning.js";
+import { cancelOrder, dispatchModeEnabled, queuedOrders, setDispatchModeEnabled, type WorkOrder } from "../data/buildQueue.js";
 import {
   armedHomeTypeId,
   armHomeType,
@@ -61,6 +62,19 @@ const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
   sidewalk: { label: "Sidewalk", icon: "➰" },
   transit: { label: "Transit stop", icon: "🚏" },
 };
+
+/** Build queue (docs/overworld/build-queue-dispatch.md, task #123) — a plain, honest description
+ *  of a real pending order, never a score/estimate (no fake ETA — a worker gets to it when a
+ *  Hangar attendant is actually free). */
+function orderLabel(order: WorkOrder): string {
+  if (order.kind === "item") {
+    const item = PLACEABLE_ITEMS.find((i) => i.id === order.itemId);
+    return `${item?.icon ?? "❔"} ${item?.name ?? order.itemId} — at (${order.x0}, ${order.y0})`;
+  }
+  const meta = order.zoneType ? ZONE_META[order.zoneType] : null;
+  const where = order.kind === "zone-rect" ? `(${order.x0},${order.y0}) to (${order.x1},${order.y1})` : `(${order.x0}, ${order.y0})`;
+  return `${meta?.icon ?? "❔"} ${meta?.label ?? order.zoneType} — ${where}`;
+}
 
 export interface HangarOverlayProps {
   spaceId: string;
@@ -150,6 +164,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
   const [zoneMode, setZoneMode] = useState<ZoneMode>(() => armedZoneMode(spaceId));
   const [armedHome, setArmedHome] = useState(() => armedHomeTypeId(spaceId));
   const [armedBusiness, setArmedBusiness] = useState(() => armedBusinessTypeId(spaceId));
+  const [dispatchMode, setDispatchModeState] = useState(() => dispatchModeEnabled(spaceId));
   // Bumped on every demolish — placedItems/placedHomes/placedBusinesses read straight from
   // localStorage rather than being mirrored into state, so this forces those lists to re-derive
   // (wave3-economy-depth.md decision #3).
@@ -210,12 +225,26 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
     }
   };
 
+  const toggleDispatchMode = () => {
+    const next = !dispatchMode;
+    setDispatchModeEnabled(spaceId, next);
+    setDispatchModeState(next);
+  };
+
+  const cancelQueuedOrder = (orderId: string) => {
+    if (cancelOrder(spaceId, orderId)) {
+      setBalance(treasuryBalanceCents(spaceId));
+      setPlacedVersion((v) => v + 1); // same "something changed, re-derive" bump the demolish handlers use
+    }
+  };
+
   // Recomputed whenever placedVersion bumps (or on first render) — intentionally not memoized,
   // these are small per-space lists read straight from localStorage.
   void placedVersion;
   const myItems = placedItems(spaceId);
   const myHomes = placedHomes(spaceId);
   const myBusinesses = placedBusinesses(spaceId);
+  const queue = queuedOrders(spaceId);
 
   return (
     <OverlayShell icon="🛠️" title="Hangar" onClose={onClose}>
@@ -233,6 +262,28 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
         value={fig2}
         onChange={(v) => persist(keys.fig2, v, setFig2)}
       />
+
+      <h3>Build Queue</h3>
+      <p style={{ marginTop: 0 }}>
+        {dispatchMode
+          ? "On — designating a tile or item below (Town Building or Zoning) queues it for a Hangar attendant (Zeke or Nova) to walk out and build, instead of placing it under your own hands right now."
+          : "Off — designating a tile or item below places/zones it immediately, under your own hands. Today's default."}
+      </p>
+      <button type="button" onClick={toggleDispatchMode} style={actionButtonStyle(false)}>
+        {dispatchMode ? "Switch to building it yourself" : "Send a crew instead"}
+      </button>
+      {queue.length > 0 && (
+        <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0" }}>
+          {queue.map((order) => (
+            <li key={order.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
+              <span style={{ flex: 1 }}>{orderLabel(order)}</span>
+              <button type="button" onClick={() => cancelQueuedOrder(order.id)} style={actionButtonStyle(false)}>
+                Cancel
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <h3>Town Building</h3>
       <p style={{ marginTop: 0 }}>

@@ -1,3 +1,28 @@
+### 2026-09-16 (Claude): The build-queue/dispatch system (task #123) (complete)
+- [ ] Verified by Claude
+- Closes the one deferral the SimCity-realism-pass round left open. Resolved in
+  `docs/overworld/build-queue-dispatch.md`.
+- Investigated first: zoning already has a real Area mode (a whole rectangle in one action) — the
+  genuine gap is that every real placement flow requires the player's own avatar to be physically
+  present at the target and press interact themselves.
+- "Hangar employees" is literal — the same 2 real attendants (Zeke/Nova) every other building
+  already has. Dispatch reuses the exact real BFS-pathed walk (`findPath`/`walkPath`) the outing
+  system already proved, no teleporting.
+- A new Hangar toggle ("Send a crew instead") decides what an interact press does on the SAME
+  targeting every manual flow already uses — place/zone it now (unchanged default), or queue it
+  for a worker to build later. Supplement, never replace; treasury cost unchanged (an item's real
+  price still spends at `armItem` time — queueing never double-charges).
+- New `data/buildQueue.ts` (pure): enqueue/cancel/complete for zone-tile, zone-rect, and item
+  orders, independent of live Hangar arm state.
+- `ExteriorScene.ts` gained a `dispatched` sprite flag mirroring `atMeeting`'s own suspension
+  shape, plus a real cross-system bug caught and fixed before shipping: `maybeStartOuting`/
+  `sendToMeeting` now also refuse to claim an already-dispatched sprite.
+- Scope: 1-tile zoning/decor-item orders only (exactly what the request named); dispatching a
+  multi-tile home/business placement is deliberately deferred to its own follow-up.
+- Verified by 21 new `buildQueue.test.ts` cases, 3 new `HangarOverlay.test.tsx` cases, and the
+  full gate (1066 server + 630 web tests, typecheck, build). Not yet seen rendered in a real
+  browser.
+
 ### 2026-09-16 (Claude): A SimCity-realism pass — interior agency, NPC teleport, population income (complete)
 - [ ] Verified by Claude
 - Direct response to detailed real feedback bundling 4 complaints, resolved in

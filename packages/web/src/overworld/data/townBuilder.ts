@@ -136,6 +136,24 @@ export function placeArmedItem(spaceId: string, x: number, y: number): PlacedIte
   return placed;
 }
 
+/** Places an item at a tile the caller has already confirmed is free, WITHOUT touching the
+ *  armed state or the treasury (build-queue-dispatch.md, task #123) — used to complete a queued
+ *  work order, which already validated the target and spent the treasury once, at enqueue time.
+ *  Distinct from `placeArmedItem` (the manual "arm then place yourself" path), which both
+ *  arms+spends at a different time and clears an armed state a queued order never set. Also
+ *  re-validates `isTileFreeForPlacement` itself (unlike `placeArmedItem`, which trusts an
+ *  already-checked caller) since a queued order's target may have gone stale by the time a
+ *  worker actually arrives. Returns null, changing nothing, if the itemId is unknown or the
+ *  tile isn't free. */
+export function placeItemDirectly(spaceId: string, itemId: string, x: number, y: number): PlacedItem | null {
+  const item = PLACEABLE_ITEMS.find((i) => i.id === itemId);
+  if (!item) return null;
+  if (!isTileFreeForPlacement(spaceId, x, y)) return null;
+  const placed: PlacedItem = { id: `${spaceId}-${Date.now()}-${Math.round(x)}-${Math.round(y)}`, itemId, x, y };
+  savePlacedItems(spaceId, [...placedItems(spaceId), placed]);
+  return placed;
+}
+
 /** Demolishes a real placed decor item, refunding its full real price — a pure decorative item
  *  with no dependent state (unlike a home/business), so there's no reason to charge for changing
  *  your mind (wave3-economy-depth.md decision #3). Returns false, changing nothing, if no such
