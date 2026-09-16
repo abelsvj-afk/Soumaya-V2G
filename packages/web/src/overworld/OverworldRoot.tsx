@@ -44,21 +44,6 @@ type Overlay =
   | { kind: "settings" }
   | { kind: PlaceId };
 
-const DOOR_PLACE_IDS = new Set<PlaceId>([
-  "bank",
-  "library",
-  "sanctuary",
-  "postOffice",
-  "observatory",
-  "theater",
-  "gym",
-  "market",
-  "townHall",
-  "park",
-  "hangar",
-  "mayorsHall",
-]);
-
 /**
  * The Overworld's town: every dock-tab equivalent lives here as a real place (Stage 2,
  * roadmap.md). Additive per decisions.md D1/D6 — only ever rendered behind the
@@ -311,21 +296,14 @@ export function OverworldRoot() {
   }, []);
 
   const closeOverlay = useCallback(() => {
-    // FR3 — leaving a door-building returns to the exact tile you entered from; standalone
-    // objects (Soumaya, the Bulletin Board) never moved the player, so nothing to restore.
-    if (overlay.kind === "business") {
-      sceneRef.current?.returnToBusinessDoor(overlay.businessId, overlay.stallIndex);
-    } else if (
-      overlay.kind !== "none" &&
-      overlay.kind !== "capture" &&
-      overlay.kind !== "details" &&
-      overlay.kind !== "settings" &&
-      DOOR_PLACE_IDS.has(overlay.kind)
-    ) {
-      sceneRef.current?.returnToDoor(overlay.kind);
-    }
-    // Leaving the Hangar may have changed the saved trail color — pick it up immediately
-    // rather than waiting for a full scene reload.
+    // simcity-realism-pass.md — real walk-in agency: closing a walked-into-a-place overlay no
+    // longer teleports the player straight back outside. It ONLY closes the overlay; the scene's
+    // own `setPaused` effect (below) unpauses input, and the player is left standing right where
+    // they already are — inside the interior room, near the counter — free to walk back to the
+    // counter (reopen it) or to the room's own doorway tile (leave for real). Standalone objects
+    // (Soumaya, the Bulletin Board) never moved the player in the first place.
+    // Leaving the Hangar may have changed the saved trail color — pick it up immediately rather
+    // than waiting for a full scene reload.
     if (overlay.kind === "hangar") {
       sceneRef.current?.refreshTrailColor();
     }

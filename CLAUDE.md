@@ -253,6 +253,34 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **A SimCity-realism pass: real interior agency, NPC teleport, population income (2026-09-16),
+  not yet on-device confirmed** — direct response to detailed real feedback bundling 4
+  complaints (interiors popping the overlay before you can walk around and exiting the whole
+  building when you close it; NPCs should generate treasury income just by existing; a real
+  build-queue/dispatch system; NPC traversal "no teleport/flying back fast"). Resolved in
+  `docs/overworld/simcity-realism-pass.md`. **NPC teleport** — root-caused: `applySocietyState`
+  never accounted for a schedule transition firing mid-outing (potentially 20-40+ tiles from
+  home); measured a real 22-tile Market-to-Bank path the old code would have animated as a flat
+  500ms tween. Fixed by routing an interrupted outing home via the same real `findPath`/
+  `walkPath` machinery the outing itself used. **Real interior walk-in agency** — root-caused a
+  real architecture gap: `handleInput`'s movement grid was hardcoded to the exterior
+  `REGION_WIDTH`/`REGION_HEIGHT`, so the interior room (deliberately placed past those bounds)
+  was literally unwalkable — the overlay had to auto-fire instantly because giving control back
+  would have looked frozen. Fixed with a real interior-scoped movement grid, a real counter tile
+  (opens the overlay only once you walk to it) and doorway tile (leaves only once you walk back),
+  and `closeOverlay` no longer teleports you out — it just closes the overlay, leaving you in
+  real control inside. Verified via the real `tryMove`/`completeMove` engine functions: a
+  measured 3-step walk to the counter and back, real edge-blocking, real sideways movement.
+  **Population-driven passive income** — a first real slice: every real society NPC currently
+  working (via the existing real schedule) earns the Treasury 1 real cent per real hour worked,
+  gated by the same real neglect signal structure rent already uses, stacking independently with
+  that existing per-structure rent. **The build-queue/dispatch system** — deliberately deferred;
+  real open design decisions (who are the workers, what animates dispatch, does it replace or
+  supplement manual placement) need their own resolved spec first. Verified by 6 new
+  `npcSchedule.test.ts` cases, 6 new `passiveNpcIncome.test.ts` cases, 5 new `interiorRoom.test.ts`
+  cases, the real engine-function reproductions above, and the full gate (1066 server + 608 web
+  tests, typecheck, build). Not yet seen rendered in a real browser.
+
 - **The Town Report (Wave 4 §E.1, task #119) (2026-09-16), not yet on-device confirmed** — a
   real Mayor's Office "how's my city doing" view, built entirely from real numbers already
   computed elsewhere in `MayorsHallOverlay.tsx` (never a new invented "happiness %"). New "Town

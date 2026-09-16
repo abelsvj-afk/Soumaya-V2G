@@ -2113,6 +2113,72 @@ shows its real current value; the zoning-balance line reads "no zoning yet" on a
 the full gate (1066 server + 592 web tests, typecheck, build). Not yet seen rendered in a real
 browser from this sandbox.
 
+## Stage 2.62 — a SimCity-realism pass: real interior agency, NPC teleport, population income
+
+Direct response to detailed real feedback bundling 4 complaints: building interiors "pop up the
+overlay before you can walk around... exit the overlay, you exit the building completely";
+"all npcs [should] make money towards the treasury... I should see the money running up just
+based off them"; a real dispatch/build-queue system so building isn't all-manual; and "npc
+traversal needs to be realistic — no coming out of a building, walk away from it, then teleport
+or flying back to it all fast." Resolved and scoped in `docs/overworld/simcity-realism-pass.md`,
+per Rule #1 — investigated each complaint against the real code before writing anything, not
+guessed.
+
+**NPC teleport — a real bug, root-caused.** The outing system's own pathfinding was already real
+(BFS + tile-by-tile tweened walk). The actual bug: `applySocietyState` (the Working/Break/Home
+transition handler) never accounted for a transition firing WHILE an NPC was mid-outing, possibly
+20-40+ tiles from their own building — it killed the outing's walk tween correctly but then moved
+the sprite home with either an instant `setPosition` or a flat 500ms tween regardless of real
+distance. Measured directly: Market's post to Bank's door is a real 22-tile path — the old code
+would have animated that as a flat 500ms tween (reads as flying), the same distance a real player
+would need 3.5 real seconds to walk. Fixed: an interrupted outing now routes home via the exact
+same real `findPath`/`walkPath` machinery the outing itself used to get there; the normal case
+(no interruption, already at/near post) is completely unchanged.
+
+**Real interior walk-in agency — a real architecture gap, not just UX polish.** Root-caused: the
+interior room's own tiles sit deliberately past `REGION_WIDTH` so exterior movement can never
+reach them, but `handleInput`'s own movement grid was hardcoded to the exterior
+`REGION_WIDTH`/`REGION_HEIGHT` bounds — meaning even without the transition lock, the player
+literally could not move inside the room; every step failed the bounds check. That's why the
+overlay had to auto-fire instantly. Fixed: `interiorRoom.ts` gained a real `interiorCounterTile()`
+(the exact tile the existing decorative glyph already renders at — no art moved) and
+`isInsideInteriorRoom()`; `handleInput` now branches to a small grid scoped to the room while
+inside it; `afterStep` watches for the counter (opens the overlay for real, only once the player
+genuinely walks there) and the doorway (leaves for real, only once the player walks back). Closing
+the overlay (`OverworldRoot.tsx`'s `closeOverlay`) no longer teleports the player out by itself —
+it only closes the overlay, leaving them in real control inside the room. Verified by direct
+measurement using the same real `tryMove`/`completeMove` engine functions: a real 3-step walk from
+the doorway to the counter and back, the room's own edges correctly blocking exit, and real
+sideways movement inside it.
+
+**Population-driven passive income — a first real slice.** `passiveIncome.ts` already pays real
+rent from placed structures, gauged by price (a landlord's income) — this is the OTHER real
+SimCity stream: a population's own tax revenue. New `data/passiveNpcIncome.ts`: every real society
+NPC currently, deterministically in the real `working` schedule state
+(`npcSchedule.ts`'s own `scheduleStateAt`, extended with a new `countWorkingTicks()` — O(1) full-
+cycle math plus at most one partial cycle, never a per-tick loop over a real multi-day gap)
+contributes 1 real cent per real hour actually spent working, gated by the same real
+`buildingNeglect.ts` signal rent already uses (a neglected building's attendant isn't doing real
+civic work worth taxing — and that skipped stretch is never banked for a later payout once
+neglect clears). Both income streams stack, computed and credited independently. A first-ever
+call for any NPC establishes a zero-credit baseline rather than retroactively paying out for time
+before the feature existed.
+
+**The build-queue/dispatch system — deliberately deferred.** The biggest, most novel piece of the
+4 complaints: real open decisions (who are "Hangar employees," what does dispatch actually
+animate, does it replace or supplement the existing arm-then-place flow, how does queuing
+interact with the Treasury) need their own resolved spec before any code — implementing it
+alongside 3 other real fixes in one pass would risk exactly the under-verified rush this app's
+own "verify before you build" standard exists to prevent. Tracked as its own follow-up task.
+
+Verified by 6 new `npcSchedule.test.ts` cases (`countWorkingTicks` matches brute-force counting
+across several real ranges, stays fast across a real 3-day gap), 6 new `passiveNpcIncome.test.ts`
+cases (real accrual, real neglect gating, no retroactive banking, real multi-NPC stacking), 5 new
+`interiorRoom.test.ts` cases (the counter tile, room-bounds checks), the real
+`tryMove`/`findPath` reproductions described above, and the full gate (1066 server + 608 web
+tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration code has no dedicated test
+(this file's established convention) — not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

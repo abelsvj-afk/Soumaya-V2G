@@ -1,3 +1,27 @@
+### 2026-09-16 (Claude): A SimCity-realism pass — interior agency, NPC teleport, population income (complete)
+- [ ] Verified by Claude
+- Direct response to detailed real feedback bundling 4 complaints, resolved in
+  `docs/overworld/simcity-realism-pass.md`.
+- **NPC teleport (real bug)**: `applySocietyState` never accounted for a schedule transition
+  firing mid-outing (20-40+ tiles from home). Measured a real 22-tile path the old code animated
+  as a flat 500ms tween. Fixed by routing an interrupted outing home via real `findPath`/
+  `walkPath`, same as the outing itself used.
+- **Real interior walk-in agency**: root-caused an architecture gap — `handleInput`'s movement
+  grid was hardcoded to the exterior bounds, so the interior room was literally unwalkable (hence
+  the overlay auto-firing instantly before). Fixed with a real interior-scoped movement grid, a
+  real counter tile (opens the overlay only once you walk there) and doorway tile (leaves only
+  once you walk back); `closeOverlay` no longer teleports you out, just closes the overlay.
+  Verified via real `tryMove`/`completeMove` calls: a measured 3-step walk to the counter and
+  back, real edge-blocking, real sideways movement.
+- **Population-driven passive income**: every real society NPC currently working earns the
+  Treasury 1 real cent per real hour worked, gated by the same real neglect signal structure rent
+  already uses, stacking independently with that existing rent.
+- **Build-queue/dispatch system**: deliberately deferred — real open design decisions need their
+  own resolved spec first.
+- Verified by 6 new `npcSchedule.test.ts` cases, 6 new `passiveNpcIncome.test.ts` cases, 5 new
+  `interiorRoom.test.ts` cases, real engine-function reproductions, and the full gate (1066
+  server + 608 web tests, typecheck, build). Not yet seen rendered in a real browser.
+
 ### 2026-09-16 (Claude): The Town Report (Wave 4 §E.1, task #119) (complete)
 - [ ] Verified by Claude
 - A real Mayor's Office "how's my city doing" view, built entirely from real numbers already
