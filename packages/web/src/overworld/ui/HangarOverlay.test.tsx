@@ -2,9 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { HangarOverlay } from "./HangarOverlay.js";
 import { creditHour, treasuryBalanceCents } from "../data/townLedger.js";
-import { armHomeType, CONSTRUCTION_MS, placeArmedHome } from "../data/housing.js";
-import { armBusinessType, placeArmedBusiness } from "../data/business.js";
-import { armItem, placeArmedItem } from "../data/townBuilder.js";
+import { armHomeType, CONSTRUCTION_MS, HOME_TYPES, placeArmedHome } from "../data/housing.js";
+import { armBusinessType, BUSINESS_TYPES, placeArmedBusiness } from "../data/business.js";
+import { armItem, placeArmedItem, PLACEABLE_ITEMS } from "../data/townBuilder.js";
 import { armZoneType, zoneTileAt } from "../data/zoning.js";
 import { queueArmedItem } from "../data/buildQueue.js";
 
@@ -41,9 +41,12 @@ describe("HangarOverlay", () => {
   describe("Town Building (town-builder.md)", () => {
     it("can't afford anything with an empty treasury", () => {
       render(<HangarOverlay spaceId="space-1" memoriesCount={0} onClose={vi.fn()} />);
-      // 4 real town-builder decor items + 4 real home types (housing.md) + 4 real business
-      // types (business.md, now including the Mall — mall.md, backlog #83), all unaffordable.
-      expect(screen.getAllByText("Can't afford").length).toBe(12);
+      // Every real town-builder decor item (asset-completion-pass.md, task #124, grew this
+      // catalog from 4 to 18) + every real home type (housing.md) + every real business type
+      // (business.md, including the Mall — mall.md, backlog #83), all unaffordable — computed
+      // from the real catalogs rather than a hand-counted literal, so this stays correct as any
+      // of them grows.
+      expect(screen.getAllByText("Can't afford").length).toBe(PLACEABLE_ITEMS.length + HOME_TYPES.length + BUSINESS_TYPES.length);
     });
 
     it("buying an affordable item arms it and spends the real treasury", () => {

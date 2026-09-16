@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import {
   PLACEABLE_ITEMS,
   armedItemId,
@@ -135,6 +138,36 @@ describe("townBuilder — the Hangar's real select-then-place mechanism", () => 
 
     it("is a no-op, returning false, for an id that doesn't exist", () => {
       expect(removePlacedItem(SPACE, "nonexistent")).toBe(false);
+    });
+  });
+
+  describe("asset completion pass — new curated catalog items (task #124)", () => {
+    it("added real new items on top of the original 4, never replacing them", () => {
+      expect(PLACEABLE_ITEMS.length).toBeGreaterThan(4);
+      for (const id of ["garden_bed", "bench", "lamp_post", "banner_post"]) {
+        expect(PLACEABLE_ITEMS.some((i) => i.id === id)).toBe(true);
+      }
+    });
+
+    it("every new item's iconUrl points at a real file that actually exists on disk", () => {
+      const here = dirname(fileURLToPath(import.meta.url)); // .../packages/web/src/overworld/data
+      const publicDir = join(here, "..", "..", "..", "public");
+      for (const item of PLACEABLE_ITEMS) {
+        if (!item.iconUrl) continue;
+        const filePath = join(publicDir, item.iconUrl);
+        expect(existsSync(filePath), `${item.id}'s iconUrl (${item.iconUrl}) should exist on disk`).toBe(true);
+      }
+    });
+
+    it("every catalog item id is unique", () => {
+      const ids = PLACEABLE_ITEMS.map((i) => i.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("a pre-existing emoji-only item's shape is completely unchanged (no iconUrl added)", () => {
+      const gardenBed = PLACEABLE_ITEMS.find((i) => i.id === "garden_bed")!;
+      expect(gardenBed.iconUrl).toBeUndefined();
+      expect(gardenBed.icon).toBe("🌷");
     });
   });
 });

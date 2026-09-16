@@ -253,6 +253,35 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Asset completion pass: unused decor wired in, real player walk animation (task #124)
+  (2026-09-16), not yet on-device confirmed** — direct response to "do the deferred too" / "I
+  dont see any of the new buildings or assests we added in the hangar" / "Ask those cco u found
+  with the walking animations as well. We need all those and the npcs." Resolved in
+  `docs/overworld/asset-completion-pass.md`. Confirmed real: every asset-sourcing round this
+  session (vehicle art, the full "RTS Pack: Medieval," Wave 4a decor) shipped real CC0 files but
+  never wired almost any of them into anything purchasable — the Hangar's `PLACEABLE_ITEMS`
+  catalog still had exactly its original 4 emoji items. Fixed by curating (every candidate
+  actually visually reviewed, never guessed from a filename) 14 new real catalog items — a well,
+  market stall, storage crates, stone gatehouse, fence gate, canvas tent, pine tree, round hedge,
+  boulder, rock cluster, plus the already-sourced wagon/caravan-wreck/road-sign/crossroads-sign.
+  `PlaceableItem` gained an optional `iconUrl` (additive-only); the Hangar catalog and
+  `ExteriorScene.ts`'s `paintPlacedItem` both gained a real-image render path. Every new item
+  reuses the existing arm/place/demolish/dispatch-queue machinery unchanged. Also: re-searched the
+  same trusted CC0 aggregator specifically for character walk animation (never found by any prior
+  round) and located OpenGameArt "2D RPG character walk spritesheet" (CC0) — measured directly
+  (a real pixel-boundary scan): 192x128px, 8x4 grid, 24x32px frames. `player` was already a real
+  Phaser `Sprite`; new `scenes/characterSprites.ts` wires one real walk animation per direction,
+  played on every move and landing on a real directional standing frame (including on a blocked
+  bump — a real GBA convention this sprite never had before). Investigated for NPCs too: Kenney's
+  "Roguelike Characters" pack turned out to be a costume-builder set with zero walk frames; no
+  matching pack for the town's ~26 already-individually-authored NPCs was found, so they keep
+  their existing single-frame technique — an honest, documented gap, not silently dropped.
+  Verified by a real pixel-boundary measurement, 4 new `characterSprites.test.ts` cases, 4 new
+  `townBuilder.test.ts` cases (including a real on-disk file-existence check for every new
+  `iconUrl`), a build-output check, and the full gate (1066 server + 638 web tests, typecheck,
+  build). Not yet seen rendered in a real browser — the row-to-direction mapping is a documented
+  assumption pending on-device confirmation.
+
 - **The build-queue/dispatch system (task #123) (2026-09-16), not yet on-device confirmed** —
   closes the one deferral the SimCity-realism-pass round left open ("we need a proper way...
   queue hangar employees to dispatch and do the building"). Resolved in

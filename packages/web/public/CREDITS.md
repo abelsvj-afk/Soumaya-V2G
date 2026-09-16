@@ -86,8 +86,42 @@ request. OpenGameArt "Caravan wreck" ([source](https://opengameart.org/content/c
 a broken-down wagon, a natural decorative pairing with the real wagon above. "Village"
 ([source](https://opengameart.org/content/village)) — a small illustrated village scene. "Town
 Tiles" ([source](https://opengameart.org/content/town-tiles)) — a 16x16 pixel tile sheet. All
-**CC0 (public domain)**. None of these three are wired into any code yet — staged for a future
-decor pass, same as most of the village pack above.
+**CC0 (public domain)**. Asset completion pass (`docs/overworld/asset-completion-pass.md`, task
+#124) wired `caravan-wreck.png` into the Hangar as a real "Ruined Caravan" decor item;
+`village-illustration.png` (a scene illustration, not a single placeable object) and
+`town-tiles.png` (a multi-tile sheet, not a single image) stay unwired — a genuinely different
+shape than a discrete placeable, deferred for a future decor round rather than forced in.
+
+**Asset completion pass (task #124) — the Hangar catalog expansion.** Direct response to real
+feedback that the assets above existed on disk but were never actually purchasable anywhere.
+Curated (every candidate visually reviewed before being named, never guessed from a filename) a
+set of `overworld/village-pack/structure/*.png` and `overworld/village-pack/environment/*.png`
+pieces into 10 new real Hangar decor items: a well (`medievalStructure_06.png`), a market stall
+(`medievalStructure_09.png`), storage crates (`medievalStructure_11.png`), a stone gatehouse
+(`medievalStructure_02.png`), a fence gate (`medievalStructure_07.png`), a canvas tent
+(`medievalStructure_10.png`), a pine tree (`medievalEnvironment_02.png`), a round hedge
+(`medievalEnvironment_01.png`), a boulder (`medievalEnvironment_09.png`), and a rock cluster
+(`medievalEnvironment_17.png`) — plus the already-sourced `vehicles/wagon.png`,
+`decor/caravan-wreck.png`, `decor/road-sign.png`, and `decor/crossroads-sign.png` above (4 more).
+All already CC0 per their own entries above/below. The remaining ~12 structure/environment
+pieces and all 58 ground/path tiles stay explicitly deferred (the tiles are terrain, not discrete
+placeable objects, the same reasoning already used to exclude this pack's road tiles from the
+zoned transit system).
+
+**`overworld/characters/player-walk.png`** — a real top-down, GBA-Pokémon-style walk-cycle
+spritesheet for the player character (asset completion pass, task #124, direct response to "the
+cco u found with the walking animations... we need all those"). OpenGameArt "2D RPG character
+walk spritesheet" ([source](https://opengameart.org/content/2d-rpg-character-walk-spritesheet)),
+**CC0 (public domain)**, via the same trusted aggregator (`github.com/Tiddybub/2d-assets`) as
+every other asset above. 192x128px, measured directly (a real pixel-content-boundary scan, not
+guessed) as an 8-column x 4-row grid of 24x32px frames — one row per facing direction. Investigated
+first for the town's existing NPCs too (Kenney's "Roguelike Characters" pack, same aggregator) —
+confirmed via its own preview to be a modular costume-builder set with zero walk frames, not an
+animation source, so it doesn't solve NPC motion. No CC0 pack matching each of the ~26 already-
+individually-authored NPCs' own specific looks with real walk frames was found this pass — wiring
+this sheet onto every NPC would have silently erased their distinct identities, so NPCs keep their
+existing single-frame + squash-stretch technique; a real, honestly-documented gap, not a silent
+drop.
 
 ## Overworld music
 
