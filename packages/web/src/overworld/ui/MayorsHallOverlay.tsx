@@ -1,7 +1,7 @@
 import { buildingNeglect, isNeglected } from "../data/buildingNeglect.js";
 import { businessNeglect, businessTypeById, placedBusinesses } from "../data/business.js";
 import { homeTypeById, housingSummary, placedHomes, residentsOfHome } from "../data/housing.js";
-import { npcProfile } from "../data/npcDialogue.js";
+import { npcDisplayName } from "../data/residents.js";
 import { treasuryBalanceCents } from "../data/townLedger.js";
 import { zoneCounts, ZONE_TYPES } from "../data/zoning.js";
 import { allPlaces } from "../scenes/regionLayout.js";
@@ -80,7 +80,7 @@ export function MayorsHallOverlay({ spaceId, onClose }: MayorsHallOverlayProps) 
         <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
           {homes.map((home) => {
             const type = homeTypeById(home.typeId);
-            const residents = residentsOfHome(spaceId, home.id).map((id) => npcProfile(id).name);
+            const residents = residentsOfHome(spaceId, home.id).map((id) => npcDisplayName(id));
             return (
               <li key={home.id} style={{ padding: "4px 0", borderBottom: `1px solid ${color.divider}` }}>
                 <span aria-hidden="true">{type?.icon ?? "🏠"}</span> {type?.name ?? "Home"} —{" "}

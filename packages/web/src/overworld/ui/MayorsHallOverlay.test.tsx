@@ -82,6 +82,29 @@ describe("MayorsHallOverlay (mayors-hall.md)", () => {
     expect(screen.getByText(/Cottage — Priya/)).toBeTruthy();
   });
 
+  it("population-growth.md (task #118) — a real Resident's name renders in a home list, never a crash", () => {
+    // A real, confirmed-open 16x10 rectangle (verified against isPlacementBlocked directly in
+    // housing.test.ts) — big enough to build past the fixed 24-society-NPC floor, so the town's
+    // real Resident roster starts moving in.
+    for (let y = 6; y <= 15; y++) {
+      for (let x = 0; x <= 15; x++) {
+        armZoneType("space-1", "residential");
+        zoneTileAt("space-1", x, y);
+      }
+    }
+    for (let i = 0; i < 7; i++) {
+      for (let j = 0; j < 80; j++) creditHour("space-1", "bank"); // 80 * 25c = $20.00, well over apartment's $10.00
+      armHomeType("space-1", "apartment");
+      const x0 = (i % 4) * 4;
+      const y0 = 6 + Math.floor(i / 4) * 3;
+      expect(placeArmedHome("space-1", x0, y0, 0)).not.toBeNull();
+    }
+    render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
+    // Della is the first real name in the Resident roster (residents.ts) — only reachable once
+    // every one of the 24 society NPCs already has a real home.
+    expect(screen.getByText(/Della/)).toBeTruthy();
+  });
+
   it("reports no real businesses built on a fresh town, never a fake one", () => {
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);
     expect(screen.getByText(/No real businesses built yet/)).toBeTruthy();

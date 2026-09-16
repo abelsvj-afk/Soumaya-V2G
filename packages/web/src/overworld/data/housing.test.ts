@@ -18,6 +18,7 @@ import {
 import { creditHour, treasuryBalanceCents } from "./townLedger.js";
 import { armZoneType, zoneTileAt } from "./zoning.js";
 import { allSocietyNpcIds } from "./npcDialogue.js";
+import { allResidentNpcIds } from "./residents.js";
 
 const SPACE = "test-space";
 
@@ -185,9 +186,63 @@ describe("housing — real, player-built homes gated on zoning (housing.md)", ()
 
     const summary = housingSummary(SPACE);
     expect(summary.housed).toBe(4);
-    expect(summary.total).toBe(allSocietyNpcIds().length);
+    // population-growth.md (task #118) — total is the REAL combined population (society NPCs +
+    // the real Resident roster), not just society NPCs alone.
+    expect(summary.total).toBe(allSocietyNpcIds().length + allResidentNpcIds().length);
     expect(summary.livingAlone).toBe(1);
     expect(summary.sharing).toBe(1);
+  });
+
+  describe("population growth (population-growth.md, task #118) — Residents move in only once real capacity exceeds the society roster", () => {
+    /** A real, confirmed-open 16x10 rectangle elsewhere on the map (x=0..15, y=6..15) — probed
+     *  directly against the real `isPlacementBlocked`, not assumed — big enough to build past
+     *  the fixed 24-society-NPC floor, which the smaller 8x8 rect every other test in this file
+     *  uses cannot fit (its own best packing tops out around 21 capacity). */
+    function zoneLargeResidentialRect(): void {
+      for (let y = 6; y <= 15; y++) {
+        for (let x = 0; x <= 15; x++) {
+          armZoneType(SPACE, "residential");
+          zoneTileAt(SPACE, x, y);
+        }
+      }
+    }
+
+    it("no Resident is assigned while built capacity stays at or under the 24-society floor", () => {
+      zoneResidentialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armHomeType(SPACE, "house"); // capacity 3 — nowhere near the 24-society floor
+      placeArmedHome(SPACE, 2, 10, 0);
+      const assignments = assignResidents(SPACE);
+      const residentIds = new Set(allResidentNpcIds());
+      expect(assignments.some((a) => residentIds.has(a.npcId))).toBe(false);
+    });
+
+    it("the real Resident roster starts moving in once built capacity exceeds the 24-society floor", () => {
+      zoneLargeResidentialRect();
+      // 7 real Apartment Blocks (4x3, capacity 4 each) = 28 real capacity — past the 24-society
+      // floor by exactly 4, matching this town's own real 4-Resident roster.
+      for (let i = 0; i < 7; i++) {
+        fundTreasury(2000);
+        armHomeType(SPACE, "apartment");
+        const x0 = (i % 4) * 4;
+        const y0 = 6 + Math.floor(i / 4) * 3;
+        expect(placeArmedHome(SPACE, x0, y0, 0)).not.toBeNull();
+      }
+
+      const societyIds = allSocietyNpcIds();
+      const residentIds = allResidentNpcIds();
+      const assignments = assignResidents(SPACE);
+      expect(assignments).toHaveLength(societyIds.length + residentIds.length); // 28 — exactly full
+
+      // Every society NPC AND every real Resident now has a real home.
+      for (const id of [...societyIds, ...residentIds]) {
+        expect(homeForNpc(SPACE, id)).not.toBeNull();
+      }
+
+      const summary = housingSummary(SPACE);
+      expect(summary.housed).toBe(societyIds.length + residentIds.length);
+      expect(summary.total).toBe(societyIds.length + residentIds.length);
+    });
   });
 
   it("simcity-economy-construction.md — a freshly-placed home is still under construction and houses nobody yet", () => {

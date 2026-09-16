@@ -1,3 +1,25 @@
+### 2026-09-16 (Claude): Population growth (task #118), correcting a stale plan before building it (complete)
+- [ ] Verified by Claude
+- The standing plan (`wave4-full-vision.md` §D) assumed real unfilled attendant-post slack
+  existed. Checked directly first: every one of the 12 door-buildings already has exactly 2
+  attendant posts and exactly 2 hand-authored profiles — zero gaps anywhere. That mechanism had
+  nothing to attach to.
+- Resolved in `docs/overworld/population-growth.md`: a new NPC grows the population as a
+  **Resident** — name only, no job/attendant post/sprite/dialogue. New `data/residents.ts` (4
+  real names).
+- `housing.ts`'s `assignResidents`/`housingSummary` append the Resident roster AFTER the 24
+  society NPCs in one combined walk — the walk already stops once real capacity runs out, so the
+  "capacity exceeding population" gate falls straight out of it, zero new gating code.
+- Fixed the one real crash risk: `MayorsHallOverlay.tsx`'s attendant-only name lookup
+  (`npcProfile(id).name`, throws on an unknown id) replaced with a new shared `npcDisplayName()`
+  that never throws.
+- Fixed a stale doc comment found in the same investigation ("22 NPCs, 11 buildings x 2" — the
+  real current number is 24, 12 buildings x 2, since Theater's own addition).
+- Verified by 6 new `residents.test.ts` cases, 2 new `housing.test.ts` cases (a real, probed-open
+  16x10 rectangle; 7 real Apartment Blocks for 28 real capacity), 1 new
+  `MayorsHallOverlay.test.tsx` case, and the full gate (1066 server + 583 web tests, typecheck,
+  build). Not yet seen rendered in a real browser.
+
 ### 2026-09-16 (Claude): Backlog #83 — the Mall, a real multi-stall business (complete)
 - [ ] Verified by Claude
 - Closes a backlog item deferred three separate times (`npc-economy.md`, `npc-llm-dialogue.md`,
