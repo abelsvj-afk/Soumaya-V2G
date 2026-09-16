@@ -1,3 +1,22 @@
+### 2026-09-16 (Claude): Backlog #83 — the Mall, a real multi-stall business (complete)
+- [ ] Verified by Claude
+- Closes a backlog item deferred three separate times (`npc-economy.md`, `npc-llm-dialogue.md`,
+  `wave4-full-vision.md`), each time already resolved to the same framing: a real widening of
+  Business (task #67), not a new mechanic. Specced first (`docs/overworld/mall.md`).
+- `BusinessType` gains an optional `stalls?: readonly BusinessStall[]` — every existing type
+  (Bakery/Tailor/Bookshop) leaves it absent and behaves exactly as one implicit stall, unchanged.
+- Real stall door tiles are never stored — computed purely from footprint + stall count, evenly
+  spaced along the bottom row. For one stall this reduces byte-for-byte to the existing stored
+  `door` field's own formula, verified directly.
+- Stepping onto any stall's door tile opens the same `BusinessOverlay.tsx`, now told which stall
+  via a `stallIndex` carried on `enter-business` — a normal business is completely unchanged.
+- The Mall: 6x3 footprint, 1200¢ (above Bookshop's 800¢), 3 real distinct stalls (Toy/Flower/
+  Candle) each with their own 3-good catalog. `HangarOverlay.tsx` needed zero changes.
+- No new art sourced this round — falls to the existing `ARCHED_HALL` default (same as Market).
+- Verified by 6 new `business.test.ts` cases + 3 new `BusinessOverlay.test.tsx` cases + 1 updated
+  `HangarOverlay.test.tsx` count + the full gate (1066 server + 574 web tests, typecheck, build).
+  Not yet seen rendered in a real browser.
+
 ### 2026-09-15 (Claude): Real bug fix — money was earnable from the start, just never said so (complete)
 - [ ] Verified by Claude
 - Direct response to live feedback: "Money needs to be earnable from the start... I don't see a

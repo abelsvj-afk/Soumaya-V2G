@@ -2011,6 +2011,41 @@ appears on a spend) plus the full gate (1066 server + 566 web tests, typecheck, 
 seen rendered in a real browser from this sandbox — the real fix to confirm on next on-device
 look is whether a new player now understands where their first coins come from.
 
+## Stage 2.59 — Backlog #83: the Mall, a real multi-stall business
+
+Direct continuation of "keep going through the list" — closes backlog #83 (task #116), deferred
+three separate times (`npc-economy.md`, `npc-llm-dialogue.md`, `wave4-full-vision.md`) with the
+same resolved framing each time: a real widening of Business (task #67), not a new mechanic.
+Specced first (`docs/overworld/mall.md`) per Rule #1.
+
+`BusinessType` gains an optional `stalls?: readonly BusinessStall[]` — every existing type
+(Bakery/Tailor/Bookshop) leaves it absent and keeps behaving as exactly one implicit stall. Door
+tiles for a business's real stalls are never stored (no migration risk to anyone's already-placed
+businesses) — computed purely from the footprint + stall count, evenly spaced along the bottom
+row; for a single stall this formula reduces byte-for-byte to the existing stored `door` field's
+own formula, verified directly rather than assumed. Stepping onto ANY stall's door tile opens the
+SAME `BusinessOverlay.tsx`, now told which stall via a `stallIndex` carried on the `enter-business`
+event — a normal single-catalog business is completely unchanged (`stallIndex` defaults to 0).
+`purchaseGoodFromBusiness` gained the same optional `stallIndex`, resolving goods from the right
+stall's own catalog; the owned-goods set stays keyed by business alone since every stall's good
+ids are already distinct strings, so there's never a real collision to guard against.
+
+The Mall itself: a 6x3 footprint (3x an ordinary business, room for 3 evenly-spaced real door
+tiles), priced at 1200¢ — above Bookshop's 800¢, since it's strictly more building for more money,
+never a cheaper shortcut to 3 shops. 3 real distinct stalls (Toy/Flower/Candle), each with its own
+3-good catalog, mirroring the existing 3-goods-per-type convention. `HangarOverlay.tsx` needed zero
+changes — it already iterates `BUSINESS_TYPES` generically. Art falls through to the existing
+`ARCHED_HALL` default (same as Market) — no new art sourced this round, consistent with shipping
+mechanics now and art later once it's real and license-clean (task #74/#78's own convention).
+
+Verified by 6 new `business.test.ts` cases (the door-formula reduction proof across several
+widths, 3 real distinct door tiles inside the footprint, `businessStallDoorAt` resolving the
+right stall for each real door and `null` elsewhere, cross-stall good isolation,
+`goodsForStall`'s non-mall passthrough) + 3 new `BusinessOverlay.test.tsx` cases (stall-specific
+title/goods, the stallIndex default, owned-goods isolation across stalls) + 1 updated
+`HangarOverlay.test.tsx` count + the full gate (1066 server + 574 web tests, typecheck, build).
+Not yet seen rendered in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

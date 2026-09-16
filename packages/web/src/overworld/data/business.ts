@@ -21,6 +21,16 @@ export interface BusinessGood {
   priceCents: number;
 }
 
+/** Mall (docs/overworld/mall.md, backlog #83) — one stall inside a multi-stall business. Same
+ *  shape as a whole `BusinessType` minus footprint/price, which the building carries once, not
+ *  per stall. */
+export interface BusinessStall {
+  id: string;
+  name: string;
+  icon: string;
+  goods: readonly BusinessGood[];
+}
+
 export interface BusinessType {
   id: string;
   name: string;
@@ -28,7 +38,60 @@ export interface BusinessType {
   width: number;
   height: number;
   priceCents: number;
+  /** For a single-stall type (Bakery/Tailor/Bookshop), this IS the goods catalog, read directly.
+   *  For a multi-stall type (the Mall), this stays empty — each stall carries its own via
+   *  `stalls` below — kept non-optional so every existing call site that reads `type.goods`
+   *  directly for a non-mall business needs zero changes. */
   goods: readonly BusinessGood[];
+  /** Present only for a multi-stall building like the Mall (mall.md decision #1). Absent for
+   *  every existing single-stall type, which keeps behaving as exactly one implicit stall. */
+  stalls?: readonly BusinessStall[];
+}
+
+/** How many real stalls (and therefore door tiles) this business type has — 1 for every existing
+ *  single-catalog type, `stalls.length` for a multi-stall type like the Mall. */
+function stallCount(type: BusinessType): number {
+  return type.stalls && type.stalls.length > 0 ? type.stalls.length : 1;
+}
+
+/** This stall's own real goods catalog — `type.stalls[stallIndex]` for a multi-stall type,
+ *  `type.goods` (ignoring `stallIndex`) for a normal single-catalog type, so every existing
+ *  caller that never passes a `stallIndex` keeps working unchanged. */
+export function goodsForStall(type: BusinessType, stallIndex = 0): readonly BusinessGood[] {
+  if (type.stalls && type.stalls.length > 0) return type.stalls[stallIndex]?.goods ?? [];
+  return type.goods;
+}
+
+/** mall.md decision #2 — every real door tile is derived purely from the footprint + stall
+ *  count, never stored, so no existing placed business (whose single `door` field already holds
+ *  exactly this formula's own n=1 case) ever needs a data migration. Evenly spaces `n` doors
+ *  along the bottom row; for `n = 1` this reduces to `x0 + floor(width / 2)` — byte-identical to
+ *  the formula `placeArmedBusiness` has always stored in `door`. */
+function stallDoorTile(x0: number, y1: number, width: number, n: number, stallIndex: number): { x: number; y: number } {
+  return { x: x0 + Math.floor(((stallIndex + 0.5) * width) / n), y: y1 };
+}
+
+/** Every real door tile for a placed business, one per real stall. */
+export function businessStallDoors(business: PlacedBusiness): { x: number; y: number; stallIndex: number }[] {
+  const type = businessTypeById(business.typeId);
+  const width = business.x1 - business.x0 + 1;
+  const n = type ? stallCount(type) : 1;
+  const doors: { x: number; y: number; stallIndex: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    doors.push({ ...stallDoorTile(business.x0, business.y1, width, n, i), stallIndex: i });
+  }
+  return doors;
+}
+
+/** The placed business AND which of its real stalls has a door at exactly (x, y) — the
+ *  multi-stall-aware superset of the single-door `businessDoorAt` below (mall.md decision #2/#3).
+ *  `ExteriorScene.ts`'s `afterStep` uses this one for every business, Mall or not. */
+export function businessStallDoorAt(spaceId: string, x: number, y: number): { business: PlacedBusiness; stallIndex: number } | null {
+  for (const business of placedBusinesses(spaceId)) {
+    const match = businessStallDoors(business).find((d) => d.x === x && d.y === y);
+    if (match) return { business, stallIndex: match.stallIndex };
+  }
+  return null;
 }
 
 export const BUSINESS_TYPES: readonly BusinessType[] = [
@@ -69,6 +132,52 @@ export const BUSINESS_TYPES: readonly BusinessType[] = [
       { id: "bookshop_shelf", name: "Reading Nook Shelf", icon: "📚", priceCents: 110 },
       { id: "bookshop_globe", name: "Antique Globe", icon: "🌍", priceCents: 130 },
       { id: "bookshop_lamp", name: "Reading Lamp", icon: "💡", priceCents: 75 },
+    ],
+  },
+  /** The Mall (docs/overworld/mall.md, backlog #83) — a real widening of Business, not a new
+   *  mechanic: one bigger building, 3 real stalls under one roof, each a genuine door tile
+   *  (`businessStallDoors`) running the same `BusinessOverlay.tsx` pattern every other business
+   *  already uses. Priced above Bookshop (the most expensive single business) since this is
+   *  strictly more building for more money, never a cheaper shortcut to 3 shops. */
+  {
+    id: "mall",
+    name: "The Mall",
+    icon: "🏬",
+    width: 6,
+    height: 3,
+    priceCents: 1200,
+    goods: [],
+    stalls: [
+      {
+        id: "toy_stall",
+        name: "Toy Stall",
+        icon: "🧸",
+        goods: [
+          { id: "mall_toys_kite", name: "Paper Kite", icon: "🪁", priceCents: 65 },
+          { id: "mall_toys_top", name: "Spinning Top", icon: "🌀", priceCents: 55 },
+          { id: "mall_toys_puppet", name: "Hand Puppet", icon: "🧦", priceCents: 70 },
+        ],
+      },
+      {
+        id: "flower_stall",
+        name: "Flower Stall",
+        icon: "💐",
+        goods: [
+          { id: "mall_flowers_bouquet", name: "Fresh Bouquet", icon: "💐", priceCents: 80 },
+          { id: "mall_flowers_planter", name: "Window Planter", icon: "🪴", priceCents: 95 },
+          { id: "mall_flowers_wreath", name: "Doorway Wreath", icon: "🌿", priceCents: 60 },
+        ],
+      },
+      {
+        id: "candle_stall",
+        name: "Candle Stall",
+        icon: "🕯️",
+        goods: [
+          { id: "mall_candles_jar", name: "Scented Jar Candle", icon: "🕯️", priceCents: 75 },
+          { id: "mall_candles_lantern", name: "Paper Lantern", icon: "🏮", priceCents: 85 },
+          { id: "mall_candles_holder", name: "Carved Candle Holder", icon: "🪵", priceCents: 65 },
+        ],
+      },
     ],
   },
 ];
@@ -287,13 +396,15 @@ export function canAffordGood(spaceId: string, good: BusinessGood): boolean {
  *  business's own dynamic id works with zero changes to either). The revenue credited is gauged
  *  by THIS good's own real price (`revenueForPriceCents`, simcity-economy-construction.md), not
  *  a flat rate regardless of what was actually sold. Returns false and changes nothing if the
- *  good is unknown, doesn't belong to this business's type, already owned here, or unaffordable. */
-export function purchaseGoodFromBusiness(spaceId: string, businessId: string, goodId: string): boolean {
+ *  good is unknown, doesn't belong to this business's type/stall, already owned here, or
+ *  unaffordable. `stallIndex` (mall.md decision #4) scopes the lookup to one real stall for a
+ *  multi-stall business like the Mall; omitted (or ignored) for a normal single-catalog type. */
+export function purchaseGoodFromBusiness(spaceId: string, businessId: string, goodId: string, stallIndex = 0): boolean {
   const business = businessById(spaceId, businessId);
   if (!business) return false;
   if (isUnderConstruction(business)) return false;
   const type = businessTypeById(business.typeId);
-  const good = type?.goods.find((g) => g.id === goodId);
+  const good = type ? goodsForStall(type, stallIndex).find((g) => g.id === goodId) : undefined;
   if (!good) return false;
   const owned = ownedGoodIds(spaceId, businessId);
   if (owned.has(goodId)) return false;

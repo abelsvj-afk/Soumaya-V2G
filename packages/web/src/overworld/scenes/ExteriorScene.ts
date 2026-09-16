@@ -74,7 +74,8 @@ import {
 import {
   armedBusinessTypeId,
   businessById,
-  businessDoorAt,
+  businessStallDoorAt,
+  businessStallDoors,
   businessTypeById,
   isFootprintFreeForBusiness,
   placeArmedBusiness,
@@ -1807,12 +1808,13 @@ export class ExteriorScene extends Phaser.Scene {
     // honestly unusable: silently refuse to enter, same "no-op while blocked" convention every
     // other arm-mode interaction in this scene already uses. The in-world dimmed/🚧 visual is
     // what explains the state to the player, not a popup this scene has no mechanism to show.
-    const business = businessDoorAt(this.spaceId, x, y);
-    if (business && !isUnderConstruction(business)) {
-      this.enterInterior(this.businessGlyphFor(business.typeId), () => this.events.emit("enter-business", business.id));
+    const stallDoor = businessStallDoorAt(this.spaceId, x, y);
+    if (stallDoor && !isUnderConstruction(stallDoor.business)) {
+      const { business, stallIndex } = stallDoor;
+      this.enterInterior(this.businessGlyphFor(business.typeId), () => this.events.emit("enter-business", business.id, stallIndex));
       return;
     }
-    if (business) return;
+    if (stallDoor) return;
     const onGrass = isGrassTile(x, y);
     if (onGrass && !this.wasOnGrass) this.events.emit("enter-grass");
     this.wasOnGrass = onGrass;
@@ -1946,11 +1948,14 @@ export class ExteriorScene extends Phaser.Scene {
 
   /** A real placed business's own twin of `returnToDoor` — its door tile is dynamic, not a
    *  static `PlaceId`, so it can't go through `placeById`. Silently no-ops if the business
-   *  somehow no longer exists (tolerate-gracefully, same as every other lookup here). */
-  returnToBusinessDoor(businessId: string): void {
+   *  somehow no longer exists (tolerate-gracefully, same as every other lookup here).
+   *  mall.md decision #2 — `stallIndex` returns you to the SAME stall door you entered through,
+   *  never always stall 0's; defaults to 0 so every normal single-stall business is unchanged. */
+  returnToBusinessDoor(businessId: string, stallIndex = 0): void {
     const business = businessById(this.spaceId, businessId);
     if (!business) return;
-    this.exitInterior(business.door);
+    const door = businessStallDoors(business).find((d) => d.stallIndex === stallIndex) ?? business.door;
+    this.exitInterior(door);
   }
 
   /** Soumaya chat's cited-source "fly to" — pans the camera to a creature's tile without

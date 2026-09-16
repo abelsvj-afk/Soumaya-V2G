@@ -3,6 +3,7 @@ import {
   businessById,
   businessTypeById,
   canAffordGood,
+  goodsForStall,
   ownedGoodIds,
   purchaseGoodFromBusiness,
 } from "../data/business.js";
@@ -13,6 +14,9 @@ import { color } from "./theme.js";
 export interface BusinessOverlayProps {
   spaceId: string;
   businessId: string;
+  /** mall.md decision #3 — which real stall's door was entered; 0 for every normal
+   *  single-catalog business, so this is a no-op for them. */
+  stallIndex?: number;
   onClose: () => void;
 }
 
@@ -27,16 +31,17 @@ function formatCents(cents: number): string {
  * good here is this business's OWN real work event (`purchaseGoodFromBusiness` credits its own
  * hours and resets its own neglect clock), never the Hangar's or Market's.
  */
-export function BusinessOverlay({ spaceId, businessId, onClose }: BusinessOverlayProps) {
+export function BusinessOverlay({ spaceId, businessId, stallIndex = 0, onClose }: BusinessOverlayProps) {
   const business = businessById(spaceId, businessId);
   const type = business ? businessTypeById(business.typeId) : undefined;
+  const stall = type?.stalls?.[stallIndex];
   const [owned, setOwned] = useState(() => ownedGoodIds(spaceId, businessId));
   const [balance, setBalance] = useState(() => treasuryBalanceCents(spaceId));
   const [busyId, setBusyId] = useState<string | null>(null);
 
   if (!business || !type) {
     // Tolerate-gracefully: a business the player somehow can't find real data for (should be
-    // unreachable in practice — afterStep only emits this for a real businessDoorAt match).
+    // unreachable in practice — afterStep only emits this for a real businessStallDoorAt match).
     return (
       <OverlayShell icon="🏪" title="Business" onClose={onClose}>
         <p>This place isn't here anymore.</p>
@@ -46,7 +51,7 @@ export function BusinessOverlay({ spaceId, businessId, onClose }: BusinessOverla
 
   const buy = (goodId: string) => {
     setBusyId(goodId);
-    const ok = purchaseGoodFromBusiness(spaceId, businessId, goodId);
+    const ok = purchaseGoodFromBusiness(spaceId, businessId, goodId, stallIndex);
     if (ok) {
       setOwned(ownedGoodIds(spaceId, businessId));
       setBalance(treasuryBalanceCents(spaceId));
@@ -54,13 +59,19 @@ export function BusinessOverlay({ spaceId, businessId, onClose }: BusinessOverla
     setBusyId(null);
   };
 
+  // mall.md decision #3 — a multi-stall building (the Mall) titles the overlay with its own
+  // stall's identity ("The Mall · Toy Stall"), not just the building's name; a normal
+  // single-catalog business is completely unchanged.
+  const icon = stall?.icon ?? type.icon;
+  const title = stall ? `${type.name} · ${stall.name}` : type.name;
+
   return (
-    <OverlayShell icon={type.icon} title={type.name} onClose={onClose}>
+    <OverlayShell icon={icon} title={title} onClose={onClose}>
       <p style={{ marginTop: 0 }}>
         Town Treasury: <strong>{formatCents(balance)}</strong> — every real hour the town's earned, waiting to be spent.
       </p>
       <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {type.goods.map((good) => {
+        {goodsForStall(type, stallIndex).map((good) => {
           const isOwned = owned.has(good.id);
           const affordable = canAffordGood(spaceId, good);
           return (

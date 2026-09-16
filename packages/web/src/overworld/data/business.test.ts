@@ -252,4 +252,72 @@ describe("business — a real multi-business economy gated on zoning (business.m
     // real days elapsed (~5) times the 0.75 multiplier, run through the same real neglectFor math
     expect(withTransit).toBeCloseTo(neglectFor(5 * 0.75), 1);
   });
+
+  describe("the Mall — a real multi-stall business (mall.md, backlog #83)", () => {
+    it("stall-door formula reduces to the existing single-door formula when n = 1, for several widths", async () => {
+      const { businessStallDoors } = await import("./business.js");
+      for (const width of [2, 3, 4, 5, 7]) {
+        const business = { id: "b", typeId: "bakery", x0: 10, y0: 10, x1: 10 + width - 1, y1: 12, door: { x: 0, y: 0 }, builtAt: 0 };
+        const [door] = businessStallDoors(business);
+        expect(door).toEqual({ x: 10 + Math.floor(width / 2), y: 12, stallIndex: 0 });
+      }
+    });
+
+    it("has 3 real, distinct door tiles, all inside its own footprint", async () => {
+      const { businessStallDoors } = await import("./business.js");
+      zoneCommercialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armBusinessType(SPACE, "mall");
+      const mall = placeArmedBusiness(SPACE, 2, 10)!;
+      const doors = businessStallDoors(mall);
+      expect(doors).toHaveLength(3);
+      const xs = new Set(doors.map((d) => d.x));
+      expect(xs.size).toBe(3); // all distinct
+      for (const d of doors) {
+        expect(d.x).toBeGreaterThanOrEqual(mall.x0);
+        expect(d.x).toBeLessThanOrEqual(mall.x1);
+        expect(d.y).toBe(mall.y1);
+      }
+    });
+
+    it("businessStallDoorAt resolves the right stall index for each real door, and null elsewhere", async () => {
+      const { businessStallDoors, businessStallDoorAt } = await import("./business.js");
+      zoneCommercialRect(2, 10, 9, 17);
+      fundTreasury(2000);
+      armBusinessType(SPACE, "mall");
+      const mall = placeArmedBusiness(SPACE, 2, 10)!;
+      for (const door of businessStallDoors(mall)) {
+        const found = businessStallDoorAt(SPACE, door.x, door.y);
+        expect(found?.business.id).toBe(mall.id);
+        expect(found?.stallIndex).toBe(door.stallIndex);
+      }
+      expect(businessStallDoorAt(SPACE, 0, 0)).toBeNull();
+    });
+
+    it("purchaseGoodFromBusiness never lets one stall's own goodId resolve against a different stall", async () => {
+      const { BUSINESS_TYPES: types } = await import("./business.js");
+      const mallType = types.find((t) => t.id === "mall")!;
+      zoneCommercialRect(2, 10, 9, 17);
+      fundTreasury(5000);
+      armBusinessType(SPACE, "mall");
+      const past = -1_000_000; // built well in the past — real construction window already elapsed
+      const mall = placeArmedBusiness(SPACE, 2, 10, past)!;
+      const toyGood = mallType.stalls![0]!.goods[0]!;
+      const flowerGood = mallType.stalls![1]!.goods[0]!;
+
+      // Buying the Toy Stall's own good AT the Flower Stall's index must fail — wrong stall.
+      expect(purchaseGoodFromBusiness(SPACE, mall.id, toyGood.id, 1)).toBe(false);
+      // The SAME good, at its own real stall index, succeeds.
+      expect(purchaseGoodFromBusiness(SPACE, mall.id, toyGood.id, 0)).toBe(true);
+      // A different stall's good, at its own index, is entirely independent.
+      expect(purchaseGoodFromBusiness(SPACE, mall.id, flowerGood.id, 1)).toBe(true);
+    });
+
+    it("goodsForStall returns a single-catalog type's own goods regardless of stallIndex", async () => {
+      const { goodsForStall } = await import("./business.js");
+      const bakery = BUSINESS_TYPES.find((t) => t.id === "bakery")!;
+      expect(goodsForStall(bakery, 0)).toBe(bakery.goods);
+      expect(goodsForStall(bakery, 5)).toBe(bakery.goods); // out-of-range index ignored for non-mall types
+    });
+  });
 });
