@@ -44,6 +44,7 @@ import {
   armedItemId,
   clearArmedItem,
   isTileFreeForPlacement,
+  itemIconKey,
   placeArmedItem,
   placedItems,
   PLACEABLE_ITEMS,
@@ -100,6 +101,7 @@ import {
   worldBoundsTiles,
 } from "../data/interiorRoom.js";
 import { completeOrder, dispatchModeEnabled, enqueueZoneRect, enqueueZoneTile, queueArmedItem, queuedOrders, type WorkOrder } from "../data/buildQueue.js";
+import { createPlayerWalkAnimations, idleFrameFor, PLAYER_WALK_SHEET, walkAnimKey } from "./characterSprites.js";
 import { color as uiColor } from "../ui/theme.js";
 
 export const TILE_SIZE = 32;
@@ -116,6 +118,12 @@ const ZOOM_MAX = 1;
 const ZOOM_STEP = 0.1;
 /** Source art is 16x16 — scale every sprite up to fill a TILE_SIZE cell. */
 const SPRITE_SCALE = TILE_SIZE / ATLAS_TILE_PX;
+/** Asset completion pass (task #124) — the player now renders from its own real walk-cycle
+ *  spritesheet (characterSprites.ts), a different native frame size (24x32) than the shared
+ *  16x16 atlas every other sprite in this scene still uses, so it needs its own scale rather
+ *  than SPRITE_SCALE. Scaled to match the atlas sprites' own real width (32px) — a GBA-style
+ *  character taller than one tile (here ~43px) is the genre convention, not a bug. */
+const PLAYER_SPRITE_SCALE = TILE_SIZE / PLAYER_WALK_SHEET.frameWidth;
 /** Real cross-town paths measured 40-50 tiles for opposite corners (npc-autonomy.md's own
  *  reproduction) — a real multi-second walk even at a per-tile rate that's never faster than the
  *  player's own 140ms/tile step (Stage 2.20 measured this directly: 160ms is already slower, by
@@ -240,7 +248,11 @@ export class ExteriorScene extends Phaser.Scene {
   /** Town Builder (docs/overworld/town-builder.md, task #65) — real player-placed decor, keyed
    *  by its persisted PlacedItem id so a single placement can be re-rendered without redrawing
    *  every other one. */
-  private placedItemSprites = new Map<string, Phaser.GameObjects.Text>();
+  /** Asset completion pass (task #124) — a placed item with a real `iconUrl` paints an Image,
+   *  one with only an emoji `icon` paints Text (this file's established no-dedicated-art
+   *  convention) — the map's value type covers both since nothing here calls a Text-only or
+   *  Image-only method on it (only `.has`/`.set`, both GameObject-level). */
+  private placedItemSprites = new Map<string, Phaser.GameObjects.Text | Phaser.GameObjects.Image>();
   /** Zoning (docs/overworld/zoning.md, task #75) — one glyph per zoned tile, keyed by "x,y" (not
    *  a stable id like placed items, since re-zoning overwrites the SAME tile and this needs to
    *  replace its old glyph rather than accumulate one per zoning decision ever made). */
@@ -379,6 +391,15 @@ export class ExteriorScene extends Phaser.Scene {
     for (const sprite of allBuildingSprites()) this.load.image(sprite.key, sprite.url);
     // Kenney "RTS Pack: Medieval" (CC0) — see villagePack.ts.
     for (const sprite of allVillageSprites()) this.load.image(sprite.key, sprite.url);
+    // Asset completion pass (task #124) — real catalog items with an image instead of an emoji
+    // glyph (townBuilder.ts's `iconUrl`); every pre-existing emoji-only item has none, so this
+    // loop is a no-op for them.
+    for (const item of PLACEABLE_ITEMS) if (item.iconUrl) this.load.image(itemIconKey(item.id), item.iconUrl);
+    // Asset completion pass — the player's real walk-cycle spritesheet (characterSprites.ts).
+    this.load.spritesheet(PLAYER_WALK_SHEET.key, PLAYER_WALK_SHEET.url, {
+      frameWidth: PLAYER_WALK_SHEET.frameWidth,
+      frameHeight: PLAYER_WALK_SHEET.frameHeight,
+    });
   }
 
   create(): void {
@@ -392,13 +413,17 @@ export class ExteriorScene extends Phaser.Scene {
     this.renderPlacedBusinesses();
     this.renderCreatures(this.pendingCreatures);
 
+    // Asset completion pass (task #124) — the player now renders from its own real walk-cycle
+    // spritesheet, facing "down" initially (idleFrameFor's own default row), replacing the old
+    // single static atlas frame that never varied by facing at all.
     this.player = this.add.sprite(
       this.movement.position.x * TILE_SIZE + TILE_SIZE / 2,
       this.movement.position.y * TILE_SIZE + TILE_SIZE / 2,
-      TILE_ATLAS_KEY,
-      TileFrame.player,
+      PLAYER_WALK_SHEET.key,
+      idleFrameFor("down"),
     );
-    this.player.setScale(SPRITE_SCALE);
+    createPlayerWalkAnimations(this.anims);
+    this.player.setScale(PLAYER_SPRITE_SCALE);
     this.player.setDepth(10);
 
     // Backlog #80 — bounds cover the real town AND the reserved interior room (worldBoundsTiles),
@@ -565,10 +590,10 @@ export class ExteriorScene extends Phaser.Scene {
    *  A no-op under reduced motion, same as every other decorative loop in this scene. */
   private startIdleBob(): void {
     if (prefersReducedMotion()) return;
-    this.player.setScale(SPRITE_SCALE);
+    this.player.setScale(PLAYER_SPRITE_SCALE);
     this.idleTween = this.tweens.add({
       targets: this.player,
-      scaleY: SPRITE_SCALE * 1.05,
+      scaleY: PLAYER_SPRITE_SCALE * 1.05,
       duration: 700,
       yoyo: true,
       repeat: -1,
@@ -579,7 +604,7 @@ export class ExteriorScene extends Phaser.Scene {
   private stopIdleBob(): void {
     this.idleTween?.stop();
     this.idleTween = null;
-    this.player.setScale(SPRITE_SCALE);
+    this.player.setScale(PLAYER_SPRITE_SCALE);
   }
 
   /** A small fading dot left at the player's current tile on every step, tinted with the
@@ -840,9 +865,21 @@ export class ExteriorScene extends Phaser.Scene {
   private paintPlacedItem(placed: PlacedItem): void {
     if (this.placedItemSprites.has(placed.id)) return; // already painted — placements never move
     const item = PLACEABLE_ITEMS.find((i) => i.id === placed.itemId);
+    const cx = placed.x * TILE_SIZE + TILE_SIZE / 2;
+    const cy = placed.y * TILE_SIZE + TILE_SIZE / 2;
+    if (item?.iconUrl) {
+      // Asset completion pass (task #124) — a real sprite for a catalog item that has one,
+      // scaled to sit within its tile the same way every other standalone object image in this
+      // scene already is (paintParkingApron's own convention).
+      const image = this.add.image(cx, cy, itemIconKey(item.id));
+      image.setDisplaySize(TILE_SIZE * 0.85, TILE_SIZE * 0.85);
+      image.setDepth(1);
+      this.placedItemSprites.set(placed.id, image);
+      return;
+    }
     const glyph = this.add.text(
-      placed.x * TILE_SIZE + TILE_SIZE / 2,
-      placed.y * TILE_SIZE + TILE_SIZE / 2,
+      cx,
+      cy,
       item?.icon ?? "❔", // tolerate-gracefully: an unrecognized itemId still renders, never crashes
       { fontSize: "16px" },
     );
@@ -1963,7 +2000,14 @@ export class ExteriorScene extends Phaser.Scene {
         };
     const result = tryMove(this.movement, event.direction, grid);
     this.movement = result.state;
-    if (!result.moved) return;
+    if (!result.moved) {
+      // Asset completion pass (task #124) — a blocked bump still turns the player to face that
+      // direction, the real GBA-Pokémon convention this sprite never had before (the old single
+      // atlas frame never varied by facing at all).
+      this.player.anims.stop();
+      this.player.setFrame(idleFrameFor(event.direction));
+      return;
+    }
     if (!this.following) this.resumeFollow();
 
     const { x, y } = result.state.position;
@@ -1973,6 +2017,10 @@ export class ExteriorScene extends Phaser.Scene {
     this.spawnTrailParticle();
     const finish = () => {
       this.movement = completeMove(this.movement);
+      // A real, directional standing pose once the step lands — see the bump branch above for
+      // why this can't just be "whatever frame the walk animation happened to end on".
+      this.player.anims.stop();
+      this.player.setFrame(idleFrameFor(event.direction));
       this.afterStep(x, y);
       this.startIdleBob();
     };
@@ -1981,12 +2029,18 @@ export class ExteriorScene extends Phaser.Scene {
       finish();
       return;
     }
+    // Asset completion pass (task #124) — the real per-direction walk cycle (characterSprites.ts),
+    // playing for exactly the duration of this step's move tween; `finish()` above always stops
+    // it and lands on a real standing frame, so it never keeps animating once the step lands.
+    this.player.anims.play(walkAnimKey(event.direction), true);
     this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: 140, ease: "Linear", onComplete: finish });
-    // A quick squash-and-recover per step ("hop") — game-feel juice, not gameplay state.
+    // A quick squash-and-recover per step ("hop") — game-feel juice, not gameplay state. Layers
+    // safely on top of the real walk-cycle animation above (a scaleX/scaleY tween has no
+    // property overlap with a frame-swap animation).
     this.tweens.add({
       targets: this.player,
-      scaleX: SPRITE_SCALE * 0.85,
-      scaleY: SPRITE_SCALE * 1.15,
+      scaleX: PLAYER_SPRITE_SCALE * 0.85,
+      scaleY: PLAYER_SPRITE_SCALE * 1.15,
       duration: 70,
       yoyo: true,
       ease: "Quad.easeOut",

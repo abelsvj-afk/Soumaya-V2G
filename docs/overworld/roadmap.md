@@ -2243,6 +2243,59 @@ code reading of every place a sprite's `image` gets tweened (outings, meetings, 
 society transition itself), confirming the new guards close every cross-system claim this round
 introduced; not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.64 — asset completion pass: unused decor wired in, real player walk animation (task #124)
+
+Direct response to "do the deferred too" / "I dont see any of the new buildings or assests we
+added in the hangar" / "Ask those cco u found with the walking animations as well. We need all
+those and the npcs." Resolved and scoped in `docs/overworld/asset-completion-pass.md`, per Rule
+#1 — investigated both complaints against the real code/disk state first, not guessed.
+
+**"I don't see the new assets in the Hangar" — confirmed real.** Every asset round this session
+(city-builder-depth's vehicle art, the full "RTS Pack: Medieval," Wave 4a's decor pieces) shipped
+real CC0 files but explicitly deferred wiring almost all of them into anything purchasable —
+`townBuilder.ts`'s `PLACEABLE_ITEMS` still had exactly its original 4 emoji items. Fixed by
+curating (every candidate actually viewed, never guessed from a filename) 14 new real catalog
+items from the previously-unused pieces: a well, market stall, storage crates, stone gatehouse,
+fence gate, canvas tent, pine tree, round hedge, boulder, and rock cluster from the RTS Pack, plus
+the already-sourced wagon/caravan-wreck/road-sign/crossroads-sign. `PlaceableItem` gained an
+optional `iconUrl` (additive — the original 4 items are unchanged); the Hangar catalog row and
+`ExteriorScene.ts`'s `paintPlacedItem` both gained a real-image render path alongside the existing
+emoji-glyph one. Every new item reuses 100% of the existing arm/place/demolish/dispatch-queue
+machinery (`townBuilder.ts`/`buildQueue.ts`) — zero new placement logic, only rendering. The
+remaining 58 ground/path tiles (terrain, not discrete objects — the same reasoning already used to
+exclude this pack's road tiles from the zoned transit system) and ~12 more structure/environment
+pieces stay explicitly deferred, not silently dropped.
+
+**"The walking animations you found" — a real, newly-located CC0 spritesheet.** No prior round
+ever found character motion art (checked). Re-searched the same trusted aggregator
+(`github.com/Tiddybub/2d-assets`) specifically for it and found OpenGameArt "2D RPG character
+walk spritesheet" — a real top-down, GBA-Pokémon-style multi-frame walk cycle, CC0. Measured
+directly (a Python/PIL pixel-content-boundary scan, not guessed): 192x128px, 8 columns x 4 rows,
+24x32px real frames. `player` was already confirmed to be a real Phaser `Sprite` (not `Image`), so
+no game-object change was needed — new `scenes/characterSprites.ts` registers one looping walk
+animation per direction; `handleInput`'s real move now plays the matching animation for the
+duration of the step tween, landing on a real static directional frame once it completes (and,
+new: a blocked bump now also turns the player to face that direction — a real GBA convention this
+sprite never had before, since the old single atlas frame never varied by facing at all). A
+separate `PLAYER_SPRITE_SCALE` was added since the new sheet's native frame size (24x32) differs
+from the shared 16x16 atlas every other sprite still uses. Investigated for NPCs too: Kenney's
+"Roguelike Characters" pack (same aggregator) turned out to be a modular costume-builder set with
+zero walk frames on its own inspection, not an animation source. No CC0 pack matching the town's
+~26 already-individually-authored NPCs' own specific looks with real walk frames was found — 
+applying the one found character to every NPC would have erased their distinct identities, so
+NPCs keep their existing single-frame + squash-stretch technique, an honestly-documented real gap,
+not a silent drop.
+
+Verified by a real pixel-boundary measurement of the spritesheet (not eyeballed), 4 new
+`characterSprites.test.ts` cases, 4 new `townBuilder.test.ts` cases (including a real filesystem
+existence check for every new `iconUrl`), a build-output check confirming every new asset lands in
+`dist/`, and the full gate (1066 server + 638 web tests, typecheck, build). `ExteriorScene.ts`'s
+own Phaser-integration code has no dedicated test (this file's established convention) — the
+animation wiring was verified by direct code reading of every place `this.player` gets tweened or
+scaled, confirming the new walk-cycle layers safely on top without conflict. Not yet seen rendered
+in a real browser from this sandbox — the row-to-direction mapping (down/left/right/up) is a
+documented assumption pending on-device confirmation, trivially correctable if wrong.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

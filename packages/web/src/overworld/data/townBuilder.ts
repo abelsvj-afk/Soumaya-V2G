@@ -16,6 +16,10 @@ export interface PlaceableItem {
   id: string;
   name: string;
   icon: string;
+  /** Asset completion pass (docs/overworld/asset-completion-pass.md, task #124) — a real image
+   *  to render instead of the emoji `icon` above, additive-only (every pre-existing item leaves
+   *  this unset and renders exactly as before, both in the Hangar catalog and in-world). */
+  iconUrl?: string;
   priceCents: number;
 }
 
@@ -24,6 +28,23 @@ export const PLACEABLE_ITEMS: readonly PlaceableItem[] = [
   { id: "bench", name: "Bench", icon: "🪑", priceCents: 120 },
   { id: "lamp_post", name: "Lamp Post", icon: "🏮", priceCents: 150 },
   { id: "banner_post", name: "Banner Post", icon: "🚩", priceCents: 100 },
+  // Asset completion pass (task #124) — real, previously-sourced-but-unused CC0 pieces, curated
+  // (every one visually reviewed before being named — see CREDITS.md) rather than exposing all
+  // 102 raw village-pack files as individual catalog buttons.
+  { id: "village_well", name: "Village Well", icon: "🪣", iconUrl: "/overworld/village-pack/structure/medievalStructure_06.png", priceCents: 140 },
+  { id: "market_stall", name: "Market Stall", icon: "🏕️", iconUrl: "/overworld/village-pack/structure/medievalStructure_09.png", priceCents: 200 },
+  { id: "storage_crates", name: "Storage Crates", icon: "📦", iconUrl: "/overworld/village-pack/structure/medievalStructure_11.png", priceCents: 90 },
+  { id: "stone_gatehouse", name: "Stone Gatehouse", icon: "🏰", iconUrl: "/overworld/village-pack/structure/medievalStructure_02.png", priceCents: 260 },
+  { id: "fence_gate", name: "Fence Gate", icon: "🚪", iconUrl: "/overworld/village-pack/structure/medievalStructure_07.png", priceCents: 70 },
+  { id: "canvas_tent", name: "Canvas Tent", icon: "⛺", iconUrl: "/overworld/village-pack/structure/medievalStructure_10.png", priceCents: 110 },
+  { id: "pine_tree", name: "Pine Tree", icon: "🌲", iconUrl: "/overworld/village-pack/environment/medievalEnvironment_02.png", priceCents: 60 },
+  { id: "round_hedge", name: "Round Hedge", icon: "🌳", iconUrl: "/overworld/village-pack/environment/medievalEnvironment_01.png", priceCents: 50 },
+  { id: "boulder", name: "Boulder", icon: "🪨", iconUrl: "/overworld/village-pack/environment/medievalEnvironment_09.png", priceCents: 40 },
+  { id: "rock_cluster", name: "Rock Cluster", icon: "🪨", iconUrl: "/overworld/village-pack/environment/medievalEnvironment_17.png", priceCents: 45 },
+  { id: "traveler_wagon", name: "Traveler's Wagon", icon: "🛒", iconUrl: "/overworld/vehicles/wagon.png", priceCents: 320 },
+  { id: "ruined_caravan", name: "Ruined Caravan", icon: "🪦", iconUrl: "/overworld/decor/caravan-wreck.png", priceCents: 150 },
+  { id: "road_sign", name: "Road Sign", icon: "🪧", iconUrl: "/overworld/decor/road-sign.png", priceCents: 55 },
+  { id: "crossroads_sign", name: "Crossroads Sign", icon: "🪧", iconUrl: "/overworld/decor/crossroads-sign.png", priceCents: 55 },
 ];
 
 export interface PlacedItem {
@@ -121,6 +142,13 @@ export function armItem(spaceId: string, itemId: string): boolean {
 
 export function canAffordItem(spaceId: string, item: PlaceableItem): boolean {
   return item.priceCents <= treasuryBalanceCents(spaceId);
+}
+
+/** The Phaser texture key a catalog item's real `iconUrl` (if any) gets loaded under — one place
+ *  both `ExteriorScene.ts`'s preload and its in-world paint call derive the same key from,
+ *  rather than each inventing its own (asset completion pass, task #124). */
+export function itemIconKey(itemId: string): string {
+  return `item-icon-${itemId}`;
 }
 
 /** Places the currently-armed item at a tile the caller has already confirmed is free (per

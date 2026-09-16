@@ -1,3 +1,32 @@
+### 2026-09-16 (Claude): Asset completion pass — unused decor wired in, real player walk animation (task #124) (complete)
+- [ ] Verified by Claude
+- Direct response to "do the deferred too" / "I dont see any of the new buildings or assests we
+  added in the hangar" / "Ask those cco u found with the walking animations as well. We need all
+  those and the npcs." Resolved in `docs/overworld/asset-completion-pass.md`.
+- Confirmed real: every asset-sourcing round this session shipped CC0 files but never wired
+  almost any into anything purchasable — the Hangar's decor catalog still had exactly its
+  original 4 emoji items.
+- Curated (every candidate visually reviewed, never guessed from a filename) 14 new real catalog
+  items: a well, market stall, storage crates, stone gatehouse, fence gate, canvas tent, pine
+  tree, round hedge, boulder, rock cluster (from the RTS Pack: Medieval), plus the already-sourced
+  wagon/caravan-wreck/road-sign/crossroads-sign.
+- `PlaceableItem` gained an optional `iconUrl` (additive-only); the Hangar catalog and
+  `ExteriorScene.ts`'s `paintPlacedItem` both gained a real-image render path. Every new item
+  reuses the existing arm/place/demolish/dispatch-queue machinery unchanged.
+- Re-searched the trusted CC0 aggregator specifically for character walk animation and found
+  OpenGameArt "2D RPG character walk spritesheet" (CC0) — measured directly (real pixel-boundary
+  scan): 192x128px, 8x4 grid, 24x32px frames.
+- New `scenes/characterSprites.ts` wires one real walk animation per direction onto the player
+  (already a real Phaser `Sprite`), played on every move, landing on a real directional standing
+  frame — including on a blocked bump, a real GBA convention this sprite never had before.
+- Investigated for NPCs too: Kenney's "Roguelike Characters" pack turned out to be a costume-
+  builder set with zero walk frames; no matching pack for the ~26 already-individually-authored
+  NPCs was found, so they keep their existing technique — an honest, documented gap.
+- Verified by the real pixel-boundary measurement, 4 new `characterSprites.test.ts` cases, 4 new
+  `townBuilder.test.ts` cases (including a real on-disk file-existence check for every new
+  `iconUrl`), a build-output check, and the full gate (1066 server + 638 web tests, typecheck,
+  build). Not yet seen rendered in a real browser.
+
 ### 2026-09-16 (Claude): The build-queue/dispatch system (task #123) (complete)
 - [ ] Verified by Claude
 - Closes the one deferral the SimCity-realism-pass round left open. Resolved in

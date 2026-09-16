@@ -113,6 +113,14 @@ function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
+/** Asset completion pass (docs/overworld/asset-completion-pass.md, task #124) — a real image
+ *  for a catalog item that has one, the original emoji glyph otherwise (additive-only, so every
+ *  pre-existing item renders exactly as before). */
+function ItemIcon({ icon, iconUrl }: { icon: string; iconUrl?: string }) {
+  if (iconUrl) return <img src={iconUrl} alt="" aria-hidden="true" style={{ width: 20, height: 20, objectFit: "contain", flexShrink: 0 }} />;
+  return <span aria-hidden="true">{icon}</span>;
+}
+
 /**
  * The Hangar — kept ~1:1 with the existing HangarPanel.tsx (per the build brief), reusing
  * the exact same localStorage keys and unlock gates (data/hangarOptions.ts) so a traveler's
@@ -302,7 +310,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
           const isArmed = armed === item.id;
           return (
             <li key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
-              <span aria-hidden="true">{item.icon}</span>
+              <ItemIcon icon={item.icon} iconUrl={item.iconUrl} />
               <span style={{ flex: 1 }}>
                 {item.name} — {formatCents(item.priceCents)}
               </span>
@@ -326,7 +334,7 @@ export function HangarOverlay({ spaceId, memoriesCount, onClose }: HangarOverlay
               const item = PLACEABLE_ITEMS.find((i) => i.id === placed.itemId);
               return (
                 <li key={placed.id} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: `1px solid ${color.divider}` }}>
-                  <span aria-hidden="true">{item?.icon ?? "❓"}</span>
+                  <ItemIcon icon={item?.icon ?? "❓"} iconUrl={item?.iconUrl} />
                   <span style={{ flex: 1 }}>{item?.name ?? placed.itemId}</span>
                   <ConfirmButton
                     label="Demolish"
