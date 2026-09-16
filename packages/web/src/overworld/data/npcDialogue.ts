@@ -366,10 +366,11 @@ export function asSocietyNpcId(id: string): SocietyNpcId | null {
   return PROFILES[id] ? id : null;
 }
 
-/** The town's real, fixed 22 society NPCs (11 buildings x 2, 2026-09-15 audit fix — corrected
- *  from a stale "20" that undercounted Mayor's Hall's own 2), in one stable declaration order
- *  (PROFILE_LIST's own order) — housing.ts's single source of "who exists" for deterministic
- *  home assignment. */
+/** The town's real, fixed 24 society NPCs (12 buildings x 2 — corrected again, 2026-09-16, after
+ *  Theater's own addition grew the roster; population-growth.md's own direct measurement is what
+ *  caught this comment drifting stale), in one stable declaration order (PROFILE_LIST's own
+ *  order) — housing.ts's own combined roster (population-growth.md, task #118) appends its real
+ *  Resident list after this one. */
 export function allSocietyNpcIds(): readonly SocietyNpcId[] {
   return PROFILE_LIST.map((p) => p.id);
 }

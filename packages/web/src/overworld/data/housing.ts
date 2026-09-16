@@ -9,6 +9,7 @@
 
 import { isPlacementBlocked } from "../scenes/regionLayout.js";
 import { allSocietyNpcIds, type SocietyNpcId } from "./npcDialogue.js";
+import { allResidentNpcIds } from "./residents.js";
 import { refundToTreasury, spendFromTreasury, treasuryBalanceCents } from "./townLedger.js";
 import { isTileOccupiedByPlacedItem } from "./townBuilder.js";
 import { footprintOverlapsAny, placedBusinessFootprints } from "./placedStructures.js";
@@ -221,20 +222,26 @@ export function demolishHome(spaceId: string, id: string, nowMs: number = Date.n
 }
 
 export interface HomeResident {
+  /** A real society NPC's id, or (population-growth.md, task #118) a real Resident's id — both
+   *  are plain strings under `SocietyNpcId`'s own alias, so no type change was needed to grow
+   *  the roster this represents. */
   npcId: SocietyNpcId;
   homeId: string;
 }
 
 /** Deterministic, capacity-packed, never random (housing.md decision #3): walks the town's real
- *  22 NPCs (2026-09-15 audit fix — corrected from a stale "20") in their one stable declaration
- *  order, filling each home — in the order it was
- *  actually built — to its own real capacity before moving to the next. Recomputed from real
- *  state every call rather than stored, so a newly-built home is reflected immediately with
- *  nothing else to keep in sync. Skips a home still `isUnderConstruction` (simcity-economy-
- *  construction.md, task #87) — an NPC can't move into an unfinished house; `nowMs` defaults to
- *  the real clock, only ever overridden in tests. */
+ *  24 society NPCs, THEN (population-growth.md, task #118) its real Resident roster, in one
+ *  stable combined order, filling each home — in the order it was actually built — to its own
+ *  real capacity before moving to the next. Society NPCs first means a Resident only ever gets a
+ *  real home once every society NPC already has one and real capacity remains — the entire
+ *  "housing capacity exceeding current population" gate falls straight out of this walk order,
+ *  read-time-computed on every call, never a timer. Recomputed from real state every call rather
+ *  than stored, so a newly-built home is reflected immediately with nothing else to keep in
+ *  sync. Skips a home still `isUnderConstruction` (simcity-economy-construction.md, task #87) —
+ *  an NPC can't move into an unfinished house; `nowMs` defaults to the real clock, only ever
+ *  overridden in tests. */
 export function assignResidents(spaceId: string, nowMs: number = Date.now()): HomeResident[] {
-  const npcIds = allSocietyNpcIds();
+  const npcIds = [...allSocietyNpcIds(), ...allResidentNpcIds()];
   const homes = placedHomes(spaceId);
   const assignments: HomeResident[] = [];
   let i = 0;
@@ -267,9 +274,11 @@ export interface HousingSummary {
 }
 
 /** An honest count only — never an invented story about who's related to whom (housing.md
- *  decision #5, matches MayorsHallOverlay's own "nothing here is a score" convention). */
+ *  decision #5, matches MayorsHallOverlay's own "nothing here is a score" convention). `total`
+ *  is the town's REAL total population (population-growth.md, task #118) — society NPCs plus
+ *  the real Resident roster, the same combined list `assignResidents` itself walks. */
 export function housingSummary(spaceId: string): HousingSummary {
-  const npcIds = allSocietyNpcIds();
+  const npcIds = [...allSocietyNpcIds(), ...allResidentNpcIds()];
   const assignments = assignResidents(spaceId);
   const byHome = new Map<string, number>();
   for (const a of assignments) byHome.set(a.homeId, (byHome.get(a.homeId) ?? 0) + 1);

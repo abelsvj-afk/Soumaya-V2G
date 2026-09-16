@@ -2046,6 +2046,44 @@ title/goods, the stallIndex default, owned-goods isolation across stalls) + 1 up
 `HangarOverlay.test.tsx` count + the full gate (1066 server + 574 web tests, typecheck, build).
 Not yet seen rendered in a real browser from this sandbox.
 
+## Stage 2.60 — Population growth (task #118), correcting a stale plan before building it
+
+Direct continuation of "keep going through the list." `wave4-full-vision.md` §D had already
+decided a mechanism for this — "assign new NPCs as second attendants to buildings that currently
+only have one attendant post filled" — but per "verify before you build," that premise was
+checked directly before writing any code, not assumed. A real reproduction script called the real
+`attendantPosts()` and `allSocietyNpcIds()`: every one of the 12 door-buildings already has
+exactly 2 attendant posts (`ATTENDANTS_PER_BUILDING`, unconditional on footprint width) and
+exactly 2 hand-authored profiles — 24 posts, 24 profiles, zero gaps anywhere. The "already-existing
+slack" the standing plan assumed doesn't exist (stale — predates Theater/Mayor's Hall's own
+additions, or a planning error). Also confirmed: `ExteriorScene.ts` has zero references to any
+home-resident function — a home resident today is purely a data/stat concept in Mayor's Hall,
+deliberately decoupled from the attendant/dialogue/schedule system from the start.
+
+Resolved this in `docs/overworld/population-growth.md`, replacing just the mechanism (keeping
+§D's other two real decisions — hand-author, not LLM-generate; gate on read-time housing capacity,
+never a timer): a new NPC grows the population as a **Resident** — name only, no job, no
+attendant post, no in-world sprite, no dialogue — a new roster (`data/residents.ts`, 4 real
+names) that `housing.ts`'s `assignResidents`/`housingSummary` append AFTER the 24 society NPCs in
+one combined walk. Since that walk already stops once real capacity runs out, appending Residents
+means the ENTIRE "housing capacity exceeding current population" gate falls straight out of the
+existing pack-to-capacity loop — zero new gating code, and the walk order alone guarantees no
+Resident ever gets a home before every society NPC already has one. `MayorsHallOverlay.tsx`'s
+resident-name lookup (`npcProfile(id).name`, attendant-only, throws on an unknown id) was the one
+real crash risk — replaced with a new shared `npcDisplayName(id)` (`residents.ts`) that resolves
+either a real society profile or a real Resident, never throwing. Also fixed a stale doc comment
+found in the same investigation ("22 society NPCs, 11 buildings x 2" — the real, current number
+is 24, 12 buildings x 2, since Theater's own addition).
+
+Verified by 6 new `residents.test.ts` cases, 2 new `housing.test.ts` cases (measured against a
+real, probed-open 16x10 rectangle elsewhere on the map — the existing 8x8 test rect can't fit
+enough capacity to exceed the 24-society floor; built 7 real Apartment Blocks for 28 real
+capacity, confirmed every society NPC AND every Resident gets a real home, in that order), 1 new
+`MayorsHallOverlay.test.tsx` case (a Resident's real name renders, never a crash), 1 updated
+`housingSummary` assertion (`total` now correctly reflects the combined roster), and the full gate
+(1066 server + 583 web tests, typecheck, build). Not yet seen rendered in a real browser from this
+sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

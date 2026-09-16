@@ -253,6 +253,24 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Population growth (task #118), correcting a stale plan before building it (2026-09-16), not
+  yet on-device confirmed** — the standing plan (`wave4-full-vision.md` §D) assumed real unfilled
+  attendant-post slack existed; checked directly first, not assumed: every one of the 12 door-
+  buildings already has exactly 2 attendant posts and exactly 2 hand-authored profiles — zero
+  gaps anywhere, so that mechanism had nothing to attach to. Resolved in
+  `docs/overworld/population-growth.md`: a new NPC grows the population as a **Resident** — name
+  only, no job/attendant post/sprite/dialogue — a new small roster (`data/residents.ts`, 4 real
+  names) that `housing.ts` appends AFTER the 24 society NPCs in one combined walk. Since that walk
+  already stops once real capacity runs out, the "housing capacity exceeding population" gate
+  falls straight out of the existing loop — zero new gating code. Fixed the one real crash risk
+  (`MayorsHallOverlay.tsx`'s attendant-only name lookup) with a new `npcDisplayName()` that never
+  throws. Also fixed a stale doc comment ("22 NPCs, 11 buildings" → the real, current 24, 12
+  buildings). Verified by 6 new `residents.test.ts` cases, 2 new `housing.test.ts` cases (measured
+  against a real, probed-open 16x10 rectangle — built 7 real Apartment Blocks for 28 real
+  capacity, confirmed every society NPC AND every Resident gets a real home, in order), 1 new
+  `MayorsHallOverlay.test.tsx` case, and the full gate (1066 server + 583 web tests, typecheck,
+  build). Not yet seen rendered in a real browser.
+
 - **Backlog #83 — the Mall, a real multi-stall business (2026-09-16), not yet on-device
   confirmed** — closes a backlog item deferred three separate times, each time with the same
   resolved framing: a real widening of Business (task #67), not a new mechanic. Specced first
