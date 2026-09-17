@@ -253,6 +253,56 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **User-directed reconciliation pass: map growth, placement clarity, dispatch depth, NPC
+  autonomy, and a real rebuild of the Bank (task #129) (2026-09-17), not yet on-device
+  confirmed** — direct response to explicit, detailed feedback after task #128 shipped: stop
+  silently deferring named work ("when I tell you to do something, just go ahead and do them
+  all — or stop and ask me and then continue"), actually finish items already flagged as
+  deferred, give placement a real "can I build here" affordance like city-builder games have,
+  let the map get bigger, and — the most severe finding — the overlays "don't look nothing like
+  they looked... in the galaxy when they were perfect," most acutely the Bank. Two read-only
+  investigation agents ran first, per Rule #1: one diffed the real pre-deletion galaxy panel
+  source against every current overlay; the other read the real scheduling/pathfinding code to
+  establish what's genuinely autonomous versus a flat tween. Full account in
+  `docs/overworld/roadmap.md`'s "Stage 2.69". **(1)** Zoning's `transit` type relabeled "Road"
+  (🛣️) — display-only, the stored id is unchanged. **(2)** The map can get bigger: a new private
+  `TOWN_WIDTH`/`TOWN_HEIGHT` pair holds every existing anchor (spawn, grass zone, Mayor's Hall
+  centering) exactly where it was — a regression test proves it didn't drift — while
+  `REGION_HEIGHT` adds a real, fully open, fully collision-checked frontier band south of
+  downtown (measured: 1320/1320 new tiles open) for genuine outward growth. **(3)** A real
+  placement-preview ghost (green/red tint + non-color ✓/✗ glyph, SimCity/Cities-Skylines
+  convention) reuses the exact same validity checks `handleInteract` already uses, fingerprint-
+  gated like `creatureVisualsChanged`. Alongside it: task #128's own `"placement-refused"` event
+  had zero listeners AND `<Toasts/>` was never mounted anywhere in the Overworld — both fixed
+  together, so a refusal now actually tells the player why. **(4)** Build-queue dispatch now
+  covers home/business orders, not just 1-tile zoning/decor (`queueArmedHome`/
+  `queueArmedBusiness`, new `placeHomeDirectly`/`placeBusinessDirectly` that build the exact
+  queued type later regardless of what's currently armed). Two real multi-tile-specific bugs
+  were caught and fixed before shipping: pending-order markers only ever painted one corner tile
+  instead of the whole footprint, and had no completion cleanup path at all. A coordinate bug in
+  the new tests themselves (a home fixture placed inside the real Bank's own footprint) was
+  caught by a failing assertion and fixed by measuring real open ground instead of guessing —
+  this repo's own "verify before you build" mandate working as intended. **(5)** NPC autonomy:
+  the daily Working/Break/Home cycle now shares the SAME real `findPath`/`walkPath` machinery
+  outings/meetings/dispatch already used, instead of a flat 500ms tween that only fell back to
+  real pathfinding on the rarer interrupted-outing case — `walkInterruptedOutingHome` generalized
+  to `walkSpriteTo`, called unconditionally from both schedule-transition branches. **(6)** The
+  Bank is rebuilt for real: the old 48-line read-only ledger is replaced with Safe-to-Spend +
+  shortfall, balance set, add income/expense, upcoming bills + mark paid, a recurring-bill
+  manager, "what can I afford?", and a full editable/deletable transaction history — every
+  number fetched live from the same untouched `/api/finance/*` routes the pre-deletion galaxy
+  panel used (only the client UI was ever deleted). Every mutation now credits real Bank work
+  directly, replacing the old diff-based `detectBankWork` (deleted along with its test suite).
+  **Deliberately deferred, named rather than silently dropped**: Wealth (goals/buckets/
+  allocations), pay stub upload/extraction, Snap/Paste import, growth trend charts, and
+  per-transaction Journey linking — each a genuinely distinct subsystem, not a trivial port.
+  Verified by the frontier-openness/anchor-stability measurements, the coordinate-collision
+  catch-and-fix, 3 new `regionLayout.test.ts` cases, 6 new `buildQueue.test.ts` cases, 9 new
+  `BankOverlay.test.tsx` cases, and the full gate (1066 server + 661 web tests, typecheck,
+  build). `ExteriorScene.ts` has no dedicated test (this file's established convention) — the
+  placement-ghost and NPC-walk-conversion changes were verified by direct reading of every
+  branch touched. Not yet seen in a real browser.
+
 - **Placement you can actually do, an economy that actually runs (task #128) (2026-09-17), not yet
   on-device confirmed** — direct response to real feedback: "I armed a $3 Cottage, went outside,
   walked over a tile zoned for housing, and there's no way to place it... zoning should highlight

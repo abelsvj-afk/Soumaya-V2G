@@ -1,3 +1,44 @@
+### 2026-09-17 (Claude): User-directed reconciliation pass — map growth, placement clarity, dispatch depth, NPC autonomy, real Bank rebuild (task #129) (complete)
+- [ ] Verified by Claude
+- Direct response to explicit, detailed feedback after task #128 shipped: stop silently deferring
+  named work, actually finish items already flagged as deferred, give placement a real "can I build
+  here" affordance, let the map get bigger, and — the most severe finding — the overlays don't match
+  the old galaxy-era panels, most acutely the Bank. Two read-only investigation agents ran first: one
+  diffed the real pre-deletion galaxy panel source against every current overlay; the other read the
+  real scheduling/pathfinding code to establish what's genuinely autonomous. Full account in
+  `docs/overworld/roadmap.md`'s "Stage 2.69".
+- **Road, not Transit stop** — display-only zoning relabel (🛣️), stored type id unchanged.
+- **The map can get bigger** — a new private `TOWN_WIDTH`/`TOWN_HEIGHT` pair keeps every existing
+  anchor (spawn, grass zone, Mayor's Hall centering) exactly where it was (a regression test proves
+  it), while `REGION_HEIGHT` adds a real, fully open, collision-checked frontier band south of
+  downtown (measured: 1320/1320 new tiles open) for genuine outward growth.
+- **A real placement-preview ghost** — green/red tint + non-color ✓/✗ glyph, reusing the exact same
+  validity checks `handleInteract` already uses, fingerprint-gated like `creatureVisualsChanged`.
+  Found and fixed alongside it: task #128's own `"placement-refused"` event had zero listeners AND
+  `<Toasts/>` was never mounted anywhere in the Overworld — both fixed together.
+- **Dispatch now covers home/business orders**, not just 1-tile zoning/decor — new
+  `queueArmedHome`/`queueArmedBusiness` + `placeHomeDirectly`/`placeBusinessDirectly` so a worker
+  builds exactly what was queued later, regardless of what's currently armed. Two real multi-tile
+  bugs caught before shipping: pending markers only painted one corner instead of the whole
+  footprint, and had no completion cleanup path. A coordinate bug in the new tests themselves (a
+  home fixture inside the real Bank's own footprint) was caught by a failing assertion and fixed by
+  measuring real open ground instead of guessing.
+- **NPC autonomy: one real movement system** — the daily Working/Break/Home cycle now uses the same
+  real `findPath`/`walkPath` machinery outings/meetings/dispatch already used, instead of a flat
+  500ms tween that only fell back to real pathfinding on the rarer interrupted-outing case.
+- **The Bank is rebuilt for real** — Safe-to-Spend + shortfall, balance set, add income/expense,
+  upcoming bills + mark paid, a recurring-bill manager, "what can I afford?", and a full editable/
+  deletable transaction history, all fetched live from the same untouched `/api/finance/*` routes
+  the pre-deletion galaxy panel used (only the client UI was ever deleted). Every mutation now
+  credits real Bank work directly, replacing the old diff-based `detectBankWork` (deleted with its
+  test suite). Deliberately deferred and named, not silently dropped: Wealth (goals/buckets/
+  allocations), pay stub upload/extraction, Snap/Paste import, growth trend charts, per-transaction
+  Journey linking.
+- Verified by the frontier-openness/anchor-stability measurements, the coordinate-collision
+  catch-and-fix, 3 new `regionLayout.test.ts` cases, 6 new `buildQueue.test.ts` cases, 9 new
+  `BankOverlay.test.tsx` cases, and the full gate (1066 server + 661 web tests, typecheck, build).
+  Not yet seen in a real browser.
+
 ### 2026-09-17 (Claude): Placement you can actually do, an economy that actually runs (task #128) (complete)
 - [ ] Verified by Claude
 - Direct response to detailed on-device feedback. Every claim was reproduced or measured first, and

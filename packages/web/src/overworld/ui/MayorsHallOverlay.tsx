@@ -14,8 +14,9 @@ export interface MayorsHallOverlayProps {
   onClose: () => void;
 }
 
-const ZONE_ICON: Record<string, string> = { residential: "🏠", commercial: "🏪", sidewalk: "➰", transit: "🚏" };
-const ZONE_LABEL: Record<string, string> = { residential: "Residential", commercial: "Commercial", sidewalk: "Sidewalk", transit: "Transit" };
+// Task #129 — "Transit"/🚏 renamed to "Road"/🛣️ (matches HangarOverlay.tsx/TownHud.tsx).
+const ZONE_ICON: Record<string, string> = { residential: "🏠", commercial: "🏪", sidewalk: "➰", transit: "🛣️" };
+const ZONE_LABEL: Record<string, string> = { residential: "Residential", commercial: "Commercial", sidewalk: "Sidewalk", transit: "Road" };
 
 function formatCents(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;

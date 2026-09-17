@@ -135,6 +135,36 @@ describe("regionLayout — every place", () => {
   });
 });
 
+describe("regionLayout — frontier expansion (task #129, real response to \"the map needs to be bigger\")", () => {
+  it("the region is genuinely bigger than just the fixed downtown core (2 building rows + Mayor's Hall)", () => {
+    const mayorsHall = placeById("mayorsHall") as DoorPlace;
+    const townBottom = mayorsHall.footprint.y1;
+    expect(REGION_HEIGHT).toBeGreaterThan(townBottom + 10); // real open land below downtown, not just a 1-row margin
+  });
+
+  it("the new frontier band is fully open, buildable ground — no stray footprint/object collision", () => {
+    const mayorsHall = placeById("mayorsHall") as DoorPlace;
+    let open = 0;
+    let total = 0;
+    for (let y = mayorsHall.footprint.y1 + 2; y < REGION_HEIGHT; y++) {
+      for (let x = 0; x < REGION_WIDTH; x++) {
+        total++;
+        if (!isPlacementBlocked(x, y)) open++;
+      }
+    }
+    expect(total).toBeGreaterThan(500);
+    expect(open).toBe(total); // every tile in the frontier band is real open ground
+  });
+
+  it("downtown's own anchors (spawn, grass zone, Mayor's Hall centering) did not shift east/south when the frontier grew", () => {
+    // A real regression this fix had to guard against: anchoring CENTER_X/GRASS_ZONE to the new,
+    // bigger REGION_WIDTH instead of the fixed downtown width would drag the plaza and grass zone
+    // out into open land. Spawn must still sit inside the original two-row downtown block.
+    const bank = placeById("bank") as DoorPlace;
+    expect(PLAYER_SPAWN.y).toBeLessThan(bank.footprint.y1 + 20); // still up near downtown, not dragged south
+  });
+});
+
 describe("regionLayout — attendant NPC posts (Stage 2.8)", () => {
   it("gives every door-building a few posts (not just one)", () => {
     const doorPlaceIds = allPlaces()

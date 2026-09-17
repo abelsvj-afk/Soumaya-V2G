@@ -129,7 +129,12 @@ const SOUTH_ROW_SPECS: RowBuildingSpec[] = [
 const ROWS_DOOR_PLACES: DoorPlace[] = [...layoutRow(NORTH_ROW_SPECS, NORTH_Y0, true), ...layoutRow(SOUTH_ROW_SPECS, SOUTH_Y0, false)];
 
 const RIGHTMOST_X1 = Math.max(...ROWS_DOOR_PLACES.map((p) => p.footprint.x1));
-export const REGION_WIDTH = RIGHTMOST_X1 + SIDE_MARGIN + 1;
+/** The fixed downtown core's own width — exactly what the two building rows need. Kept as its
+ *  own constant (task #129) so `CENTER_X`/`GRASS_ZONE`/Mayor's Hall's centering can anchor to
+ *  the buildings themselves rather than to `REGION_WIDTH`, which now includes the frontier
+ *  expansion below and would otherwise drag the plaza/grass-zone/Mayor's-Hall position east into
+ *  open land every time the frontier's own size changes. */
+const TOWN_WIDTH = RIGHTMOST_X1 + SIDE_MARGIN + 1;
 /** South row's bottom edge + enough clear rows that Mayor's Hall's OWN attendant band (which
  *  paces `ATTENDANTS_PER_BUILDING` rows above its door, same as every other building) can never
  *  land on the south row's own wall — a real bug the Theater's addition surfaced: growing
@@ -150,7 +155,7 @@ const MAYORS_HALL_WIDTH = 12;
 const MAYORS_HALL_HEIGHT = 6;
 
 function mayorsHallPlace(): DoorPlace {
-  const x0 = Math.round((REGION_WIDTH - MAYORS_HALL_WIDTH) / 2);
+  const x0 = Math.round((TOWN_WIDTH - MAYORS_HALL_WIDTH) / 2);
   const x1 = x0 + MAYORS_HALL_WIDTH - 1;
   const y0 = SOUTH_ROW_BOTTOM;
   const y1 = y0 + MAYORS_HALL_HEIGHT - 1;
@@ -166,10 +171,25 @@ function mayorsHallPlace(): DoorPlace {
 
 const DOOR_PLACES: DoorPlace[] = [...ROWS_DOOR_PLACES, mayorsHallPlace()];
 
-/** Mayor's Hall's own bottom edge + one clear margin row below it. */
-export const REGION_HEIGHT = SOUTH_ROW_BOTTOM + MAYORS_HALL_HEIGHT + 1;
+/** Mayor's Hall's own bottom edge + one clear margin row below it — the fixed downtown core's
+ *  own height, before the frontier expansion below. */
+const TOWN_HEIGHT = SOUTH_ROW_BOTTOM + MAYORS_HALL_HEIGHT + 1;
 
-const CENTER_X = Math.round(REGION_WIDTH / 2);
+/** Task #129 — real open, buildable land beyond the fixed downtown core, direct response to
+ *  "the map needs to be able to get bigger." The two building rows + Mayor's Hall are a small,
+ *  fully-built downtown; every zoning/housing/business round since has had to fit new growth
+ *  into whatever plaza scraps were left over, with no real headroom as the town's population
+ *  grows. This is a single large frontier field south of Mayor's Hall — pure open ground, zero
+ *  new buildings, so it can't introduce a collision the generated layout above doesn't already
+ *  guard against. Purely additive: `REGION_WIDTH`/`HEIGHT` grow, but `CENTER_X`/`PLAYER_SPAWN`/
+ *  `GRASS_ZONE`/Mayor's Hall's own centering all stay anchored to `TOWN_WIDTH`/`TOWN_HEIGHT`
+ *  (the pre-frontier values) so nothing already built shifts position. */
+const FRONTIER_HEIGHT = 24;
+
+export const REGION_WIDTH = TOWN_WIDTH;
+export const REGION_HEIGHT = TOWN_HEIGHT + FRONTIER_HEIGHT;
+
+const CENTER_X = Math.round(TOWN_WIDTH / 2);
 /** The plaza band (open ground between the two attendant bands) — roughly rows 6..17 with the
  *  current constants; derived, not hand-typed, so it can't silently drift if the constants
  *  above ever change. */
@@ -183,12 +203,13 @@ const OBJECT_PLACES: ObjectPlace[] = [
   { id: "soumaya", kind: "object", label: "Soumaya", glyph: "🛰️", tile: { x: CENTER_X + 2, y: PLAZA_CENTER_Y } },
 ];
 
-/** The open field near the region's east edge — FR8's tall-grass capture trigger. Sized up
- *  along with the rest of the region this round (6x4, was 4x4). */
+/** The open field near downtown's own east edge — FR8's tall-grass capture trigger. Anchored to
+ *  `TOWN_WIDTH` (task #129), not `REGION_WIDTH`, so it stays put near the original plaza rather
+ *  than sliding out into the new frontier every time the frontier's own size changes. */
 const GRASS_ZONE: Rect = {
-  x0: REGION_WIDTH - 10,
+  x0: TOWN_WIDTH - 10,
   y0: PLAZA_CENTER_Y - 4,
-  x1: REGION_WIDTH - 5,
+  x1: TOWN_WIDTH - 5,
   y1: PLAZA_CENTER_Y - 1,
 };
 

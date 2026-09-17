@@ -172,14 +172,15 @@ export function isFootprintFreeForHome(spaceId: string, x0: number, y0: number, 
   return true;
 }
 
-/** Places the currently-armed home type with its footprint anchored at (x0, y0), then clears
- *  the armed state. The caller must have already confirmed `isFootprintFreeForHome`. Returns
- *  null and changes nothing if nothing is armed. Deliberately does not re-check
- *  treasury/afford — the spend already happened at `armHomeType` time. `nowMs` defaults to the
- *  real clock; callers only ever override it in tests. */
-export function placeArmedHome(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedHome | null {
-  const typeId = armedHomeTypeId(spaceId);
-  if (!typeId) return null;
+/** Task #129 (build-queue dispatch for any job, not just 1-tile orders) — places a SPECIFIC home
+ *  type, never reading the currently-armed slot. A queued build order is completed later, by
+ *  which time the player may have re-armed something else entirely (or nothing); a dispatched
+ *  worker must still build exactly what was actually queued, the same reason
+ *  `townBuilder.ts`'s `placeItemDirectly` exists alongside its own armed-state variant. The
+ *  caller must have already confirmed `isFootprintFreeForHome`. Never spends the treasury itself
+ *  — the real price was already paid at `armHomeType` time; a queued order's own captured
+ *  `priceCents` is only ever refunded (cancel/stale-drop), never charged again. */
+export function placeHomeDirectly(spaceId: string, typeId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedHome | null {
   const type = homeTypeById(typeId);
   if (!type) return null;
   const x1 = x0 + type.width - 1;
@@ -195,7 +196,19 @@ export function placeArmedHome(spaceId: string, x0: number, y0: number, nowMs: n
     builtAt: nowMs,
   };
   savePlacedHomes(spaceId, [...placedHomes(spaceId), placed]);
-  clearArmedHome(spaceId);
+  return placed;
+}
+
+/** Places the currently-armed home type with its footprint anchored at (x0, y0), then clears
+ *  the armed state. The caller must have already confirmed `isFootprintFreeForHome`. Returns
+ *  null and changes nothing if nothing is armed. Deliberately does not re-check
+ *  treasury/afford — the spend already happened at `armHomeType` time. `nowMs` defaults to the
+ *  real clock; callers only ever override it in tests. */
+export function placeArmedHome(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedHome | null {
+  const typeId = armedHomeTypeId(spaceId);
+  if (!typeId) return null;
+  const placed = placeHomeDirectly(spaceId, typeId, x0, y0, nowMs);
+  if (placed) clearArmedHome(spaceId);
   return placed;
 }
 

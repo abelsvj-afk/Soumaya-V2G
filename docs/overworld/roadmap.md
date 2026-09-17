@@ -2459,6 +2459,138 @@ the input-path fixes were verified by direct reading of every branch that touche
 Not yet seen in a real browser — but unlike task #124, the row order is now measured fact rather
 than an assumption.
 
+## Stage 2.68 — placement you can actually do, an economy that actually runs (task #128)
+
+Direct response to real feedback: "I armed a $3 Cottage, went outside, walked over a tile zoned
+for housing, and there's no way to place it... zoning should highlight where it can fit... money
+is not being made... the interior of buildings is literally just the ground from outside and the
+tile doesn't line up." Full account in `docs/overworld/placement-clarity-and-economy.md`; the
+complete writeup of what was measured and fixed lives in CLAUDE.md's Pending Validation section
+(2026-09-17 entry). Three real bugs, each reproduced against the actual code before being fixed,
+never assumed: (1) a new `footprintForFacing()` makes a building's footprint grow INTO the space
+the player faces instead of always anchoring top-left at the faced tile regardless of facing —
+half of all approach directions were silently blocked before this; (2) a new per-space
+`townFoundedAt` stamp means a fresh town's neglect is measured from when it was founded, not from
+the Unix epoch, so NPC tax and structure/resident income flow from the first frame instead of
+every building reading as maximally neglected on day one; (3) the interior floor tile was
+measurably wrong (38.7% grass-green pixels, an outdoor patch tiled indoors) — replaced with a real
+seam-free interior floor from the same trusted CC0 source already in use. Verified by the pre/
+post-fix placement reproduction, 5 new `interact.test.ts` cases, updated neglect/income tests
+across 6 files, the tile pixel measurements, and the full gate (1066 server + 653 web tests,
+typecheck, build).
+
+## Stage 2.69 — user-directed reconciliation pass: map growth, placement clarity, dispatch depth,
+## NPC autonomy, and a real rebuild of the Bank (task #129)
+
+Direct response to explicit, detailed feedback after task #128 shipped: stop silently deferring
+named work ("when I tell you to do something, just go ahead and do them all — or stop and ask me
+and then continue"); go back and actually do the items already asked for and previously flagged
+as deferred; give placement a real "can I build here" affordance the way city-builder games do;
+the map needs to be able to get bigger; and — the most severe finding — the building overlays
+"don't look nothing like they looked... in the galaxy when they were perfect," most acutely the
+Bank, which a dedicated investigation confirmed had been reduced from a ~1200-line real financial
+tool to a 48-line read-only list when the 3D galaxy was deleted, even though every real API behind
+it (`api/finance.ts`, the whole `/api/finance/*` server surface) had survived untouched.
+
+Two read-only investigation agents were run first, per Rule #1, rather than guessing: one diffed
+the actual pre-deletion galaxy panel source (`git show` on the deletion commit) against every
+current Overworld overlay, building by building; the other read the real scheduling/pathfinding
+code directly to establish which parts of NPC "autonomy" are genuinely pathfound versus a flat
+tween between fixed points. Both reports are reflected directly in the work below rather than
+taken on faith.
+
+**1. "Road," not "transit stop."** The zoning type id (`"transit"`, stored data) is unchanged —
+only its display label/icon changed, everywhere it appears (Hangar, TownHud, Mayor's Hall):
+`🚏 Transit stop` → `🛣️ Road`, matching what the feature actually reads as in-world.
+
+**2. The map can get bigger.** `regionLayout.ts` previously computed `REGION_WIDTH`/
+`REGION_HEIGHT` directly from the fixed two-row downtown core (12 door-buildings + Mayor's Hall),
+so there was no buildable land beyond it at all. A new private `TOWN_WIDTH`/`TOWN_HEIGHT` pair
+captures exactly what the old public constants used to mean — every existing anchor (player
+spawn, the grass zone, Mayor's Hall's own centering) stays pinned to THOSE, not the new bigger
+region, so downtown's own geometry provably didn't drift (a dedicated regression test asserts
+this). `REGION_HEIGHT` now adds a real, fully open, fully collision-checked frontier band
+(measured: 1320 of 1320 new tiles open) south of downtown for genuine SimCity-style outward
+growth — zoning, homes, and businesses can be built there exactly like anywhere else.
+
+**3. A real "can I build here" placement preview**, direct answer to "you need to do your
+research on city builder games... so you can actually know how to implement it into this game
+properly." Adopted the established SimCity/Cities-Skylines convention: a tinted footprint ghost
+follows the player's facing (green = valid, red = blocked), paired with a non-color ✓/✗ glyph
+(CLAUDE.md's non-color-only rule) so it's never a colour-only cue. `ExteriorScene.ts`'s new
+`computePlacementGhost()`/`refreshPlacementGhost()` reuse the EXACT SAME validity checks
+`handleInteract`'s own commit branches already use (item/zone-tile/zone-area/home/business) —
+never a second, divergent copy of that logic — and repaint is fingerprint-gated (the same
+render-churn-avoidance convention `creatureVisualsChanged` already established) so it doesn't
+repaint every frame for nothing. A second, compounding real gap was found and fixed alongside
+this: the `"placement-refused"` event a PRIOR round (task #128) added had zero listeners anywhere
+— it fired into the void — AND the `<Toasts/>` component that would have rendered it was never
+mounted anywhere in the Overworld tree at all. Both fixed together, so a refused placement now
+actually tells the player why.
+
+**4. Dispatch, for any build job, not just 1-tile ones**, direct answer to "I should have the
+option to queue [the Hangar attendants] for any build job, not just for specific ones." Task #123
+originally scoped the build-queue/dispatch system to 1-tile zoning/decor orders only.
+`buildQueue.ts`'s `WorkOrderKind` gains `"home" | "business"`, with new `queueArmedHome`/
+`queueArmedBusiness` (mirroring `queueArmedItem`'s own "already paid at arm time, never spends
+the treasury twice" convention) and a `typeId` field so a worker who completes the order later
+builds exactly what was queued even if the player has since armed something else. `housing.ts`/
+`business.ts` each gained a `placeHomeDirectly`/`placeBusinessDirectly` that takes the type
+explicitly rather than reading current armed state, for exactly that reason.
+`ExteriorScene.ts`'s home/business arm branches gained a dispatch-mode else-if mirroring the
+existing item branch. Two real bugs specific to a MULTI-tile order were caught and fixed before
+shipping, not left for later: `paintPendingOrderMarkers` only ever painted a single corner tile's
+"⏳" marker for a non-`zone-rect` order (a queued home/business would have looked like empty
+ground except for one corner), and there was no cleanup path for those markers on completion
+(since `refreshPlacedHomes`/`refreshPlacedBusinesses` don't share the zone-marker completion
+path's own sprite map) — both now correctly cover and clear the FULL footprint rectangle. A real
+coordinate bug surfaced while testing this: the first attempt at test fixtures placed a 2x2 home
+directly inside the real Bank building's own footprint (an easy mistake once the map grew) —
+caught immediately by a failing assertion, fixed by measuring real open ground in the new
+frontier band via a throwaway probe script instead of guessing coordinates, per this repo's own
+"verify before you build" mandate.
+
+**5. NPC autonomy: one real movement system, not three real ones plus a fourth fake one.** The
+investigation confirmed real BFS pathfinding (`findPath`/`walkPath`) already existed and already
+worked for THREE side systems — off-duty outings to Park/Market, the Town Meeting gathering, and
+Hangar dispatch — but the actual core daily Working/Break/Home schedule cycle, the thing running
+on every single NPC every single tick, was still a flat 500ms straight-line tween between three
+fixed points, falling back to the real pathfinder only on the rarer case of an outing being
+interrupted mid-walk. `applySocietyState`'s two flat `this.tweens.add({...duration:500...})`
+blocks are removed; both the Working (post→door) and Break/Home (door→post) transitions now call
+a single generalized `walkSpriteTo()` (the former `walkInterruptedOutingHome`, renamed since it's
+no longer exclusive to that one case) — the same real found-path walk every other system already
+used. The `wasOnOuting` special-casing is gone entirely: every transition now starts from wherever
+the sprite genuinely is (post, or mid-outing at Park/Market) and walks a real path home, not just
+the interruption case.
+
+**6. A real rebuild of the Bank**, the single most severe finding. `BankOverlay.tsx` (48 lines,
+read-only) is replaced with a real money-management overlay built directly against the untouched
+`api/finance.ts` client and its live `/api/finance/*` server routes: Safe-to-Spend + a real
+shortfall warning, a balance quick-set, add income/add expense, upcoming bills with a real "mark
+paid," a full recurring-bill manager (add/remove), a "what can I afford?" calculator, and a
+complete editable/deletable transaction history — every number real, nothing invented. Every real
+mutation now credits this building's own work directly (`recordBuildingWork`), the same
+convention every other Overlay's own button already follows — replacing the old diff-based
+`detectBankWork`, which only ever existed because this overlay used to have no button of its own
+to hook; it's deleted along with its now-obsolete test suite. **Deliberately deferred, named
+rather than silently dropped, each a genuinely distinct subsystem**: Wealth (goals/buckets/
+allocations — its own large nested panel in the original), pay stub upload/extraction
+(vision-based document parsing), Snap/Paste import (screenshot/text vision-extraction into
+editable draft rows), and the Income/Net-Worth growth trend charts. A transaction can't yet be
+linked to a Journey (JourneyChips) here either.
+
+**AGY note**: per explicit, standing user instruction this round, this and all future rounds stop
+referencing the second agent/deploy tool in conversation — the user runs every deploy manually.
+
+Verified by the frontier-openness/downtown-anchor-stability measurements, the coordinate-collision
+catch-and-fix above, 3 new `regionLayout.test.ts` cases, 6 new `buildQueue.test.ts` cases, 9 new
+`BankOverlay.test.tsx` cases (replacing the old 4), and the full gate (1066 server + 661 web
+tests, typecheck, build). `ExteriorScene.ts`'s own Phaser-integration code has no dedicated test
+(this file's established convention) — the placement-ghost and NPC-walk-conversion changes were
+verified by direct reading of every branch touched plus the existing gate staying green. Not yet
+seen in a real browser from this sandbox.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

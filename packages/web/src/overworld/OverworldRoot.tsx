@@ -2,10 +2,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Phaser from "phaser";
 import { getDigest, ingestText } from "../api/client.js";
 import { getSpaceId } from "../api/http.js";
+import { pushToast, Toasts } from "../components/Toasts.js";
 import { checkTownMeeting, markAnnounced, meetingAnnouncementText } from "./data/townMeeting.js";
 import { checkCivicConcern, concernAnnouncementText, markConcernAnnounced } from "./data/civicConcern.js";
 import { buildingNeglect, isNeglected } from "./data/buildingNeglect.js";
-import { detectBankWork } from "./adapter/financeAdapter.js";
 import { recordBuildingWork } from "./data/npcJobs.js";
 import { bumpStat, statsSpaceId } from "../components/achievements.js";
 import { refreshNpcLinesIfStale } from "./data/npcLlmDialogue.js";
@@ -122,15 +122,7 @@ export function OverworldRoot() {
 
   const refresh = useCallback(async (): Promise<WorldSnapshot | null> => {
     try {
-      const previousBankRows = snapshotRef.current?.bank.rows ?? [];
       const next = await loadWorldSnapshot();
-      // Town Economy round (npc-economy.md) — the Bank has no button of its own to hook (a
-      // read-only ledger), so its real work is detected by diffing the previous snapshot
-      // against this one (see detectBankWork's own doc comment for why).
-      if (detectBankWork(previousBankRows, next.bank.rows)) {
-        const spaceIdForWork = getSpaceId();
-        if (spaceIdForWork) recordBuildingWork(spaceIdForWork, "bank");
-      }
       setSnapshot(next);
       setLoadError(null);
       sceneRef.current?.setCreatures(next.creatures);
@@ -238,6 +230,12 @@ export function OverworldRoot() {
       // same as any real door-building's "enter-place". mall.md decision #3 — the emitted
       // stallIndex is 0 for every normal single-catalog business, so this is unchanged for them.
       scene.events.on("enter-business", (businessId: string, stallIndex: number) => setOverlay({ kind: "business", businessId, stallIndex }));
+      // Task #129 — the interior/on-yourself placement fixes started emitting a real
+      // "placement-refused" reason on a blocked build, but nothing ever displayed it: this event
+      // had zero listeners, so a refused placement still looked and felt exactly like a silent
+      // failure. The in-world ghost preview below is the primary "can I build here" signal; this
+      // is the secondary confirmation for the moment you actually press to commit.
+      scene.events.on("placement-refused", (reason: string) => pushToast(reason, "🚫", 3000));
 
       void refresh();
     });
@@ -367,6 +365,9 @@ export function OverworldRoot() {
     // `min-height: 100vh` with nothing else in flow, so 100% here means the real viewport.
     <div style={{ position: "relative", width: "100%", height: "100dvh" }}>
       <div ref={containerRef} data-testid="overworld-canvas-root" style={{ width: "100%", height: "100%" }} />
+      {/* Task #129 — the Overworld never mounted this; pushToast() calls (placement refusals,
+          and anything else in the app already using it) went nowhere visible. */}
+      <Toasts />
       {snapshot && (
         <TownHud
           spaceId={spaceId}
@@ -487,9 +488,7 @@ export function OverworldRoot() {
         />
       )}
 
-      {overlay.kind === "bank" && snapshot && (
-        <BankOverlay rows={snapshot.bank.rows} safeToSpendCents={snapshot.bank.safeToSpendCents} onClose={closeOverlay} />
-      )}
+      {overlay.kind === "bank" && snapshot && <BankOverlay spaceId={spaceId} rows={snapshot.bank.rows} onClose={closeOverlay} />}
       {overlay.kind === "library" && snapshot && (
         <LibraryOverlay graph={snapshot.graph} spaceId={spaceId} onClose={closeOverlay} />
       )}

@@ -74,6 +74,7 @@ import {
 } from "../data/zoning.js";
 import {
   armedHomeTypeId,
+  clearArmedHome,
   homeTypeById,
   isFootprintFreeForHome,
   isUnderConstruction,
@@ -85,6 +86,7 @@ import {
   armedBusinessTypeId,
   businessStallDoorAt,
   businessTypeById,
+  clearArmedBusiness,
   isFootprintFreeForBusiness,
   placeArmedBusiness,
   placedBusinesses,
@@ -108,7 +110,17 @@ import {
   interiorRoomOrigin,
   isInsideInteriorRoom,
 } from "../data/interiorRoom.js";
-import { completeOrder, dispatchModeEnabled, enqueueZoneRect, enqueueZoneTile, queueArmedItem, queuedOrders, type WorkOrder } from "../data/buildQueue.js";
+import {
+  completeOrder,
+  dispatchModeEnabled,
+  enqueueZoneRect,
+  enqueueZoneTile,
+  queueArmedBusiness,
+  queueArmedHome,
+  queueArmedItem,
+  queuedOrders,
+  type WorkOrder,
+} from "../data/buildQueue.js";
 import { createPlayerWalkAnimations, idleFrameFor, PLAYER_STEP_MS, PLAYER_WALK_SHEET, walkAnimKey } from "./characterSprites.js";
 import { color as uiColor } from "../ui/theme.js";
 
@@ -274,6 +286,16 @@ export class ExteriorScene extends Phaser.Scene {
    *  anchor marker, if any. Unlike `zoneMarkerSprites` there is at most one of these at a time
    *  (destroyed on commit or on re-arming), so a plain nullable field is enough. */
   private zoneAnchorSprite: Phaser.GameObjects.Text | null = null;
+  /** Task #129 — the live "can I build here" preview, the direct city-builder-genre answer to
+   *  "we need a clear indication... telling you yes you can place something here." Recomputed
+   *  every frame from whatever's currently armed (item/zone/home/business), the player's own
+   *  position and facing, and the SAME validity checks `handleInteract` commits with — never a
+   *  separate, potentially-drifting copy of that logic. `lastGhostFingerprint` gates the actual
+   *  repaint (same render-churn-avoidance convention as `creatureVisualsChanged`), since most
+   *  frames the footprint/validity hasn't changed at all. */
+  private ghostRect: Phaser.GameObjects.Rectangle | null = null;
+  private ghostGlyph: Phaser.GameObjects.Text | null = null;
+  private lastGhostFingerprint: string | null = null;
   /** Housing (docs/overworld/housing.md, task #66) — one real placed home, keyed by its
    *  persisted PlacedHome id (same convention as `placedItemSprites`, since a home never
    *  moves once built). */
@@ -991,11 +1013,12 @@ export class ExteriorScene extends Phaser.Scene {
    *  (zoning.md decision #4 — town-builder decor stays zone-agnostic), since zoning is meant to
    *  read as a faint planning overlay, not compete with anything actually placed there. */
   private zoneGlyphFor(type: ZoneType): string {
+    // Task #129 — "transit"/🚏 renamed to a real road glyph; matches every UI label.
     const glyphs: Record<ZoneType, string> = {
       residential: "🏠",
       commercial: "🏪",
       sidewalk: "➰",
-      transit: "🚏",
+      transit: "🛣️",
     };
     return glyphs[type];
   }
@@ -1026,7 +1049,19 @@ export class ExteriorScene extends Phaser.Scene {
    *  order later completes and `renderZoneMarkers` repaints those same tiles with the real type
    *  glyph, the pending marker is replaced automatically — no separate cleanup needed. */
   private paintPendingOrderMarkers(order: WorkOrder): void {
-    const tiles = order.kind === "zone-rect" ? zonableTilesInRect(this.spaceId, order.x0, order.y0, order.x1, order.y1) : [{ x: order.x0, y: order.y0 }];
+    // Task #129 — home/business orders are real multi-tile footprints (unlike zone-tile/item's
+    // always-1x1 shape), so the pending marker needs to cover the WHOLE footprint, not just its
+    // top-left corner — otherwise most of a queued building's own footprint would look like
+    // ordinary open ground while only one corner tile showed the "queued" hourglass.
+    let tiles: { x: number; y: number }[];
+    if (order.kind === "zone-rect") {
+      tiles = zonableTilesInRect(this.spaceId, order.x0, order.y0, order.x1, order.y1);
+    } else if (order.kind === "home" || order.kind === "business") {
+      tiles = [];
+      for (let y = order.y0; y <= order.y1; y++) for (let x = order.x0; x <= order.x1; x++) tiles.push({ x, y });
+    } else {
+      tiles = [{ x: order.x0, y: order.y0 }];
+    }
     for (const tile of tiles) {
       const key = `${tile.x},${tile.y}`;
       this.zoneMarkerSprites.get(key)?.destroy();
@@ -1335,11 +1370,8 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.societyState = state;
     // A real schedule transition always wins over an in-flight outing — kill its walk tween
     // (never fires the walk's own onComplete chain, so it can't fight this transition's own
-    // tween on the same sprite.image) rather than letting the two compete. simcity-realism-
-    // pass.md — captured BEFORE the delete so the branches below know whether the sprite can
-    // genuinely be anywhere across the map right now (Park/Market, mid-walk), not just at post.
-    const wasOnOuting = this.outingActive.delete(sprite.post.npcId);
-    if (wasOnOuting) {
+    // walk on the same sprite.image) rather than letting the two compete.
+    if (this.outingActive.delete(sprite.post.npcId)) {
       this.tweens.killTweensOf(sprite.image);
     }
     this.outingArrivedAt.delete(sprite.post.npcId); // no longer a real encounter target either way
@@ -1355,17 +1387,13 @@ export class ExteriorScene extends Phaser.Scene {
       if (reduced || firstPaint) {
         sprite.image.setPosition(doorX, doorY);
         sprite.image.setVisible(false);
-      } else if (wasOnOuting) {
-        this.walkInterruptedOutingHome(sprite, door, () => sprite.image.setVisible(false));
       } else {
-        this.tweens.add({
-          targets: sprite.image,
-          x: doorX,
-          y: doorY,
-          duration: 500,
-          ease: "Sine.easeInOut",
-          onComplete: () => sprite.image.setVisible(false),
-        });
+        // Task #129 — the daily Working transition now walks a real found path to the door
+        // instead of a flat straight-line tween, the same real `findPath`/`walkPath` machinery
+        // outings/meetings/dispatch already use. The sprite can genuinely be anywhere it was
+        // last resting (post, or mid-outing at Park/Market) — walkSpriteTo starts from wherever
+        // it actually is right now, not an assumed fixed point.
+        this.walkSpriteTo(sprite, door, () => sprite.image.setVisible(false));
       }
       return;
     }
@@ -1375,23 +1403,24 @@ export class ExteriorScene extends Phaser.Scene {
     sprite.image.setVisible(true);
     if (reduced || firstPaint) {
       sprite.image.setPosition(postX, postY);
-    } else if (wasOnOuting) {
-      this.walkInterruptedOutingHome(sprite, sprite.post.a);
     } else {
-      sprite.image.setPosition(doorX, doorY);
-      this.tweens.add({ targets: sprite.image, x: postX, y: postY, duration: 500, ease: "Sine.easeInOut" });
+      // Task #129 — same real walked transition as the Working branch above, mirrored: from the
+      // door out to the post.
+      this.walkSpriteTo(sprite, sprite.post.a);
     }
     this.applyNeglectVisual(sprite);
   }
 
-  /** simcity-realism-pass.md — when a real schedule transition interrupts an active outing, the
-   *  sprite can genuinely be anywhere across the map (Park/Market, mid-walk), so routing it home
-   *  with an instant snap or a flat-duration tween reads as flying/teleporting regardless of real
-   *  distance. Routes it back via the exact same real `findPath`/`walkPath` machinery the outing
-   *  itself used to get there. Falls back to an instant snap only if the path genuinely can't be
-   *  found — should be unreachable given the same grid every outing already proves reachable, but
+  /** Task #129 — the one real walked transition every schedule state change (Working/Break/
+   *  Home) and every interrupted outing now shares, instead of the daily cycle using a flat
+   *  straight-line tween while only outings/meetings/dispatch got a real found path. The sprite
+   *  can genuinely be anywhere across the map right now (Park/Market, mid-walk, its own post),
+   *  so a flat-duration tween or instant snap reads as flying/teleporting regardless of real
+   *  distance — this routes it via the exact same real `findPath`/`walkPath` machinery outings
+   *  always used. Falls back to an instant snap only if the path genuinely can't be found —
+   *  should be unreachable given the same grid every outing already proves reachable, but
    *  tolerate-gracefully rather than leaving the sprite stuck mid-map. */
-  private walkInterruptedOutingHome(sprite: AttendantSprite, target: GridPosition, onArrive?: () => void): void {
+  private walkSpriteTo(sprite: AttendantSprite, target: GridPosition, onArrive?: () => void): void {
     const path = findPath(this.spriteTile(sprite), target, this.npcPathGrid);
     if (!path) {
       sprite.image.setPosition(target.x * TILE_SIZE + TILE_SIZE / 2, target.y * TILE_SIZE + TILE_SIZE / 2);
@@ -1796,6 +1825,21 @@ export class ExteriorScene extends Phaser.Scene {
   private applyBuildQueueCompletionVisuals(order: WorkOrder): void {
     if (order.kind === "item") {
       this.renderPlacedItems();
+    } else if (order.kind === "home" || order.kind === "business") {
+      // Task #129 — dispatch-for-any-job: a completed home/business order needs the same real
+      // repaint a manual placement already gets, never the zoning-marker path a 1x1 order used.
+      // Unlike renderZoneMarkers/paintZoneMarker, refreshPlacedHomes/Businesses don't touch
+      // `zoneMarkerSprites` at all, so the "⏳" pending glyphs painted across this footprint at
+      // queue time would otherwise never be destroyed — clear them explicitly here.
+      for (let y = order.y0; y <= order.y1; y++) {
+        for (let x = order.x0; x <= order.x1; x++) {
+          const key = `${x},${y}`;
+          this.zoneMarkerSprites.get(key)?.destroy();
+          this.zoneMarkerSprites.delete(key);
+        }
+      }
+      if (order.kind === "home") this.refreshPlacedHomes();
+      else this.refreshPlacedBusinesses();
     } else {
       this.renderZoneMarkers();
     }
@@ -2200,6 +2244,112 @@ export class ExteriorScene extends Phaser.Scene {
     return [...this.creatureSprites.values()].some((sprite) => within(sprite.currentTile));
   }
 
+  /** Task #129 — one footprint + validity computation, shared by the live ghost preview AND (via
+   *  the individual arm-mode branches in `handleInteract`) the actual commit — so the preview can
+   *  never promise something the real interact press then refuses. Returns null when nothing is
+   *  armed (nothing to preview). */
+  private computePlacementGhost(): { x0: number; y0: number; x1: number; y1: number; valid: boolean } | null {
+    const front = tileInFront(this.movement.position, this.movement.facing);
+
+    const armedId = armedItemId(this.spaceId);
+    if (armedId) {
+      const creatureHere = [...this.creatureSprites.values()].some(
+        (sprite) => sprite.currentTile.x === front.x && sprite.currentTile.y === front.y,
+      );
+      const soumayaHere = this.soumaya && front.x === this.soumaya.currentTile.x && front.y === this.soumaya.currentTile.y;
+      const valid = !creatureHere && !soumayaHere && isTileFreeForPlacement(this.spaceId, front.x, front.y);
+      return { x0: front.x, y0: front.y, x1: front.x, y1: front.y, valid };
+    }
+
+    const zoneType = armedZoneType(this.spaceId);
+    if (zoneType) {
+      if (armedZoneMode(this.spaceId) === "area") {
+        const anchor = zoneAnchor(this.spaceId);
+        if (anchor) {
+          const x0 = Math.min(anchor.x, front.x);
+          const y0 = Math.min(anchor.y, front.y);
+          const x1 = Math.max(anchor.x, front.x);
+          const y1 = Math.max(anchor.y, front.y);
+          // Matches zoneRectangle's own real behavior: a rectangle commits every zonable tile in
+          // it and silently skips the rest, so "valid" here means "at least one tile will
+          // actually zone," not "every tile in the rectangle is free."
+          let anyZonable = false;
+          for (let y = y0; y <= y1 && !anyZonable; y++) {
+            for (let x = x0; x <= x1; x++) {
+              if (isTileZonable(this.spaceId, x, y)) {
+                anyZonable = true;
+                break;
+              }
+            }
+          }
+          return { x0, y0, x1, y1, valid: anyZonable };
+        }
+      }
+      return { x0: front.x, y0: front.y, x1: front.x, y1: front.y, valid: isTileZonable(this.spaceId, front.x, front.y) };
+    }
+
+    const armedHomeType = homeTypeById(armedHomeTypeId(this.spaceId) ?? "");
+    if (armedHomeType) {
+      const f = footprintForFacing(this.movement.position, this.movement.facing, armedHomeType.width, armedHomeType.height);
+      const valid = !this.footprintBlockedByActor(f.x0, f.y0, f.x1, f.y1) && isFootprintFreeForHome(this.spaceId, f.x0, f.y0, armedHomeType);
+      return { ...f, valid };
+    }
+
+    const armedBusinessType = businessTypeById(armedBusinessTypeId(this.spaceId) ?? "");
+    if (armedBusinessType) {
+      const f = footprintForFacing(this.movement.position, this.movement.facing, armedBusinessType.width, armedBusinessType.height);
+      const valid =
+        !this.footprintBlockedByActor(f.x0, f.y0, f.x1, f.y1) && isFootprintFreeForBusiness(this.spaceId, f.x0, f.y0, armedBusinessType);
+      return { ...f, valid };
+    }
+
+    return null;
+  }
+
+  /** Task #129 — repaints the live placement ghost only when the footprint or its validity
+   *  actually changed since the last frame (same perf convention `creatureVisualsChanged` already
+   *  established), so this costs nothing on the vast majority of frames where nothing is armed or
+   *  the player hasn't moved/turned. A real ✓/✗ glyph carries the meaning; the green/red tint is
+   *  a reinforcing cue, never the only signal (this repo's non-color-only accessibility rule). */
+  private refreshPlacementGhost(): void {
+    const ghost = this.computePlacementGhost();
+    if (!ghost) {
+      if (this.lastGhostFingerprint !== null) {
+        this.ghostRect?.destroy();
+        this.ghostGlyph?.destroy();
+        this.ghostRect = null;
+        this.ghostGlyph = null;
+        this.lastGhostFingerprint = null;
+      }
+      return;
+    }
+    const fingerprint = `${ghost.x0},${ghost.y0},${ghost.x1},${ghost.y1},${ghost.valid}`;
+    if (fingerprint === this.lastGhostFingerprint) return;
+    this.lastGhostFingerprint = fingerprint;
+    this.ghostRect?.destroy();
+    this.ghostGlyph?.destroy();
+
+    const px = ghost.x0 * TILE_SIZE;
+    const py = ghost.y0 * TILE_SIZE;
+    const w = (ghost.x1 - ghost.x0 + 1) * TILE_SIZE;
+    const h = (ghost.y1 - ghost.y0 + 1) * TILE_SIZE;
+    const tint = ghost.valid ? 0x33cc55 : 0xdd3333;
+
+    const rect = this.add.rectangle(px + w / 2, py + h / 2, w, h, tint, 0.32);
+    rect.setStrokeStyle(2, tint, 0.9);
+    rect.setDepth(1.4);
+    this.ghostRect = rect;
+
+    const glyph = this.add.text(px + w / 2, py + h / 2, ghost.valid ? "✓" : "✗", {
+      fontSize: "22px",
+      color: "#ffffff",
+      fontStyle: "bold",
+    });
+    glyph.setOrigin(0.5);
+    glyph.setDepth(1.6);
+    this.ghostGlyph = glyph;
+  }
+
   private handleInteract(): void {
     const front = tileInFront(this.movement.position, this.movement.facing);
     // Town Builder — while an item is armed (bought from the Hangar, not yet placed), interact
@@ -2306,6 +2456,16 @@ export class ExteriorScene extends Phaser.Scene {
           "placement-refused",
           `Needs a clear ${armedHomeType.width}x${armedHomeType.height} area zoned residential.`,
         );
+      } else if (dispatchModeEnabled(this.spaceId)) {
+        // Task #129 — dispatch-for-any-job: the SAME walk-there-and-interact targeting every
+        // manual home placement already uses, just queued for a Hangar attendant to build
+        // instead of applying it under the player's own hands right now.
+        const order = queueArmedHome(this.spaceId, f.x0, f.y0, armedHomeType.id);
+        if (order) {
+          clearArmedHome(this.spaceId);
+          this.paintPendingOrderMarkers(order);
+          this.events.emit("home-queued", armedHomeType.id);
+        }
       } else {
         const placed = placeArmedHome(this.spaceId, f.x0, f.y0);
         if (placed) {
@@ -2321,8 +2481,6 @@ export class ExteriorScene extends Phaser.Scene {
     // requires every tile zoned "commercial") and unoccupied by a creature/Soumaya right now.
     const armedBusinessType = businessTypeById(armedBusinessTypeId(this.spaceId) ?? "");
     if (armedBusinessType) {
-      const x1 = front.x + armedBusinessType.width - 1;
-      const y1 = front.y + armedBusinessType.height - 1;
       // Task #128 — same facing-aware footprint as housing above.
       const f = footprintForFacing(this.movement.position, this.movement.facing, armedBusinessType.width, armedBusinessType.height);
       if (this.footprintBlockedByActor(f.x0, f.y0, f.x1, f.y1)) {
@@ -2332,6 +2490,14 @@ export class ExteriorScene extends Phaser.Scene {
           "placement-refused",
           `Needs a clear ${armedBusinessType.width}x${armedBusinessType.height} area zoned commercial.`,
         );
+      } else if (dispatchModeEnabled(this.spaceId)) {
+        // Task #129 — same dispatch-for-any-job pattern as housing above.
+        const order = queueArmedBusiness(this.spaceId, f.x0, f.y0, armedBusinessType.id);
+        if (order) {
+          clearArmedBusiness(this.spaceId);
+          this.paintPendingOrderMarkers(order);
+          this.events.emit("business-queued", armedBusinessType.id);
+        }
       } else {
         const placed = placeArmedBusiness(this.spaceId, f.x0, f.y0);
         if (placed) {
@@ -2418,6 +2584,7 @@ export class ExteriorScene extends Phaser.Scene {
       (space && Phaser.Input.Keyboard.JustDown(space)) || (enter && Phaser.Input.Keyboard.JustDown(enter));
     if (justPressed) this.inputBus.emit({ type: "interact" });
     this.updateMotes();
+    this.refreshPlacementGhost();
   }
 
   shutdown(): void {
