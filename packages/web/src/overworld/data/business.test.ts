@@ -23,7 +23,18 @@ import { armZoneType, zoneTileAt } from "./zoning.js";
 
 const SPACE = "test-space";
 
-beforeEach(() => localStorage.clear());
+/** Task #128 — neglect now measures from when a town was founded, so these tests must age
+ *  the town explicitly: a brand-new town is deliberately NOT neglected any more. Founding at the
+ *  epoch makes every never-worked building maximally neglected, which is what each case here is
+ *  actually about. */
+function ageTownToAncient(spaceId: string): void {
+  localStorage.setItem(`brain.townFoundedAt.${spaceId}`, "0");
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  ageTownToAncient(SPACE);
+});
 
 function fundTreasury(cents: number): void {
   const hours = Math.ceil(cents / 25); // WAGE_PER_HOUR_CENTS is 25 (townLedger.ts)

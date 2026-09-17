@@ -1,7 +1,15 @@
 import Phaser from "phaser";
 import type { InputBus, InputEvent } from "../engine/input.js";
 import { completeMove, createMovementState, tryMove, type MovementState } from "../engine/movement.js";
-import { tileInFront } from "../engine/interact.js";
+import { footprintForFacing, tileInFront } from "../engine/interact.js";
+
+/** Task #128 — a real CC0 interior floor tile (Kenney "RPG Urban Pack", same author and the same
+ *  16x16 grid as the Tiny Town/Tiny Dungeon art already in this game; see public/CREDITS.md).
+ *  Chosen by measurement, not by filename: its left/right and top/bottom edges match exactly, so
+ *  it tiles with no seam — unlike the outdoor `TileFrame.path` it replaces, which carries a baked-
+ *  in grass border and visibly does not line up when repeated across a floor. */
+const INTERIOR_FLOOR_KEY = "interior-floor";
+const INTERIOR_FLOOR_URL = "/overworld/interior/floor.png";
 import { prefersReducedMotion } from "../../lib/motion.js";
 import type { CreatureEntity } from "../types.js";
 import { hangarKeys, trailColorHex } from "../data/hangarOptions.js";
@@ -406,6 +414,8 @@ export class ExteriorScene extends Phaser.Scene {
       frameWidth: PLAYER_WALK_SHEET.frameWidth,
       frameHeight: PLAYER_WALK_SHEET.frameHeight,
     });
+    // Task #128 — a REAL interior floor (Kenney RPG Urban Pack, CC0). See INTERIOR_FLOOR_KEY.
+    this.load.image(INTERIOR_FLOOR_KEY, INTERIOR_FLOOR_URL);
   }
 
   create(): void {
@@ -473,9 +483,18 @@ export class ExteriorScene extends Phaser.Scene {
     const py = origin.y * TILE_SIZE;
     const w = INTERIOR_ROOM_WIDTH * TILE_SIZE;
     const h = INTERIOR_ROOM_HEIGHT * TILE_SIZE;
+    // Task #128 — a real, measured-seamless interior floor. This used to tile `TileFrame.path`,
+    // which is NOT a floor tile at all: measured, 99 of its 256 pixels (38.7%) are grass green in
+    // a border around a central dirt patch, so tiling it produced a grid of dirt squares with
+    // green gutters — the "it's literally the ground from outside and it doesn't line up" the
+    // user reported. The replacement was picked by measuring every candidate's edge continuity
+    // (left column vs right, top row vs bottom) and keeping only exact-0 matches, then reviewing
+    // the survivors rendered 3x3 rather than trusting a filename.
     for (let y = origin.y; y < origin.y + INTERIOR_ROOM_HEIGHT; y++) {
       for (let x = origin.x; x < origin.x + INTERIOR_ROOM_WIDTH; x++) {
-        this.tileAt(x, y, TileFrame.path, 0);
+        const floor = this.add.image(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, INTERIOR_FLOOR_KEY);
+        floor.setDisplaySize(TILE_SIZE, TILE_SIZE);
+        floor.setDepth(0);
       }
     }
     const wall = this.add.rectangle(px + w / 2, py + h / 2, w, h);
@@ -2276,10 +2295,19 @@ export class ExteriorScene extends Phaser.Scene {
     // silent no-op, same convention as town-builder/zoning, no fall-through this same press.
     const armedHomeType = homeTypeById(armedHomeTypeId(this.spaceId) ?? "");
     if (armedHomeType) {
-      const x1 = front.x + armedHomeType.width - 1;
-      const y1 = front.y + armedHomeType.height - 1;
-      if (!this.footprintBlockedByActor(front.x, front.y, x1, y1) && isFootprintFreeForHome(this.spaceId, front.x, front.y, armedHomeType)) {
-        const placed = placeArmedHome(this.spaceId, front.x, front.y);
+      // Task #128 — the footprint grows into the space the player faces, not always right/down.
+      // Reproduced first: the old fixed anchoring made two of the four natural approaches
+      // silently refuse, which is exactly "I armed a cottage and there's no way to place it."
+      const f = footprintForFacing(this.movement.position, this.movement.facing, armedHomeType.width, armedHomeType.height);
+      if (this.footprintBlockedByActor(f.x0, f.y0, f.x1, f.y1)) {
+        this.events.emit("placement-refused", "Someone's standing there.");
+      } else if (!isFootprintFreeForHome(this.spaceId, f.x0, f.y0, armedHomeType)) {
+        this.events.emit(
+          "placement-refused",
+          `Needs a clear ${armedHomeType.width}x${armedHomeType.height} area zoned residential.`,
+        );
+      } else {
+        const placed = placeArmedHome(this.spaceId, f.x0, f.y0);
         if (placed) {
           this.paintPlacedHome(placed);
           this.events.emit("home-placed", placed.typeId);
@@ -2295,8 +2323,17 @@ export class ExteriorScene extends Phaser.Scene {
     if (armedBusinessType) {
       const x1 = front.x + armedBusinessType.width - 1;
       const y1 = front.y + armedBusinessType.height - 1;
-      if (!this.footprintBlockedByActor(front.x, front.y, x1, y1) && isFootprintFreeForBusiness(this.spaceId, front.x, front.y, armedBusinessType)) {
-        const placed = placeArmedBusiness(this.spaceId, front.x, front.y);
+      // Task #128 — same facing-aware footprint as housing above.
+      const f = footprintForFacing(this.movement.position, this.movement.facing, armedBusinessType.width, armedBusinessType.height);
+      if (this.footprintBlockedByActor(f.x0, f.y0, f.x1, f.y1)) {
+        this.events.emit("placement-refused", "Someone's standing there.");
+      } else if (!isFootprintFreeForBusiness(this.spaceId, f.x0, f.y0, armedBusinessType)) {
+        this.events.emit(
+          "placement-refused",
+          `Needs a clear ${armedBusinessType.width}x${armedBusinessType.height} area zoned commercial.`,
+        );
+      } else {
+        const placed = placeArmedBusiness(this.spaceId, f.x0, f.y0);
         if (placed) {
           this.paintPlacedBusiness(placed);
           this.events.emit("business-placed", placed.typeId);

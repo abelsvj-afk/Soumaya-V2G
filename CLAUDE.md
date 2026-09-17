@@ -253,6 +253,49 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Placement you can actually do, an economy that actually runs (task #128) (2026-09-17), not yet
+  on-device confirmed** — direct response to real feedback: "I armed a $3 Cottage, went outside,
+  walked over a tile zoned for housing, and there's no way to place it... zoning should highlight
+  where it can fit... money is not being made, we already have NPCs... the interior of buildings is
+  literally just the ground from outside and the tile doesn't line up... when I said I need real
+  interiors, I didn't tell you to make one up." Every claim was reproduced or measured first, and
+  every one was correct. Resolved in `docs/overworld/placement-clarity-and-economy.md`.
+  **(1) Placement was genuinely impossible from half the approaches** — reproduced against the real
+  map: with a real 2x2 residential plot, standing below it facing up and standing right of it facing
+  left BOTH silently failed, because the footprint always anchored top-left at the faced tile and
+  grew right/down regardless of facing — i.e. backwards through the player and off the zone. Task
+  #126's own actor guard then hard-blocked those same two directions, making a bad case total. Fixed
+  with a new pure `footprintForFacing()` (engine/interact.ts): a building now grows INTO the space
+  you face. Measured post-fix: all four approaches land on the identical correct footprint, and the
+  footprint can no longer ever contain the player's own tile, so "building on top of yourself"
+  becomes structurally impossible rather than merely refused. A refused placement now also emits a
+  real reason instead of failing silently.
+  **(2) Money genuinely could not be made** — all three passive streams paid exactly zero on a new
+  town. Structure rent and Resident income both need a placed building (blocked by #1), and NPC tax
+  skips any NPC whose building `isNeglected` — while `daysSinceWorked` returned `Infinity` for a
+  never-worked building, making every building in a brand-new town maximally neglected from the
+  first frame (an existing test asserted exactly this). Fixed with a per-space `townFoundedAt`
+  stamp: neglect now measures from when the town was founded, not from the epoch, so a new town is
+  not in crisis on day one and NPC tax flows immediately. Knock-on, deliberate: `civicConcern` no
+  longer fires a town meeting the instant a fresh save loads. A second, subtler bug was caught and
+  fixed during this work — the founding stamp was written lazily on the first neglect read, which
+  the baseline call skips, so a town could "found" itself at whatever time its SECOND refresh
+  happened; it is now stamped explicitly up front.
+  **(3) The interior floor tile was wrong, and it was my error** — measured `TileFrame.path`: 99 of
+  its 256 pixels (38.7%) are grass green, in a border around a central dirt patch. It is an
+  isolated-patch outdoor tile, and tiling it produced exactly the grid of dirt squares with green
+  gutters the user described. Replaced with a real CC0 interior floor from Kenney's RPG Urban Pack
+  (same author and same 16x16 grid as the art already in the game), sourced from the CC0 mirror the
+  Park-decor round already proved reachable — chosen by measuring edge continuity across all 576
+  tiles and keeping only exact seam-free matches, then reviewing the survivors rendered 3x3.
+  **Explicitly NOT done this round, and named as such:** the live ghost/zone highlight preview
+  (spec'd, decision #2), dispatching a build crew for ANY job rather than 1-tile orders, road-build
+  discoverability, per-building interior fit-out with real counters and NPCs inside, and the NPC
+  autonomy review. Verified by the pre/post-fix placement reproduction, 5 new
+  `interact.test.ts` cases, updated neglect/income tests across 6 files, the tile pixel
+  measurements, and the full gate (1066 server + 653 web tests, typecheck, build). Not yet seen in
+  a real browser.
+
 - **The player walk cycle actually works: measured row order, animation un-killed (task #127)
   (2026-09-17), not yet on-device confirmed** — direct response to real on-device feedback ("my npc
   doesnt face the correct direction when walking. And i thought since u changed my npc, that that

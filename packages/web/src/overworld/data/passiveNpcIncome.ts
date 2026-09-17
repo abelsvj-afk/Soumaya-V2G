@@ -17,7 +17,7 @@
 
 import { SOCIETY_TICK_MS, countWorkingTicks } from "./npcSchedule.js";
 import { allSocietyNpcIds, npcProfile } from "./npcDialogue.js";
-import { buildingNeglect, isNeglected } from "./buildingNeglect.js";
+import { buildingNeglect, isNeglected, townFoundedAt } from "./buildingNeglect.js";
 import { creditPassiveIncome } from "./townLedger.js";
 
 /** 1 real cent per real NPC-hour actually spent working — deliberately small per NPC (this is
@@ -65,6 +65,11 @@ function saveLastCollected(spaceId: string, map: Record<string, number>): void {
  *  shipping this feature to an existing save can never pay out a huge retroactive lump sum for
  *  time that already passed before the feature existed. */
 export function collectPassiveNpcIncome(spaceId: string, nowMs: number = Date.now()): void {
+  // Task #128 — stamp the town's founding here, before the per-NPC loop. The loop's own
+  // first-time-seen branch `continue`s before it ever reads neglect, so relying on that read to
+  // lazily stamp the founding would let a town "found" itself at whatever time its SECOND refresh
+  // happened — which for an idle tab could be arbitrarily late, resetting its neglect clock.
+  townFoundedAt(spaceId, nowMs);
   const nowTick = tickAt(nowMs);
   const lastCollected = loadLastCollected(spaceId);
   for (const npcId of allSocietyNpcIds()) {

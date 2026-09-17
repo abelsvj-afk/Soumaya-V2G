@@ -31,9 +31,21 @@ describe("buildingNeglect", () => {
   });
 
   describe("markWorked / daysSinceWorked / buildingNeglect", () => {
-    it("a building with no recorded work is Infinity days since / fully neglected", () => {
-      expect(daysSinceWorked("space-1", "bank")).toBe(Infinity);
-      expect(buildingNeglect("space-1", "bank")).toBe(1);
+    it("task #128 — a never-worked building in a BRAND NEW town is not yet neglected", () => {
+      // This used to return Infinity (maximally neglected from the first frame), which meant a
+      // new town earned zero NPC income forever until the player walked a full circuit of all 12
+      // buildings — the real mechanism behind "money is not being made".
+      const now = 10_000_000;
+      expect(daysSinceWorked("space-new", "bank", now)).toBe(0);
+      expect(isNeglected(buildingNeglect("space-new", "bank", now))).toBe(false);
+    });
+
+    it("task #128 — but a never-worked building DOES neglect as real time passes since founding", () => {
+      const founded = 10_000_000;
+      daysSinceWorked("space-old", "bank", founded); // first read stamps the town's founding
+      const muchLater = founded + 60 * 86_400_000; // 60 real days later, still never worked
+      expect(daysSinceWorked("space-old", "bank", muchLater)).toBeGreaterThan(30);
+      expect(isNeglected(buildingNeglect("space-old", "bank", muchLater))).toBe(true);
     });
 
     it("marking work resets the building to zero neglect right now", () => {
@@ -52,9 +64,18 @@ describe("buildingNeglect", () => {
     });
 
     it("keeps every building's and every space's neglect fully isolated", () => {
-      markWorked("space-1", "bank", 1000);
-      expect(daysSinceWorked("space-1", "library")).toBe(Infinity);
-      expect(daysSinceWorked("space-2", "bank")).toBe(Infinity);
+      const founded = 0;
+      const later = 50 * 86_400_000; // 50 real days after this town was founded
+      daysSinceWorked("space-1", "library", founded); // first read stamps space-1's founding at 0
+      markWorked("space-1", "bank", later);
+
+      // The worked building resets to zero; its SIBLING in the same town does not borrow that
+      // work event and still measures the full 50 days from space-1's own founding.
+      expect(daysSinceWorked("space-1", "bank", later)).toBe(0);
+      expect(daysSinceWorked("space-1", "library", later)).toBe(50);
+
+      // A different space is fully independent — it founds itself on its own first read.
+      expect(daysSinceWorked("space-2", "bank", later)).toBe(0);
     });
   });
 });

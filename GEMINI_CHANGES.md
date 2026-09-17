@@ -1,3 +1,37 @@
+### 2026-09-17 (Claude): Placement you can actually do, an economy that actually runs (task #128) (complete)
+- [ ] Verified by Claude
+- Direct response to detailed on-device feedback. Every claim was reproduced or measured first, and
+  every one was correct. Resolved in `docs/overworld/placement-clarity-and-economy.md`.
+- **Placement was impossible from half the approaches.** Reproduced on the real map with a real 2x2
+  residential plot: approaching from below (facing up) or from the right (facing left) BOTH silently
+  failed, because the footprint always anchored top-left at the faced tile and grew right/down
+  regardless of facing — backwards through the player and off the zone. Task #126's actor guard then
+  hard-blocked those same two directions.
+- Fixed with a new pure `footprintForFacing()` — a building grows INTO the space you face. Measured
+  post-fix: all four approaches land on the identical correct footprint, and the footprint can never
+  contain the player's tile, so building on top of yourself is now structurally impossible. Refused
+  placements emit a real reason instead of failing silently.
+- **Money could not be made.** All three passive streams paid zero on a new town: rent and Resident
+  income need a placed building (blocked above), and NPC tax skipped every NPC because
+  `daysSinceWorked` returned Infinity for a never-worked building — making every building in a brand
+  new town maximally neglected from frame one (an existing test asserted exactly that).
+- Fixed with a per-space `townFoundedAt` stamp: neglect measures from the town's founding, not the
+  epoch. A second bug was caught during the work — the stamp was written lazily on the first neglect
+  read, which the baseline call skips, so a town could found itself at its SECOND refresh; now
+  stamped explicitly up front. Knock-on, deliberate: civic concern no longer fires on a fresh save.
+- **The interior floor tile was wrong, and it was my error.** Measured: 99 of `TileFrame.path`'s 256
+  pixels (38.7%) are grass green in a border around a dirt patch — an outdoor isolated-patch tile,
+  so tiling it gave the grid of dirt squares with green gutters the user reported. Replaced with a
+  real CC0 interior floor from Kenney's RPG Urban Pack (same author, same 16x16 grid as the existing
+  art), sourced from the CC0 mirror the Park-decor round proved reachable, chosen by measuring edge
+  continuity across all 576 tiles and reviewing the seam-free survivors rendered 3x3.
+- Explicitly NOT done and named as such: the ghost/zone highlight preview, dispatching a crew for any
+  build job, road-build discoverability, per-building interior fit-out with counters and NPCs inside,
+  and the NPC autonomy review.
+- Verified by the pre/post-fix placement reproduction, 5 new `interact.test.ts` cases, updated
+  neglect/income tests across 6 files, the tile pixel measurements, and the full gate (1066 server +
+  653 web tests, typecheck, build). Not yet seen in a real browser.
+
 ### 2026-09-17 (Claude): Player walk cycle actually works — measured row order, animation un-killed (task #127) (complete)
 - [ ] Verified by Claude
 - Direct response to on-device feedback: "my npc doesnt face the correct direction when walking. And

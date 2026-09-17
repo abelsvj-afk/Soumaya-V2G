@@ -6,7 +6,11 @@ import { markWorked } from "../data/buildingNeglect.js";
 vi.mock("../../api/http.js", () => ({ getSpaceId: () => "space-1" }));
 
 describe("ParkOverlay", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    // Task #128 — age the town so never-worked buildings really are neglected (a NEW town is not).
+    localStorage.setItem("brain.townFoundedAt.space-1", "0");
+  });
 
   it("lists every OTHER real door-building, never itself", () => {
     render(<ParkOverlay onClose={vi.fn()} />);
