@@ -253,6 +253,37 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **Gameplay-pitfall pass: off-map placement, one-shot counters, building on yourself (task #126)
+  (2026-09-17), not yet on-device confirmed** — direct response to "look quickly for issues in
+  gameplay" → "ship but look for more gameplay pitfalls." Three real bugs, each measured before
+  being fixed; full account in `docs/overworld/roadmap.md`'s "Stage 2.66". (1) **Placement had no
+  map-bounds check at all** — `isPlacementBlocked()` never called the `inBounds()` helper its two
+  sibling passability rules always used, and since every placement gate bottoms out there
+  (`isTileFreeForPlacement`, `isTileZonable`, `isFootprintFreeForHome`/`ForBusiness`), all four
+  Hangar arm modes accepted off-map tiles. Measured: all 20 interior-room tiles read "free", as did
+  (500,500) and (-1,-1). The reachable path is the NORMAL flow, not an edge case — closing an
+  overlay now leaves the player inside the interior room (simcity-realism-pass.md), so pressing
+  interact right after arming something in the Hangar placed it there, invisible, money already
+  spent; map edges facing outward were the second path. Worst case was a real economy exploit:
+  zone interior tiles residential, build a home there, and it earns real passive income while being
+  invisible and unreachable — a payoff task #125's own `DAILY_RATE` 0.1 → 1.2 retune had just
+  multiplied 12x. Measured post-fix: 0/20 interior tiles placeable, every off-map probe blocked,
+  1415 legitimate tiles still open. (2) **A building's overlay could not be reopened from inside
+  it** — the counter callback was consumed by its first firing, so after closing an overlay the
+  only action left inside was to walk out and back in, undercutting the exact "real control inside"
+  agency the interior was built for; now scoped to the whole visit and cleared on exit. (3) **You
+  could build a house on top of yourself** — both multi-tile placement sites checked creatures and
+  Soumaya but never the player; measured across every home/business type, facing up or left ALWAYS
+  covers the player's own tile (16/16 combinations), and most types leave only ONE escape tile, so
+  a wall/attendant tile there meant a permanent soft-lock (no reset affordance exists anywhere).
+  Also checked and found sound, no change needed: treasury spending can't overspend or go negative;
+  the build-queue/dispatch system refunds correctly on cancel and on stale-drop; construction-window
+  passive income rounds to 0-1¢. Verified by 3 new `regionLayout.test.ts` cases, the pre/post-fix
+  bounds measurements, the 16-combination footprint measurement, and the full gate (1066 server +
+  649 web tests, typecheck, build). `ExteriorScene.ts` has no dedicated test (this file's
+  convention) — fixes 2 and 3 verified by direct call-site reading plus measurement. Not yet seen
+  in a real browser.
+
 - **Real interior-camera bug, real interior floor art, real start-earning-right-away (task #125)
   (2026-09-16), not yet on-device confirmed** — direct response to "building interiors are like
   75% off screen for some reason when you enter a building... I also noticed no real looking

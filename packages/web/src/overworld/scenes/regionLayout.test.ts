@@ -15,6 +15,7 @@ import {
   townHallMeetingSlots,
   type DoorPlace,
 } from "./regionLayout.js";
+import { INTERIOR_ROOM_HEIGHT, INTERIOR_ROOM_WIDTH, interiorRoomOrigin } from "../data/interiorRoom.js";
 
 describe("regionLayout — every place", () => {
   it("every door place's door tile is passable, and every other footprint tile is not", () => {
@@ -99,6 +100,38 @@ describe("regionLayout — every place", () => {
   it("the player spawn tile itself is passable and outside every place/grass zone", () => {
     expect(isMovementPassable(PLAYER_SPAWN.x, PLAYER_SPAWN.y)).toBe(true);
     expect(isGrassTile(PLAYER_SPAWN.x, PLAYER_SPAWN.y)).toBe(false);
+  });
+
+  describe("task #126 — an off-map tile is never placeable", () => {
+    // `isPlacementBlocked` had no bounds check at all (the other two passability rules always
+    // did), and every placement gate bottoms out here — so all four Hangar arm modes accepted
+    // off-map tiles. Measured reachable paths: the reserved interior room's own 20 tiles all
+    // read "free" (and closing an overlay leaves the player standing in that room), and at any
+    // map edge `tileInFront` facing outward lands past the edge.
+    it("rejects every tile of the reserved interior room", () => {
+      const origin = interiorRoomOrigin();
+      for (let y = origin.y; y < origin.y + INTERIOR_ROOM_HEIGHT; y++) {
+        for (let x = origin.x; x < origin.x + INTERIOR_ROOM_WIDTH; x++) {
+          expect(isPlacementBlocked(x, y)).toBe(true);
+        }
+      }
+    });
+
+    it("rejects negative and past-the-edge tiles on every side", () => {
+      expect(isPlacementBlocked(-1, 10)).toBe(true);
+      expect(isPlacementBlocked(10, -1)).toBe(true);
+      expect(isPlacementBlocked(REGION_WIDTH, 10)).toBe(true);
+      expect(isPlacementBlocked(10, REGION_HEIGHT)).toBe(true);
+      expect(isPlacementBlocked(500, 500)).toBe(true);
+    });
+
+    it("still leaves plenty of real in-bounds ground placeable — the fix bounds it, never empties it", () => {
+      let open = 0;
+      for (let y = 0; y < REGION_HEIGHT; y++) {
+        for (let x = 0; x < REGION_WIDTH; x++) if (!isPlacementBlocked(x, y)) open++;
+      }
+      expect(open).toBeGreaterThan(500);
+    });
   });
 });
 
