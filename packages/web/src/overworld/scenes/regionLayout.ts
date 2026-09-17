@@ -316,6 +316,18 @@ export function townHallMeetingSlots(): readonly GridPosition[] {
 /** Creatures never spawn inside a building, on an object tile, on an attendant's patrol tile,
  *  in the grass zone, or on the player's own start tile. */
 export function isPlacementBlocked(x: number, y: number): boolean {
+  // Task #126 — an off-map tile is never placeable. This was genuinely missing (the other two
+  // passability rules above always had it), and since EVERY placement gate bottoms out here
+  // (`isTileFreeForPlacement`, `isTileZonable`, `isFootprintFreeForHome`/`ForBusiness`), all four
+  // Hangar arm modes silently accepted off-map tiles. Two real reachable paths, measured: (1) the
+  // reserved interior room's own 20 tiles all read "free" — and since closing an overlay now
+  // leaves the player standing INSIDE that room (simcity-realism-pass.md), pressing interact
+  // right after arming something in the Hangar placed it there, invisible, money already spent;
+  // (2) at any map edge, facing outward put `tileInFront` at a negative/past-the-edge tile. Worst
+  // case was a real economy exploit rather than a cosmetic one: zone interior tiles residential,
+  // build a home there, and it counts for real housing capacity + real passive income while being
+  // unreachable and invisible.
+  if (!inBounds(x, y)) return true;
   if (isInsideAnyFootprint(x, y)) return true;
   if (objectPlaceAt(x, y)) return true;
   if (isGrassTile(x, y)) return true;

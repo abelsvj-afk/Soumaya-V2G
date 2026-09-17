@@ -1,3 +1,29 @@
+### 2026-09-17 (Claude): Gameplay-pitfall pass — off-map placement, one-shot counters, building on yourself (task #126) (complete)
+- [ ] Verified by Claude
+- Direct response to "look quickly for issues in gameplay" → "ship but look for more gameplay
+  pitfalls." Three real bugs, each measured before being fixed. Full account in
+  `docs/overworld/roadmap.md`'s "Stage 2.66".
+- **Placement had no map-bounds check at all.** `isPlacementBlocked()` never called the existing
+  `inBounds()` helper that both sibling passability rules always used. Every placement gate bottoms
+  out there, so all four Hangar arm modes accepted off-map tiles. Measured: all 20 interior-room
+  tiles read "free", as did (500,500) and (-1,-1).
+- Reachable via the NORMAL flow: closing an overlay leaves the player inside the interior room, so
+  pressing interact right after arming something in the Hangar placed it there — invisible, money
+  spent. Map edges facing outward were the second path. Worst case was a real economy exploit (an
+  invisible, unreachable home earning real passive income), a payoff task #125's own rate retune
+  had just multiplied 12x. Post-fix: 0/20 interior tiles placeable, 1415 legitimate tiles open.
+- **A building's overlay couldn't be reopened from inside it** — the counter callback was consumed
+  by its first firing. Now scoped to the whole visit, cleared on exit.
+- **You could build a house on top of yourself** — both multi-tile placement sites checked creatures
+  and Soumaya but never the player. Measured: facing up or left always covers the player's own tile
+  (16/16 type-facing combinations), and most types leave one escape tile — a wall there meant a
+  permanent soft-lock. New `footprintBlockedByActor()` checks all three actors.
+- Checked and found sound, no change: treasury can't overspend/go negative; build-queue refunds on
+  cancel and stale-drop; construction-window passive income rounds to 0-1¢.
+- Verified by 3 new `regionLayout.test.ts` cases, the pre/post-fix bounds measurements, the
+  16-combination footprint measurement, and the full gate (1066 server + 649 web tests, typecheck,
+  build). Not yet seen in a real browser.
+
 ### 2026-09-16 (Claude): Real interior-camera bug, real interior floor art, start-earning-right-away (task #125) (complete)
 - [ ] Verified by Claude
 - Direct response to: "building interiors are like 75% off screen for some reason when you enter a

@@ -2360,6 +2360,56 @@ web tests, typecheck, build). Not yet seen rendered in a real browser from this 
 camera/zoom fix especially needs on-device reconfirmation, since it's the one most directly tied
 to the original visual complaint.
 
+## Stage 2.66 — gameplay-pitfall pass: off-map placement, one-shot counters, building on yourself (task #126)
+
+Direct response to "look quickly for issues in gameplay," then "ship but look for more gameplay
+pitfalls." Three real bugs found by reading the actual interaction chain and measured (not guessed)
+before each fix.
+
+**1. Placement had no map-bounds check at all.** `isPlacementBlocked()` checked footprints,
+objects, grass, attendant tiles and spawn — but never whether the tile was on the map, even though
+the two neighbouring passability rules (`isMovementPassable`/`isNpcPathPassable`) always called the
+existing `inBounds()` helper. Measured: all 20 interior-room tiles read "free", as did `(500,500)`
+and `(-1,-1)`. Since EVERY placement gate bottoms out here (`isTileFreeForPlacement`,
+`isTileZonable`, `isFootprintFreeForHome`/`ForBusiness`), all four Hangar arm modes accepted off-map
+tiles. Two reachable paths, and the first is the *normal* flow: closing an overlay now leaves the
+player standing inside the interior room (simcity-realism-pass.md), so pressing interact right after
+arming something in the Hangar placed it there — invisible, money already spent. The second is any
+map edge, facing outward. Worst case was a genuine economy exploit rather than a cosmetic one: zone
+interior tiles residential, build a home there, and it counts for real housing capacity and real
+passive income while being permanently unreachable and invisible — and this session's own
+`DAILY_RATE` 0.1 → 1.2 retune had just multiplied that payoff 12x. Fixed with the one missing
+`if (!inBounds(x, y)) return true;`. Measured post-fix: 0/20 interior tiles placeable, every
+off-map probe blocked, and 1415 legitimate in-bounds tiles still open (bounded, not emptied).
+
+**2. A building's overlay could not be reopened from inside it.** `pendingInteriorEmit` was nulled
+by the first counter arrival, so once you closed a building's overlay, walking back to the counter
+did nothing — the only remaining action inside was to walk out the door and back in. That directly
+undercut the "closing the overlay returns real control inside" agency the interior was built for.
+Renamed to `interiorVisitEmit`, now scoped to the whole visit and cleared on exit (so it can never
+leak into the next building), matching how an exterior door tile already behaves when stepped on
+repeatedly.
+
+**3. You could build a house on top of yourself.** Both multi-tile placement call sites checked
+creatures and Soumaya for occupancy but never the player. Measured across every real home and
+business type: because the footprint anchors at the faced tile and extends right/down, facing up or
+left ALWAYS covers the player's own tile — 16/16 type-facing combinations. Most types leave only
+ONE escape tile, so if that tile happened to be a wall, object or attendant tile, the player was
+permanently soft-locked (this game has no reset-position affordance anywhere). Fixed with a new
+`footprintBlockedByActor()` helper that checks the player alongside Soumaya and creatures, replacing
+the duplicated two-actor expression at both sites.
+
+Also checked and found genuinely sound, no change needed: `spendFromTreasury` cannot overspend or go
+negative; the build-queue/dispatch system refunds correctly on both cancel and stale-drop at
+completion; passive income accruing across a structure's 90-second construction window rounds to
+0-1¢ even for the most expensive building, too small to be worth special-casing.
+
+Verified by 3 new `regionLayout.test.ts` cases, the pre/post-fix bounds measurements, the
+16-combination footprint measurement, and the full gate (1066 server + 649 web tests, typecheck,
+build). `ExteriorScene.ts` has no dedicated test (this file's established convention), so fixes 2
+and 3 were verified by direct reading of every call site plus the measurement above. Not yet seen
+in a real browser.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal

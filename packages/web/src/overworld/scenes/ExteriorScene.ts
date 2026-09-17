@@ -322,8 +322,14 @@ export class ExteriorScene extends Phaser.Scene {
   private insideInterior = false;
   /** The building's own overlay-opening callback, deferred until the player actually WALKS to
    *  the counter tile (simcity-realism-pass.md) — no longer fired the instant the entry
-   *  transition finishes. `null` once fired (or before an interior visit has started). */
-  private pendingInteriorEmit: (() => void) | null = null;
+   *  transition finishes. Task #126: this lasts for the WHOLE interior visit (cleared on exit)
+   *  rather than being consumed by the first counter arrival. It used to null itself on that
+   *  first fire, which meant that once you closed a building's overlay you could never reopen it
+   *  from inside — walking back to the counter did nothing, so the only thing left to do in the
+   *  room was leave. That directly undercut the "closing the overlay returns real control inside"
+   *  agency this interior was built for. Re-firing on each arrival matches how an exterior door
+   *  tile already behaves when you step onto it repeatedly. */
+  private interiorVisitEmit: (() => void) | null = null;
   /** The real exterior door tile this interior visit should return to once the player walks back
    *  onto the interior room's own entry/doorway tile. */
   private interiorReturnDoor: GridPosition | null = null;
@@ -491,7 +497,7 @@ export class ExteriorScene extends Phaser.Scene {
   private enterInterior(glyph: string, emit: () => void): void {
     this.interiorTransitionLock = true;
     this.interiorReturnDoor = { ...this.movement.position };
-    this.pendingInteriorEmit = emit;
+    this.interiorVisitEmit = emit;
     this.interiorGlyphText.setText(glyph);
     const entry = interiorEntryTile();
     this.movement = createMovementState(entry);
@@ -536,6 +542,7 @@ export class ExteriorScene extends Phaser.Scene {
       this.interiorTransitionLock = false;
       this.insideInterior = false;
       this.interiorReturnDoor = null;
+      this.interiorVisitEmit = null; // task #126 — this visit is over; never carry it to the next
       this.restoreExteriorCamera(); // task #125 — real exterior bounds/zoom/follow, restored
     };
     if (prefersReducedMotion()) {
@@ -553,10 +560,11 @@ export class ExteriorScene extends Phaser.Scene {
    *  by genuine player movement; reaching the doorway leaves for real. */
   private handleInteriorStep(x: number, y: number): void {
     const counter = interiorCounterTile();
-    if (x === counter.x && y === counter.y && this.pendingInteriorEmit) {
-      const emit = this.pendingInteriorEmit;
-      this.pendingInteriorEmit = null;
-      emit();
+    if (x === counter.x && y === counter.y && this.interiorVisitEmit) {
+      // Task #126 — deliberately does NOT clear the callback: walking back to the counter after
+      // closing the overlay reopens it, so an accidental close no longer forces a round trip out
+      // the door and back in just to reach the building's own feature again.
+      this.interiorVisitEmit();
       return;
     }
     const entry = interiorEntryTile();
@@ -2148,6 +2156,20 @@ export class ExteriorScene extends Phaser.Scene {
     this.wasOnGrass = onGrass;
   }
 
+  /** Task #126 — a real actor standing inside a pending multi-tile footprint blocks the build.
+   *  Creatures and Soumaya were already checked at both placement call sites; the PLAYER never
+   *  was. Measured across every real home/business type: facing up or left, the footprint (which
+   *  anchors at the faced tile and extends right/down) ALWAYS covers the player's own tile, so
+   *  you could build a structure on top of yourself and end up standing inside solid walls. Most
+   *  types leave just one escape tile, so if that tile happened to be a wall/object/attendant
+   *  tile it was a permanent soft-lock — this game has no reset-position affordance anywhere. */
+  private footprintBlockedByActor(x0: number, y0: number, x1: number, y1: number): boolean {
+    const within = (t: GridPosition) => t.x >= x0 && t.x <= x1 && t.y >= y0 && t.y <= y1;
+    if (within(this.movement.position)) return true;
+    if (this.soumaya && within(this.soumaya.currentTile)) return true;
+    return [...this.creatureSprites.values()].some((sprite) => within(sprite.currentTile));
+  }
+
   private handleInteract(): void {
     const front = tileInFront(this.movement.position, this.movement.facing);
     // Town Builder — while an item is armed (bought from the Hangar, not yet placed), interact
@@ -2245,11 +2267,7 @@ export class ExteriorScene extends Phaser.Scene {
     if (armedHomeType) {
       const x1 = front.x + armedHomeType.width - 1;
       const y1 = front.y + armedHomeType.height - 1;
-      const occupied =
-        [...this.creatureSprites.values()].some(
-          (sprite) => sprite.currentTile.x >= front.x && sprite.currentTile.x <= x1 && sprite.currentTile.y >= front.y && sprite.currentTile.y <= y1,
-        ) || (this.soumaya && this.soumaya.currentTile.x >= front.x && this.soumaya.currentTile.x <= x1 && this.soumaya.currentTile.y >= front.y && this.soumaya.currentTile.y <= y1);
-      if (!occupied && isFootprintFreeForHome(this.spaceId, front.x, front.y, armedHomeType)) {
+      if (!this.footprintBlockedByActor(front.x, front.y, x1, y1) && isFootprintFreeForHome(this.spaceId, front.x, front.y, armedHomeType)) {
         const placed = placeArmedHome(this.spaceId, front.x, front.y);
         if (placed) {
           this.paintPlacedHome(placed);
@@ -2266,11 +2284,7 @@ export class ExteriorScene extends Phaser.Scene {
     if (armedBusinessType) {
       const x1 = front.x + armedBusinessType.width - 1;
       const y1 = front.y + armedBusinessType.height - 1;
-      const occupied =
-        [...this.creatureSprites.values()].some(
-          (sprite) => sprite.currentTile.x >= front.x && sprite.currentTile.x <= x1 && sprite.currentTile.y >= front.y && sprite.currentTile.y <= y1,
-        ) || (this.soumaya && this.soumaya.currentTile.x >= front.x && this.soumaya.currentTile.x <= x1 && this.soumaya.currentTile.y >= front.y && this.soumaya.currentTile.y <= y1);
-      if (!occupied && isFootprintFreeForBusiness(this.spaceId, front.x, front.y, armedBusinessType)) {
+      if (!this.footprintBlockedByActor(front.x, front.y, x1, y1) && isFootprintFreeForBusiness(this.spaceId, front.x, front.y, armedBusinessType)) {
         const placed = placeArmedBusiness(this.spaceId, front.x, front.y);
         if (placed) {
           this.paintPlacedBusiness(placed);
