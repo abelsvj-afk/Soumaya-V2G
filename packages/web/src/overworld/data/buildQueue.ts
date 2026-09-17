@@ -17,15 +17,23 @@
 import type { ZoneType } from "./zoning.js";
 import { applyZoneRect, applyZoneTile, isTileZonable, zonableTilesInRect } from "./zoning.js";
 import { PLACEABLE_ITEMS, isTileFreeForPlacement, placeItemDirectly } from "./townBuilder.js";
+import { homeTypeById, isFootprintFreeForHome, placeHomeDirectly } from "./housing.js";
+import { businessTypeById, isFootprintFreeForBusiness, placeBusinessDirectly } from "./business.js";
 import { refundToTreasury } from "./townLedger.js";
 
-export type WorkOrderKind = "zone-tile" | "zone-rect" | "item";
+// Task #129 — "home"/"business" extend dispatch to ANY build job, not just 1-tile zoning/decor
+// orders. Direct response to real feedback: "I should have the option to queue [the Hangar
+// attendants] for any build job, not just for specific ones... if I don't want to go place a
+// building myself, I could have it queued for them to go do it."
+export type WorkOrderKind = "zone-tile" | "zone-rect" | "item" | "home" | "business";
 
 export interface WorkOrder {
   id: string;
   kind: WorkOrderKind;
   /** zone-tile / item: one tile, (x0,y0) === (x1,y1). zone-rect: the rectangle's own two
-   *  corners, already normalized (x0<=x1, y0<=y1). */
+   *  corners, already normalized (x0<=x1, y0<=y1). home / business (task #129): the real
+   *  multi-tile footprint's own top-left/bottom-right corners, exactly as `footprintForFacing`
+   *  computed them when the player queued it. */
   x0: number;
   y0: number;
   x1: number;
@@ -34,6 +42,11 @@ export interface WorkOrder {
   zoneType?: ZoneType;
   /** Set for item only. */
   itemId?: string;
+  /** Task #129 — set for home / business only: the real catalog type id, captured at queue time
+   *  so a worker who completes this order later builds exactly what was queued even if the
+   *  player has since armed something else entirely (mirrors `itemId` above for those two kinds
+   *  — a distinct field since home/business type ids and decor item ids are different catalogs). */
+  typeId?: string;
   /** Captured at enqueue time (never re-derived from the catalog later) so a cancel/stale-drop
    *  refund is always exactly what was actually spent. 0 for zoning orders, which are free. */
   priceCents: number;
@@ -130,6 +143,36 @@ export function queueArmedItem(spaceId: string, x: number, y: number, itemId: st
   return order;
 }
 
+/** Task #129 — queues an already-armed HOME (a real multi-tile building, not just a 1-tile
+ *  zoning/decor order) for a Hangar attendant to build later. Same "already paid at arm time,
+ *  this module never spends the treasury" convention as `queueArmedItem` above. `(x0, y0)` is the
+ *  footprint's own top-left corner, exactly as `footprintForFacing` computed it — the caller must
+ *  have already confirmed `isFootprintFreeForHome`/no actor in the way, same as the immediate-
+ *  placement path requires. Returns null, changing nothing, if the typeId is unknown or the
+ *  footprint isn't actually free right now. */
+export function queueArmedHome(spaceId: string, x0: number, y0: number, typeId: string): WorkOrder | null {
+  const type = homeTypeById(typeId);
+  if (!type) return null;
+  const x1 = x0 + type.width - 1;
+  const y1 = y0 + type.height - 1;
+  if (!isFootprintFreeForHome(spaceId, x0, y0, type)) return null;
+  const order: WorkOrder = { id: nextOrderId(spaceId), kind: "home", x0, y0, x1, y1, typeId, priceCents: type.priceCents };
+  saveQueue(spaceId, [...queuedOrders(spaceId), order]);
+  return order;
+}
+
+/** Task #129 — queues an already-armed BUSINESS, mirroring `queueArmedHome` above exactly. */
+export function queueArmedBusiness(spaceId: string, x0: number, y0: number, typeId: string): WorkOrder | null {
+  const type = businessTypeById(typeId);
+  if (!type) return null;
+  const x1 = x0 + type.width - 1;
+  const y1 = y0 + type.height - 1;
+  if (!isFootprintFreeForBusiness(spaceId, x0, y0, type)) return null;
+  const order: WorkOrder = { id: nextOrderId(spaceId), kind: "business", x0, y0, x1, y1, typeId, priceCents: type.priceCents };
+  saveQueue(spaceId, [...queuedOrders(spaceId), order]);
+  return order;
+}
+
 /** Cancels a still-pending order, refunding its real price if it was a paid item order (zoning
  *  orders are always free, matching zoning.ts's own decision #3). Returns false, changing
  *  nothing, if no such order is still pending (it may already have been completed). */
@@ -158,6 +201,20 @@ export function completeOrder(spaceId: string, orderId: string): boolean {
     applied = applyZoneRect(spaceId, order.x0, order.y0, order.x1, order.y1, order.zoneType).length > 0;
   } else if (order.kind === "item" && order.itemId) {
     const placed = placeItemDirectly(spaceId, order.itemId, order.x0, order.y0);
+    applied = placed !== null;
+    if (!applied && order.priceCents > 0) refundToTreasury(spaceId, order.priceCents);
+  } else if (order.kind === "home" && order.typeId) {
+    // Task #129 — re-validates the footprint at completion time (real time has passed; the
+    // player may have built/zoned something else there since queuing), same stale-drop-and-
+    // refund tolerance as the item branch above.
+    const type = homeTypeById(order.typeId);
+    const placed = type && isFootprintFreeForHome(spaceId, order.x0, order.y0, type) ? placeHomeDirectly(spaceId, order.typeId, order.x0, order.y0) : null;
+    applied = placed !== null;
+    if (!applied && order.priceCents > 0) refundToTreasury(spaceId, order.priceCents);
+  } else if (order.kind === "business" && order.typeId) {
+    const type = businessTypeById(order.typeId);
+    const placed =
+      type && isFootprintFreeForBusiness(spaceId, order.x0, order.y0, type) ? placeBusinessDirectly(spaceId, order.typeId, order.x0, order.y0) : null;
     applied = placed !== null;
     if (!applied && order.priceCents > 0) refundToTreasury(spaceId, order.priceCents);
   }

@@ -31,11 +31,12 @@ const chipStyle = {
   whiteSpace: "nowrap" as const,
 };
 
+// Task #129 — renamed from "Transit stop" (read as a bus-stop landmark, not a road you build).
 const ZONE_LABEL: Record<string, string> = {
   residential: "Residential",
   commercial: "Commercial",
   sidewalk: "Sidewalk",
-  transit: "Transit stop",
+  transit: "Road",
 };
 
 function onboardingDismissedKey(spaceId: string): string {

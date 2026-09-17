@@ -56,11 +56,15 @@ function BuildingPreview({ url, width, height }: { url: string; width: number; h
   );
 }
 
+// Task #129 — "transit" was labeled "Transit stop" with a bus-stop glyph (🚏), which reads as a
+// single point-of-interest landmark, not "lay down a road here." Direct real feedback: "I don't
+// even know how to road build... I don't see nowhere to do that." The stored zone type id is
+// UNCHANGED (only the display label/icon), so no existing zoned tile silently reclassifies.
 const ZONE_META: Record<ZoneType, { label: string; icon: string }> = {
   residential: { label: "Residential", icon: "🏠" },
   commercial: { label: "Commercial", icon: "🏪" },
   sidewalk: { label: "Sidewalk", icon: "➰" },
-  transit: { label: "Transit stop", icon: "🚏" },
+  transit: { label: "Road", icon: "🛣️" },
 };
 
 /** Build queue (docs/overworld/build-queue-dispatch.md, task #123) — a plain, honest description

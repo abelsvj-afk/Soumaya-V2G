@@ -312,13 +312,19 @@ export function isFootprintFreeForBusiness(spaceId: string, x0: number, y0: numb
   return true;
 }
 
-/** Places the currently-armed business type with its footprint anchored at (x0, y0), then
- *  clears the armed state. The caller must have already confirmed `isFootprintFreeForBusiness`.
- *  Returns null and changes nothing if nothing is armed. `nowMs` defaults to the real clock;
- *  callers only ever override it in tests. */
-export function placeArmedBusiness(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedBusiness | null {
-  const typeId = armedBusinessTypeId(spaceId);
-  if (!typeId) return null;
+/** Task #129 (build-queue dispatch for any job) — places a SPECIFIC business type, never reading
+ *  the currently-armed slot, mirroring `housing.ts`'s own `placeHomeDirectly`. A queued build
+ *  order is completed later, by which time the player may have re-armed something else entirely;
+ *  a dispatched worker must still build exactly what was actually queued. The caller must have
+ *  already confirmed `isFootprintFreeForBusiness`. Never spends the treasury itself — the real
+ *  price was already paid at `armBusinessType` time. */
+export function placeBusinessDirectly(
+  spaceId: string,
+  typeId: string,
+  x0: number,
+  y0: number,
+  nowMs: number = Date.now(),
+): PlacedBusiness | null {
   const type = businessTypeById(typeId);
   if (!type) return null;
   const x1 = x0 + type.width - 1;
@@ -334,7 +340,18 @@ export function placeArmedBusiness(spaceId: string, x0: number, y0: number, nowM
     builtAt: nowMs,
   };
   savePlacedBusinesses(spaceId, [...placedBusinesses(spaceId), placed]);
-  clearArmedBusiness(spaceId);
+  return placed;
+}
+
+/** Places the currently-armed business type with its footprint anchored at (x0, y0), then
+ *  clears the armed state. The caller must have already confirmed `isFootprintFreeForBusiness`.
+ *  Returns null and changes nothing if nothing is armed. `nowMs` defaults to the real clock;
+ *  callers only ever override it in tests. */
+export function placeArmedBusiness(spaceId: string, x0: number, y0: number, nowMs: number = Date.now()): PlacedBusiness | null {
+  const typeId = armedBusinessTypeId(spaceId);
+  if (!typeId) return null;
+  const placed = placeBusinessDirectly(spaceId, typeId, x0, y0, nowMs);
+  if (placed) clearArmedBusiness(spaceId);
   return placed;
 }
 
