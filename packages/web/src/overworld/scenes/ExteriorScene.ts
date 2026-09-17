@@ -101,7 +101,7 @@ import {
   isInsideInteriorRoom,
 } from "../data/interiorRoom.js";
 import { completeOrder, dispatchModeEnabled, enqueueZoneRect, enqueueZoneTile, queueArmedItem, queuedOrders, type WorkOrder } from "../data/buildQueue.js";
-import { createPlayerWalkAnimations, idleFrameFor, PLAYER_WALK_SHEET, walkAnimKey } from "./characterSprites.js";
+import { createPlayerWalkAnimations, idleFrameFor, PLAYER_STEP_MS, PLAYER_WALK_SHEET, walkAnimKey } from "./characterSprites.js";
 import { color as uiColor } from "../ui/theme.js";
 
 export const TILE_SIZE = 32;
@@ -2069,12 +2069,20 @@ export class ExteriorScene extends Phaser.Scene {
           // walk straight through/into a structure they'd just built.
           isPassable: (x: number, y: number) => isMovementPassable(x, y) && !this.isBlockedByPlacedStructure(x, y),
         };
+    // Task #127 — captured BEFORE tryMove: `update()` re-emits a move every frame while a
+    // direction is held, and every one of those mid-step repeats comes back `moved: false`
+    // (movement.ts locks input out until the tween completes). Those are NOT blocked bumps, but
+    // they used to fall into the branch below and call `anims.stop()` — so the walk cycle was
+    // killed roughly one frame after it started, on every single step. That is the real reason
+    // the shipped walk animation never appeared at all, independent of the row mapping.
+    const wasMidStep = this.movement.isMoving;
     const result = tryMove(this.movement, event.direction, grid);
     this.movement = result.state;
     if (!result.moved) {
-      // Asset completion pass (task #124) — a blocked bump still turns the player to face that
-      // direction, the real GBA-Pokémon convention this sprite never had before (the old single
-      // atlas frame never varied by facing at all).
+      if (wasMidStep) return; // the in-flight step still owns the sprite; leave its cycle alone
+      // Asset completion pass (task #124) — a genuinely blocked bump still turns the player to
+      // face that direction, the real GBA-Pokémon convention this sprite never had before (the
+      // old single atlas frame never varied by facing at all).
       this.player.anims.stop();
       this.player.setFrame(idleFrameFor(event.direction));
       return;
@@ -2088,15 +2096,18 @@ export class ExteriorScene extends Phaser.Scene {
     this.spawnTrailParticle();
     const finish = () => {
       this.movement = completeMove(this.movement);
-      // A real, directional standing pose once the step lands — see the bump branch above for
-      // why this can't just be "whatever frame the walk animation happened to end on".
-      this.player.anims.stop();
-      this.player.setFrame(idleFrameFor(event.direction));
+      // Task #127 — deliberately does NOT stop the walk cycle here. Stopping after every landed
+      // step restarted the animation from frame 0 on each of them, so a held direction showed
+      // the same one or two frames forever instead of a stride. `update()` settles the sprite to
+      // a real directional standing frame once the player has genuinely stopped.
       this.afterStep(x, y);
       this.startIdleBob();
     };
     if (prefersReducedMotion()) {
       this.player.setPosition(targetX, targetY);
+      // No walk cycle runs under reduced motion, so the standing pose is set directly here —
+      // `update()`'s settle only ever has a playing animation to stop in the animated path.
+      this.player.setFrame(idleFrameFor(event.direction));
       finish();
       return;
     }
@@ -2104,7 +2115,7 @@ export class ExteriorScene extends Phaser.Scene {
     // playing for exactly the duration of this step's move tween; `finish()` above always stops
     // it and lands on a real standing frame, so it never keeps animating once the step lands.
     this.player.anims.play(walkAnimKey(event.direction), true);
-    this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: 140, ease: "Linear", onComplete: finish });
+    this.tweens.add({ targets: this.player, x: targetX, y: targetY, duration: PLAYER_STEP_MS, ease: "Linear", onComplete: finish });
     // A quick squash-and-recover per step ("hop") — game-feel juice, not gameplay state. Layers
     // safely on top of the real walk-cycle animation above (a scaleX/scaleY tween has no
     // property overlap with a frame-swap animation).
@@ -2355,6 +2366,14 @@ export class ExteriorScene extends Phaser.Scene {
     // one step (real user feedback — "you can't hold down the button to keep moving").
     const direction = keyboardDirection ?? this.inputBus.heldDirection;
     if (direction) this.inputBus.emit({ type: "move", direction });
+    // Task #127 — settle to a real directional standing frame only once the player has actually
+    // stopped (no input held AND no step still in flight). This replaces the old per-step stop in
+    // `finish()`, which restarted the cycle on every landed step and made continuous walking look
+    // frozen on one frame.
+    else if (!this.movement.isMoving && this.player.anims.isPlaying) {
+      this.player.anims.stop();
+      this.player.setFrame(idleFrameFor(this.movement.facing));
+    }
 
     const space = this.keys.SPACE;
     const enter = this.keys.ENTER;

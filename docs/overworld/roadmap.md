@@ -2410,6 +2410,55 @@ build). `ExteriorScene.ts` has no dedicated test (this file's established conven
 and 3 were verified by direct reading of every call site plus the measurement above. Not yet seen
 in a real browser.
 
+## Stage 2.67 — the player walk cycle actually works: measured row order, animation un-killed (task #127)
+
+Direct response to real on-device feedback: "my npc doesnt face the correct direction when walking.
+And i thought since u changed my npc, that that one has walking animation." Two separate real bugs,
+both in the walk-cycle work task #124 shipped — and #124's own Pending Validation entry had flagged
+the first as an explicitly unconfirmed assumption, so this is that confirmation arriving.
+
+**1. Three of the four facing directions were wrong.** `characterSprites.ts` mapped rows as the
+common RPG-Maker order (down, left, right, up) — task #124 documented this as a guess, since no
+frame-order metadata ships with the CC0 sheet and this sandbox has no browser. The real order was
+established against the actual pixels, two independent ways: (a) rows 2 and 3 are a PIXEL-PERFECT
+horizontal mirror pair — `ImageChops.difference` of row 2 flipped against row 3 is exactly 0 across
+all 8 columns — which is only true of the left/right pair, so rows 0 and 1 must be the vertical
+pair; (b) per-row skin-tone pixel centroids: row 0 is symmetric with 21 skin pixels (a full face,
+toward the camera = down), row 1 symmetric with only 4 (the back of the head = up), row 2's face
+sits 0.45px left of its body centre and row 3's 0.45px right. Confirmed by eye on an upscaled
+render (row 2's single visible eye is on the left, row 3's on the right) — the same labeled
+contact-sheet technique the Park-decor round already used. True order: **down, up, left, right**.
+Only "down" had been correct; walking left showed the back of the head, right showed the left
+profile, up showed the right profile.
+
+**2. The walk animation never played at all** — independent of the mapping, and the reason "I
+thought that one has walking animation." `update()` re-emits a move every frame while a direction
+is held, and every mid-step repeat comes back `moved: false` (movement.ts locks input out until the
+tween completes). Those repeats fell into the blocked-bump branch, which calls `anims.stop()` — so
+the cycle was killed roughly one frame (~16ms) after it started, on every single step. Compounding
+it, `finish()` also stopped the animation and reset to frame 0 after every landed step, and the
+frame rate was a hardcoded 10fps (an 8-frame cycle = 800ms) against a 140ms step, so even without
+the stop a step advanced only ~1.4 frames. Fixed on all three counts: a `wasMidStep` flag captured
+before `tryMove` distinguishes a real bump from a mid-step repeat (the latter now returns without
+touching the sprite); `finish()` no longer stops the cycle, so it carries across consecutive steps;
+`update()` settles to a real directional standing frame only once the player has genuinely stopped
+(no input held AND no step in flight). The frame rate is now derived from the real step duration
+rather than hand-tuned — one 8-frame cycle spans two tiles, so a foot plants once per tile — and
+the previously-inline `140` is now a shared `PLAYER_STEP_MS` so the tween and the cycle can't drift
+apart. Reduced motion is unaffected: no cycle runs there, so that path sets the standing frame
+directly.
+
+Still an honest open gap, unchanged from task #124: the town's ~26 hand-authored NPCs have no walk
+frames. The one sourced character sheet is a single character, and applying it to all of them would
+erase their individual looks; no CC0 pack matching their specific designs has been found.
+
+Verified by the mirror-pair and skin-centroid measurements above, the upscaled visual check, 1
+rewritten + 1 new `characterSprites.test.ts` case, and the full gate (1066 server + 650 web tests,
+typecheck, build). `ExteriorScene.ts` has no dedicated test (this file's established convention), so
+the input-path fixes were verified by direct reading of every branch that touches `player.anims`.
+Not yet seen in a real browser — but unlike task #124, the row order is now measured fact rather
+than an assumption.
+
 ## Stage 3 — Associative paths + region travel (post-deletion)
 
 Glowing footpath rendering between related creatures (edge data → path tiles); literal
