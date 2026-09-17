@@ -253,6 +253,32 @@ standards, learned the hard way (shipping "the code should spread the bodies" fi
 
 ## Pending Validation
 
+- **The player walk cycle actually works: measured row order, animation un-killed (task #127)
+  (2026-09-17), not yet on-device confirmed** — direct response to real on-device feedback ("my npc
+  doesnt face the correct direction when walking. And i thought since u changed my npc, that that
+  one has walking animation"). This IS the confirmation task #124's own Pending Validation entry was
+  waiting for, and it came back negative. Two separate real bugs; full account in
+  `docs/overworld/roadmap.md`'s "Stage 2.67". (1) **Three of four directions were wrong** — #124
+  shipped the RPG-Maker row order (down, left, right, up) as an explicitly documented guess. The
+  real order was measured against the actual pixels two independent ways: rows 2 and 3 are a
+  PIXEL-PERFECT horizontal mirror pair (difference exactly 0 across all 8 columns — only true of the
+  left/right pair, so rows 0/1 are the vertical pair), and per-row skin-tone centroids show row 0
+  symmetric with 21 skin pixels (full face = down), row 1 symmetric with 4 (back of head = up), row
+  2's face 0.45px left of centre and row 3's 0.45px right. Confirmed by eye on an upscaled render.
+  True order: **down, up, left, right**. (2) **The animation never played at all** — `update()`
+  re-emits a move every frame while a direction is held; mid-step repeats return `moved: false` and
+  fell into the blocked-bump branch, which calls `anims.stop()`, killing the cycle ~one frame after
+  it started, every step. `finish()` also reset it to frame 0 per step, and the hardcoded 10fps meant
+  a 140ms step advanced only ~1.4 of 8 frames anyway. Fixed with a `wasMidStep` flag distinguishing a
+  real bump from a mid-step repeat, `finish()` no longer stopping the cycle, and `update()` settling
+  to a standing frame only once the player has genuinely stopped; the frame rate is now derived from
+  a shared `PLAYER_STEP_MS` (one cycle spans two tiles, a foot per tile) instead of hand-tuned.
+  Reduced motion unaffected. Honest open gap, unchanged: the ~26 hand-authored NPCs still have no
+  walk frames (the one sourced sheet is a single character; using it for all would erase their
+  distinct looks). Verified by the measurements above, 1 rewritten + 1 new
+  `characterSprites.test.ts` case, and the full gate (1066 server + 650 web tests, typecheck,
+  build). Not yet seen in a real browser — but the row order is now measured fact, not an assumption.
+
 - **Gameplay-pitfall pass: off-map placement, one-shot counters, building on yourself (task #126)
   (2026-09-17), not yet on-device confirmed** — direct response to "look quickly for issues in
   gameplay" → "ship but look for more gameplay pitfalls." Three real bugs, each measured before
