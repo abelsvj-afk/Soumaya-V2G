@@ -50,9 +50,12 @@ describe("passiveNpcIncome — population-driven passive income (simcity-realism
     // uncapped range from `sinceTick`.
     const maxAccrualTicks = Math.floor((3 * 86_400_000) / SOCIETY_TICK_MS);
     const fromTick = Math.max(sinceTick, toTick - maxAccrualTicks);
-    const sameBuildingNpcIds = allSocietyNpcIds().filter((id) => npcProfile(id).placeId === placeId);
-    expect(sameBuildingNpcIds.length).toBe(2); // ATTENDANTS_PER_BUILDING — sanity-check the premise
-    const expectedCents = sameBuildingNpcIds.reduce((sum, id) => {
+    // Task #128 — in a brand-new town NO building is neglected any more (neglect now measures
+    // from the town's founding, not from the epoch), so every society NPC contributes, not just
+    // the two stationed at the one building this test marks worked.
+    const earningNpcIds = allSocietyNpcIds();
+    expect(allSocietyNpcIds().filter((id) => npcProfile(id).placeId === placeId).length).toBe(2); // ATTENDANTS_PER_BUILDING
+    const expectedCents = earningNpcIds.reduce((sum, id) => {
       const workingTicks = countWorkingTicks(id, fromTick, toTick);
       return sum + Math.floor(workingTicks / (HOUR_MS / SOCIETY_TICK_MS));
     }, 0);
@@ -61,44 +64,66 @@ describe("passiveNpcIncome — population-driven passive income (simcity-realism
     expect(treasuryBalanceCents(SPACE) - before).toBe(expectedCents);
   });
 
-  it("credits nothing for an NPC whose own building is currently neglected — never worked = maximally neglected", () => {
-    // Deliberately never call markWorked for anyone — every society NPC's building starts
-    // maximally neglected (buildingNeglect.ts's own established convention).
+  it("task #128 — a BRAND NEW town earns real NPC income immediately, without visiting anything first", () => {
+    // The inversion of what this file used to assert. Nothing is ever marked worked here: a fresh
+    // town is simply not neglected yet, so its NPCs are taxed from the start. Previously this
+    // credited exactly zero forever, which is why real players reported "money is not being made".
     collectPassiveNpcIncome(SPACE, 0); // baseline
     const before = treasuryBalanceCents(SPACE);
-    collectPassiveNpcIncome(SPACE, 500 * HOUR_MS);
+    collectPassiveNpcIncome(SPACE, SAFE_WORKING_WINDOW_MS);
+    expect(treasuryBalanceCents(SPACE)).toBeGreaterThan(before);
+  });
+
+  it("credits nothing for an NPC whose own building has genuinely gone neglected", () => {
+    // The real invariant the old test was reaching for, now expressed against real elapsed time:
+    // let the town age far past the neglect threshold with nothing ever worked.
+    collectPassiveNpcIncome(SPACE, 0); // baseline, and stamps the town's founding at 0
+    const longAfter = 400 * 24 * HOUR_MS; // ~400 real days, well past COOLING_ENTROPY's reach
+    collectPassiveNpcIncome(SPACE, longAfter); // advances stamps; everything is neglected by now
+    const before = treasuryBalanceCents(SPACE);
+    collectPassiveNpcIncome(SPACE, longAfter + 500 * HOUR_MS);
     expect(treasuryBalanceCents(SPACE)).toBe(before);
   });
 
   it("a neglected stretch is never banked for later — un-neglecting doesn't pay out the skipped time retroactively", () => {
     const npcId = allSocietyNpcIds()[0]!;
     const placeId = npcProfile(npcId).placeId;
-    collectPassiveNpcIncome(SPACE, 0); // baseline, neglected (never worked)
-    collectPassiveNpcIncome(SPACE, 500 * HOUR_MS); // still neglected — credits nothing, but the stamp still advances
+    // Age the town well past the neglect threshold first (task #128 — a NEW town is no longer
+    // neglected, so the skipped stretch this test is about has to be a genuinely aged one).
+    const aged = 400 * 24 * HOUR_MS;
+    collectPassiveNpcIncome(SPACE, 0); // stamps founding at 0
+    collectPassiveNpcIncome(SPACE, aged); // everything neglected by now; stamps advance
     const balanceBeforeUnneglect = treasuryBalanceCents(SPACE);
-    markWorked(SPACE, placeId, 500 * HOUR_MS); // un-neglects starting now
-    collectPassiveNpcIncome(SPACE, 500 * HOUR_MS + 1); // essentially zero new elapsed time since un-neglecting
-    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeUnneglect); // no retroactive payout for the 500 skipped hours
+    markWorked(SPACE, placeId, aged); // un-neglects that one building starting now
+    collectPassiveNpcIncome(SPACE, aged + 1); // essentially zero new elapsed time since un-neglecting
+    expect(treasuryBalanceCents(SPACE)).toBe(balanceBeforeUnneglect); // no retroactive payout
   });
 
-  it("stacks independently across multiple real buildings — more worked buildings credits more", () => {
-    // ids[0..2] span 2 real buildings (2 attendants per building) — marking all 3 worked marks
-    // 2 buildings not-neglected, crediting every real NPC stationed at either of them.
-    const ids = allSocietyNpcIds().slice(0, 3);
-    for (const id of ids) markWorked(SPACE, npcProfile(id).placeId, 0);
-    collectPassiveNpcIncome(SPACE, 0);
-    const before = treasuryBalanceCents(SPACE);
-    collectPassiveNpcIncome(SPACE, SAFE_WORKING_WINDOW_MS);
-    const total = treasuryBalanceCents(SPACE) - before;
+  it("a worked building keeps earning while an untouched one stops — neglect still gates income", () => {
+    // Task #128 rewrote this test's original premise (it used to compare 2 worked buildings vs 1,
+    // which no longer differentiates now that a fresh town's buildings all earn). The real
+    // invariant is the one that still matters: keeping a building worked beats letting it rot.
+    const npcId = allSocietyNpcIds()[0]!;
+    const placeId = npcProfile(npcId).placeId;
+    const aged = 400 * 24 * HOUR_MS;
 
-    // Compare against marking only ids[0]'s own real building worked (1 building, its own 2
-    // attendants) — the combined 2-building total must be strictly greater.
-    const soloSpace = "solo-space";
-    markWorked(soloSpace, npcProfile(ids[0]!).placeId, 0);
-    collectPassiveNpcIncome(soloSpace, 0);
-    const soloBefore = treasuryBalanceCents(soloSpace);
-    collectPassiveNpcIncome(soloSpace, SAFE_WORKING_WINDOW_MS);
-    const soloTotal = treasuryBalanceCents(soloSpace) - soloBefore;
-    expect(total).toBeGreaterThan(soloTotal);
+    // Space A: one building kept genuinely current right up to the measurement window.
+    collectPassiveNpcIncome(SPACE, 0);
+    markWorked(SPACE, placeId, aged);
+    collectPassiveNpcIncome(SPACE, aged);
+    const beforeA = treasuryBalanceCents(SPACE);
+    collectPassiveNpcIncome(SPACE, aged + SAFE_WORKING_WINDOW_MS);
+    const tendedTotal = treasuryBalanceCents(SPACE) - beforeA;
+
+    // Space B: identical ageing, nothing ever worked.
+    const rotted = "rotted-space";
+    collectPassiveNpcIncome(rotted, 0);
+    collectPassiveNpcIncome(rotted, aged);
+    const beforeB = treasuryBalanceCents(rotted);
+    collectPassiveNpcIncome(rotted, aged + SAFE_WORKING_WINDOW_MS);
+    const rottedTotal = treasuryBalanceCents(rotted) - beforeB;
+
+    expect(tendedTotal).toBeGreaterThan(rottedTotal);
+    expect(rottedTotal).toBe(0);
   });
 });

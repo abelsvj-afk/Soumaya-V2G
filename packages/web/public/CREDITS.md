@@ -150,3 +150,16 @@ functional gap — see `docs/overworld/gameplay-uiux-audit-2026-09-15.md`). Thei
 credited entries this section used to carry) is preserved in git history
 (`git log -p -- packages/web/public/CREDITS.md`) if any of them are ever restored.
 
+
+## Interior floor tiles (2026-09-17, task #128)
+
+`overworld/interior/floor.png` and `overworld/interior/floor-wood.png` come from Kenney's
+**RPG Urban Pack** (CC0 / public domain), the same author as the Tiny Town and Tiny Dungeon tiles
+already used throughout this game, and on the same 16x16 grid. Sourced via the CC0 mirror
+`github.com/shorepine/kenney` (the route the Park-decor round already proved reachable from this
+sandbox). They replace an outdoor dirt-path tile that had been misused as an interior floor: it
+carries a baked-in grass border (measured — 99 of its 256 pixels are grass green), so repeating it
+across a floor produced visible green gutters. These two were chosen by measuring edge continuity
+across every candidate in the pack and keeping only exact seam-free matches, then reviewing the
+survivors rendered as a 3x3 tiling. `floor-wood.png` is staged for the per-building-type interior
+fit-out round and is not wired into code yet.

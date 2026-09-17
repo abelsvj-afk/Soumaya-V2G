@@ -11,7 +11,11 @@ import { allSocietyNpcIds } from "../data/npcDialogue.js";
 import { allResidentNpcIds } from "../data/residents.js";
 
 describe("MayorsHallOverlay (mayors-hall.md)", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    // Task #128 — age the town so never-worked buildings really are neglected (a NEW town is not).
+    localStorage.setItem("brain.townFoundedAt.space-1", "0");
+  });
 
   it("lists every other real door-building, never itself", () => {
     render(<MayorsHallOverlay spaceId="space-1" onClose={vi.fn()} />);

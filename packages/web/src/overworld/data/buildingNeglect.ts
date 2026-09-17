@@ -34,11 +34,42 @@ export function markWorked(spaceId: string, placeId: string, nowMs: number = Dat
   }
 }
 
-/** Real days since this building's last real work event — Infinity if it has never had one. */
+function foundedKey(spaceId: string): string {
+  return `brain.townFoundedAt.${spaceId}`;
+}
+
+/** Task #128 — when this town was first seen. A building that has never had a work event now
+ *  measures its neglect from here instead of from the epoch. Written once, then never moved, so
+ *  neglect still accrues honestly with real elapsed time; it just starts when the town starts. */
+export function townFoundedAt(spaceId: string, nowMs: number = Date.now()): number {
+  try {
+    const raw = localStorage.getItem(foundedKey(spaceId));
+    const parsed = raw == null ? NaN : Number(raw);
+    if (Number.isFinite(parsed)) return parsed;
+    localStorage.setItem(foundedKey(spaceId), String(nowMs));
+  } catch {
+    /* storage unavailable — fall through to "founded right now", never a crash */
+  }
+  return nowMs;
+}
+
+/** Real days since this building's last real work event. Task #128 — a building that has NEVER
+ *  had one measures from the town's own founding rather than returning Infinity.
+ *
+ *  Why this changed: returning Infinity made `neglectFor` return 1, so every building in a brand
+ *  new town was MAXIMALLY neglected from the first frame. `passiveNpcIncome.ts` skips any NPC
+ *  whose building is neglected, so a new town earned exactly zero NPC tax forever — until the
+ *  player happened to walk a full circuit of all 12 buildings. Combined with structure rent and
+ *  Resident income both needing a placed building (which task #128 also found was impossible to
+ *  do), a new town was structurally incapable of earning anything at all. That is the literal
+ *  mechanism behind repeated real feedback that "money is not being made."
+ *
+ *  A brand-new town is therefore not in crisis on its first day, which is also why `civicConcern`
+ *  no longer announces a town meeting the instant a fresh save loads — deliberate, and an
+ *  improvement on behaviour that was documented as intentional but always read as a bug. */
 export function daysSinceWorked(spaceId: string, placeId: string, nowMs: number = Date.now()): number {
-  const stamp = loadLastWorked(spaceId)[placeId];
-  if (stamp == null) return Infinity;
-  return (nowMs - stamp) / 86_400_000;
+  const stamp = loadLastWorked(spaceId)[placeId] ?? townFoundedAt(spaceId, nowMs);
+  return Math.max(0, (nowMs - stamp) / 86_400_000);
 }
 
 /** Pure: the actual neglect math. Reuses `entropyFrom`'s real shape — a building that has
